@@ -1,7 +1,18 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import { onMounted } from 'vue';
+import { useNetworkStore } from './stores/network';
+
+const network = useNetworkStore();
+
+onMounted(() => {
+  network.init();
+});
 </script>
 
 <template>
-  <HelloWorld />
+  <router-view></router-view>
 </template>
+
+<style>
+/* Los estilos globales están en style.css */
+</style>
