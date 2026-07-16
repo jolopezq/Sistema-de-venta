@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +22,17 @@ class Category extends Model
         'parent_id',
         'sort_order',
     ];
+
+    // --- Scopes ---
+
+    /**
+     * Ordena las categorías según el campo `sort_order` (para el menú del POS).
+     * Uso: Category::ordered()->get()
+     */
+    public function scopeOrdered(Builder $query): Builder
+    {
+        return $query->orderBy('sort_order');
+    }
 
     // --- Relaciones ---
 

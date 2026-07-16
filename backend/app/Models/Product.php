@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -38,6 +39,17 @@ class Product extends Model
             'is_weight_based' => 'boolean',
             'is_active' => 'boolean',
         ];
+    }
+
+    // --- Scopes ---
+
+    /**
+     * Filtra solo los productos activos (visibles en el POS).
+     * Uso: Product::active()->get()
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
     }
 
     // --- Relaciones ---

@@ -8,6 +8,7 @@ export const useCatalogStore = defineStore('catalog', {
     products: [],
     customers: [],
     isLoading: false,
+    errorMessage: null,
   }),
   actions: {
     async loadFromLocal() {
@@ -25,14 +26,16 @@ export const useCatalogStore = defineStore('catalog', {
           await db.products.clear();
           await db.customers.clear();
           
-          await db.categories.bulkAdd(data.categories);
-          await db.products.bulkAdd(data.products);
-          await db.customers.bulkAdd(data.customers);
+          await db.categories.bulkAdd(data.categories || []);
+          await db.products.bulkAdd(data.products || []);
+          await db.customers.bulkAdd(data.customers || []);
         });
         
         await this.loadFromLocal();
-      } catch (e) {
-        console.error('Error al obtener el catálogo desde el servidor (modo offline activado)', e);
+      } catch (error) {
+        console.error('Error fetching catalog:', error);
+        this.errorMessage = error.message || 'Error al obtener catálogo';
+        // Si falla, intentamos cargar de local
         await this.loadFromLocal();
       } finally {
         this.isLoading = false;

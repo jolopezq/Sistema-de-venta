@@ -2,56 +2,57 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Category;
+use App\Repositories\CategoryRepository;
 use App\Http\Requests\CategoryRequest;
 use App\Http\Resources\CategoryResource;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
 class CategoryController extends Controller
 {
+    public function __construct(
+        private readonly CategoryRepository $categories
+    ) {}
+
     /**
-     * Display a listing of the resource.
+     * Lista todas las categorías en orden de presentación.
      */
     public function index(): AnonymousResourceCollection
     {
-        $categories = Category::orderBy('sort_order')->get();
-        return CategoryResource::collection($categories);
+        return CategoryResource::collection($this->categories->allOrdered());
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Crea una nueva categoría.
      */
     public function store(CategoryRequest $request): CategoryResource
     {
-        $category = Category::create($request->validated());
+        $category = $this->categories->create($request->validated());
         return new CategoryResource($category);
     }
 
     /**
-     * Display the specified resource.
+     * Muestra una categoría específica.
      */
-    public function show(Category $category): CategoryResource
+    public function show(int $id): CategoryResource
     {
-        return new CategoryResource($category);
+        return new CategoryResource(\App\Models\Category::findOrFail($id));
     }
 
     /**
-     * Update the specified resource in storage.
+     * Actualiza una categoría existente.
      */
-    public function update(CategoryRequest $request, Category $category): CategoryResource
+    public function update(CategoryRequest $request, \App\Models\Category $category): CategoryResource
     {
-        $category->update($request->validated());
-        return new CategoryResource($category);
+        return new CategoryResource($this->categories->update($category, $request->validated()));
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Soft-delete de una categoría.
      */
-    public function destroy(Category $category): Response
+    public function destroy(\App\Models\Category $category): Response
     {
-        $category->delete();
+        $this->categories->delete($category);
         return response()->noContent();
     }
 }

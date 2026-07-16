@@ -20,6 +20,10 @@ onMounted(async () => {
   // Inicializamos el catálogo si estaba vacío en memoria
   if (catalog.categories.length === 0) {
     await catalog.loadFromLocal();
+    if (catalog.categories.length === 0) {
+      // Si la BD local está vacía, forzamos descarga desde el servidor
+      await catalog.fetchAndCache();
+    }
   }
 });
 
@@ -77,6 +81,10 @@ async function handleLogout() {
     <div class="pos-content">
       <!-- Main Content (Catálogo) -->
       <main class="pos-main">
+        <div v-if="catalog.errorMessage" style="background: red; color: white; padding: 1rem; text-align: center;">
+          Error: {{ catalog.errorMessage }}
+        </div>
+        
         <CategoryFilter 
           :categories="catalog.categories" 
           :activeCategoryId="activeCategoryId"

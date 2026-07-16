@@ -2,55 +2,59 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
+use App\Repositories\ProductRepository;
 use App\Http\Requests\ProductRequest;
 use App\Http\Resources\ProductResource;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
 class ProductController extends Controller
 {
+    public function __construct(
+        private readonly ProductRepository $products
+    ) {}
+
     /**
-     * Display a listing of the resource.
+     * Lista paginada de todos los productos.
+     * Usar paginación evita traer toda la tabla en producción.
      */
     public function index(): AnonymousResourceCollection
     {
-        return ProductResource::collection(Product::all());
+        return ProductResource::collection($this->products->paginated());
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Crea un nuevo producto.
      */
     public function store(ProductRequest $request): ProductResource
     {
-        $product = Product::create($request->validated());
+        $product = $this->products->create($request->validated());
         return new ProductResource($product);
     }
 
     /**
-     * Display the specified resource.
+     * Muestra un producto específico.
      */
-    public function show(Product $product): ProductResource
+    public function show(int $id): ProductResource
     {
-        return new ProductResource($product);
+        return new ProductResource($this->products->findWithRecipes($id));
     }
 
     /**
-     * Update the specified resource in storage.
+     * Actualiza un producto existente.
      */
-    public function update(ProductRequest $request, Product $product): ProductResource
+    public function update(ProductRequest $request, int $id): ProductResource
     {
-        $product->update($request->validated());
-        return new ProductResource($product);
+        $product = $this->products->findWithRecipes($id);
+        return new ProductResource($this->products->update($product, $request->validated()));
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Soft-delete de un producto (nunca DELETE físico).
      */
-    public function destroy(Product $product): Response
+    public function destroy(int $id): Response
     {
-        $product->delete();
+        $this->products->delete($this->products->findWithRecipes($id));
         return response()->noContent();
     }
 }

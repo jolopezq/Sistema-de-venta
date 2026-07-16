@@ -15,12 +15,12 @@ export const useAuthStore = defineStore('auth', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      
+
       this.token = response.token;
       this.user = response.user;
       localStorage.setItem('auth_token', response.token);
     },
-    
+
     async logout() {
       try {
         if (this.token) {
@@ -34,7 +34,7 @@ export const useAuthStore = defineStore('auth', {
         localStorage.removeItem('auth_token');
       }
     },
-    
+
     async fetchUser() {
       if (!this.token) return;
       try {
