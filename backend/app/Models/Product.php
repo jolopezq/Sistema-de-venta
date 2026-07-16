@@ -59,12 +59,14 @@ class Product extends Model
         return $this->belongsTo(Category::class);
     }
 
-    /**
-     * Recetas (composición de insumos) de este producto.
-     */
     public function recipes(): HasMany
     {
         return $this->hasMany(Recipe::class);
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
     }
 
     public function saleItems(): HasMany

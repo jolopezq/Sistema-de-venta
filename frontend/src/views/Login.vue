@@ -18,11 +18,8 @@ async function handleLogin() {
   isLoading.value = true;
   try {
     await auth.login(email.value, password.value);
-    
-    // Al loguearse exitosamente, descargar el catálogo (Caché local)
-    // Esto es vital para el soporte Offline-First
+    // Offline-First: descarga el catálogo al iniciar sesión
     await catalog.fetchAndCache();
-    
     router.push('/pos');
   } catch (e) {
     errorMsg.value = e.message || 'Credenciales incorrectas';
@@ -33,104 +30,52 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="login-container">
-    <form @submit.prevent="handleLogin" class="glass-panel login-form">
-      <h1 class="login-title">Ohana Açaí POS</h1>
-      <p class="login-subtitle">Sistema de Gestión y Caja</p>
-      
-      <div v-if="errorMsg" class="alert-danger">{{ errorMsg }}</div>
-      
-      <div class="form-group">
-        <label>Email del Cajero</label>
-        <input type="email" v-model="email" required class="form-input" placeholder="ejemplo@ohana.com"/>
+  <div class="login-screen">
+    <form @submit.prevent="handleLogin" class="login-card">
+      <div class="login-logo"></div>
+      <h1>Ohana Açaí POS</h1>
+      <p class="tagline">Sistema de Gestión y Caja</p>
+
+      <div v-if="errorMsg" class="offline-banner" style="background:var(--danger-100);border-color:var(--danger-500);color:var(--danger-600);">
+        ⚠️ {{ errorMsg }}
       </div>
-      
-      <div class="form-group">
+
+      <div class="field">
+        <label>Email del cajero</label>
+        <input type="email" v-model="email" required placeholder="cajero@ohana.com" />
+      </div>
+
+      <div class="field">
         <label>Contraseña o PIN</label>
-        <input type="password" v-model="password" required class="form-input" placeholder="••••••••"/>
+        <input type="password" v-model="password" required placeholder="••••••••" />
       </div>
-      
-      <button type="submit" class="btn btn-primary login-btn" :disabled="isLoading">
+
+      <button type="submit" class="btn btn-primary" :disabled="isLoading">
         {{ isLoading ? 'Conectando...' : 'Iniciar Turno' }}
       </button>
+
+      <div class="offline-banner">
+        <span>📶</span>
+        <span>Sin conexión: el sistema funciona offline y sincronizará al restaurar la red.</span>
+      </div>
     </form>
   </div>
 </template>
 
 <style scoped>
-.login-container {
+.login-screen {
+  min-height: 100vh;
+  position: relative;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(140,63,136,0.55) 0, transparent 45%),
+    radial-gradient(circle at 85% 80%, rgba(255,107,69,0.35) 0, transparent 45%),
+    var(--acai-900);
   display: flex;
-  justify-content: center;
   align-items: center;
-  height: 100vh;
-  /* Fondo vibrante y moderno */
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  justify-content: center;
+  padding: 40px;
 }
 
-.login-form {
-  padding: 3rem;
-  width: 100%;
-  max-width: 420px;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.login-title {
-  text-align: center;
-  font-size: 2rem;
-  font-weight: 800;
-  margin-bottom: 0.2rem;
-  color: var(--text-primary);
-}
-.login-subtitle {
-  text-align: center;
-  font-size: 1rem;
-  color: var(--text-secondary);
-  margin-bottom: 1rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-group label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.form-input {
-  padding: 0.85rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--border-color);
-  font-size: 1rem;
-  outline: none;
-  transition: all 0.2s ease;
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
-}
-.form-input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(140, 82, 255, 0.2);
-}
-
-.login-btn {
-  margin-top: 1rem;
-  font-size: 1.1rem;
-  padding: 1rem;
-  border-radius: 0.75rem;
-}
-
-.alert-danger {
-  background-color: #FEE2E2;
-  color: var(--color-danger);
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
-  text-align: center;
-  font-weight: 500;
-}
+/* All other classes (.login-card, .login-logo, .field, .btn, .offline-banner)
+   come from the global style.css extracted from the prototype */
 </style>

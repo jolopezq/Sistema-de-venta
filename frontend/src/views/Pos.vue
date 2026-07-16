@@ -8,6 +8,8 @@ import NetworkIndicator from '../components/NetworkIndicator.vue';
 import CategoryFilter from '../components/CategoryFilter.vue';
 import ProductCard from '../components/ProductCard.vue';
 import CartItem from '../components/CartItem.vue';
+import CheckoutModal from '../components/CheckoutModal.vue';
+import ReceiptModal from '../components/ReceiptModal.vue';
 
 const catalog = useCatalogStore();
 const cart = useCartStore();
@@ -15,22 +17,26 @@ const auth = useAuthStore();
 const router = useRouter();
 
 const activeCategoryId = ref(null);
+const globalSize = ref('Grande');
+
+const isBowlCategory = computed(() => {
+  if (!activeCategoryId.value) return true; // show size legend on "All"
+  const cat = catalog.categories.find(c => c.id === activeCategoryId.value);
+  return cat && cat.name.toLowerCase().includes('bowl');
+});
 
 onMounted(async () => {
-  // Inicializamos el catálogo si estaba vacío en memoria
+  // Offline-First: carga el catálogo local primero, luego sincroniza
   if (catalog.categories.length === 0) {
     await catalog.loadFromLocal();
     if (catalog.categories.length === 0) {
-      // Si la BD local está vacía, forzamos descarga desde el servidor
       await catalog.fetchAndCache();
     }
   }
 });
 
 const filteredProducts = computed(() => {
-  if (activeCategoryId.value === null) {
-    return catalog.products;
-  }
+  if (activeCategoryId.value === null) return catalog.products;
   return catalog.products.filter(p => p.category_id === activeCategoryId.value);
 });
 
@@ -39,7 +45,7 @@ function handleAddToCart(product) {
 }
 
 function handleIncrease(item) {
-  cart.addItem({ id: item.product_id, name: item.name, price: item.unit_price }, 1);
+  cart.addItem({ id: item.product_id, name: item.name, price: item.unit_price, size: item.size }, 1);
 }
 
 function handleDecrease(item) {
@@ -54,8 +60,25 @@ function handleDecrease(item) {
   }
 }
 
-async function handleCheckout() {
-  await cart.checkout('cash');
+const showCheckout = ref(false);
+const showReceipt = ref(false);
+const completedSale = ref(null);
+
+function handleCheckout() { showCheckout.value = true; }
+
+async function handleConfirmCheckout(checkoutData) {
+  const sale = await cart.checkout(checkoutData);
+  if (sale) {
+    sale.change = checkoutData.change;
+    completedSale.value = sale;
+    showCheckout.value = false;
+    showReceipt.value = true;
+  }
+}
+
+function handleCloseReceipt() {
+  showReceipt.value = false;
+  completedSale.value = null;
 }
 
 async function handleLogout() {
@@ -66,235 +89,157 @@ async function handleLogout() {
 
 <template>
   <div class="pos-layout">
-    <!-- Header principal -->
-    <header class="pos-header">
-      <div class="header-left">
-        <h2>Ohana Açaí</h2>
-        <NetworkIndicator />
+    <!-- Header -->
+    <div class="pos-header">
+      <div class="pos-brand">
+        <div class="logo-chip"></div>
+        <span>Ohana Açaí POS</span>
       </div>
-      <div class="header-right">
-        <span class="user-name">Cajero: {{ auth.user?.name || 'Cajero' }}</span>
-        <button class="btn btn-outline" @click="handleLogout">Salir</button>
-      </div>
-    </header>
-
-    <div class="pos-content">
-      <!-- Main Content (Catálogo) -->
-      <main class="pos-main">
-        <div v-if="catalog.errorMessage" style="background: red; color: white; padding: 1rem; text-align: center;">
-          Error: {{ catalog.errorMessage }}
+      <div class="pos-header-right">
+        <button
+          class="btn-sm"
+          style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;border-radius:10px;padding:8px 14px;cursor:pointer;"
+          @click="router.push('/delivery')"
+        >Delivery</button>
+        <button
+          class="btn-sm"
+          style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;border-radius:10px;padding:8px 14px;cursor:pointer;"
+          @click="router.push('/admin')"
+        >Catálogo</button>
+        <button
+          class="btn-sm"
+          style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;border-radius:10px;padding:8px 14px;cursor:pointer;"
+          @click="router.push('/turno')"
+        >Turno</button>
+        <div class="sync-pill">
+          <NetworkIndicator />
         </div>
-        
-        <CategoryFilter 
-          :categories="catalog.categories" 
+        <div class="cashier-chip">
+          <div class="avatar">{{ auth.user?.name?.charAt(0).toUpperCase() || 'C' }}</div>
+          <span>{{ auth.user?.name || 'Cajero' }}</span>
+        </div>
+        <button
+          class="btn-sm"
+          style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;border-radius:10px;padding:8px 14px;cursor:pointer;"
+          @click="handleLogout"
+        >Salir</button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="pos-body">
+      <!-- Catalog -->
+      <div class="pos-catalog">
+        <div v-if="catalog.errorMessage" style="background:var(--danger-100);color:var(--danger-600);padding:12px 16px;border-radius:10px;margin-bottom:14px;font-weight:600;">
+          ⚠️ {{ catalog.errorMessage }}
+        </div>
+
+        <div class="search-row">
+          <input class="search-input" placeholder="🔍 Buscar producto por nombre..." />
+        </div>
+
+        <CategoryFilter
+          :categories="catalog.categories"
           :activeCategoryId="activeCategoryId"
           @select="activeCategoryId = $event"
         />
 
-        <div class="products-grid">
-          <ProductCard 
-            v-for="product in filteredProducts" 
+        <div class="size-legend" v-if="isBowlCategory">
+          <span>Tamaño:</span>
+          <span class="size-chip" :class="{ active: globalSize === 'Junior' }" @click="globalSize = 'Junior'">Junior · Bs 18</span>
+          <span class="size-chip" :class="{ active: globalSize === 'Mediano' }" @click="globalSize = 'Mediano'">Mediano · Bs 25</span>
+          <span class="size-chip" :class="{ active: globalSize === 'Grande' }" @click="globalSize = 'Grande'">Grande · Bs 35</span>
+          <span class="size-chip" :class="{ active: globalSize === 'Ohana' }" @click="globalSize = 'Ohana'">Ohana · Bs 50</span>
+        </div>
+
+        <div class="product-grid">
+          <ProductCard
+            v-for="product in filteredProducts"
             :key="product.id"
             :product="product"
             @add="handleAddToCart"
           />
-          <div v-if="filteredProducts.length === 0" class="empty-state">
+          <div v-if="filteredProducts.length === 0" style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--ink-500);font-weight:600;">
             No hay productos disponibles.
           </div>
         </div>
-      </main>
+      </div>
 
-      <!-- Sidebar (Ticket/Carrito) -->
-      <aside class="pos-sidebar glass-panel">
-        <h2 class="sidebar-title">Ticket Actual</h2>
-        
-        <div class="cart-items">
-          <CartItem 
-            v-for="item in cart.items" 
+      <!-- Ticket -->
+      <div class="pos-ticket">
+        <div class="ticket-header">
+          <h3>Ticket actual</h3>
+        </div>
+
+        <div class="ticket-items">
+          <CartItem
+            v-for="item in cart.items"
             :key="item.product_id"
             :item="item"
             @increase="handleIncrease"
             @decrease="handleDecrease"
           />
-          <div v-if="cart.items.length === 0" class="empty-cart">
+          <div v-if="cart.items.length === 0" style="text-align:center;padding:3rem 1rem;color:var(--ink-500);font-weight:600;font-size:14px;">
             El carrito está vacío
           </div>
         </div>
 
-        <div class="cart-summary">
-          <div class="summary-row">
+        <div class="ticket-summary">
+          <div class="sum-row">
             <span>Subtotal</span>
-            <span>${{ Number(cart.subtotal).toFixed(2) }}</span>
+            <span>Bs {{ Number(cart.subtotal).toFixed(2) }}</span>
           </div>
-          <div class="summary-row total">
+          <div class="sum-row">
+            <span>Descuento VIP</span>
+            <span>− Bs 0.00</span>
+          </div>
+          <div class="sum-row total">
             <span>Total</span>
-            <span>${{ Number(cart.total).toFixed(2) }}</span>
+            <span class="amt">Bs {{ Number(cart.total).toFixed(2) }}</span>
           </div>
-          
-          <button 
-            class="btn btn-primary checkout-btn" 
+        </div>
+
+        <div class="ticket-footer">
+          <button
+            class="btn btn-success"
             :disabled="cart.items.length === 0"
             @click="handleCheckout"
           >
-            Cobrar Venta
+            Cobrar venta
           </button>
         </div>
-      </aside>
+      </div>
     </div>
+
+    <!-- Modales -->
+    <CheckoutModal
+      :show="showCheckout"
+      :total="cart.total"
+      @close="showCheckout = false"
+      @confirm="handleConfirmCheckout"
+    />
+    <ReceiptModal
+      :show="showReceipt"
+      :sale="completedSale"
+      @close="handleCloseReceipt"
+    />
   </div>
 </template>
 
 <style scoped>
+/* 
+  All classes (.pos-header, .pos-brand, .pos-body, .pos-catalog, .pos-ticket,
+  .ticket-header, .ticket-items, .ticket-summary, .ticket-footer, .sum-row,
+  .product-grid, .search-row, .search-input, .size-legend, .size-chip, 
+  .sync-pill, .cashier-chip, .logo-chip, .avatar)
+  are defined in the global style.css extracted exactly from the prototype.
+*/
 .pos-layout {
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background-color: var(--bg-tertiary);
   overflow: hidden;
-}
-
-.pos-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  background-color: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
-  z-index: 10;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.header-left h2 {
-  font-weight: 800;
-  color: var(--color-primary);
-  letter-spacing: -0.5px;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.user-name {
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  padding: 0.5rem 1rem;
-}
-.btn-outline:hover {
-  background: var(--bg-tertiary);
-}
-
-.pos-content {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-.pos-main {
-  flex: 1;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-}
-
-.products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 1.5rem;
-}
-
-.empty-state {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 3rem;
-  color: var(--text-secondary);
-}
-
-.pos-sidebar {
-  width: 380px;
-  background: var(--bg-secondary);
-  border-left: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  border-radius: 0;
-  border-right: none;
-  border-top: none;
-  border-bottom: none;
-}
-
-.sidebar-title {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 1.25rem;
-}
-
-.cart-items {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 1.5rem;
-}
-
-.empty-cart {
-  text-align: center;
-  padding: 3rem 0;
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-.cart-summary {
-  padding: 1.5rem;
-  background: var(--bg-tertiary);
-  border-top: 1px solid var(--border-color);
-}
-
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: 1rem;
-  color: var(--text-secondary);
-}
-
-.summary-row.total {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  margin-top: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.checkout-btn {
-  width: 100%;
-  padding: 1.25rem;
-  font-size: 1.25rem;
-  border-radius: 0.75rem;
-  background: var(--color-success);
-}
-.checkout-btn:hover:not(:disabled) {
-  background: #00C853;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 230, 118, 0.4);
-}
-.checkout-btn:disabled {
-  background: #9CA3AF;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+  background: var(--cream-100);
 }
 </style>

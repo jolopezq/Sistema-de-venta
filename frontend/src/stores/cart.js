@@ -33,15 +33,20 @@ export const useCartStore = defineStore('cart', {
       this.items = [];
       this.customerId = null;
     },
-    async checkout(paymentMethod = 'cash') {
-      if (this.items.length === 0) return;
+    async checkout(checkoutData) {
+      if (this.items.length === 0) return null;
+      
+      // checkoutData contiene: { payments: [], customerId: null, discountAmount: 0 }
+      const payments = checkoutData.payments || [];
+      const customerId = checkoutData.customerId || this.customerId;
+      const discountAmount = checkoutData.discountAmount || 0;
       
       const sale = {
         id: crypto.randomUUID(), // Generación de UUID v4 en cliente
-        customer_id: this.customerId,
+        customer_id: customerId,
         subtotal: this.subtotal,
-        discount_amount: 0,
-        total_amount: this.total,
+        discount_amount: discountAmount,
+        total_amount: this.total - discountAmount,
         status: 'completed',
         source: 'pos',
         sync_status: 'pending',
@@ -52,9 +57,7 @@ export const useCartStore = defineStore('cart', {
           unit_price: i.unit_price,
           subtotal: i.subtotal,
         })),
-        payments: [
-          { method: paymentMethod, amount: this.total }
-        ]
+        payments: payments
       };
 
       // Guarda la venta en IndexedDB
@@ -66,6 +69,8 @@ export const useCartStore = defineStore('cart', {
       const { useNetworkStore } = await import('./network.js');
       const networkStore = useNetworkStore();
       networkStore.triggerSync();
+
+      return sale; // Devolvemos la venta para mostrar el recibo
     }
   }
 });

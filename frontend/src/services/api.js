@@ -1,4 +1,4 @@
-export const API_URL = 'http://localhost:8001/api'; // En prod usar import.meta.env.VITE_API_URL
+export const API_URL = 'http://localhost:8002/api'; // En prod usar import.meta.env.VITE_API_URL
 
 export async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem('auth_token');

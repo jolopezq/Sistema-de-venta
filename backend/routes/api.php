@@ -46,4 +46,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     
     Route::get('/loyalty-config', [LoyaltyConfigController::class, 'show']);
     Route::put('/loyalty-config', [LoyaltyConfigController::class, 'update']);
+
+    // Gestión de usuarios (Solo Admin)
+    Route::middleware(['admin'])->group(function () {
+        Route::apiResource('users', \App\Http\Controllers\UserController::class);
+    });
 });

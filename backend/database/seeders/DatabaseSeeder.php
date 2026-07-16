@@ -35,18 +35,42 @@ class DatabaseSeeder extends Seeder
         $catBowls = Category::create(['name' => 'Açaí Bowls', 'sort_order' => 1]);
         $catSmoothies = Category::create(['name' => 'Smoothies', 'sort_order' => 2]);
 
-        // 4. Crear Productos y Recetas
-        $bowlP = Product::create(['name' => 'Bowl Pequeño', 'price' => 25, 'category_id' => $catBowls->id, 'printer_target' => 'kitchen']);
-        Recipe::create(['product_id' => $bowlP->id, 'ingredient_id' => $acai->id, 'quantity_required' => 0.150]);
-        Recipe::create(['product_id' => $bowlP->id, 'ingredient_id' => $granola->id, 'quantity_required' => 0.050]);
-        Recipe::create(['product_id' => $bowlP->id, 'ingredient_id' => $banana->id, 'quantity_required' => 0.5]);
+        // 4. Crear Productos, Variantes y Recetas
+        // Hawaiian Bowl (Variantes por tamaño)
+        $hawaiian = Product::create([
+            'name' => 'Hawaiian Bowl', 
+            'price' => 0, 
+            'category_id' => $catBowls->id, 
+            'printer_target' => 'kitchen'
+        ]);
+        
+        $hawaiian->variants()->createMany([
+            ['size' => 'Junior', 'price' => 18],
+            ['size' => 'Mediano', 'price' => 25],
+            ['size' => 'Grande', 'price' => 35],
+            ['size' => 'Ohana', 'price' => 50],
+        ]);
 
-        $bowlG = Product::create(['name' => 'Bowl Grande', 'price' => 45, 'category_id' => $catBowls->id, 'printer_target' => 'kitchen']);
-        Recipe::create(['product_id' => $bowlG->id, 'ingredient_id' => $acai->id, 'quantity_required' => 0.300]);
-        Recipe::create(['product_id' => $bowlG->id, 'ingredient_id' => $granola->id, 'quantity_required' => 0.100]);
-        Recipe::create(['product_id' => $bowlG->id, 'ingredient_id' => $banana->id, 'quantity_required' => 1]);
+        Recipe::create(['product_id' => $hawaiian->id, 'ingredient_id' => $acai->id, 'quantity_required' => 0.150]);
+        Recipe::create(['product_id' => $hawaiian->id, 'ingredient_id' => $granola->id, 'quantity_required' => 0.050]);
+        Recipe::create(['product_id' => $hawaiian->id, 'ingredient_id' => $banana->id, 'quantity_required' => 0.5]);
 
-        $smoothie = Product::create(['name' => 'Smoothie Tropical', 'price' => 20, 'category_id' => $catSmoothies->id, 'printer_target' => 'kitchen']);
-        Recipe::create(['product_id' => $smoothie->id, 'ingredient_id' => $acai->id, 'quantity_required' => 0.100]);
+        // Açaí por Gramo (sin variantes, precio por gramo)
+        $acaiGramos = Product::create([
+            'name' => 'Açaí por Gramo', 
+            'price' => 0,
+            'is_weight_based' => true,
+            'price_per_gram' => 0.12, 
+            'category_id' => $catBowls->id, 
+            'printer_target' => 'kitchen'
+        ]);
+
+        // Producto Simple (ej: Cafetería)
+        $smoothie = Product::create([
+            'name' => 'Smoothie Tropical', 
+            'price' => 20, 
+            'category_id' => $catSmoothies->id, 
+            'printer_target' => 'bar'
+        ]);
     }
 }
