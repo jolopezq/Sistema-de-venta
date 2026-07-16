@@ -1,0 +1,29 @@
+# Dependencias
+backend/vendor/
+frontend/node_modules/
+
+# Entorno
+backend/.env
+.env.local
+.env.*.local
+
+# Archivos generados
+backend/storage/*.key
+backend/database/database.sqlite
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+backend/storage/logs/
+npm-debug.log*
+
+# Build
+frontend/dist/
+
+# Agentes IA
+.agents/

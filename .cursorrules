@@ -1,0 +1,145 @@
+# Reglas de Agentes de IA para Ohana Acai V3
+# Versión: 1.1 | Última actualización: 2026-07-16
+
+---
+
+## 1. Reglas Generales de Arquitectura
+
+- El proyecto sigue una arquitectura **Offline-First**. El frontend DEBE poder operar sin conexión a internet y sincronizarse con el backend al recuperar conectividad.
+- La **fuente de verdad** es la base de datos del servidor (MySQL/MariaDB). El frontend usa IndexedDB (Dexie.js) como almacenamiento temporal local.
+- Todo nuevo ID transaccional (ventas, movimientos de inventario, pedidos) DEBE generarse en el frontend como un **UUID versión 4** para evitar colisiones al sincronizar.
+- Indentación: **4 espacios** para PHP, **2 espacios** para JS/Vue/CSS.
+- El idioma del código (nombres de variables, funciones, clases, comentarios técnicos) es **inglés**. Los comentarios explicativos de negocio pueden ir en español.
+- **Estructura monorepo:**
+  ```
+  /Sistema de Ventas
+  ├── backend/          # Laravel API
+  ├── frontend/         # Vue.js PWA
+  ├── docs/             # Documentación técnica
+  └── .cursorrules      # Este archivo
+  ```
+
+---
+
+## 2. Desarrollo Guiado por Pruebas (TDD) — Obligatorio
+
+- **Pruebas Primero:** Antes de implementar cualquier lógica de controlador, regla de negocio o cálculo (CPP, mermas, fidelización), DEBES escribir el Test Unitario o Feature Test que cubra:
+  - Caso de éxito (happy path).
+  - Casos límite (ej: cliente redimiendo más puntos de los que tiene, stock insuficiente, venta con UUID duplicado).
+  - Casos de error (ej: request sin autenticación, payload inválido).
+- Ciclo obligatorio: **Red → Green → Refactor**.
+  1. Escribe la prueba y ejecútala — debe **fallar**.
+  2. Escribe la implementación mínima para que **pase**.
+  3. Refactoriza sin romper la prueba.
+- **Backend:** Usar `php artisan test` con PHPUnit/Pest.
+- **Frontend:** Usar Vitest para tests unitarios de composables y stores Pinia.
+
+---
+
+## 3. Backend (Laravel / PHP The Right Way)
+
+### 3.1. Inyección de Dependencias
+- **Cero Singletons y `new Class`:** Utiliza SIEMPRE la inyección de dependencias a través del Service Container de Laravel en constructores o métodos.
+- Registra bindings en `AppServiceProvider` cuando necesites abstraer interfaces.
+
+### 3.2. Autenticación y Seguridad
+- **Laravel Sanctum** para autenticación SPA-API mediante tokens sin estado.
+- Toda petición entrante DEBE validarse con un **FormRequest** dedicado (nunca validar en el controlador directamente).
+- Las rutas de API DEBEN estar protegidas con el middleware `auth:sanctum`.
+- Las anulaciones de ventas requieren verificación de **PIN de Administrador** en el backend.
+
+### 3.3. Transaccionalidad y Base de Datos
+- Cualquier operación que afecte stock, puntos de fidelización, CPP o ventas DEBE estar envuelta en `DB::transaction()`.
+- **Soft Deletes obligatorio:** Nunca usar `DELETE` directo sobre entidades críticas (ventas, productos, clientes, insumos). Todos los modelos deben usar el trait `SoftDeletes`.
+- **Codificación UTF-8:** Todas las conexiones, tablas y columnas deben configurarse en **utf8mb4** (`utf8mb4_unicode_ci`).
+
+### 3.4. Idempotencia de Red
+- Verificar el UUID de la venta entrante. Si ya existe en la BD, retornar `200 OK` sin duplicar cobros ni descontar inventario.
+
+### 3.5. Arquitectura de Código (Capas)
+- **Controlador Limpio:** Solo recibe `FormRequest`, delega al Service, y retorna `JsonResponse`.
+- **Servicios (`app/Services/`):** Lógica de negocio (cálculo CPP, redención de puntos, sincronización).
+- **Repositorios (`app/Repositories/`):** Consultas complejas a la BD aisladas de los controladores.
+- **Jobs y Colas (`app/Jobs/`):** Procesamiento asíncrono para:
+  - Sincronización en lote de ventas offline.
+  - Integración con PedidosYa (webhooks entrantes).
+  - Actualización masiva de puntos de fidelización.
+  - Notificaciones y alertas de stock mínimo.
+- **Estructura de carpetas Laravel sugerida:**
+  ```
+  app/
+  ├── Http/
+  │   ├── Controllers/
+  │   ├── Requests/        # FormRequests
+  │   └── Resources/       # API Resources (transformadores JSON)
+  ├── Models/
+  ├── Services/
+  ├── Repositories/
+  ├── Jobs/
+  ├── Events/
+  └── Observers/           # Para auditoría automática
+  ```
+
+### 3.6. Manejo Centralizado de Errores
+- Configurar `app/Exceptions/Handler.php` para devolver **siempre** respuestas JSON estandarizadas con códigos HTTP correctos. Jamás devolver trazas HTML, ni en errores 500.
+- Formato de respuesta de error estándar:
+  ```json
+  {
+    "success": false,
+    "message": "Descripción legible del error",
+    "errors": {},
+    "code": 422
+  }
+  ```
+
+### 3.7. Convenciones de Nombrado (Base de Datos)
+- Tablas: **plural, snake_case** (`sales`, `sale_items`, `inventory_movements`).
+- Columnas: **snake_case** (`sync_status`, `created_at`, `customer_id`).
+- Claves foráneas: `{tabla_singular}_id` (ej: `product_id`, `ingredient_id`).
+- Timestamps: Incluir siempre `created_at`, `updated_at`, `deleted_at`.
+
+---
+
+## 4. Frontend (Vue.js, Pinia, PWA)
+
+### 4.1. Gestión de Estado Centralizada
+- Utilizar **Pinia** exclusivamente para manejar:
+  - Carrito de compras activo.
+  - Sesión del cajero/usuario.
+  - Estado de red (online / offline / sincronizando).
+  - Catálogo local cacheado (productos, categorías, clientes frecuentes).
+
+### 4.2. IndexedDB (Dexie.js)
+- **Banderas de sincronización:** Cada registro transaccional local DEBE incluir `sync_status` con valores: `pending`, `synced`, `failed`.
+- **Almacenamiento selectivo:** Solo sincronizar hacia IndexedDB el catálogo activo, precios y clientes frecuentes. **Nunca** la base histórica completa.
+- **Pruning automático:** Implementar rutinas que purguen tickets con estatus `synced` después de **7 días** para no saturar el almacenamiento del navegador.
+
+### 4.3. Service Workers y Caché
+- Usar **Google Workbox** con estrategia *Cache First* para assets estáticos y *Stale-While-Revalidate* para datos del catálogo.
+- Registrar el SW correctamente en el entry point de la aplicación.
+
+### 4.4. Feedback Visual de Red — Obligatorio
+- Mantener **indicadores visuales constantes** en la interfaz que muestren el estado de conexión:
+  - 🟢 **Conectado** — operación normal.
+  - 🔴 **Offline** — vendiendo con datos locales.
+  - 🔄 **Sincronizando** — enviando tickets pendientes al servidor.
+
+### 4.5. Carga Diferida (Lazy Loading)
+- El módulo **POS** se carga de inmediato (ruta principal).
+- Módulos de **Reportes**, **Configuración**, **Inventario admin** se cargan bajo demanda con `defineAsyncComponent` o lazy routes de Vue Router.
+
+### 4.6. Componentización
+- No repetir estilos CSS ni utilidades. Todo debe basarse en componentes reutilizables.
+- Cada componente debe tener un único propósito (Single Responsibility).
+- Los composables (`composables/`) encapsulan lógica reutilizable (ej: `useNetworkStatus`, `useSyncQueue`).
+
+---
+
+## 5. Control de Sesiones y Contexto AI
+
+- **Slicing de tareas:** Proveer al agente IA únicamente los archivos relevantes para el ticket activo. No saturar el contexto con todo el proyecto.
+- **Un issue por sesión:** No resolver múltiples issues técnicos de scope distinto en la misma conversación (ej: no mezclar UI de Vue con Jobs de Laravel).
+- **Patrón de entrevista:** Para módulos complejos (fidelización, sincronización offline), el agente DEBE hacer preguntas de clarificación antes de generar código.
+- **Auditoría independiente:** Al terminar un ticket, abrir una sesión nueva con rol de "Auditor de Seguridad" para revisar el código sin sesgo de confirmación.
+- **Documentación en código:** Siempre comentar arquitecturas complejas, métodos transaccionales y algoritmos de sincronización offline dentro del código fuente.
+- **Regla de oro del commit:** Todo código integrado al repositorio principal debe ser comprendido por el desarrollador líder.
