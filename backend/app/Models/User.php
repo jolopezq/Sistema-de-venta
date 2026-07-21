@@ -18,19 +18,21 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes, \App\Traits\Auditable;
 
     protected $fillable = [
         'name',
         'email',
         'password',
         'role',
-        'pin',
+        'ci',
+        'phone',
+        'start_date',
+        'photo_url',
     ];
 
     protected $hidden = [
         'password',
-        'pin',
     ];
 
     protected function casts(): array
@@ -68,9 +70,14 @@ class User extends Authenticatable
 
     // --- Helpers ---
 
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === 'super_admin';
+    }
+
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return $this->role === 'admin' || $this->role === 'super_admin';
     }
 
     public function isCashier(): bool

@@ -18,6 +18,20 @@ class InventoryMovementController extends Controller
     }
 
     /**
+     * Historial de movimientos de un insumo.
+     */
+    public function index(Ingredient $ingredient): JsonResponse
+    {
+        // Se puede hacer paginate en el futuro
+        $movements = InventoryMovement::where('ingredient_id', $ingredient->id)
+            ->with('performedByUser:id,name')
+            ->latest()
+            ->get();
+
+        return response()->json($movements);
+    }
+
+    /**
      * Registra un nuevo movimiento de inventario.
      */
     public function store(InventoryMovementRequest $request): JsonResponse
@@ -36,17 +50,14 @@ class InventoryMovementController extends Controller
             );
         } else {
             // Mermas (waste) o ajustes (adjustment)
-            $ingredient->current_stock += $validated['quantity_changed'];
-            $ingredient->save();
-
-            InventoryMovement::create([
-                'ingredient_id' => $ingredient->id,
-                'quantity_changed' => $validated['quantity_changed'],
-                'type' => $validated['type'],
-                'waste_category' => $validated['waste_category'] ?? null,
-                'notes' => $validated['notes'] ?? null,
-                'performed_by' => $userId,
-            ]);
+            $this->inventoryService->recordManualMovement(
+                $ingredient,
+                $validated['quantity_changed'],
+                $validated['type'],
+                $validated['waste_category'] ?? null,
+                $validated['notes'] ?? null,
+                $userId
+            );
         }
 
         return response()->json([

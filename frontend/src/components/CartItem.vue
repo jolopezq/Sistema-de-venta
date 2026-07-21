@@ -10,10 +10,19 @@ const emit = defineEmits(['increase', 'decrease']);
     <div class="ticket-item-top">
       <div>
         <div class="ticket-item-name">
-          {{ item.name }}{{ item.size ? ' · ' + item.size : '' }}
+          {{ item.name }}
         </div>
-        <div class="ticket-item-mods">
-          {{ item.is_weight_based ? `${item.quantity} g · Bs ${(item.unit_price / 100).toFixed(4)}/g` : 'Sin modificadores' }}
+        <div class="ticket-item-mods" v-if="item.modifiers && item.modifiers.length > 0">
+          <span v-for="(mod, idx) in item.modifiers" :key="idx">
+            {{ mod.option_name }} <span v-if="mod.price > 0">(+Bs {{ Number(mod.price).toFixed(2) }})</span>
+            <span v-if="idx < item.modifiers.length - 1">, </span>
+          </span>
+        </div>
+        <div class="ticket-item-mods" v-else-if="item.is_weight_based">
+          {{ item.quantity }} g · Bs ${(item.unit_price / 100).toFixed(4)}/g
+        </div>
+        <div class="ticket-item-mods" v-else>
+          Sin modificadores
         </div>
       </div>
       <div class="ticket-item-price">Bs {{ Number(item.subtotal).toFixed(2) }}</div>

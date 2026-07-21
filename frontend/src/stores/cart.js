@@ -12,22 +12,31 @@ export const useCartStore = defineStore('cart', {
   },
   actions: {
     addItem(product, quantity = 1) {
-      const existing = this.items.find(i => i.product_id === product.id);
+      // Create a unique key based on product ID and selected modifiers
+      const modifiersHash = product.modifiers && product.modifiers.length > 0 
+        ? JSON.stringify(product.modifiers.map(m => m.option_id).sort()) 
+        : '';
+      const cartKey = `${product.id}-${modifiersHash}`;
+
+      const existing = this.items.find(i => i.cart_key === cartKey);
       if (existing) {
         existing.quantity += quantity;
         existing.subtotal = existing.quantity * existing.unit_price;
       } else {
         this.items.push({
+          cart_key: cartKey,
           product_id: product.id,
           name: product.name,
           quantity: quantity,
           unit_price: product.price,
           subtotal: quantity * product.price,
+          modifiers: product.modifiers || [],
+          base_price: product.base_price || product.price,
         });
       }
     },
-    removeItem(productId) {
-      this.items = this.items.filter(i => i.product_id !== productId);
+    removeItem(cartKey) {
+      this.items = this.items.filter(i => i.cart_key !== cartKey);
     },
     clearCart() {
       this.items = [];
@@ -53,9 +62,12 @@ export const useCartStore = defineStore('cart', {
         created_at: new Date().toISOString(),
         items: this.items.map(i => ({
           product_id: i.product_id,
+          name: i.name,
           quantity: i.quantity,
           unit_price: i.unit_price,
           subtotal: i.subtotal,
+          modifiers: i.modifiers || [],
+          base_price: i.base_price || i.unit_price
         })),
         payments: payments
       };
@@ -63,6 +75,54 @@ export const useCartStore = defineStore('cart', {
       // Guarda la venta en IndexedDB
       await db.sales.add(sale);
       
+      // Reduce el stock localmente en memoria y en IndexedDB
+      const { useCatalogStore } = await import('./catalog.js');
+      const catalog = useCatalogStore();
+      
+      try {
+        await db.transaction('rw', db.ingredients, async () => {
+          for (const item of this.items) {
+            const product = catalog.products.find(p => p.id === item.product_id);
+            if (product && product.recipes) {
+              for (const recipe of product.recipes) {
+                 const qtyToDeduct = recipe.quantity_required * item.quantity;
+                 if (qtyToDeduct > 0) {
+                   const ing = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
+                   if (ing) {
+                     ing.current_stock -= qtyToDeduct;
+                     await db.ingredients.put(JSON.parse(JSON.stringify(ing)));
+                   }
+                 }
+              }
+            }
+            
+            if (item.modifiers && product && product.option_groups) {
+              for (const modifier of item.modifiers) {
+                let opt = null;
+                for (const og of product.option_groups) {
+                  opt = og.options.find(o => o.id === modifier.option_id);
+                  if (opt) break;
+                }
+                if (opt && opt.recipes) {
+                  for (const recipe of opt.recipes) {
+                    const qtyToDeduct = recipe.quantity_required * item.quantity;
+                    if (qtyToDeduct !== 0) { // Modificadores pueden devolver stock (ej: Sin algo)
+                      const ing = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
+                      if (ing) {
+                        ing.current_stock -= qtyToDeduct;
+                        await db.ingredients.put(JSON.parse(JSON.stringify(ing)));
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Error actualizando stock local:", err);
+      }
+
       this.clearCart();
       
       // Intenta sincronizar inmediatamente

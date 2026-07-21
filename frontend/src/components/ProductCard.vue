@@ -3,32 +3,20 @@ import { ref, computed } from 'vue';
 
 const props = defineProps({
   product: Object,
+  disabled: Boolean,
 });
 const emit = defineEmits(['add']);
 
 const isAdding = ref(false);
 
-const selectedVariant = ref(
-  props.product.variants && props.product.variants.length > 0
-    ? props.product.variants[0]
-    : null
-);
-
 const handleAdd = () => {
-  if (props.product.stock === 0) return;
+  if (props.disabled) return;
   isAdding.value = true;
   setTimeout(() => isAdding.value = false, 300);
-  emit('add', {
-    ...props.product,
-    price: selectedVariant.value ? selectedVariant.value.price : props.product.price,
-    size: selectedVariant.value ? selectedVariant.value.size : null
-  });
+  emit('add', props.product);
 };
 
 const displayPrice = computed(() => {
-  if (selectedVariant.value) {
-    return `Desde Bs ${Number(selectedVariant.value.price).toFixed(2)}`;
-  }
   if (props.product.is_weight_based) {
     return `Bs ${Number(props.product.price_per_gram * 100).toFixed(2)} / 100g`;
   }
@@ -37,10 +25,9 @@ const displayPrice = computed(() => {
 </script>
 
 <template>
-  <!-- Uses global .product-card, .product-icon, .product-name, .product-row, .product-price, .add-btn from style.css -->
   <div
     class="product-card"
-    :class="{ 'pulse-add': isAdding }"
+    :class="{ 'pulse-add': isAdding, 'disabled-card': disabled }"
     @click="handleAdd"
   >
     <div class="product-icon">
@@ -51,21 +38,16 @@ const displayPrice = computed(() => {
       {{ product.is_weight_based ? 'Venta por peso' : (product.description || '') }}
     </div>
 
-    <!-- Size chips for variants -->
-    <div v-if="product.variants && product.variants.length > 0" style="display:flex;gap:4px;flex-wrap:wrap;margin:2px 0;">
-      <span
-        v-for="v in product.variants"
-        :key="v.id"
-        class="size-chip"
-        :class="{ active: selectedVariant && selectedVariant.id === v.id }"
-        style="font-size:10px;padding:3px 8px;"
-        @click.stop="selectedVariant = v"
-      >{{ v.size.charAt(0) }}</span>
+    <!-- If it has modifiers, we can show a small badge or note -->
+    <div v-if="product.option_groups && product.option_groups.length > 0" style="margin:4px 0;">
+      <span class="size-chip active" style="font-size:10px;padding:3px 8px;background:var(--acai-700);color:white;border-color:var(--acai-700);">
+        Personalizable
+      </span>
     </div>
 
     <div class="product-row">
       <span class="product-price" :class="{ weight: product.is_weight_based }">{{ displayPrice }}</span>
-      <button class="add-btn" :disabled="product.stock === 0" @click.stop="handleAdd">+</button>
+      <button class="add-btn" :disabled="disabled" @click.stop="handleAdd">+</button>
     </div>
   </div>
 </template>
@@ -77,4 +59,13 @@ const displayPrice = computed(() => {
   100% { transform: scale(1); }
 }
 .pulse-add { animation: pulse 0.3s ease; }
+.disabled-card {
+  opacity: 0.5;
+  filter: grayscale(100%);
+  cursor: not-allowed;
+}
+.disabled-card:active {
+  transform: none;
+  box-shadow: none;
+}
 </style>

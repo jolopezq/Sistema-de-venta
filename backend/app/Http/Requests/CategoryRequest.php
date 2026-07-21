@@ -27,4 +27,15 @@ class CategoryRequest extends FormRequest
             'sort_order' => ['nullable', 'integer'],
         ];
     }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'El nombre de la categoría es obligatorio.',
+            'name.string' => 'El nombre debe ser texto.',
+            'name.max' => 'El nombre no puede exceder 255 caracteres.',
+            'parent_id.exists' => 'La categoría padre seleccionada no es válida.',
+            'sort_order.integer' => 'El orden debe ser un número entero.',
+        ];
+    }
 }

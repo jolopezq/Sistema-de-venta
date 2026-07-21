@@ -7,6 +7,7 @@ import { useRouter } from 'vue-router';
 const email = ref('admin@example.com');
 const password = ref('password');
 const errorMsg = ref('');
+const formErrors = ref({});
 const isLoading = ref(false);
 
 const auth = useAuthStore();
@@ -22,7 +23,11 @@ async function handleLogin() {
     await catalog.fetchAndCache();
     router.push('/pos');
   } catch (e) {
-    errorMsg.value = e.message || 'Credenciales incorrectas';
+    if (e.validationErrors) {
+      formErrors.value = e.validationErrors;
+    } else {
+      errorMsg.value = e.message || 'Credenciales incorrectas';
+    }
   } finally {
     isLoading.value = false;
   }
@@ -42,15 +47,20 @@ async function handleLogin() {
 
       <div class="field">
         <label>Email del cajero</label>
-        <input type="email" v-model="email" required placeholder="cajero@ohana.com" />
+        <input type="email" v-model="email" required placeholder="cajero@ohana.com" :class="{'has-error': formErrors.email}" />
+        <span v-if="formErrors.email" class="error-text">{{ formErrors.email[0] }}</span>
       </div>
 
       <div class="field">
         <label>Contraseña o PIN</label>
-        <input type="password" v-model="password" required placeholder="••••••••" />
+        <input type="password" v-model="password" required placeholder="••••••••" :class="{'has-error': formErrors.password}" />
+        <span v-if="formErrors.password" class="error-text">{{ formErrors.password[0] }}</span>
       </div>
 
       <button type="submit" class="btn btn-primary" :disabled="isLoading">
+        <svg v-if="isLoading" class="spinner" viewBox="0 0 50 50">
+          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle>
+        </svg>
         {{ isLoading ? 'Conectando...' : 'Iniciar Turno' }}
       </button>
 
@@ -78,4 +88,35 @@ async function handleLogin() {
 
 /* All other classes (.login-card, .login-logo, .field, .btn, .offline-banner)
    come from the global style.css extracted from the prototype */
+
+.has-error {
+  border-color: var(--danger-600) !important;
+  background-color: #fffafb;
+}
+.error-text {
+  color: var(--danger-600);
+  font-size: 11px;
+  margin-top: 4px;
+  display: block;
+}
+.spinner {
+  animation: rotate 2s linear infinite;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.spinner .path {
+  stroke: white;
+  stroke-linecap: round;
+  animation: dash 1.5s ease-in-out infinite;
+}
+@keyframes rotate {
+  100% { transform: rotate(360deg); }
+}
+@keyframes dash {
+  0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+}
 </style>

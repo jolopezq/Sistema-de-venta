@@ -49,10 +49,6 @@ class UserRepository
         if (isset($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         }
-        if (isset($data['pin'])) {
-            // Guardamos el PIN encriptado para mayor seguridad
-            $data['pin'] = Hash::make($data['pin']);
-        }
 
         return User::create($data);
     }
@@ -68,11 +64,7 @@ class UserRepository
             unset($data['password']);
         }
 
-        if (isset($data['pin']) && !empty($data['pin'])) {
-            $data['pin'] = Hash::make($data['pin']);
-        } else {
-            unset($data['pin']);
-        }
+
 
         $user->update($data);
         return $user->fresh();

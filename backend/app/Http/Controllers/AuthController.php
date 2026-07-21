@@ -27,10 +27,13 @@ class AuthController extends Controller
         // Revoke all older tokens for security if desired, but for now we just issue a new one
         $token = $user->createToken('pos_auth_token')->plainTextToken;
 
+        $permissions = \App\Models\RolePermission::where('role', $user->role)->get();
+
         return response()->json([
             'access_token' => $token,
             'token_type' => 'Bearer',
             'user' => $user,
+            'permissions' => $permissions,
         ]);
     }
 
@@ -52,8 +55,12 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $permissions = \App\Models\RolePermission::where('role', $user->role)->get();
+
         return response()->json([
-            'user' => $request->user(),
+            'user' => $user,
+            'permissions' => $permissions,
         ]);
     }
 }

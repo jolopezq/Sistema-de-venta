@@ -19,8 +19,11 @@ return new class extends Migration
             $table->string('name');
             $table->string('email')->unique();
             $table->string('password');
-            $table->enum('role', ['admin', 'cashier'])->default('cashier');
-            $table->string('pin', 6)->nullable()->comment('PIN para autorizar anulaciones');
+            $table->enum('role', ['super_admin', 'admin', 'cashier'])->default('cashier');
+            $table->string('ci')->nullable();
+            $table->string('phone')->nullable();
+            $table->date('start_date')->nullable();
+            $table->string('photo_url')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

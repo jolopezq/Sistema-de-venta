@@ -24,12 +24,49 @@ export async function syncPendingSales() {
           await db.sales.update(id, { sync_status: 'synced' });
         }
       });
+      
+      // Actualizamos el catálogo para asegurar sincronía de stock real
+      try {
+        const { useCatalogStore } = await import('../stores/catalog.js');
+        await useCatalogStore().fetchAndCache();
+      } catch(e) {
+        console.warn("No se pudo actualizar catálogo post-sync", e);
+      }
     }
 
     // Aquí podríamos manejar los fallos parciales (response.data.failed) si quisiéramos
 
+    // Ejecutar la rutina de limpieza (pruning)
+    await pruneOldSyncedSales();
+
   } catch (error) {
     console.error("Fallo al sincronizar ventas con el servidor. Se reintentará luego.", error);
     throw error;
+  }
+}
+
+/**
+ * Rutina de limpieza (Pruning) que elimina de IndexedDB 
+ * las ventas con estatus 'synced' que tengan más de 7 días.
+ * (buenas-practicas.md §3)
+ */
+export async function pruneOldSyncedSales() {
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const dateLimit = sevenDaysAgo.toISOString();
+
+    const oldSales = await db.sales
+      .where('sync_status')
+      .equals('synced')
+      .and(sale => sale.created_at < dateLimit)
+      .primaryKeys();
+
+    if (oldSales.length > 0) {
+      await db.sales.bulkDelete(oldSales);
+      console.log(`Pruning exitoso: se eliminaron ${oldSales.length} ventas antiguas sincronizadas.`);
+    }
+  } catch (error) {
+    console.error("Error ejecutando limpieza de ventas antiguas:", error);
   }
 }

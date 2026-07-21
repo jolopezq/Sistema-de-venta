@@ -17,6 +17,7 @@ class ProductResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'description' => $this->description,
             'image_url' => $this->image_url,
             'price' => (float) $this->price,
             'vip_price' => $this->vip_price !== null ? (float) $this->vip_price : null,
@@ -25,6 +26,8 @@ class ProductResource extends JsonResource
             'category_id' => $this->category_id,
             'printer_target' => $this->printer_target,
             'is_active' => (bool) $this->is_active,
+            'option_groups' => OptionGroupResource::collection($this->whenLoaded('optionGroups')),
+            'recipes' => $this->whenLoaded('recipes'),
         ];
     }
 }

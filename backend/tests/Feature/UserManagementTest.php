@@ -24,7 +24,7 @@ class UserManagementTest extends TestCase
         $response->assertStatus(403);
         $response->assertJson([
             'success' => false,
-            'message' => 'Acceso denegado. Se requieren privilegios de administrador.',
+            'message' => 'Acceso denegado. Se requiere ser Super Admin.',
         ]);
     }
 
@@ -34,7 +34,7 @@ class UserManagementTest extends TestCase
     public function test_admin_can_manage_users(): void
     {
         $admin = User::factory()->create([
-            'role' => 'admin',
+            'role' => 'super_admin',
         ]);
 
         // 1. List users
@@ -47,7 +47,6 @@ class UserManagementTest extends TestCase
             'email' => 'cajero@ohana.com',
             'password' => 'secret123',
             'role' => 'cashier',
-            'pin' => '4321',
         ];
 
         $createResponse = $this->actingAs($admin)->postJson('/api/users', $userData);
@@ -61,7 +60,6 @@ class UserManagementTest extends TestCase
             'name' => 'Cajero Modificado',
             'email' => 'cajero_mod@ohana.com',
             'role' => 'cashier',
-            'pin' => '9999',
         ];
 
         $updateResponse = $this->actingAs($admin)->putJson("/api/users/{$createdUser->id}", $updateData);
@@ -81,24 +79,12 @@ class UserManagementTest extends TestCase
     public function test_user_validation_rules(): void
     {
         $admin = User::factory()->create([
-            'role' => 'admin',
+            'role' => 'super_admin',
         ]);
 
         // Intentar crear usuario sin campos requeridos
         $response = $this->actingAs($admin)->postJson('/api/users', []);
         $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['name', 'email', 'password', 'role', 'pin']);
-
-        // Intentar crear usuario con PIN inválido (letras o longitud incorrecta)
-        $invalidData = [
-            'name' => 'Test',
-            'email' => 'test@ohana.com',
-            'password' => 'secret',
-            'role' => 'cashier',
-            'pin' => 'abcd', // letras
-        ];
-        $response2 = $this->actingAs($admin)->postJson('/api/users', $invalidData);
-        $response2->assertStatus(422);
-        $response2->assertJsonValidationErrors(['pin']);
+        $response->assertJsonValidationErrors(['name', 'email', 'password', 'role']);
     }
 }

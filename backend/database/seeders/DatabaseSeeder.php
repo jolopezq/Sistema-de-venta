@@ -17,13 +17,24 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Crear Cajero de prueba
+        // 1. Crear Usuarios de prueba
         User::create([
-            'name' => 'Admin Cajero',
+            'name' => 'Super Admin Dueño',
+            'email' => 'superadmin@example.com',
+            'password' => Hash::make('password'),
+            'role' => 'super_admin',
+        ]);
+        User::create([
+            'name' => 'Admin Operativo',
             'email' => 'admin@example.com',
             'password' => Hash::make('password'),
             'role' => 'admin',
-            'pin' => '1234',
+        ]);
+        User::create([
+            'name' => 'Cajero Test',
+            'email' => 'cashier@example.com',
+            'password' => Hash::make('password'),
+            'role' => 'cashier',
         ]);
 
         // 2. Crear Insumos
@@ -44,12 +55,12 @@ class DatabaseSeeder extends Seeder
             'printer_target' => 'kitchen'
         ]);
         
-        $hawaiian->variants()->createMany([
-            ['size' => 'Junior', 'price' => 18],
-            ['size' => 'Mediano', 'price' => 25],
-            ['size' => 'Grande', 'price' => 35],
-            ['size' => 'Ohana', 'price' => 50],
-        ]);
+        // $hawaiian->variants()->createMany([
+        //     ['size' => 'Junior', 'price' => 18],
+        //     ['size' => 'Mediano', 'price' => 25],
+        //     ['size' => 'Grande', 'price' => 35],
+        //     ['size' => 'Ohana', 'price' => 50],
+        // ]);
 
         Recipe::create(['product_id' => $hawaiian->id, 'ingredient_id' => $acai->id, 'quantity_required' => 0.150]);
         Recipe::create(['product_id' => $hawaiian->id, 'ingredient_id' => $granola->id, 'quantity_required' => 0.050]);

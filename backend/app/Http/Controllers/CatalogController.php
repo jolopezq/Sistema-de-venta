@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Repositories\CategoryRepository;
 use App\Repositories\ProductRepository;
+use App\Models\Ingredient;
 use App\Http\Resources\CategoryResource;
 use App\Http\Resources\ProductResource;
 use Illuminate\Http\JsonResponse;
@@ -25,9 +26,9 @@ class CatalogController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-            'categories' => CategoryResource::collection($this->categories->allOrdered()),
-            // allActive() aplica el scope `active` y eager-carga la relación `category`
-            'products'   => ProductResource::collection($this->products->allActive()),
+            'categories'  => CategoryResource::collection($this->categories->allOrdered()),
+            'products'    => ProductResource::collection($this->products->allActive()),
+            'ingredients' => Ingredient::select('id', 'name', 'unit', 'current_stock')->get(),
             // TODO: Agregar 'customers' cuando el módulo CRM esté implementado
         ]);
     }

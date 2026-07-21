@@ -2,28 +2,17 @@
 import { ref, computed, onMounted } from 'vue';
 import { useCatalogStore } from '../stores/catalog';
 import { useCartStore } from '../stores/cart';
-import { useAuthStore } from '../stores/auth';
-import { useRouter } from 'vue-router';
-import NetworkIndicator from '../components/NetworkIndicator.vue';
 import CategoryFilter from '../components/CategoryFilter.vue';
 import ProductCard from '../components/ProductCard.vue';
 import CartItem from '../components/CartItem.vue';
 import CheckoutModal from '../components/CheckoutModal.vue';
 import ReceiptModal from '../components/ReceiptModal.vue';
+import ModifierModal from '../components/ModifierModal.vue';
 
 const catalog = useCatalogStore();
 const cart = useCartStore();
-const auth = useAuthStore();
-const router = useRouter();
 
 const activeCategoryId = ref(null);
-const globalSize = ref('Grande');
-
-const isBowlCategory = computed(() => {
-  if (!activeCategoryId.value) return true; // show size legend on "All"
-  const cat = catalog.categories.find(c => c.id === activeCategoryId.value);
-  return cat && cat.name.toLowerCase().includes('bowl');
-});
 
 onMounted(async () => {
   // Offline-First: carga el catálogo local primero, luego sincroniza
@@ -40,22 +29,71 @@ const filteredProducts = computed(() => {
   return catalog.products.filter(p => p.category_id === activeCategoryId.value);
 });
 
+const showModifierModal = ref(false);
+const selectedProduct = ref(null);
+
 function handleAddToCart(product) {
-  cart.addItem(product, 1);
+  if (product.option_groups && product.option_groups.length > 0) {
+    selectedProduct.value = product;
+    showModifierModal.value = true;
+  } else {
+    // Normal add
+    cart.addItem({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      modifiers: []
+    }, 1);
+  }
+}
+
+function isProductInStock(product) {
+  if (!product.is_active) return false;
+  if (!product.recipes || product.recipes.length === 0) return true;
+
+  for (const recipe of product.recipes) {
+    if (recipe.quantity_required <= 0) continue;
+    
+    const ingredient = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
+    if (ingredient && ingredient.current_stock < recipe.quantity_required) {
+      return false; // Out of stock
+    }
+  }
+  return true;
+}
+
+function handleConfirmModifiers({ product, modifiers, finalPrice }) {
+  showModifierModal.value = false;
+  selectedProduct.value = null;
+  
+  cart.addItem({
+    id: product.id,
+    name: product.name,
+    price: finalPrice,
+    modifiers: modifiers,
+    base_price: product.price
+  }, 1);
 }
 
 function handleIncrease(item) {
-  cart.addItem({ id: item.product_id, name: item.name, price: item.unit_price, size: item.size }, 1);
+  // Pass the exact same configuration back to addItem to increment the existing cartKey
+  cart.addItem({ 
+    id: item.product_id, 
+    name: item.name, 
+    price: item.unit_price, 
+    modifiers: item.modifiers,
+    base_price: item.base_price 
+  }, 1);
 }
 
 function handleDecrease(item) {
-  const storeItem = cart.items.find(i => i.product_id === item.product_id);
+  const storeItem = cart.items.find(i => i.cart_key === item.cart_key);
   if (storeItem) {
     if (storeItem.quantity > 1) {
       storeItem.quantity -= 1;
       storeItem.subtotal = storeItem.quantity * storeItem.unit_price;
     } else {
-      cart.removeItem(item.product_id);
+      cart.removeItem(item.cart_key);
     }
   }
 }
@@ -81,51 +119,10 @@ function handleCloseReceipt() {
   completedSale.value = null;
 }
 
-async function handleLogout() {
-  await auth.logout();
-  router.push('/login');
-}
 </script>
 
 <template>
   <div class="pos-layout">
-    <!-- Header -->
-    <div class="pos-header">
-      <div class="pos-brand">
-        <div class="logo-chip"></div>
-        <span>Ohana Açaí POS</span>
-      </div>
-      <div class="pos-header-right">
-        <button
-          class="btn-sm"
-          style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;border-radius:10px;padding:8px 14px;cursor:pointer;"
-          @click="router.push('/delivery')"
-        >Delivery</button>
-        <button
-          class="btn-sm"
-          style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;border-radius:10px;padding:8px 14px;cursor:pointer;"
-          @click="router.push('/admin')"
-        >Catálogo</button>
-        <button
-          class="btn-sm"
-          style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;border-radius:10px;padding:8px 14px;cursor:pointer;"
-          @click="router.push('/turno')"
-        >Turno</button>
-        <div class="sync-pill">
-          <NetworkIndicator />
-        </div>
-        <div class="cashier-chip">
-          <div class="avatar">{{ auth.user?.name?.charAt(0).toUpperCase() || 'C' }}</div>
-          <span>{{ auth.user?.name || 'Cajero' }}</span>
-        </div>
-        <button
-          class="btn-sm"
-          style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;border-radius:10px;padding:8px 14px;cursor:pointer;"
-          @click="handleLogout"
-        >Salir</button>
-      </div>
-    </div>
-
     <!-- Body -->
     <div class="pos-body">
       <!-- Catalog -->
@@ -144,20 +141,13 @@ async function handleLogout() {
           @select="activeCategoryId = $event"
         />
 
-        <div class="size-legend" v-if="isBowlCategory">
-          <span>Tamaño:</span>
-          <span class="size-chip" :class="{ active: globalSize === 'Junior' }" @click="globalSize = 'Junior'">Junior · Bs 18</span>
-          <span class="size-chip" :class="{ active: globalSize === 'Mediano' }" @click="globalSize = 'Mediano'">Mediano · Bs 25</span>
-          <span class="size-chip" :class="{ active: globalSize === 'Grande' }" @click="globalSize = 'Grande'">Grande · Bs 35</span>
-          <span class="size-chip" :class="{ active: globalSize === 'Ohana' }" @click="globalSize = 'Ohana'">Ohana · Bs 50</span>
-        </div>
-
         <div class="product-grid">
-          <ProductCard
-            v-for="product in filteredProducts"
-            :key="product.id"
-            :product="product"
-            @add="handleAddToCart"
+          <ProductCard 
+            v-for="p in filteredProducts" 
+            :key="p.id" 
+            :product="p"
+            :disabled="!isProductInStock(p)"
+            @add="handleAddToCart(p)" 
           />
           <div v-if="filteredProducts.length === 0" style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--ink-500);font-weight:600;">
             No hay productos disponibles.
@@ -223,6 +213,12 @@ async function handleLogout() {
       :sale="completedSale"
       @close="handleCloseReceipt"
     />
+    <ModifierModal
+      :show="showModifierModal"
+      :product="selectedProduct"
+      @close="showModifierModal = false"
+      @confirm="handleConfirmModifiers"
+    />
   </div>
 </template>
 
@@ -237,8 +233,8 @@ async function handleLogout() {
 .pos-layout {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  flex: 1;
   overflow: hidden;
   background: var(--cream-100);
 }

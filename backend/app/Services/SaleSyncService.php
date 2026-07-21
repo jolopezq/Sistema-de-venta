@@ -6,6 +6,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SalePayment;
 use App\Models\LoyaltyConfig;
+use App\Models\Option;
 use App\Repositories\SaleRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\CustomerRepository;
@@ -75,7 +76,7 @@ class SaleSyncService
      *
      * Si cualquier paso falla, DB::transaction() hace rollback total.
      */
-    protected function processSale(array $data, int $cashierId): void
+    public function processSale(array $data, int $cashierId): void
     {
         // 1. Insertar Venta Principal
         $sale = $this->saleRepository->create([
@@ -96,23 +97,81 @@ class SaleSyncService
             // Usar repositorio en lugar de consulta directa
             $product = $this->productRepository->findWithRecipes($itemData['product_id']);
 
-            SaleItem::create([
+            /**
+             * Validar reglas de negocio (Min/Max) en el backend (V2)
+             */
+            $modifiers = $itemData['modifiers'] ?? $itemData['topping_modifications'] ?? [];
+            
+            // Agrupar modificadores por grupo para validarlos
+            $selectedOptionIds = array_column($modifiers, 'option_id');
+            $selectedOptions = Option::whereIn('id', $selectedOptionIds)->get()->keyBy('id');
+            
+            $selectionsByGroup = [];
+            foreach ($modifiers as $mod) {
+                $opt = $selectedOptions->get($mod['option_id']);
+                if ($opt && $opt->is_active) {
+                    $selectionsByGroup[$opt->option_group_id] = ($selectionsByGroup[$opt->option_group_id] ?? 0) + 1;
+                }
+            }
+
+            foreach ($product->optionGroups as $group) {
+                if (!$group->is_active) continue;
+                
+                $count = $selectionsByGroup[$group->id] ?? 0;
+                
+                if ($count < $group->min_selections) {
+                    throw new Exception("El producto {$product->name} requiere al menos {$group->min_selections} opciones en el grupo '{$group->name}'");
+                }
+                
+                if ($group->max_selections !== null && $count > $group->max_selections) {
+                    throw new Exception("El producto {$product->name} excede el máximo de {$group->max_selections} opciones en el grupo '{$group->name}'");
+                }
+            }
+
+            $saleItem = SaleItem::create([
                 'sale_id'               => $sale->id,
                 'product_id'            => $product->id,
                 'quantity'              => $itemData['quantity'],
                 'unit_price'            => $itemData['unit_price'],
                 'subtotal'              => $itemData['subtotal'],
-                'topping_modifications' => $itemData['topping_modifications'] ?? null,
             ]);
+
+            // Save sale_item_options
+            $saleItemOptions = collect();
+            foreach ($modifiers as $mod) {
+                $opt = $selectedOptions->get($mod['option_id']);
+                if ($opt) {
+                    $saleItemOption = \App\Models\SaleItemOption::create([
+                        'sale_item_id' => $saleItem->id,
+                        'option_id' => $opt->id,
+                        'option_group_id' => $opt->option_group_id,
+                        'option_name_snapshot' => $opt->name,
+                        'additional_price_snapshot' => $opt->additional_price,
+                        'quantity' => $mod['quantity'] ?? 1,
+                    ]);
+                    $saleItemOptions->push($saleItemOption);
+                }
+            }
 
             // Solo descontar stock en ventas completadas (no en anuladas)
             if ($sale->status === 'completed') {
+                // Descuenta la receta BASE del producto (ej: 100g Acai)
                 $this->inventoryService->deductFromRecipe(
                     $product,
                     $itemData['quantity'],
                     $cashierId,
-                    $sale->id
+                    $saleItem
                 );
+
+                // Descuenta las recetas de cada OPCIÓN seleccionada
+                if ($saleItemOptions->isNotEmpty()) {
+                    $this->inventoryService->deductFromOptionRecipes(
+                        $saleItemOptions,
+                        $itemData['quantity'],
+                        $cashierId,
+                        $saleItem
+                    );
+                }
             }
         }
 
@@ -156,5 +215,67 @@ class SaleSyncService
 
         // Actualización atómica — sin race condition entre cajeros
         $this->customerRepository->incrementPoints($customer, $pointsEarned);
+    }
+
+    /**
+     * Anula una venta y revierte los movimientos de inventario de manera atómica.
+     */
+    public function voidSale(Sale $sale, int $userId, string $reason): void
+    {
+        if ($sale->status === 'voided') {
+            throw new Exception("La venta ya se encuentra anulada.");
+        }
+
+        DB::transaction(function () use ($sale, $userId, $reason) {
+            $sale->status = 'voided';
+            $sale->void_reason = $reason;
+            $sale->voided_by = $userId;
+            $sale->save();
+
+            // Reverse inventory movements
+            $saleItemIds = $sale->items()->pluck('id');
+            $saleItemOptionIds = \App\Models\SaleItemOption::whereIn('sale_item_id', $saleItemIds)->pluck('id');
+
+            $movements = \App\Models\InventoryMovement::where('type', 'sale')
+                ->where(function ($query) use ($saleItemIds, $saleItemOptionIds) {
+                    $query->where(function ($q) use ($saleItemIds) {
+                        $q->where('reference_type', 'sale_item')
+                          ->whereIn('reference_id', $saleItemIds);
+                    })->orWhere(function ($q) use ($saleItemOptionIds) {
+                        $q->where('reference_type', 'sale_item_option')
+                          ->whereIn('reference_id', $saleItemOptionIds);
+                    });
+                })->get();
+
+            foreach ($movements as $originalMovement) {
+                // Revert movement: same ingredient, opposite quantity
+                $reversalQuantity = -$originalMovement->quantity_changed;
+
+                \App\Models\InventoryMovement::create([
+                    'ingredient_id' => $originalMovement->ingredient_id,
+                    'quantity_changed' => $reversalQuantity,
+                    'type' => 'adjustment', // Usamos 'adjustment' para devoluciones o podemos crear 'void'
+                    'notes' => 'Reverso por anulación de Venta UUID: ' . $sale->id,
+                    'performed_by' => $userId,
+                    'reference_type' => $originalMovement->reference_type,
+                    'reference_id' => $originalMovement->reference_id,
+                ]);
+
+                $ingredient = \App\Models\Ingredient::find($originalMovement->ingredient_id);
+                $ingredient->current_stock += $reversalQuantity;
+                $ingredient->save();
+            }
+
+            // También debemos revertir puntos de lealtad si se le otorgaron al cliente
+            $config = LoyaltyConfig::active();
+            if ($config && $config->accumulation_rate > 0 && $sale->customer_id) {
+                $customer = $this->customerRepository->find($sale->customer_id);
+                if ($customer) {
+                    $pointsToDeduct = (int) floor($sale->total_amount / $config->accumulation_rate);
+                    // Pasamos puntos negativos para descontar
+                    $this->customerRepository->incrementPoints($customer, -$pointsToDeduct);
+                }
+            }
+        });
     }
 }

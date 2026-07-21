@@ -16,24 +16,44 @@ class SaleController extends Controller
     }
 
     /**
-     * Sincroniza un lote de ventas recibidas del frontend.
+     * Sincroniza un lote de ventas recibidas del frontend de manera asíncrona.
      */
     public function sync(SyncSalesRequest $request): JsonResponse
     {
         $validated = $request->validated();
         
-        // El usuario autenticado (cajero)
         $cashierId = $request->user()->id;
 
-        // Ejecutar el servicio
-        $result = $this->syncService->syncBatch($validated['sales'], $cashierId);
-
-        // Si hay fallos parciales, retornamos 207 Multi-Status
-        $status = empty($result['failed']) ? 200 : 207;
+        foreach ($validated['sales'] as $saleData) {
+            $saleData['cashier_id'] = $cashierId; // Inyectamos el ID del cajero
+            \App\Jobs\ProcessOfflineSaleJob::dispatch($saleData);
+        }
 
         return response()->json([
-            'message' => 'Proceso de sincronización finalizado.',
-            'data' => $result,
-        ], $status);
+            'message' => 'Lote de ventas enviado a la cola para procesamiento asíncrono.',
+        ], 202);
+    }
+
+    /**
+     * Anula una venta y revierte el inventario.
+     */
+    public function voidSale(\App\Models\Sale $sale, \Illuminate\Http\Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'void_reason' => 'required|string|max:255',
+        ]);
+
+        try {
+            $this->syncService->voidSale($sale, $request->user()->id, $validated['void_reason']);
+
+            return response()->json([
+                'message' => 'Venta anulada correctamente.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al anular la venta.',
+                'error' => $e->getMessage()
+            ], 400);
+        }
     }
 }

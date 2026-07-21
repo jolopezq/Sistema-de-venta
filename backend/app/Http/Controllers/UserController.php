@@ -50,6 +50,23 @@ class UserController extends Controller
     }
 
     /**
+     * Resetea la contraseña de un usuario.
+     */
+    public function resetPassword(\Illuminate\Http\Request $request, int $id): Response
+    {
+        $request->validate(['password' => 'required|string|min:6']);
+        $user = $this->users->find($id);
+        
+        $currentUser = $request->user();
+        if ($currentUser->role === 'admin' && $user->role !== 'cashier') {
+            abort(403, 'Unauthorized to reset password for this user.');
+        }
+
+        $this->users->update($user, ['password' => $request->password]);
+        return response()->noContent();
+    }
+
+    /**
      * Soft-delete de un usuario.
      */
     public function destroy(int $id): Response

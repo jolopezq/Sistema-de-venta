@@ -22,7 +22,7 @@ class ProductRepository
      */
     public function allActive(): Collection
     {
-        return Product::active()->with('category')->get();
+        return Product::active()->with(['category', 'recipes', 'optionGroups.options.recipes'])->get();
     }
 
     /**
@@ -46,7 +46,7 @@ class ProductRepository
      */
     public function findWithRecipes(int $id): Product
     {
-        return Product::with('recipes.ingredient')->findOrFail($id);
+        return Product::with(['recipes.ingredient', 'optionGroups.options.recipes.ingredient'])->findOrFail($id);
     }
 
     /**
@@ -54,7 +54,9 @@ class ProductRepository
      */
     public function create(array $data): Product
     {
-        return Product::create($data);
+        $product = Product::create($data);
+        $this->syncOptionGroups($product, $data['option_groups'] ?? []);
+        return $product;
     }
 
     /**
@@ -63,7 +65,25 @@ class ProductRepository
     public function update(Product $product, array $data): Product
     {
         $product->update($data);
+        $this->syncOptionGroups($product, $data['option_groups'] ?? []);
         return $product->fresh();
+    }
+
+    /**
+     * Sincroniza los grupos de opciones manteniendo el orden del frontend.
+     */
+    protected function syncOptionGroups(Product $product, array $optionGroups): void
+    {
+        if (empty($optionGroups)) {
+            $product->optionGroups()->sync([]);
+            return;
+        }
+
+        $syncData = [];
+        foreach ($optionGroups as $index => $groupId) {
+            $syncData[$groupId] = ['sort_order' => $index];
+        }
+        $product->optionGroups()->sync($syncData);
     }
 
     /**

@@ -22,6 +22,8 @@ class InventoryMovement extends Model
         'waste_category',
         'notes',
         'performed_by',
+        'reference_type',
+        'reference_id',
     ];
 
     protected function casts(): array
@@ -32,6 +34,11 @@ class InventoryMovement extends Model
     }
 
     // --- Relaciones ---
+
+    public function reference()
+    {
+        return $this->morphTo();
+    }
 
     public function ingredient(): BelongsTo
     {

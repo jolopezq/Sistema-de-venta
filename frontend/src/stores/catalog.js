@@ -7,6 +7,7 @@ export const useCatalogStore = defineStore('catalog', {
     categories: [],
     products: [],
     customers: [],
+    ingredients: [],
     isLoading: false,
     errorMessage: null,
   }),
@@ -15,20 +16,23 @@ export const useCatalogStore = defineStore('catalog', {
       this.categories = await db.categories.toArray();
       this.products = await db.products.toArray();
       this.customers = await db.customers.toArray();
+      this.ingredients = await db.ingredients.toArray();
     },
     async fetchAndCache() {
       this.isLoading = true;
       try {
         const data = await apiFetch('/catalog');
         
-        await db.transaction('rw', db.categories, db.products, db.customers, async () => {
+        await db.transaction('rw', db.categories, db.products, db.customers, db.ingredients, async () => {
           await db.categories.clear();
           await db.products.clear();
           await db.customers.clear();
+          await db.ingredients.clear();
           
           await db.categories.bulkAdd(data.categories || []);
           await db.products.bulkAdd(data.products || []);
           await db.customers.bulkAdd(data.customers || []);
+          await db.ingredients.bulkAdd(data.ingredients || []);
         });
         
         await this.loadFromLocal();

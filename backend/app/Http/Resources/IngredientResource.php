@@ -24,6 +24,9 @@ class IngredientResource extends JsonResource
             'weighted_avg_cost' => (float) $this->weighted_avg_cost,
             'expiration_date' => $this->expiration_date?->toDateString(),
             'min_shelf_date' => $this->min_shelf_date?->toDateString(),
+            'ingredient_category_id' => $this->ingredient_category_id,
+            'type' => $this->type,
+            'category' => $this->whenLoaded('category'),
         ];
     }
 }

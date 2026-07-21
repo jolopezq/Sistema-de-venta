@@ -1,8 +1,4 @@
 <script setup>
-import { useRouter } from 'vue-router';
-import NetworkIndicator from '../components/NetworkIndicator.vue';
-
-const router = useRouter();
 
 const mockOrders = [
   {
@@ -57,20 +53,6 @@ function getOrdersByStatus(status) {
 
 <template>
   <div class="delivery-layout">
-    <header class="pos-header">
-      <div class="pos-brand">
-        <div class="logo-chip"></div>
-        <span>Pedidos delivery</span>
-      </div>
-      <div class="pos-header-right">
-        <div class="sync-pill">
-          <NetworkIndicator />
-          <span style="margin-left:4px;">Webhook activo · PedidosYa</span>
-        </div>
-        <button class="btn-sm btn-ghost" style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;margin-left:16px;" @click="router.push('/pos')">Volver al POS</button>
-      </div>
-    </header>
-
     <div class="kanban-wrap">
       <div class="kanban-title">
         <h2>Cola de pedidos</h2>
@@ -113,7 +95,7 @@ function getOrdersByStatus(status) {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background-color: white;
+  background-color: var(--cream-100);
   overflow: hidden;
 }
 
@@ -136,7 +118,7 @@ function getOrdersByStatus(status) {
 .logo-chip {
   width: 32px;
   height: 32px;
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   background-image: var(--logo-uri);
   background-size: 72%;
@@ -185,7 +167,7 @@ function getOrdersByStatus(status) {
 .kanban-title h2 {
   margin: 0;
   font-size: 20px;
-  color: var(--acai-900);
+  color: var(--ink-900);
 }
 .kanban-cols {
   display: grid;
@@ -209,10 +191,10 @@ function getOrdersByStatus(status) {
   margin: 0;
   font-size: 13px;
   font-family: 'Baloo 2', sans-serif;
-  color: var(--acai-900);
+  color: var(--ink-900);
 }
 .kcol-count {
-  background: white;
+  background: var(--surface);
   border-radius: 999px;
   padding: 2px 9px;
   font-size: 11px;
@@ -220,7 +202,7 @@ function getOrdersByStatus(status) {
   color: var(--ink-500);
 }
 .order-card {
-  background: white;
+  background: var(--surface);
   border-radius: 12px;
   padding: 12px 13px;
   margin-bottom: 10px;
@@ -236,7 +218,7 @@ function getOrdersByStatus(status) {
   font-weight: 700;
   font-size: 13.5px;
   margin: 4px 0 2px;
-  color: var(--acai-900);
+  color: var(--ink-900);
 }
 .order-card .items {
   font-size: 12px;

@@ -21,7 +21,6 @@ class SaleItem extends Model
         'quantity',
         'unit_price',
         'subtotal',
-        'topping_modifications',
     ];
 
     protected function casts(): array
@@ -30,7 +29,6 @@ class SaleItem extends Model
             'quantity' => 'decimal:4',
             'unit_price' => 'decimal:2',
             'subtotal' => 'decimal:2',
-            'topping_modifications' => 'array',
         ];
     }
 
@@ -44,5 +42,10 @@ class SaleItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function saleItemOptions()
+    {
+        return $this->hasMany(SaleItemOption::class);
     }
 }

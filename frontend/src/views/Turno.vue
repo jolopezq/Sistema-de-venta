@@ -1,8 +1,7 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import NetworkIndicator from '../components/NetworkIndicator.vue';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -27,18 +26,6 @@ function handleCloseTurn() {
 
 <template>
   <div class="turno-layout">
-    <header class="pos-header">
-      <div class="pos-brand">
-        <div class="logo-chip"></div>
-        <span>Gestión de turno</span>
-      </div>
-      <div class="pos-header-right">
-        <div class="sync-pill">
-          <NetworkIndicator />
-        </div>
-        <button class="btn-sm btn-ghost" style="border:1px solid rgba(255,255,255,0.2);color:white;background:transparent;font-family:Inter;font-weight:600;" @click="router.push('/pos')">Volver al POS</button>
-      </div>
-    </header>
     <div class="turno-wrap">
       <div class="turno-card">
         <h2>Cierre de caja — Arqueo</h2>
@@ -117,7 +104,7 @@ function handleCloseTurn() {
 .logo-chip {
   width: 32px;
   height: 32px;
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   background-image: var(--logo-uri);
   background-size: 72%;
@@ -156,7 +143,7 @@ function handleCloseTurn() {
   width: 100%;
 }
 .turno-card {
-  background: white;
+  background: var(--surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: 26px 28px;
@@ -165,7 +152,7 @@ function handleCloseTurn() {
 .turno-card h2 {
   margin: 0 0 4px;
   font-size: 19px;
-  color: var(--acai-900);
+  color: var(--ink-900);
 }
 .turno-card .hint {
   font-size: 13px;
@@ -194,7 +181,7 @@ function handleCloseTurn() {
   font-family: 'Baloo 2', sans-serif;
   font-size: 20px;
   font-weight: 700;
-  color: var(--acai-900);
+  color: var(--ink-900);
   margin-top: 2px;
 }
 .field {
@@ -215,7 +202,8 @@ function handleCloseTurn() {
   font-size: 16px;
   font-family: 'Baloo 2', sans-serif;
   font-weight: 700;
-  color: var(--acai-900);
+  color: var(--ink-900);
+  background: var(--surface-alt);
 }
 .search-input:focus {
   outline: none;

@@ -36,14 +36,11 @@ class UserRequest extends FormRequest
                 'string',
                 'min:6',
             ],
-            'role' => ['required', 'string', 'in:admin,cashier'],
-            'pin' => [
-                $isUpdate ? 'nullable' : 'required',
-                'string',
-                'size:4',
-                'regex:/^[0-9]+$/', // Solo dígitos
-                'unique:users,pin,' . $userId,
-            ],
+            'role' => ['required', 'string', 'in:super_admin,admin,cashier'],
+            'ci' => ['nullable', 'string', 'max:20'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'start_date' => ['nullable', 'date'],
+            'photo_url' => ['nullable', 'string', 'url'],
         ];
     }
 
@@ -53,9 +50,22 @@ class UserRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'pin.regex' => 'El PIN debe contener únicamente números.',
-            'pin.size' => 'El PIN debe ser exactamente de 4 dígitos.',
-            'pin.unique' => 'Este PIN ya está registrado en el sistema por otro usuario.',
+            'name.required' => 'El nombre es obligatorio.',
+            'name.string' => 'El nombre debe ser texto.',
+            'name.max' => 'El nombre no puede exceder 255 caracteres.',
+            'email.required' => 'El correo electrónico es obligatorio.',
+            'email.email' => 'El formato del correo electrónico no es válido.',
+            'email.max' => 'El correo electrónico no puede exceder 255 caracteres.',
+            'email.unique' => 'Este correo electrónico ya está registrado.',
+            'password.required' => 'La contraseña es obligatoria.',
+            'password.string' => 'La contraseña debe ser texto.',
+            'password.min' => 'La contraseña debe tener al menos 6 caracteres.',
+            'role.required' => 'El rol es obligatorio.',
+            'role.in' => 'El rol seleccionado no es válido.',
+            'ci.max' => 'El CI no puede exceder 20 caracteres.',
+            'phone.max' => 'El teléfono no puede exceder 20 caracteres.',
+            'start_date.date' => 'La fecha de inicio no es válida.',
+            'photo_url.url' => 'La URL de la foto no es válida.',
         ];
     }
 }

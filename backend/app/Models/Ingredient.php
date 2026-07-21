@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -25,6 +26,8 @@ class Ingredient extends Model
         'weighted_avg_cost',
         'expiration_date',
         'min_shelf_date',
+        'ingredient_category_id',
+        'type',
     ];
 
     protected function casts(): array
@@ -40,6 +43,11 @@ class Ingredient extends Model
     }
 
     // --- Relaciones ---
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(IngredientCategory::class, 'ingredient_category_id');
+    }
 
     public function recipes(): HasMany
     {

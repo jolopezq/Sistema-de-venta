@@ -20,6 +20,7 @@ class Product extends Model
 
     protected $fillable = [
         'name',
+        'description',
         'image_url',
         'price',
         'vip_price',
@@ -28,6 +29,7 @@ class Product extends Model
         'category_id',
         'printer_target',
         'is_active',
+        'sort_order',
     ];
 
     protected function casts(): array
@@ -38,6 +40,7 @@ class Product extends Model
             'price_per_gram' => 'decimal:4',
             'is_weight_based' => 'boolean',
             'is_active' => 'boolean',
+            'sort_order' => 'integer',
         ];
     }
 
@@ -64,13 +67,21 @@ class Product extends Model
         return $this->hasMany(Recipe::class);
     }
 
-    public function variants(): HasMany
+    public function optionGroups()
     {
-        return $this->hasMany(ProductVariant::class);
+        return $this->belongsToMany(OptionGroup::class, 'option_group_product')
+                    ->withPivot('sort_order')
+                    ->orderByPivot('sort_order', 'asc')
+                    ->withTimestamps();
     }
 
     public function saleItems(): HasMany
     {
         return $this->hasMany(SaleItem::class);
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
     }
 }
