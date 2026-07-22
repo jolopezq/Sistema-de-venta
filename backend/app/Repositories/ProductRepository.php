@@ -22,7 +22,7 @@ class ProductRepository
      */
     public function allActive(): Collection
     {
-        return Product::active()->with(['category', 'recipes', 'optionGroups.options.recipes'])->get();
+        return Product::active()->with(['category', 'recipes', 'optionGroups.options.recipes', 'excludedOptions'])->get();
     }
 
     /**
@@ -46,7 +46,7 @@ class ProductRepository
      */
     public function findWithRecipes(int $id): Product
     {
-        return Product::with(['recipes.ingredient', 'optionGroups.options.recipes.ingredient'])->findOrFail($id);
+        return Product::with(['recipes.ingredient', 'optionGroups.options.recipes.ingredient', 'excludedOptions'])->findOrFail($id);
     }
 
     /**
@@ -56,6 +56,7 @@ class ProductRepository
     {
         $product = Product::create($data);
         $this->syncOptionGroups($product, $data['option_groups'] ?? []);
+        $this->syncExcludedOptions($product, $data['excluded_options'] ?? []);
         return $product;
     }
 
@@ -66,6 +67,7 @@ class ProductRepository
     {
         $product->update($data);
         $this->syncOptionGroups($product, $data['option_groups'] ?? []);
+        $this->syncExcludedOptions($product, $data['excluded_options'] ?? []);
         return $product->fresh();
     }
 
@@ -84,6 +86,14 @@ class ProductRepository
             $syncData[$groupId] = ['sort_order' => $index];
         }
         $product->optionGroups()->sync($syncData);
+    }
+
+    /**
+     * Sincroniza las opciones que han sido excluidas específicamente para este producto.
+     */
+    protected function syncExcludedOptions(Product $product, array $excludedOptions): void
+    {
+        $product->excludedOptions()->sync($excludedOptions);
     }
 
     /**

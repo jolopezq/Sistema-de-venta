@@ -21,12 +21,16 @@ class ProductResource extends JsonResource
             'image_url' => $this->image_url,
             'price' => (float) $this->price,
             'vip_price' => $this->vip_price !== null ? (float) $this->vip_price : null,
+            'delivery_price' => $this->delivery_price !== null ? (float) $this->delivery_price : null,
             'is_weight_based' => (bool) $this->is_weight_based,
             'price_per_gram' => $this->price_per_gram !== null ? (float) $this->price_per_gram : null,
             'category_id' => $this->category_id,
             'printer_target' => $this->printer_target,
             'is_active' => (bool) $this->is_active,
             'option_groups' => OptionGroupResource::collection($this->whenLoaded('optionGroups')),
+            'excluded_options' => $this->whenLoaded('excludedOptions', function () {
+                return $this->excludedOptions->pluck('id');
+            }),
             'recipes' => $this->whenLoaded('recipes'),
         ];
     }

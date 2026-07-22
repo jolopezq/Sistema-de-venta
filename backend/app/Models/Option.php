@@ -13,6 +13,7 @@ class Option extends Model
         'option_group_id',
         'name',
         'additional_price',
+        'delivery_price',
         'is_active',
         'is_default',
         'sort_order',
@@ -20,6 +21,7 @@ class Option extends Model
 
     protected $casts = [
         'additional_price' => 'decimal:2',
+        'delivery_price' => 'decimal:2',
         'is_active' => 'boolean',
         'is_default' => 'boolean',
         'sort_order' => 'integer',

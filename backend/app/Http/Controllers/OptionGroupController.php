@@ -78,7 +78,7 @@ class OptionGroupController extends Controller
             'product_ids.*' => ['exists:products,id']
         ]);
 
-        $optionGroup->products()->syncWithoutDetaching($request->product_ids);
+        $optionGroup->products()->sync($request->product_ids);
 
         return response()->json(['message' => 'Products attached successfully']);
     }

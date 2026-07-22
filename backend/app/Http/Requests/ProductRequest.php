@@ -34,6 +34,9 @@ class ProductRequest extends FormRequest
             'is_active' => ['boolean'],
             'option_groups' => ['nullable', 'array'],
             'option_groups.*' => ['exists:option_groups,id'],
+            'excluded_options' => ['nullable', 'array'],
+            'excluded_options.*' => ['exists:options,id'],
+            'delivery_price' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 

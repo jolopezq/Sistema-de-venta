@@ -1,10 +1,13 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { apiFetch } from '../../services/api';
+import AssignProductsModal from './AssignProductsModal.vue';
 
 const props = defineProps({
   optionGroup: { type: Object, required: true },
   ingredients: { type: Array, required: true },
+  categories: { type: Array, default: () => [] },
+  products: { type: Array, default: () => [] },
   formErrors: { type: Object, default: () => ({}) }
 });
 
@@ -19,12 +22,29 @@ watch(() => props.optionGroup, (newVal) => {
 // --- Options state ---
 const newOptionName = ref('');
 const newOptionPrice = ref(0);
+const newOptionDeliveryPrice = ref(0);
 const expandedOptionId = ref(null);
 const newRecipeIngredientId = ref(null);
 const newRecipeQuantity = ref(0);
 
+const showAssignModal = ref(false);
+
 const save = () => emit('save', localGroup.value);
 const deleteGroup = () => emit('delete', localGroup.value.id);
+
+const handleAssignSave = async (productIds) => {
+  try {
+    await apiFetch(`/option-groups/${localGroup.value.id}/attach-products`, {
+      method: 'POST',
+      body: JSON.stringify({ product_ids: productIds })
+    });
+    showAssignModal.value = false;
+    emit('alert', 'Productos vinculados correctamente');
+    emit('update-success', localGroup.value.id);
+  } catch (error) {
+    emit('alert', 'Error vinculando productos: ' + (error.message || error));
+  }
+};
 
 // --- Options Methods ---
 const addOption = async () => {
@@ -37,6 +57,7 @@ const addOption = async () => {
         option_group_id: localGroup.value.id,
         name: newOptionName.value,
         additional_price: newOptionPrice.value,
+        delivery_price: newOptionDeliveryPrice.value,
         is_active: true,
         is_default: false,
         sort_order: localGroup.value.options ? localGroup.value.options.length : 0
@@ -44,6 +65,7 @@ const addOption = async () => {
     });
     newOptionName.value = '';
     newOptionPrice.value = 0;
+    newOptionDeliveryPrice.value = 0;
     emit('update-success', localGroup.value.id);
   } catch (error) {
     emit('alert', 'Error añadiendo opción: ' + (error.message || error));
@@ -148,6 +170,13 @@ const deleteOptionRecipe = (recipeId, optionGroupId) => {
   <div class="option-group-form">
     <div class="main-header">
       <h2 style="margin:0;color:var(--ink-900);">{{ localGroup.name || 'Nuevo Grupo' }}</h2>
+      <button 
+        v-if="localGroup.id" 
+        class="btn-secondary-sm" 
+        style="padding: 8px 16px; border-radius: 8px;"
+        @click="showAssignModal = true">
+        Vincular Productos
+      </button>
     </div>
 
     <div class="form-grid">
@@ -187,9 +216,10 @@ const deleteOptionRecipe = (recipeId, optionGroupId) => {
         <thead>
           <tr>
             <th>Opción</th>
-            <th>Precio Adicional (Bs)</th>
+            <th>Precio (+Bs)</th>
+            <th>Delivery (+Bs)</th>
             <th style="text-align:center">Estado / Por Defecto</th>
-            <th style="text-align:center">Receta de Inventario</th>
+            <th style="text-align:center">Receta</th>
             <th></th>
           </tr>
         </thead>
@@ -198,6 +228,9 @@ const deleteOptionRecipe = (recipeId, optionGroupId) => {
             <tr class="opt-row" :class="{ 'opt-row--expanded': expandedOptionId === opt.id }">
               <td style="font-weight:700;">{{ opt.name }}</td>
               <td>+Bs {{ Number(opt.additional_price).toFixed(2) }}</td>
+              <td>
+                <input type="number" step="0.5" v-model="opt.delivery_price" @change="updateOption(opt)" style="width: 70px; padding: 4px; font-size: 12px; border-radius: 4px; border: 1px solid var(--border);" placeholder="Opcional">
+              </td>
               <td style="text-align:center;">
                 <input type="checkbox" :checked="opt.is_active" @change="toggleOptionActive(opt)" title="Activar/Desactivar" style="width:auto;margin:0;">
                 <input type="radio" :name="'default_' + localGroup.id" :checked="opt.is_default" @change="setOptionDefault(opt)" title="Marcar por defecto" style="margin-left:12px;width:auto;">
@@ -217,7 +250,7 @@ const deleteOptionRecipe = (recipeId, optionGroupId) => {
             </tr>
 
             <tr v-if="expandedOptionId === opt.id" class="recipe-expand-row">
-              <td colspan="4" style="padding:0;">
+              <td colspan="5" style="padding:0;">
                 <div class="recipe-expand-body">
                   <p class="recipe-hint">
                     💡 Configura cuánto insumo se descuenta al elegir esta opción.<br>
@@ -247,17 +280,28 @@ const deleteOptionRecipe = (recipeId, optionGroupId) => {
             </tr>
           </template>
           <tr v-if="!localGroup.options?.length">
-            <td colspan="4" style="text-align:center; color:var(--ink-500);">No hay opciones agregadas.</td>
+            <td colspan="5" style="text-align:center; color:var(--ink-500);">No hay opciones agregadas.</td>
           </tr>
         </tbody>
       </table>
 
       <div class="add-option-row">
-        <input v-model="newOptionName" placeholder="Nombre (Ej. Junior)">
-        <input type="number" step="0.5" v-model="newOptionPrice" placeholder="Precio (+Bs)">
-        <button class="btn btn-ghost" @click="addOption">+ Añadir opción</button>
+        <input v-model="newOptionName" placeholder="Nombre (Ej. Junior)" style="flex:2">
+        <input type="number" step="0.5" v-model="newOptionPrice" placeholder="Precio (+Bs)" style="flex:1">
+        <input type="number" step="0.5" v-model="newOptionDeliveryPrice" placeholder="Delivery (+Bs)" style="flex:1">
+        <button class="btn btn-ghost" @click="addOption" style="flex:1">+ Añadir</button>
       </div>
     </div>
+
+    <!-- Modal Vincular Productos -->
+    <AssignProductsModal
+      v-if="showAssignModal"
+      :optionGroup="localGroup"
+      :categories="categories"
+      :products="products"
+      @close="showAssignModal = false"
+      @save="handleAssignSave"
+    />
   </div>
 </template>
 
@@ -301,4 +345,15 @@ const deleteOptionRecipe = (recipeId, optionGroupId) => {
 .recipe-qty-input.input-negative { border-color: var(--passion-400); color: var(--passion-700); background: var(--passion-50); }
 .has-error { border-color: var(--danger-600) !important; background-color: #fffafb; }
 .error-text { color: var(--danger-600); font-size: 11px; margin-top: 4px; display: block; }
+.btn-secondary-sm {
+  background: var(--acai-100);
+  border: none;
+  color: var(--acai-700);
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.btn-secondary-sm:hover {
+  background: var(--acai-200);
+}
 </style>

@@ -24,6 +24,7 @@ class Product extends Model
         'image_url',
         'price',
         'vip_price',
+        'delivery_price',
         'is_weight_based',
         'price_per_gram',
         'category_id',
@@ -37,6 +38,7 @@ class Product extends Model
         return [
             'price' => 'decimal:2',
             'vip_price' => 'decimal:2',
+            'delivery_price' => 'decimal:2',
             'price_per_gram' => 'decimal:4',
             'is_weight_based' => 'boolean',
             'is_active' => 'boolean',
@@ -73,6 +75,11 @@ class Product extends Model
                     ->withPivot('sort_order')
                     ->orderByPivot('sort_order', 'asc')
                     ->withTimestamps();
+    }
+
+    public function excludedOptions()
+    {
+        return $this->belongsToMany(Option::class, 'option_product_exclusions');
     }
 
     public function saleItems(): HasMany

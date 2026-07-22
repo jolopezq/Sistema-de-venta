@@ -14,6 +14,7 @@ class OptionResource extends JsonResource
             'option_group_id' => $this->option_group_id,
             'name' => $this->name,
             'additional_price' => $this->additional_price,
+            'delivery_price' => $this->delivery_price,
             'is_active' => $this->is_active,
             'is_default' => $this->is_default,
             'sort_order' => $this->sort_order,

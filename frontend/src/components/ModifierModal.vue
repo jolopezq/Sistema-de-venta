@@ -37,7 +37,7 @@ const filteredGroups = computed(() => {
       return {
         ...og,
         options: [...og.options]
-          .filter(opt => opt.is_active)
+          .filter(opt => opt.is_active && !(props.product?.excluded_options || []).includes(opt.id))
           .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
       };
     });

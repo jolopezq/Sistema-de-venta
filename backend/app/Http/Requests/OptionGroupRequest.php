@@ -22,6 +22,7 @@ class OptionGroupRequest extends FormRequest
             'options.*.id' => ['nullable', 'exists:options,id'],
             'options.*.name' => ['required', 'string', 'max:255'],
             'options.*.additional_price' => ['required', 'numeric', 'min:0'],
+            'options.*.delivery_price' => ['nullable', 'numeric', 'min:0'],
             'options.*.is_active' => ['sometimes', 'boolean'],
         ];
     }
