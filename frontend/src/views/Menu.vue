@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { apiFetch } from '../services/api.js';
 import ProductForm from '../components/Menu/ProductForm.vue';
 import OptionGroupForm from '../components/Menu/OptionGroupForm.vue';
+import OptionGroupDetail from '../components/Menu/OptionGroupDetail.vue';
 import AdminProductCard from '../components/Menu/AdminProductCard.vue';
 import ProductOptionsModal from '../components/Menu/ProductOptionsModal.vue';
 
@@ -18,12 +19,17 @@ const activeOptionGroup = ref(null);
 
 const isLoading = ref(true);
 
-// Modals
 const showProductFormModal = ref(false);
 const showProductOptionsModal = ref(false);
+const showOptionGroupModal = ref(false);
+const editingOptionGroup = ref(null);
 const activeProductForModal = ref(null);
 
 const formErrors = ref({});
+
+// ...
+
+
 const showConfirmModal = ref(false);
 const confirmMessage = ref('');
 const confirmCallback = ref(null);
@@ -63,6 +69,9 @@ const fetchData = async () => {
 
     if (categories.value.length > 0 && !activeCategory.value) {
       activeCategory.value = categories.value[0];
+    }
+    if (optionGroups.value.length > 0 && !activeOptionGroup.value) {
+      activeOptionGroup.value = optionGroups.value[0];
     }
   } catch (error) {
     alertAction('Error cargando catálogo: ' + (error.message || error));
@@ -141,11 +150,36 @@ const toggleProductActive = async (prod) => {
 
 const saveProduct = async (productData) => {
   try {
-    if (productData.id) {
-      await apiFetch(`/products/${productData.id}`, { method: 'PUT', body: JSON.stringify(productData) });
+    let body;
+    let method = 'POST';
+    let url = '/products';
+    
+    if (productData.image instanceof File) {
+      body = new FormData();
+      for (const key in productData) {
+        if (key === 'option_groups' || key === 'excluded_options') {
+          if (Array.isArray(productData[key])) {
+            productData[key].forEach(val => body.append(`${key}[]`, val));
+          }
+        } else if (productData[key] !== null && productData[key] !== undefined && key !== 'image_url') {
+          // Add booleans correctly for FormData
+          const val = typeof productData[key] === 'boolean' ? (productData[key] ? 1 : 0) : productData[key];
+          body.append(key, val);
+        }
+      }
+      if (productData.id) {
+        body.append('_method', 'PUT');
+        url = `/products/${productData.id}`;
+      }
     } else {
-      await apiFetch('/products', { method: 'POST', body: JSON.stringify(productData) });
+      body = JSON.stringify(productData);
+      if (productData.id) {
+        method = 'PUT';
+        url = `/products/${productData.id}`;
+      }
     }
+
+    await apiFetch(url, { method, body });
     await fetchData();
     alertAction('Producto guardado correctamente');
     formErrors.value = {};
@@ -263,16 +297,23 @@ const deleteCategory = async () => {
 };
 
 // --- TAB OPCIONALES ---
+const editOptionGroup = (og) => {
+  editingOptionGroup.value = JSON.parse(JSON.stringify(og || activeOptionGroup.value));
+  formErrors.value = {};
+  showOptionGroupModal.value = true;
+};
+
 const newOptionGroup = () => {
-  activeOptionGroup.value = {
+  editingOptionGroup.value = {
     id: null,
-    name: 'Nuevo Grupo de Opciones',
+    name: '',
     min_selections: 0,
-    max_selections: 1,
+    max_selections: 0,
     is_active: true,
     options: []
   };
   formErrors.value = {};
+  showOptionGroupModal.value = true;
 };
 
 const handleCreateOptionGroupFromModal = () => {
@@ -283,6 +324,7 @@ const handleCreateOptionGroupFromModal = () => {
 
 const selectOptionGroup = (og) => {
   activeOptionGroup.value = JSON.parse(JSON.stringify(og));
+  formErrors.value = {};
 };
 
 const saveOptionGroup = async (groupData) => {
@@ -294,10 +336,12 @@ const saveOptionGroup = async (groupData) => {
       savedGroup = await apiFetch('/option-groups', { method: 'POST', body: JSON.stringify(groupData) });
     }
     await fetchData();
-    const freshOg = optionGroups.value.find(og => og.id === (groupData.id || savedGroup.data.id));
+    const savedId = groupData.id || (savedGroup.data ? savedGroup.data.id : savedGroup.id);
+    const freshOg = optionGroups.value.find(og => og.id === savedId);
     if (freshOg) selectOptionGroup(freshOg);
     alertAction('Grupo guardado correctamente');
     formErrors.value = {};
+    showOptionGroupModal.value = false;
   } catch (error) {
     if (error.validationErrors) {
       formErrors.value = error.validationErrors;
@@ -312,6 +356,7 @@ const deleteOptionGroup = async (id) => {
     try {
       await apiFetch(`/option-groups/${id}`, { method: 'DELETE' });
       activeOptionGroup.value = null;
+      showOptionGroupModal.value = false;
       await fetchData();
     } catch (error) {
       alertAction('Error eliminando grupo: ' + (error.message || error));
@@ -340,7 +385,7 @@ const handleUpdateSuccess = async (groupId) => {
       <div 
         class="tab-item" 
         :class="{ active: activeTab === 'opcionales' }" 
-        @click="activeTab = 'opcionales'">
+        @click="activeTab = 'opcionales'; if (!activeOptionGroup && optionGroups.length > 0) activeOptionGroup = optionGroups[0];">
         Opcionales
       </div>
     </div>
@@ -370,20 +415,29 @@ const handleUpdateSuccess = async (groupId) => {
         <!-- SIDEBAR OPCIONALES (GRUPOS) -->
         <template v-if="activeTab === 'opcionales'">
           <div class="sidebar-add-action" @click="newOptionGroup">
-            <span>+ Crear Grupo de Opcionales</span>
+            <span>+ Crear grupo de opcionales</span>
           </div>
           <div class="section-list">
-            <div 
-              v-for="og in optionGroups" 
-              :key="og.id"
-              class="admin-list-item" 
-              :class="{ active: activeOptionGroup?.id === og.id }"
-              @click="selectOptionGroup(og)"
-            >
-              <span>{{ og.name }}</span>
+              <div 
+                v-for="og in optionGroups" 
+                :key="og.id"
+                class="option-group-sidebar-card" 
+                :class="{ active: activeOptionGroup && activeOptionGroup.id === og.id }"
+                @click="selectOptionGroup(og)"
+              >
+                <div class="og-card-left">
+                  <div class="og-card-title">{{ og.name }}</div>
+                  <div class="og-card-subtitle">{{ og.options?.length || 0 }} Opcionales</div>
+                </div>
+                <div class="og-card-right">
+                  <span class="og-badge">{{ og.options?.length || 0 }}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="chevron-icon">
+                    <path d="M9 18l6-6-6-6"></path>
+                  </svg>
+                </div>
+              </div>
             </div>
-          </div>
-        </template>
+          </template>
 
       </div>
 
@@ -404,7 +458,7 @@ const handleUpdateSuccess = async (groupId) => {
               <button class="btn-add-product" @click="newProduct">+ Agregar Producto</button>
             </div>
             
-            <div class="grid-container" v-if="activeCategoryProducts.length > 0">
+            <div class="products-list-card" v-if="activeCategoryProducts.length > 0">
               <AdminProductCard 
                 v-for="prod in activeCategoryProducts" 
                 :key="prod.id"
@@ -422,21 +476,19 @@ const handleUpdateSuccess = async (groupId) => {
 
           <!-- TAB OPCIONALES: DETALLE DE GRUPO -->
           <div v-if="activeTab === 'opcionales'" class="options-detail-view">
-            <OptionGroupForm
+            <OptionGroupDetail
               v-if="activeOptionGroup"
-              :optionGroup="activeOptionGroup"
+              :group="activeOptionGroup"
               :ingredients="ingredients"
-              :formErrors="formErrors"
-              :categories="categories"
               :products="products"
-              @save="saveOptionGroup"
-              @delete="deleteOptionGroup"
-              @update-success="handleUpdateSuccess"
+              :categories="categories"
+              @edit-group="editOptionGroup"
+              @update-group="handleUpdateSuccess"
               @alert="alertAction"
               @confirm="confirmAction"
             />
             <div v-else class="empty-state">
-              <h3 style="color:var(--ink-500);">Selecciona un grupo de opciones</h3>
+              <h3 style="color:var(--ink-500); font-weight: 700;">Selecciona un grupo de opciones</h3>
               <p class="text-muted">Crea o edita los grupos de modificadores para tus productos.</p>
             </div>
           </div>
@@ -521,6 +573,22 @@ const handleUpdateSuccess = async (groupId) => {
       </div>
     </div>
 
+    <!-- MODAL GRUPO DE OPCIONALES -->
+    <OptionGroupForm
+      v-if="showOptionGroupModal && editingOptionGroup"
+      :optionGroup="editingOptionGroup"
+      :ingredients="ingredients"
+      :formErrors="formErrors"
+      :categories="categories"
+      :products="products"
+      @save="saveOptionGroup"
+      @delete="deleteOptionGroup"
+      @update-success="handleUpdateSuccess"
+      @alert="alertAction"
+      @confirm="confirmAction"
+      @close="showOptionGroupModal = false"
+    />
+
     <!-- MODAL OPCIONES DE PRODUCTO (EXCLUSIONES) -->
     <ProductOptionsModal
       v-if="showProductOptionsModal"
@@ -593,36 +661,76 @@ const handleUpdateSuccess = async (groupId) => {
 .btn-icon { background: var(--acai-100); color: var(--acai-700); border: none; width: 24px; height: 24px; border-radius: 6px; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.15s; }
 .btn-icon:hover { background: var(--acai-200); }
 
-.admin-list-item { padding: 14px 24px; font-weight: 600; color: var(--ink-800); font-size: 14px; border-bottom: 1px solid var(--cream-200); cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: 0.15s; }
-.admin-list-item:hover { background: var(--cream-50); }
-.admin-list-item.active { background: var(--acai-50); color: var(--ink-900); border-left: 4px solid var(--acai-600); }
-
 .admin-main { flex: 1; padding: 32px; overflow-y: auto; background: var(--cream-100); }
 
 /* SIDEBAR ACTIONS */
 .sidebar-add-action {
-  padding: 16px 24px;
+  margin: 16px;
+  padding: 12px 16px;
   font-weight: 700;
-  color: var(--passion-600);
-  background: var(--surface);
-  border-bottom: 1px solid var(--cream-200);
+  font-size: 14px;
+  color: var(--passion-500);
+  background: transparent;
+  border: 1.5px solid var(--passion-500);
+  border-radius: 999px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  transition: background-color 0.2s;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
 }
 .sidebar-add-action:hover {
-  background: var(--cream-50);
+  background: var(--passion-50);
+}
+
+.section-list {
+  padding: 0 16px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-list-item {
+  padding: 14px 16px;
+  font-weight: 600;
+  color: var(--ink-700);
+  font-size: 15px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+  background: var(--surface);
+}
+.admin-list-item:hover { 
+  border-color: var(--ink-300);
+  border-left-color: var(--passion-300);
+  color: var(--ink-900);
+}
+.admin-list-item.active { 
+  border-color: var(--passion-500);
+  border-left-color: var(--passion-500);
+  background: var(--passion-50);
+  color: var(--passion-700); 
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(234, 30, 77, 0.08);
 }
 
 /* GRID PRODUCTOS */
 .products-grid-view { height: 100%; display: flex; flex-direction: column; }
-.category-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.category-header h2 { margin: 0; font-size: 24px; font-weight: 800; color: var(--ink-900); }
-.grid-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+.category-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.category-title-container { display: flex; align-items: center; gap: 12px; }
+.category-header h2 { margin: 0; font-size: 28px; font-weight: 800; color: var(--ink-900); letter-spacing: -0.5px; }
+.products-list-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
 .options-detail-view { height: 100%; }
@@ -820,16 +928,101 @@ const handleUpdateSuccess = async (groupId) => {
 .btn-add-product {
   background: transparent;
   color: var(--passion-500);
-  border: 1px solid var(--passion-500);
-  border-radius: 12px;
+  border: 1.5px solid var(--passion-500);
+  border-radius: 999px;
   padding: 8px 16px;
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 .btn-add-product:hover {
-  background: var(--cream-100);
-  border-color: var(--passion-600);
+  background: var(--passion-50);
+}
+
+/* SIDEBAR OPCIONALES CARDS (ESTILO PEDIDOSYA) */
+.sidebar-add-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: 1.5px solid var(--passion-500);
+  color: var(--passion-500);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+.sidebar-add-action-btn:hover {
+  background: var(--passion-50);
+}
+
+.option-group-sidebar-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid transparent;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.option-group-sidebar-card:hover {
+  border-color: var(--ink-300);
+  border-left-color: var(--passion-300);
+}
+.option-group-sidebar-card.active {
+  border-color: var(--passion-500);
+  border-left-color: var(--passion-500);
+  background: var(--passion-50);
+  box-shadow: 0 4px 12px rgba(234, 30, 77, 0.08);
+}
+.og-card-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink-900);
+  margin-bottom: 2px;
+}
+.option-group-sidebar-card.active .og-card-title {
+  color: var(--passion-700);
+}
+.og-card-subtitle {
+  font-size: 12.5px;
+  color: var(--ink-500);
+  font-weight: 500;
+}
+.option-group-sidebar-card.active .og-card-subtitle {
+  color: var(--passion-600);
+}
+
+.og-card-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.og-badge {
+  background: var(--ink-200);
+  color: var(--ink-700);
+  font-size: 11px;
+  font-weight: 700;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chevron-icon {
+  color: var(--ink-400);
+}
+.option-group-sidebar-card.active .chevron-icon {
+  color: var(--passion-500);
 }
 </style>

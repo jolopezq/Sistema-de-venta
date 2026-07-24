@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useCatalogStore } from '../stores/catalog';
+import { useThemeStore } from '../stores/theme';
 import { useRouter } from 'vue-router';
 
 const email = ref('admin@example.com');
@@ -12,6 +13,7 @@ const isLoading = ref(false);
 
 const auth = useAuthStore();
 const catalog = useCatalogStore();
+const theme = useThemeStore();
 const router = useRouter();
 
 async function handleLogin() {
@@ -36,13 +38,32 @@ async function handleLogin() {
 
 <template>
   <div class="login-screen">
+    <!-- Botón Toggle de Tema -->
+    <button type="button" class="login-theme-toggle" @click="theme.toggleTheme()" :title="theme.isDark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'">
+      <svg v-if="theme.isDark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+      <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+    </button>
+
     <form @submit.prevent="handleLogin" class="login-card">
       <div class="login-logo"></div>
       <h1>Ohana Açaí POS</h1>
       <p class="tagline">Sistema de Gestión y Caja</p>
 
-      <div v-if="errorMsg" class="offline-banner" style="background:var(--danger-100);border-color:var(--danger-500);color:var(--danger-600);">
-        ⚠️ {{ errorMsg }}
+      <div v-if="errorMsg" class="error-banner">
+        <span>⚠️</span>
+        <span>{{ errorMsg }}</span>
       </div>
 
       <div class="field">
@@ -90,8 +111,8 @@ async function handleLogin() {
    come from the global style.css extracted from the prototype */
 
 .has-error {
-  border-color: var(--danger-600) !important;
-  background-color: #fffafb;
+  border-color: var(--danger-500) !important;
+  background-color: var(--danger-100) !important;
 }
 .error-text {
   color: var(--danger-600);

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { apiFetch } from '../../services/api';
 import AssignProductsModal from './AssignProductsModal.vue';
 
@@ -11,289 +11,212 @@ const props = defineProps({
   formErrors: { type: Object, default: () => ({}) }
 });
 
-const emit = defineEmits(['save', 'delete', 'update-success', 'alert', 'confirm']);
+const emit = defineEmits(['save', 'delete', 'update-success', 'alert', 'confirm', 'close']);
 
 const localGroup = ref(JSON.parse(JSON.stringify(props.optionGroup)));
 
 watch(() => props.optionGroup, (newVal) => {
   localGroup.value = JSON.parse(JSON.stringify(newVal));
-}, { deep: true });
+  if (!localGroup.value.options) localGroup.value.options = [];
+}, { deep: true, immediate: true });
 
-// --- Options state ---
-const newOptionName = ref('');
-const newOptionPrice = ref(0);
-const newOptionDeliveryPrice = ref(0);
-const expandedOptionId = ref(null);
-const newRecipeIngredientId = ref(null);
-const newRecipeQuantity = ref(0);
+// --- Sub-modal Agregar Opcional ---
+const showAddOptionModal = ref(false);
+const newOptName = ref('');
+const newOptPrice = ref(0);
 
+const openAddOptionModal = () => {
+  newOptName.value = '';
+  newOptPrice.value = 0;
+  showAddOptionModal.value = true;
+};
+
+const confirmAddOption = () => {
+  if (!newOptName.value) return;
+  if (!localGroup.value.options) localGroup.value.options = [];
+  
+  localGroup.value.options.push({
+    name: newOptName.value,
+    additional_price: Number(newOptPrice.value) || 0,
+    delivery_price: 0,
+    is_active: true,
+    is_default: false
+  });
+  
+  showAddOptionModal.value = false;
+};
+
+const removeOption = (index) => {
+  localGroup.value.options.splice(index, 1);
+};
+
+// --- Vincular Productos Modal ---
 const showAssignModal = ref(false);
+
+const linkedProducts = computed(() => {
+  if (!localGroup.value.products || localGroup.value.products.length === 0) {
+    return [];
+  }
+  return localGroup.value.products;
+});
+
+const handleAssignSave = async (productIds) => {
+  if (localGroup.value.id) {
+    try {
+      await apiFetch(`/option-groups/${localGroup.value.id}/attach-products`, {
+        method: 'POST',
+        body: JSON.stringify({ product_ids: productIds })
+      });
+      
+      // Update local view so changes reflect immediately
+      if (props.products) {
+        localGroup.value.products = props.products.filter(p => productIds.includes(p.id));
+      }
+      
+      showAssignModal.value = false;
+      emit('alert', 'Productos vinculados correctamente');
+      emit('update-success', localGroup.value.id);
+    } catch (error) {
+      emit('alert', 'Error vinculando productos: ' + (error.message || error));
+    }
+  } else {
+    localGroup.value.product_ids = productIds;
+    if (props.products) {
+      localGroup.value.products = props.products.filter(p => productIds.includes(p.id));
+    }
+    showAssignModal.value = false;
+  }
+};
 
 const save = () => emit('save', localGroup.value);
 const deleteGroup = () => emit('delete', localGroup.value.id);
-
-const handleAssignSave = async (productIds) => {
-  try {
-    await apiFetch(`/option-groups/${localGroup.value.id}/attach-products`, {
-      method: 'POST',
-      body: JSON.stringify({ product_ids: productIds })
-    });
-    showAssignModal.value = false;
-    emit('alert', 'Productos vinculados correctamente');
-    emit('update-success', localGroup.value.id);
-  } catch (error) {
-    emit('alert', 'Error vinculando productos: ' + (error.message || error));
-  }
-};
-
-// --- Options Methods ---
-const addOption = async () => {
-  if (!localGroup.value.id) return emit('alert', 'Guarda el grupo primero antes de añadir opciones.');
-  if (!newOptionName.value) return;
-  try {
-    await apiFetch('/options', {
-      method: 'POST',
-      body: JSON.stringify({
-        option_group_id: localGroup.value.id,
-        name: newOptionName.value,
-        additional_price: newOptionPrice.value,
-        delivery_price: newOptionDeliveryPrice.value,
-        is_active: true,
-        is_default: false,
-        sort_order: localGroup.value.options ? localGroup.value.options.length : 0
-      })
-    });
-    newOptionName.value = '';
-    newOptionPrice.value = 0;
-    newOptionDeliveryPrice.value = 0;
-    emit('update-success', localGroup.value.id);
-  } catch (error) {
-    emit('alert', 'Error añadiendo opción: ' + (error.message || error));
-  }
-};
-
-const deleteOption = (id) => {
-  emit('confirm', '¿Seguro que deseas eliminar esta opción?', async () => {
-    try {
-      await apiFetch(`/options/${id}`, { method: 'DELETE' });
-      emit('update-success', localGroup.value.id);
-    } catch (error) {
-      emit('alert', 'Error eliminando opción: ' + (error.message || error));
-    }
-  });
-};
-
-const updateOption = async (opt) => {
-  try {
-    await apiFetch(`/options/${opt.id}`, { method: 'PUT', body: JSON.stringify(opt) });
-    emit('update-success', localGroup.value.id);
-  } catch (error) {
-    emit('alert', 'Error actualizando opción: ' + (error.message || error));
-  }
-};
-
-const toggleOptionActive = (opt) => {
-  opt.is_active = !opt.is_active;
-  updateOption(opt);
-};
-
-const setOptionDefault = (opt) => {
-  localGroup.value.options.forEach(o => {
-    if(o.id !== opt.id && o.is_default) {
-      o.is_default = false;
-      updateOption(o);
-    }
-  });
-  opt.is_default = true;
-  updateOption(opt);
-};
-
-const moveOptionUp = async (index) => {
-  if (index === 0) return;
-  const current = localGroup.value.options[index];
-  const previous = localGroup.value.options[index - 1];
-  const currentSort = current.sort_order || index;
-  const prevSort = previous.sort_order || (index - 1);
-  current.sort_order = prevSort;
-  previous.sort_order = currentSort;
-  await apiFetch(`/options/${current.id}`, { method: 'PUT', body: JSON.stringify(current) });
-  await apiFetch(`/options/${previous.id}`, { method: 'PUT', body: JSON.stringify(previous) });
-  emit('update-success', localGroup.value.id);
-};
-
-const moveOptionDown = async (index) => {
-  if (index === localGroup.value.options.length - 1) return;
-  const current = localGroup.value.options[index];
-  const next = localGroup.value.options[index + 1];
-  const currentSort = current.sort_order || index;
-  const nextSort = next.sort_order || (index + 1);
-  current.sort_order = nextSort;
-  next.sort_order = currentSort;
-  await apiFetch(`/options/${current.id}`, { method: 'PUT', body: JSON.stringify(current) });
-  await apiFetch(`/options/${next.id}`, { method: 'PUT', body: JSON.stringify(next) });
-  emit('update-success', localGroup.value.id);
-};
-
-const addOptionRecipe = async (optionId) => {
-  if (!newRecipeIngredientId.value) return emit('alert', 'Selecciona un insumo.');
-  if (newRecipeQuantity.value === 0) return emit('alert', 'La cantidad no puede ser 0.');
-  try {
-    await apiFetch('/option-recipes', {
-      method: 'POST',
-      body: JSON.stringify({
-        option_id: optionId,
-        ingredient_id: newRecipeIngredientId.value,
-        quantity_delta: newRecipeQuantity.value
-      })
-    });
-    newRecipeIngredientId.value = null;
-    newRecipeQuantity.value = 0;
-    emit('update-success', localGroup.value.id);
-  } catch (error) {
-    emit('alert', 'Error añadiendo receta: ' + (error.message || error));
-  }
-};
-
-const deleteOptionRecipe = (recipeId, optionGroupId) => {
-  emit('confirm', '¿Eliminar este insumo de la receta?', async () => {
-    try {
-      await apiFetch(`/option-recipes/${recipeId}`, { method: 'DELETE' });
-      emit('update-success', optionGroupId);
-    } catch (error) {
-      emit('alert', 'Error eliminando receta: ' + (error.message || error));
-    }
-  });
-};
 </script>
 
 <template>
-  <div class="option-group-form">
-    <div class="main-header">
-      <h2 style="margin:0;color:var(--ink-900);">{{ localGroup.name || 'Nuevo Grupo' }}</h2>
-      <button 
-        v-if="localGroup.id" 
-        class="btn-secondary-sm" 
-        style="padding: 8px 16px; border-radius: 8px;"
-        @click="showAssignModal = true">
-        Vincular Productos
-      </button>
+  <div class="drawer-overlay" @click.self="$emit('close')">
+    <div class="drawer-content">
+      
+      <!-- HEADER DRAWER -->
+      <div class="drawer-header">
+        <h2 class="drawer-title">{{ localGroup.id ? 'Editar grupo de opcionales' : 'Agregar grupo de opcionales' }}</h2>
+        <button class="btn-close" @click="$emit('close')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- BODY DRAWER -->
+      <div class="drawer-body">
+        
+        <!-- Nombre del grupo con Floating Label -->
+        <div class="input-container-floating" style="margin-bottom: 24px;">
+          <input 
+            type="text" 
+            class="input-floating" 
+            v-model="localGroup.name" 
+            placeholder=" "
+            :class="{'has-error': formErrors.name}"
+          />
+          <label class="label-floating">Nombre del grupo de opcionales <span class="text-danger">*</span></label>
+          <span v-if="formErrors.name" class="error-text">{{ formErrors.name[0] }}</span>
+        </div>
+
+        <!-- REGLAS -->
+        <h3 class="section-title">Reglas</h3>
+        <div class="rules-card">
+          <div class="rule-row">
+            <div class="rule-text">¿La selección es <strong>obligatoria</strong> para los clientes?</div>
+            <label class="switch">
+              <input type="checkbox" :checked="localGroup.min_selections > 0" @change="e => localGroup.min_selections = e.target.checked ? 1 : 0">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <hr class="rule-divider" />
+          <div class="rule-row">
+            <div class="rule-text">Número <strong>máximo</strong> de opcionales que puede seleccionar el cliente</div>
+            <input type="number" min="0" v-model="localGroup.max_selections" class="input-number" />
+          </div>
+        </div>
+
+        <!-- OPCIONALES (X) -->
+        <div class="section-header-row" style="margin-top: 28px;">
+          <h3 class="section-title" style="margin:0;">Opcionales ({{ localGroup.options?.length || 0 }})</h3>
+          <button class="btn-link-action" @click="openAddOptionModal">+ Agregar</button>
+        </div>
+
+        <!-- Lista de opcionales del grupo -->
+        <div class="options-list-card" v-if="localGroup.options && localGroup.options.length > 0">
+          <div v-for="(opt, index) in localGroup.options" :key="index" class="option-item-row">
+            <div class="opt-info">
+              <div class="opt-name">{{ opt.name }}</div>
+              <div class="opt-price">+{{ Number(opt.additional_price).toFixed(2) }} BOB</div>
+            </div>
+            <div class="opt-actions">
+              <button class="btn-remove-opt" @click="removeOption(index)">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <button v-else class="btn-outline-primary" style="margin-top: 12px;" @click="openAddOptionModal">
+          + Crear Opcional
+        </button>
+
+        <!-- PRODUCTOS VINCULADOS -->
+        <div v-if="localGroup.id" class="section-header-row" style="margin-top: 28px;">
+          <h3 class="section-title" style="margin:0;">Productos vinculados ({{ linkedProducts.length }})</h3>
+          <button class="btn-link-action" @click="showAssignModal = true">Vincular productos</button>
+        </div>
+
+        <div v-if="localGroup.id && linkedProducts.length > 0" class="linked-products-card">
+          <ul class="linked-bullet-list">
+            <li v-for="prod in linkedProducts" :key="prod.id">• {{ prod.name }}</li>
+          </ul>
+        </div>
+
+        <!-- ELIMINAR GRUPO (SI EXISTE) -->
+        <div v-if="localGroup.id" style="margin-top: 36px; text-align: center;">
+          <button class="btn-delete-group" @click="deleteGroup">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            Eliminar grupo de opcionales
+          </button>
+        </div>
+
+      </div>
+
+      <!-- FOOTER DRAWER -->
+      <div class="drawer-footer">
+        <button class="btn-confirm-pya" :disabled="!localGroup.name" @click="save">Confirmar</button>
+      </div>
+
     </div>
 
-    <div class="form-grid">
-      <div class="full">
-        <label>Nombre del Grupo</label>
-        <input v-model="localGroup.name" placeholder="Ej. Elige tu Tamaño" :class="{'has-error': formErrors.name}">
-        <span v-if="formErrors.name" class="error-text">{{ formErrors.name[0] }}</span>
-      </div>
-      <div>
-        <label>Selección Mínima</label>
-        <input type="number" min="0" v-model="localGroup.min_selections" placeholder="Ej. 1 (Obligatorio)" :class="{'has-error': formErrors.min_selections}">
-        <span v-if="formErrors.min_selections" class="error-text">{{ formErrors.min_selections[0] }}</span>
-      </div>
-      <div>
-        <label>Selección Máxima</label>
-        <input type="number" min="1" v-model="localGroup.max_selections" placeholder="Ej. 1 (Excluyente) o 5" :class="{'has-error': formErrors.max_selections}">
-        <span v-if="formErrors.max_selections" class="error-text">{{ formErrors.max_selections[0] }}</span>
-      </div>
-      <div style="display:flex;align-items:center;padding-top:24px;gap:8px;">
-        <input type="checkbox" v-model="localGroup.is_active" id="og-active" style="width:auto;margin:0;">
-        <label for="og-active" style="margin:0;">Grupo Activo (Visible)</label>
-      </div>
-    </div>
+    <!-- SUB-MODAL AGREGAR OPCIONAL (IMAGEN 2) -->
+    <div v-if="showAddOptionModal" class="submodal-overlay" @click.self="showAddOptionModal = false">
+      <div class="submodal-card">
+        <div class="submodal-header">
+          <h3 class="submodal-title">Agregar opcional</h3>
+          <button class="btn-close" @click="showAddOptionModal = false">✕</button>
+        </div>
+        <div class="submodal-body">
+          <div class="input-container-floating">
+            <input type="text" class="input-floating" v-model="newOptName" placeholder=" " />
+            <label class="label-floating">Nombre <span class="text-danger">*</span></label>
+          </div>
 
-    <div style="margin-top:16px;display:flex;gap:10px;">
-      <button class="btn btn-primary" @click="save">Guardar Grupo</button>
-      <button v-if="localGroup.id" class="btn btn-danger-outline" @click="deleteGroup">Eliminar Grupo</button>
-    </div>
-
-    <hr style="margin: 30px 0; border: 0; border-top: 1px dashed var(--border);">
-
-    <h3 style="font-size:15px;color:var(--ink-900);">Opciones del Grupo</h3>
-    <p v-if="!localGroup.id" style="font-size:13px;color:var(--danger-500);">Debes guardar el grupo primero para añadir opciones.</p>
-    
-    <div v-else>
-      <table class="recipe-table">
-        <thead>
-          <tr>
-            <th>Opción</th>
-            <th>Precio (+Bs)</th>
-            <th>Delivery (+Bs)</th>
-            <th style="text-align:center">Estado / Por Defecto</th>
-            <th style="text-align:center">Receta</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="(opt, index) in localGroup.options" :key="opt.id">
-            <tr class="opt-row" :class="{ 'opt-row--expanded': expandedOptionId === opt.id }">
-              <td style="font-weight:700;">{{ opt.name }}</td>
-              <td>+Bs {{ Number(opt.additional_price).toFixed(2) }}</td>
-              <td>
-                <input type="number" step="0.5" v-model="opt.delivery_price" @change="updateOption(opt)" style="width: 70px; padding: 4px; font-size: 12px; border-radius: 4px; border: 1px solid var(--border);" placeholder="Opcional">
-              </td>
-              <td style="text-align:center;">
-                <input type="checkbox" :checked="opt.is_active" @change="toggleOptionActive(opt)" title="Activar/Desactivar" style="width:auto;margin:0;">
-                <input type="radio" :name="'default_' + localGroup.id" :checked="opt.is_default" @change="setOptionDefault(opt)" title="Marcar por defecto" style="margin-left:12px;width:auto;">
-              </td>
-              <td style="text-align:center;">
-                <span v-if="opt.recipes && opt.recipes.length > 0" class="recipe-badge">{{ opt.recipes.length }} insumo(s)</span>
-                <span v-else class="recipe-badge recipe-badge--empty">Sin receta</span>
-                <button class="btn-icon-sm" :title="expandedOptionId === opt.id ? 'Cerrar receta' : 'Configurar receta de inventario'" @click="expandedOptionId = (expandedOptionId === opt.id ? null : opt.id); newRecipeIngredientId = null; newRecipeQuantity = 0;">
-                  {{ expandedOptionId === opt.id ? '▲' : '⚙️' }}
-                </button>
-              </td>
-              <td style="text-align:right;">
-                <button class="btn-icon-sm" @click="moveOptionUp(index)" :disabled="index === 0" title="Mover Arriba">↑</button>
-                <button class="btn-icon-sm" @click="moveOptionDown(index)" :disabled="index === localGroup.options.length - 1" title="Mover Abajo">↓</button>
-                <span style="cursor:pointer;margin-left:8px;" @click="deleteOption(opt.id)" title="Eliminar">🗑️</span>
-              </td>
-            </tr>
-
-            <tr v-if="expandedOptionId === opt.id" class="recipe-expand-row">
-              <td colspan="5" style="padding:0;">
-                <div class="recipe-expand-body">
-                  <p class="recipe-hint">
-                    💡 Configura cuánto insumo se descuenta al elegir esta opción.<br>
-                    Usa cantidades <strong>negativas</strong> para opciones tipo <em>"Sin Granola"</em> (devuelve ese insumo de la receta base).
-                  </p>
-                  <div v-if="opt.recipes && opt.recipes.length > 0" class="recipe-list">
-                    <div v-for="r in opt.recipes" :key="r.id" class="recipe-row">
-                      <span class="recipe-ingredient">{{ r.ingredient?.name }}</span>
-                      <span :class="[Number(r.quantity_delta) < 0 ? 'qty-negative' : 'qty-positive']">
-                        {{ Number(r.quantity_delta) > 0 ? '+' : '' }}{{ r.quantity_delta }} {{ r.ingredient?.unit }}
-                      </span>
-                      <button class="btn-del-recipe" @click="deleteOptionRecipe(r.id, localGroup.id)">✕</button>
-                    </div>
-                  </div>
-                  <p v-else style="color:var(--ink-400);font-size:12px;margin:0 0 10px;">Sin insumos configurados.</p>
-
-                  <div class="recipe-add-row">
-                    <select v-model="newRecipeIngredientId" class="recipe-select">
-                      <option :value="null" disabled>Seleccionar insumo...</option>
-                      <option v-for="ing in ingredients" :key="ing.id" :value="ing.id">{{ ing.name }} ({{ ing.unit }})</option>
-                    </select>
-                    <input type="number" step="0.01" v-model="newRecipeQuantity" placeholder="Cantidad (+/-)" class="recipe-qty-input" :class="{ 'input-negative': newRecipeQuantity < 0 }">
-                    <button class="btn btn-ghost" @click="addOptionRecipe(opt.id)">+ Añadir</button>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </template>
-          <tr v-if="!localGroup.options?.length">
-            <td colspan="5" style="text-align:center; color:var(--ink-500);">No hay opciones agregadas.</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="add-option-row">
-        <input v-model="newOptionName" placeholder="Nombre (Ej. Junior)" style="flex:2">
-        <input type="number" step="0.5" v-model="newOptionPrice" placeholder="Precio (+Bs)" style="flex:1">
-        <input type="number" step="0.5" v-model="newOptionDeliveryPrice" placeholder="Delivery (+Bs)" style="flex:1">
-        <button class="btn btn-ghost" @click="addOption" style="flex:1">+ Añadir</button>
+          <div class="price-card-field" style="margin-top:16px;">
+            <label class="price-field-label">Precio</label>
+            <div class="price-input-row">
+              <span class="prefix-bob">+BOB</span>
+              <input type="number" min="0" step="0.5" v-model="newOptPrice" class="price-input-field" />
+            </div>
+          </div>
+        </div>
+        <div class="submodal-footer">
+          <button class="btn-confirm-pya" :disabled="!newOptName" @click="confirmAddOption">Confirmar</button>
+        </div>
       </div>
     </div>
 
-    <!-- Modal Vincular Productos -->
+    <!-- MODAL VINCULAR PRODUCTOS -->
     <AssignProductsModal
       v-if="showAssignModal"
       :optionGroup="localGroup"
@@ -306,54 +229,256 @@ const deleteOptionRecipe = (recipeId, optionGroupId) => {
 </template>
 
 <style scoped>
-.main-header { display: flex; justify-content: space-between; align-items: center; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
-.form-grid .full { grid-column: 1 / -1; }
-.form-grid label { display: block; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500); margin-bottom: 6px; }
-.form-grid input, .form-grid select { width: 100%; padding: 11px 13px; border-radius: 10px; border: 2px solid var(--border); font-size: 14px; background: var(--surface-alt); font-family: var(--font-sans); color: var(--ink-900); }
-.form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--passion-500); }
-.recipe-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-.recipe-table th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--ink-500); padding: 8px 10px; border-bottom: 2px solid var(--border); }
-.recipe-table td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 13.5px; color: var(--ink-900); }
-.add-option-row { display: flex; gap: 10px; margin-top: 12px; }
-.add-option-row input { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; }
-.btn-primary { background: var(--passion-500); color: white; border: none; border-radius: var(--radius-md); padding: 12px 20px; font-weight: 700; font-size: 14px; cursor: pointer; }
-.btn-primary:hover { background: var(--passion-600); }
-.btn-danger-outline { background: transparent; color: var(--danger-600); border: 2px solid var(--danger-600); border-radius: var(--radius-md); padding: 12px 20px; font-weight: 700; font-size: 14px; cursor: pointer; }
-.btn-danger-outline:hover { background: var(--danger-50); }
-.btn-ghost { cursor: pointer; background: transparent; border: none; font-weight: 700; color: var(--ink-700); padding: 8px 16px; border-radius: 8px; transition: background 0.2s; }
-.btn-ghost:hover { background: var(--cream-100); }
-.opt-row { transition: background 0.15s; }
-.opt-row--expanded { background: var(--acai-50); }
-.recipe-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--lime-100); color: var(--lime-700); margin-right: 6px; }
-.recipe-badge--empty { background: var(--cream-200); color: var(--ink-400); }
-.btn-icon-sm { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 6px; transition: background 0.15s; }
-.btn-icon-sm:hover { background: var(--cream-200); }
-.recipe-expand-row td { padding: 0 !important; border-bottom: 2px solid var(--acai-200) !important; }
-.recipe-expand-body { background: var(--acai-50); padding: 16px 20px; border-left: 4px solid var(--acai-400); }
-.recipe-hint { font-size: 12px; color: var(--ink-600); margin: 0 0 14px; line-height: 1.6; }
-.recipe-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-.recipe-row { display: flex; align-items: center; gap: 10px; background: var(--surface); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); }
-.recipe-ingredient { flex: 1; font-weight: 600; color: var(--ink-900); font-size: 13px; }
-.qty-positive { font-weight: 700; color: var(--lime-700); font-size: 13px; }
-.qty-negative { font-weight: 700; color: var(--passion-600); font-size: 13px; }
-.btn-del-recipe { background: none; border: none; cursor: pointer; color: var(--ink-400); font-size: 13px; padding: 2px 6px; border-radius: 4px; }
-.btn-del-recipe:hover { background: var(--danger-50); color: var(--danger-600); }
-.recipe-add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.recipe-select { flex: 2; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; font-size: 13px; background: var(--surface-alt); }
-.recipe-qty-input { flex: 1; max-width: 140px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; font-size: 13px; }
-.recipe-qty-input.input-negative { border-color: var(--passion-400); color: var(--passion-700); background: var(--passion-50); }
-.has-error { border-color: var(--danger-600) !important; background-color: #fffafb; }
-.error-text { color: var(--danger-600); font-size: 11px; margin-top: 4px; display: block; }
-.btn-secondary-sm {
-  background: var(--acai-100);
+/* Slide-over Drawer overlay -> Centered Modal */
+.drawer-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(2px);
+}
+.drawer-content {
+  background: var(--surface);
+  width: 100%;
+  max-width: 550px;
+  max-height: 90vh;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  overflow: hidden;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Header */
+.drawer-header {
+  padding: 24px 24px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.drawer-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ink-900);
+}
+.btn-close {
+  background: transparent;
   border: none;
-  color: var(--acai-700);
-  font-weight: 700;
   cursor: pointer;
-  transition: 0.15s;
+  color: var(--ink-500);
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.btn-secondary-sm:hover {
-  background: var(--acai-200);
+.btn-close:hover {
+  background: var(--cream-100);
+  color: var(--ink-900);
 }
+
+/* Body */
+.drawer-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Floating Input */
+.input-container-floating {
+  position: relative;
+  width: 100%;
+}
+.input-floating {
+  width: 100%;
+  padding: 22px 16px 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 15px;
+  background: var(--surface);
+  color: var(--ink-900);
+  transition: all 0.2s ease;
+}
+.input-floating:focus {
+  outline: none;
+  border-color: var(--passion-500);
+  box-shadow: 0 0 0 3px rgba(234, 30, 77, 0.1);
+}
+.label-floating {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+  font-size: 15px;
+  color: var(--ink-500);
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+.input-floating:focus + .label-floating,
+.input-floating:not(:placeholder-shown) + .label-floating {
+  top: 14px;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+.text-danger {
+  color: var(--passion-500);
+}
+
+/* Rules Card */
+.section-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink-900);
+  margin: 0 0 16px;
+}
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.btn-link-action {
+  background: transparent;
+  border: none;
+  color: var(--passion-500);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.rules-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0 16px;
+}
+.rule-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+}
+.rule-divider {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+.rule-text {
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+/* Switch Toggle */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--border); transition: .3s;
+}
+.slider:before {
+  position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+  background-color: white; transition: .3s;
+}
+input:checked + .slider { background-color: var(--passion-500); }
+input:checked + .slider:before { transform: translateX(20px); }
+.slider.round { border-radius: 24px; }
+.slider.round:before { border-radius: 50%; }
+
+.input-number {
+  width: 60px; text-align: center; padding: 6px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 14px; outline: none;
+}
+
+/* Opcionales Card List */
+.options-list-card {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.option-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.option-item-row:last-child { border-bottom: none; }
+.opt-name { font-weight: 700; font-size: 14.5px; color: var(--ink-900); }
+.opt-price { font-size: 12.5px; color: var(--ink-500); margin-top: 2px; }
+.btn-remove-opt { background: none; border: none; color: var(--ink-400); cursor: pointer; font-size: 14px; }
+.btn-remove-opt:hover { color: var(--danger-600); }
+
+/* Linked Products */
+.linked-products-card {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.linked-bullet-list {
+  margin: 0; padding: 0; list-style: none; font-size: 14px; color: var(--ink-800);
+}
+.linked-bullet-list li { margin-bottom: 4px; }
+
+/* Buttons */
+.btn-outline-primary {
+  display: flex; align-items: center; justify-content: center; width: 100%; padding: 12px;
+  border: 1px solid var(--passion-500); background: transparent; color: var(--passion-500);
+  font-weight: 700; font-size: 15px; border-radius: 8px; cursor: pointer; transition: 0.2s;
+}
+.btn-outline-primary:hover { background: var(--passion-50); }
+
+.btn-delete-group {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border); color: var(--passion-500);
+  padding: 10px 20px; border-radius: 24px; font-weight: 700; font-size: 14px; cursor: pointer;
+}
+.btn-delete-group:hover { background: var(--passion-50); }
+
+/* Footer */
+.drawer-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.btn-confirm-pya {
+  width: 100%; padding: 14px; background: var(--passion-500); color: white;
+  border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; transition: 0.2s;
+}
+.btn-confirm-pya:disabled { background: var(--ink-200); color: var(--ink-400); cursor: not-allowed; }
+
+/* Sub-modal */
+.submodal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 1200; display: flex; align-items: center; justify-content: center;
+}
+.submodal-card {
+  background: var(--surface); width: 90%; max-width: 440px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+.submodal-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.submodal-title { margin: 0; font-size: 18px; font-weight: 800; color: var(--ink-900); }
+.submodal-body { padding: 20px 24px; }
+.submodal-footer { padding: 16px 24px; border-top: 1px solid var(--border); }
+
+/* Price Field */
+.price-card-field { border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px; }
+.price-card-field:focus-within { border-color: var(--passion-500); }
+.price-field-label { font-size: 12px; color: var(--ink-500); }
+.price-input-row { display: flex; align-items: center; gap: 6px; }
+.prefix-bob { font-size: 15px; font-weight: 600; color: var(--ink-700); }
+.price-input-field { border: none; outline: none; font-size: 16px; font-weight: 700; width: 100%; background: transparent; color: var(--ink-900); }
 </style>

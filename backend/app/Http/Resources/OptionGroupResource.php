@@ -16,6 +16,7 @@ class OptionGroupResource extends JsonResource
             'max_selections' => $this->max_selections,
             'is_active' => $this->is_active,
             'options' => OptionResource::collection($this->whenLoaded('options')),
+            'products' => ProductResource::collection($this->whenLoaded('products')),
         ];
     }
 }

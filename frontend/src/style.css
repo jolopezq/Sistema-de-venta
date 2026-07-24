@@ -69,6 +69,14 @@ body{
   color:var(--ink-900);
   -webkit-font-smoothing:antialiased;
 }
+input, select, textarea, button {
+  font-family: inherit;
+  color: inherit;
+}
+input::placeholder, textarea::placeholder {
+  color: var(--ink-500);
+  opacity: 0.85;
+}
 h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
 .mono{font-family:'JetBrains Mono',monospace;}
 
@@ -359,3 +367,84 @@ html.dark {
   --passion-100: #572500;
   --passion-500: #FF9640;
 }
+
+/* Dark Mode overrides for specific components */
+html.dark .login-screen {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(116,72,166,0.18) 0, transparent 50%),
+    radial-gradient(circle at 85% 80%, rgba(255,150,64,0.08) 0, transparent 50%),
+    #12091D;
+}
+html.dark .login-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+html.dark .btn-primary {
+  color: #12091D;
+  font-weight: 700;
+}
+html.dark .btn-primary:hover {
+  box-shadow: 0 0 12px rgba(255, 150, 64, 0.35);
+}
+html.dark .offline-banner {
+  color: var(--gold-500);
+  border-color: rgba(250, 209, 92, 0.2);
+}
+html.dark .field input:focus {
+  box-shadow: 0 0 0 3px rgba(255, 150, 64, 0.15);
+}
+
+/* Theme Toggle on Login Screen */
+.login-theme-toggle {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--ink-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+  box-shadow: var(--shadow-card);
+}
+.login-theme-toggle:hover {
+  background: var(--cream-100);
+  transform: scale(1.05);
+}
+html.dark .login-theme-toggle {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--ink-900);
+}
+html.dark .login-theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.login-theme-toggle svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2px;
+}
+
+.error-banner {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--danger-100);
+  border: 1px solid var(--danger-500);
+  color: var(--danger-600);
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+

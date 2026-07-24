@@ -25,6 +25,7 @@ class ProductRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'image_url' => ['nullable', 'string', 'max:255'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,svg,webp', 'max:20480'],
             'price' => ['required', 'numeric', 'min:0'],
             'vip_price' => ['nullable', 'numeric', 'min:0'],
             'is_weight_based' => ['boolean'],

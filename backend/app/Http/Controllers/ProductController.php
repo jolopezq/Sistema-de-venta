@@ -28,7 +28,11 @@ class ProductController extends Controller
      */
     public function store(ProductRequest $request): ProductResource
     {
-        $product = $this->products->create($request->validated());
+        $data = $request->validated();
+        if ($request->hasFile('image')) {
+            $data['image_url'] = $request->file('image')->store('products', 'public');
+        }
+        $product = $this->products->create($data);
         return new ProductResource($product);
     }
 
@@ -46,7 +50,14 @@ class ProductController extends Controller
     public function update(ProductRequest $request, int $id): ProductResource
     {
         $product = $this->products->findWithRecipes($id);
-        return new ProductResource($this->products->update($product, $request->validated()));
+        $data = $request->validated();
+        if ($request->hasFile('image')) {
+            if ($product->image_url && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image_url)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($product->image_url);
+            }
+            $data['image_url'] = $request->file('image')->store('products', 'public');
+        }
+        return new ProductResource($this->products->update($product, $data));
     }
 
     /**

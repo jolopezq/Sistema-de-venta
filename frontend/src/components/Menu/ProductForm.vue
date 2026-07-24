@@ -23,7 +23,16 @@ const props = defineProps({
 const emit = defineEmits(['save', 'delete', 'create-option-group']);
 
 const localProduct = ref(JSON.parse(JSON.stringify(props.product)));
-const imagePreview = ref(localProduct.value.image_url || null);
+
+const resolveImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  const baseUrl = 'http://127.0.0.1:8000';
+  const path = url.startsWith('/') ? url : '/storage/' + url;
+  return baseUrl + path;
+};
+
+const imagePreview = ref(resolveImageUrl(localProduct.value.image_url));
 const fileInput = ref(null);
 
 // State for custom select dropdowns
@@ -35,7 +44,7 @@ const tagDropdownRef = ref(null);
 
 watch(() => props.product, (newVal) => {
   localProduct.value = JSON.parse(JSON.stringify(newVal));
-  imagePreview.value = localProduct.value.image_url || null;
+  imagePreview.value = resolveImageUrl(localProduct.value.image_url);
 }, { deep: true });
 
 const triggerFileInput = () => {

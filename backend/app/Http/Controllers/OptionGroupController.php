@@ -13,7 +13,7 @@ class OptionGroupController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
-        return OptionGroupResource::collection(OptionGroup::with('options.recipes.ingredient')->get());
+        return OptionGroupResource::collection(OptionGroup::with(['options.recipes.ingredient', 'products'])->get());
     }
 
     public function store(OptionGroupRequest $request): OptionGroupResource
@@ -27,13 +27,13 @@ class OptionGroupController extends Controller
                 }
             }
             
-            return new OptionGroupResource($group->load('options'));
+            return new OptionGroupResource($group->load(['options', 'products']));
         });
     }
 
     public function show(OptionGroup $optionGroup): OptionGroupResource
     {
-        return new OptionGroupResource($optionGroup->load('options.recipes.ingredient'));
+        return new OptionGroupResource($optionGroup->load(['options.recipes.ingredient', 'products']));
     }
 
     public function update(OptionGroupRequest $request, OptionGroup $optionGroup): OptionGroupResource
