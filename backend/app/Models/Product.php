@@ -30,6 +30,7 @@ class Product extends Model
         'category_id',
         'printer_target',
         'is_active',
+        'reactivate_at',
         'sort_order',
     ];
 
@@ -42,6 +43,7 @@ class Product extends Model
             'price_per_gram' => 'decimal:4',
             'is_weight_based' => 'boolean',
             'is_active' => 'boolean',
+            'reactivate_at' => 'datetime',
             'sort_order' => 'integer',
         ];
     }

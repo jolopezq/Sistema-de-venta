@@ -74,7 +74,7 @@ class OptionGroupController extends Controller
     public function attachProducts(Request $request, OptionGroup $optionGroup): \Illuminate\Http\JsonResponse
     {
         $request->validate([
-            'product_ids' => ['required', 'array'],
+            'product_ids' => ['present', 'array'],
             'product_ids.*' => ['exists:products,id']
         ]);
 

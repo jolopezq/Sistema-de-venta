@@ -33,6 +33,7 @@ class ProductRequest extends FormRequest
             'category_id' => ['required', 'exists:categories,id'],
             'printer_target' => ['required', 'in:kitchen,bar,none'],
             'is_active' => ['boolean'],
+            'reactivate_at' => ['nullable', 'date'],
             'option_groups' => ['nullable', 'array'],
             'option_groups.*' => ['exists:option_groups,id'],
             'excluded_options' => ['nullable', 'array'],

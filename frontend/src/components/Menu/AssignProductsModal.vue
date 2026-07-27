@@ -9,19 +9,26 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save']);
 
-// Initialize selected products based on existing relationships
 const selectedProductIds = ref([]);
+const searchQuery = ref('');
+const expandedCategories = ref([]);
+
 const initializeSelections = () => {
-  // We need to find which products already have this option_group_id
   const linkedIds = [];
+  
+  // 1) Load from optionGroup.products if available
+  if (props.optionGroup && props.optionGroup.products) {
+    props.optionGroup.products.forEach(p => {
+      if (!linkedIds.includes(p.id)) linkedIds.push(p.id);
+    });
+  }
+  
+  // 2) Fallback to checking inside products array
   props.products.forEach(p => {
-    // If the product has option_groups loaded as full objects
     if (p.optionGroups && p.optionGroups.some(og => og.id === props.optionGroup.id)) {
-      linkedIds.push(p.id);
-    } 
-    // If it has them as IDs
-    else if (p.option_groups && p.option_groups.includes(props.optionGroup.id)) {
-      linkedIds.push(p.id);
+      if (!linkedIds.includes(p.id)) linkedIds.push(p.id);
+    } else if (p.option_groups && Array.isArray(p.option_groups) && p.option_groups.some(og => og.id === props.optionGroup.id || og === props.optionGroup.id)) {
+      if (!linkedIds.includes(p.id)) linkedIds.push(p.id);
     }
   });
   selectedProductIds.value = linkedIds;
@@ -38,7 +45,12 @@ const toggleProduct = (productId) => {
 };
 
 const getProductsByCategory = (categoryId) => {
-  return props.products.filter(p => p.category_id === categoryId);
+  let catProds = props.products.filter(p => p.category_id === categoryId);
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    catProds = catProds.filter(p => p.name.toLowerCase().includes(query));
+  }
+  return catProds;
 };
 
 const isCategoryFullySelected = (categoryId) => {
@@ -47,7 +59,15 @@ const isCategoryFullySelected = (categoryId) => {
   return catProds.every(p => selectedProductIds.value.includes(p.id));
 };
 
-const toggleCategory = (categoryId) => {
+const isCategoryIndeterminate = (categoryId) => {
+  const catProds = getProductsByCategory(categoryId);
+  if (catProds.length === 0) return false;
+  const selectedCount = catProds.filter(p => selectedProductIds.value.includes(p.id)).length;
+  return selectedCount > 0 && selectedCount < catProds.length;
+};
+
+const toggleCategorySelection = (categoryId, event) => {
+  event.stopPropagation();
   const catProds = getProductsByCategory(categoryId);
   if (isCategoryFullySelected(categoryId)) {
     // Deselect all
@@ -65,37 +85,81 @@ const toggleCategory = (categoryId) => {
   }
 };
 
+const toggleCategoryExpand = (categoryId) => {
+  const idx = expandedCategories.value.indexOf(categoryId);
+  if (idx > -1) {
+    expandedCategories.value.splice(idx, 1);
+  } else {
+    expandedCategories.value.push(categoryId);
+  }
+};
+
 const handleSave = () => {
   emit('save', selectedProductIds.value);
+};
+
+const resolveImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  const baseUrl = 'http://127.0.0.1:8000';
+  const path = url.startsWith('/') ? url : '/storage/' + url;
+  return baseUrl + path;
 };
 </script>
 
 <template>
-  <div class="modal-backdrop">
-    <div class="modal-content options-modal">
-      <div class="modal-header">
-        <h3>Vincular Productos a: {{ optionGroup.name }}</h3>
-        <button class="close-btn" @click="$emit('close')">&times;</button>
+  <div class="modal-backdrop-full">
+    <div class="modal-content-full">
+      <div class="modal-header-clean">
+        <button class="back-btn" @click="$emit('close')">
+          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </button>
+        <h2>Select products ({{ selectedProductIds.length }})</h2>
       </div>
 
-      <div class="modal-body">
-        <p class="text-muted">Selecciona los productos que ofrecerán este grupo de modificadores.</p>
+      <div class="modal-body-clean">
+        <div class="search-bar-wrapper">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" placeholder="Buscar..." v-model="searchQuery" class="search-input" />
+        </div>
         
-        <div class="tree-view">
-          <div v-for="cat in categories" :key="cat.id" class="category-block">
-            <div class="category-row" @click="toggleCategory(cat.id)">
-              <div class="checkbox" :class="{ checked: isCategoryFullySelected(cat.id) }"></div>
-              <h4>{{ cat.name }}</h4>
+        <div class="category-list">
+          <div v-for="cat in categories" :key="cat.id" class="cat-card">
+            <div class="cat-card-header" @click="toggleCategoryExpand(cat.id)">
+              <div class="cat-left">
+                <svg v-if="!expandedCategories.includes(cat.id)" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="chevron"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                <svg v-else viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="chevron"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                <h3>{{ cat.name }}</h3>
+              </div>
+              <div class="cat-right" @click="toggleCategorySelection(cat.id, $event)">
+                <div class="cat-checkbox" :class="{ 'checked': isCategoryFullySelected(cat.id), 'indeterminate': isCategoryIndeterminate(cat.id) }">
+                   <svg v-if="isCategoryFullySelected(cat.id)" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                   <svg v-else-if="isCategoryIndeterminate(cat.id)" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </div>
+              </div>
             </div>
-            <div class="products-list">
+            <div class="cat-card-body" v-if="expandedCategories.includes(cat.id)">
               <div 
                 v-for="prod in getProductsByCategory(cat.id)" 
                 :key="prod.id" 
-                class="product-row"
+                class="prod-row"
                 @click="toggleProduct(prod.id)"
               >
-                <div class="checkbox small" :class="{ checked: selectedProductIds.includes(prod.id) }"></div>
-                <span>{{ prod.name }}</span>
+                <div class="prod-left">
+                  <div class="prod-image-wrapper">
+                    <img v-if="prod.image_url" :src="resolveImageUrl(prod.image_url)" alt="Product" />
+                    <div v-else class="prod-placeholder-img"></div>
+                  </div>
+                  <div class="prod-info">
+                    <span class="prod-name">{{ prod.name }}</span>
+                    <span class="prod-price">BOB {{ prod.price }}</span>
+                  </div>
+                </div>
+                <div class="prod-right">
+                  <div class="custom-checkbox" :class="{ 'checked': selectedProductIds.includes(prod.id) }">
+                    <svg v-if="selectedProductIds.includes(prod.id)" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  </div>
+                </div>
               </div>
               <div v-if="getProductsByCategory(cat.id).length === 0" class="empty-cat">
                 Sin productos
@@ -105,55 +169,125 @@ const handleSave = () => {
         </div>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn-ghost" @click="$emit('close')">Cancelar</button>
-        <button class="btn-primary" @click="handleSave">Guardar Vinculación</button>
+      <div class="modal-footer-clean">
+        <button class="btn-confirm-full" @click="handleSave">Confirmar</button>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;
+.modal-backdrop-full {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;
 }
-.options-modal {
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  width: 90%; max-width: 500px;
-  max-height: 85vh;
+.modal-content-full {
+  background: white;
+  width: 100%; max-width: 500px; height: 100%; max-height: 100vh;
   display: flex; flex-direction: column;
-  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
 }
-.modal-header {
-  padding: 20px 24px; border-bottom: 1px solid var(--border);
+@media (min-width: 500px) {
+  .modal-content-full {
+    height: 90vh;
+    border-radius: 12px;
+  }
+}
+.modal-header-clean {
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 16px;
+  border-bottom: 1px solid var(--cream-100);
+}
+.back-btn {
+  background: none; border: none; padding: 0; cursor: pointer; color: var(--ink-900);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-header-clean h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--ink-900); }
+.modal-body-clean {
+  flex: 1; overflow-y: auto; padding: 20px; background: white;
+}
+.search-bar-wrapper {
+  position: relative; margin-bottom: 24px;
+}
+.search-icon {
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--ink-400);
+}
+.search-input {
+  width: 100%; padding: 14px 16px 14px 44px;
+  border: 1px solid var(--cream-200); border-radius: 20px;
+  font-size: 15px; outline: none; transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--passion-500); }
+.search-input::placeholder { color: var(--ink-400); }
+
+.category-list {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.cat-card {
+  border: 1px solid var(--cream-200); border-radius: 12px; overflow: hidden; background: white;
+}
+.cat-card-header {
+  padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer; background: white;
+}
+.cat-left {
+  display: flex; align-items: center; gap: 16px;
+}
+.cat-left .chevron { color: var(--ink-600); }
+.cat-left h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink-900); }
+.cat-right {
+  display: flex; align-items: center;
+}
+.cat-checkbox {
+  width: 22px; height: 22px; border: 2px solid #9CA3AF; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; background: white; transition: all 0.2s;
+}
+.cat-checkbox.checked, .cat-checkbox.indeterminate {
+  background: var(--passion-500); border-color: var(--passion-500); color: white;
+}
+
+.cat-card-body {
+  border-top: 1px solid var(--cream-100); background: white;
+}
+.prod-row {
   display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px; border-bottom: 1px solid var(--cream-100); cursor: pointer;
 }
-.modal-header h3 { margin: 0; color: var(--ink-900); font-size: 18px; }
-.close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--ink-500); }
-.modal-body {
-  padding: 24px; overflow-y: auto; flex: 1;
+.prod-row:last-child { border-bottom: none; }
+.prod-left {
+  display: flex; align-items: center; gap: 16px;
 }
-.text-muted { color: var(--ink-500); font-size: 14px; margin-bottom: 24px; }
-
-.tree-view { display: flex; flex-direction: column; gap: 16px; }
-.category-block { background: var(--cream-50); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.category-row { padding: 12px 16px; background: var(--cream-100); display: flex; align-items: center; gap: 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
-.category-row h4 { margin: 0; font-size: 14px; color: var(--ink-900); text-transform: uppercase; font-weight: 800; }
-.products-list { padding: 8px 16px; }
-.product-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; font-size: 14px; color: var(--ink-800); }
-.product-row:hover { color: var(--passion-600); }
-.empty-cat { font-size: 12px; color: var(--ink-400); padding: 8px 0; font-style: italic; }
-
-.checkbox { width: 18px; height: 18px; border: 2px solid var(--ink-300); border-radius: 4px; display: flex; align-items: center; justify-content: center; background: var(--surface); transition: 0.1s; }
-.checkbox.small { width: 16px; height: 16px; border-width: 1.5px; }
-.checkbox.checked { background: var(--passion-500); border-color: var(--passion-500); }
-.checkbox.checked::after { content: ''; width: 4px; height: 8px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); margin-bottom: 2px; }
-
-.modal-footer {
-  padding: 16px 24px; border-top: 1px solid var(--border);
-  display: flex; justify-content: flex-end; gap: 12px;
+.prod-image-wrapper {
+  width: 48px; height: 48px; border-radius: 8px; overflow: hidden; background: var(--cream-50); flex-shrink: 0;
 }
-.btn-ghost { background: transparent; border: none; font-weight: 700; color: var(--ink-700); padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-primary { background: var(--passion-500); color: white; border: none; border-radius: var(--radius-md); padding: 10px 20px; font-weight: 700; cursor: pointer; }
+.prod-image-wrapper img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.prod-placeholder-img {
+  width: 100%; height: 100%; background: var(--cream-200);
+}
+.prod-info {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.prod-name { font-size: 15px; font-weight: 600; color: var(--ink-900); }
+.prod-price { font-size: 14px; color: var(--ink-500); }
+
+.custom-checkbox {
+  width: 22px; height: 22px; border: 2px solid #9CA3AF; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; background: white; transition: all 0.2s;
+}
+.custom-checkbox.checked {
+  background: var(--passion-500); border-color: var(--passion-500); color: white;
+}
+
+.empty-cat { padding: 16px 20px; font-size: 14px; color: var(--ink-500); font-style: italic; text-align: center; }
+
+.modal-footer-clean {
+  padding: 20px; background: white; border-top: 1px solid var(--cream-100);
+}
+.btn-confirm-full {
+  width: 100%; background: var(--passion-500); color: white;
+  border: none; border-radius: 8px; padding: 16px; font-size: 16px; font-weight: 600;
+  cursor: pointer; transition: background 0.2s;
+}
+.btn-confirm-full:hover { background: var(--passion-600); }
 </style>

@@ -1,14 +1,18 @@
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
   product: {
     type: Object,
     required: true
+  },
+  optionGroups: {
+    type: Array,
+    default: () => []
   }
 });
 
-const emit = defineEmits(['edit', 'toggle-active', 'view-options']);
+const emit = defineEmits(['edit', 'toggle-active', 'pause-product', 'save-options', 'view-options']);
 
 const formatPrice = (val) => {
   if (val === undefined || val === null) return '0,00';
@@ -22,46 +26,50 @@ const getImageUrl = computed(() => {
   const path = props.product.image_url.startsWith('/') ? props.product.image_url : '/storage/' + props.product.image_url;
   return baseUrl + path;
 });
+
+// Inline Options Logic removed in favor of modal
 </script>
 
 <template>
-  <div class="product-row-card" @click="$emit('edit', product)">
-    <!-- Foto del producto -->
-    <div class="product-thumb">
-      <img 
-        :src="getImageUrl" 
-        :alt="product.name"
-        class="thumb-img"
-      />
-    </div>
-
-    <!-- Info del producto (Centro) -->
-    <div class="product-info">
-      <h4 class="product-title">{{ product.name }}</h4>
-      <p class="product-desc">{{ product.description || 'Sin descripción disponible.' }}</p>
-      
-      <div class="product-pills">
-        <button type="button" class="btn-pill-ghost" @click.stop="$emit('view-options', product)">
-          Ver opciones
-        </button>
+  <div class="product-row-card-container">
+    <div class="product-row-card" @click="$emit('edit', product)">
+      <!-- Foto del producto -->
+      <div class="product-thumb">
+        <img 
+          :src="getImageUrl" 
+          :alt="product.name"
+          class="thumb-img"
+        />
       </div>
-    </div>
 
-    <!-- Columna Derecha (Switch + Precio + Acciones) -->
-    <div class="product-actions-column">
-      <!-- Switch Toggle Activo/Inactivo -->
-      <div class="switch-container" @click.stop="$emit('toggle-active', product)">
-        <div class="toggle-switch" :class="{ 'on': product.is_active }">
-          <div class="toggle-thumb"></div>
+      <!-- Info del producto (Centro) -->
+      <div class="product-info">
+        <h4 class="product-title">{{ product.name }}</h4>
+        <p class="product-desc">{{ product.description || 'Sin descripción disponible.' }}</p>
+        
+        <div class="product-pills">
+          <button type="button" class="btn-pill-ghost" @click.stop="$emit('view-options', product)">
+            Ver opciones
+          </button>
         </div>
       </div>
 
-      <!-- Fila Inferior: Botón Editar / Promoción + Precio BOB -->
-      <div class="bottom-actions-row">
-        <button type="button" class="btn-pill-outline" @click.stop="$emit('edit', product)">
-          Editar
-        </button>
-        <span class="product-price">{{ formatPrice(product.price) }} BOB</span>
+      <!-- Columna Derecha (Switch + Precio + Acciones) -->
+      <div class="product-actions-column">
+        <!-- Switch Toggle Activo/Inactivo -->
+        <div class="switch-container" @click.stop="product.is_active ? $emit('pause-product', product) : $emit('toggle-active', product)">
+          <div class="toggle-switch" :class="{ 'on': product.is_active }">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+
+        <!-- Fila Inferior: Botón Editar / Promoción + Precio BOB -->
+        <div class="bottom-actions-row">
+          <button type="button" class="btn-pill-outline" @click.stop="$emit('edit', product)">
+            Editar
+          </button>
+          <span class="product-price">{{ formatPrice(product.price) }} BOB</span>
+        </div>
       </div>
     </div>
   </div>

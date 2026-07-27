@@ -27,6 +27,7 @@ class ProductResource extends JsonResource
             'category_id' => $this->category_id,
             'printer_target' => $this->printer_target,
             'is_active' => (bool) $this->is_active,
+            'reactivate_at' => $this->reactivate_at ? $this->reactivate_at->toIso8601String() : null,
             'option_groups' => OptionGroupResource::collection($this->whenLoaded('optionGroups')),
             'excluded_options' => $this->whenLoaded('excludedOptions', function () {
                 return $this->excludedOptions->pluck('id');

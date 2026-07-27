@@ -20,7 +20,12 @@ const localExcluded = ref([...(props.product.excluded_options || [])]);
 // Groups linked to this product
 const linkedGroups = computed(() => {
   if (!props.product.option_groups) return [];
-  return props.optionGroups.filter(g => props.product.option_groups.includes(g.id));
+  
+  // Si option_groups es un array de objetos (por eager loading), extraemos los IDs.
+  // Si ya es un array de IDs (números), lo usamos tal cual.
+  const groupIds = props.product.option_groups.map(og => typeof og === 'object' ? og.id : og);
+  
+  return props.optionGroups.filter(g => groupIds.includes(g.id));
 });
 
 const isExcluded = (optionId) => localExcluded.value.includes(optionId);
@@ -40,38 +45,83 @@ const handleSave = () => {
     excluded_options: localExcluded.value
   });
 };
+
+const selectedGroup = ref(null);
 </script>
 
 <template>
   <div class="modal-backdrop">
     <div class="modal-content options-modal">
-      <div class="modal-header">
-        <h3>Modificadores para: {{ product.name }}</h3>
-        <button class="close-btn" @click="$emit('close')">&times;</button>
-      </div>
-
-      <div class="modal-body">
-        <p class="text-muted">Desactiva los ingredientes o modificadores que no estén disponibles para este producto específico.</p>
-        
-        <div v-if="linkedGroups.length === 0" class="empty-state">
-          Este producto no tiene grupos de modificadores asignados.
+      
+      <!-- VIEW 1: GROUP LIST -->
+      <template v-if="!selectedGroup">
+        <div class="modal-header-custom">
+          <div class="header-top">
+            <span class="red-subtitle">Grupos de opcionales</span>
+            <button class="close-btn" @click="$emit('close')">&times;</button>
+          </div>
+          <h2 class="product-title">{{ product.name }}</h2>
         </div>
 
-        <div v-for="group in linkedGroups" :key="group.id" class="group-section">
-          <h4 class="group-title">{{ group.name }}</h4>
-          <div class="options-list">
-            <div v-for="opt in group.options" :key="opt.id" class="option-item">
-              <span :class="{ 'text-strike': isExcluded(opt.id) }">{{ opt.name }}</span>
-              <div class="switch" :class="{ on: !isExcluded(opt.id) }" @click="toggleExclusion(opt.id)"></div>
+        <div class="modal-body-custom">
+          <div v-if="linkedGroups.length === 0" class="empty-state">
+            Este producto no tiene grupos de modificadores asignados.
+          </div>
+          
+          <div 
+            v-for="group in linkedGroups" 
+            :key="group.id" 
+            class="group-card"
+            @click="selectedGroup = group"
+          >
+            <div class="group-card-info">
+              <span class="group-card-name">{{ group.name }}</span>
+              <span class="group-card-count">{{ group.options ? group.options.length : 0 }} Opcionales</span>
+            </div>
+            <div class="group-card-icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="modal-footer">
-        <button class="btn-ghost" @click="$emit('close')">Cancelar</button>
-        <button class="btn-primary" @click="handleSave">Guardar Disponibilidad</button>
-      </div>
+        <div class="modal-footer-custom">
+          <button class="btn-confirmar-full" @click="handleSave">Guardar Disponibilidad</button>
+        </div>
+      </template>
+
+      <!-- VIEW 2: OPTIONS LIST -->
+      <template v-else>
+        <div class="modal-header-custom" style="padding-bottom: 8px;">
+          <div class="header-top">
+            <div class="header-back-title">
+              <button class="btn-back" @click="selectedGroup = null">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+              </button>
+              <h2 class="product-title m-0">{{ selectedGroup.name }}</h2>
+            </div>
+            <button class="close-btn" @click="$emit('close')">&times;</button>
+          </div>
+        </div>
+
+        <div class="modal-body-custom">
+          <div 
+            v-for="opt in selectedGroup.options" 
+            :key="opt.id" 
+            class="option-card"
+            @click="toggleExclusion(opt.id)"
+          >
+            <span class="option-card-name" :class="{ 'text-strike': isExcluded(opt.id) }">{{ opt.name }}</span>
+            <div class="toggle-switch-pya" :class="{ on: !isExcluded(opt.id) }">
+              <div class="toggle-thumb-pya"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer-custom">
+          <button class="btn-confirmar-full" @click="handleSave">Guardar Disponibilidad</button>
+        </div>
+      </template>
+
     </div>
   </div>
 </template>
@@ -80,50 +130,161 @@ const handleSave = () => {
 .modal-backdrop {
   position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;
 }
+
 .options-modal {
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  width: 90%; max-width: 500px;
+  background: white;
+  border-radius: 16px;
+  width: 90%; 
+  max-width: 500px;
   max-height: 85vh;
   display: flex; flex-direction: column;
-  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
-}
-.modal-header {
-  padding: 20px 24px; border-bottom: 1px solid var(--border);
-  display: flex; justify-content: space-between; align-items: center;
-}
-.modal-header h3 { margin: 0; color: var(--ink-900); font-size: 18px; }
-.close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--ink-500); }
-.modal-body {
-  padding: 24px; overflow-y: auto; flex: 1;
-}
-.text-muted { color: var(--ink-500); font-size: 14px; margin-bottom: 24px; }
-.group-section { margin-bottom: 24px; }
-.group-title { margin: 0 0 12px 0; color: var(--ink-800); font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;}
-.options-list {
-  background: var(--cream-50);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
   overflow: hidden;
 }
-.option-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 16px; border-bottom: 1px solid var(--border);
-  font-size: 14px; color: var(--ink-800); font-weight: 600;
+
+.modal-header-custom {
+  padding: 24px 24px 16px 24px;
 }
-.option-item:last-child { border-bottom: none; }
+
+.header-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.red-subtitle {
+  color: var(--passion-500);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.close-btn {
+  background: none; border: none; font-size: 28px; line-height: 1; cursor: pointer; color: var(--ink-900);
+}
+
+.product-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--ink-900);
+}
+.m-0 { margin: 0; }
+
+.header-back-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-back {
+  background: none; border: none; padding: 0; cursor: pointer; color: var(--ink-900); display: flex; align-items: center; justify-content: center;
+}
+
+.modal-body-custom {
+  padding: 0 24px 24px 24px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.group-card {
+  border: 1px solid var(--cream-100);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  background: white;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.group-card:hover {
+  border-color: var(--cream-200);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.group-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.group-card-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.group-card-count {
+  font-size: 14px;
+  color: var(--ink-500);
+}
+
+.group-card-icon {
+  color: var(--ink-500);
+}
+
+.option-card {
+  border: 1px solid var(--cream-100);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  background: white;
+}
+
+.option-card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
 .text-strike { text-decoration: line-through; color: var(--ink-400); }
 
-.switch { width: 32px; height: 18px; border-radius: 999px; background: var(--border); position: relative; cursor: pointer; }
-.switch.on { background: var(--lime-500); }
-.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--surface); transition: .15s; }
-.switch.on::after { left: 16px; }
-
-.modal-footer {
-  padding: 16px 24px; border-top: 1px solid var(--border);
-  display: flex; justify-content: flex-end; gap: 12px;
+/* Switch Style */
+.toggle-switch-pya {
+  width: 44px;
+  height: 24px;
+  background: #E5E7EB; /* Light gray for OFF state */
+  border-radius: 999px;
+  position: relative;
+  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
 }
-.btn-ghost { background: transparent; border: none; font-weight: 700; color: var(--ink-700); padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-primary { background: var(--passion-500); color: white; border: none; border-radius: var(--radius-md); padding: 10px 20px; font-weight: 700; cursor: pointer; }
-.empty-state { text-align: center; color: var(--ink-500); padding: 32px 0; font-style: italic; }
+.toggle-switch-pya.on {
+  background: var(--pine-500, #22c55e); /* fallback to green if var not exist */
+}
+.toggle-thumb-pya {
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.toggle-switch-pya.on .toggle-thumb-pya {
+  transform: translateX(20px);
+}
+
+.modal-footer-custom {
+  padding: 24px;
+}
+
+.btn-confirmar-full {
+  width: 100%;
+  padding: 14px;
+  background: var(--passion-500);
+  color: white;
+  font-size: 16px;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: center;
+}
 </style>

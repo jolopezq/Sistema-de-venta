@@ -33,7 +33,7 @@ class ProductRepository
      */
     public function paginated(int $perPage = 20): LengthAwarePaginator
     {
-        return Product::with('category')
+        return Product::with(['category', 'optionGroups', 'excludedOptions'])
             ->orderBy('name')
             ->paginate($perPage);
     }

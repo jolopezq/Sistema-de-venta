@@ -6,6 +6,7 @@ import OptionGroupForm from '../components/Menu/OptionGroupForm.vue';
 import OptionGroupDetail from '../components/Menu/OptionGroupDetail.vue';
 import AdminProductCard from '../components/Menu/AdminProductCard.vue';
 import ProductOptionsModal from '../components/Menu/ProductOptionsModal.vue';
+import ProductPauseModal from '../components/Menu/ProductPauseModal.vue';
 
 // State
 const categories = ref([]);
@@ -22,6 +23,8 @@ const isLoading = ref(true);
 const showProductFormModal = ref(false);
 const showProductOptionsModal = ref(false);
 const showOptionGroupModal = ref(false);
+const showProductPauseModal = ref(false);
+const activeProductForPause = ref(null);
 const editingOptionGroup = ref(null);
 const activeProductForModal = ref(null);
 
@@ -90,12 +93,20 @@ const activeCategoryProducts = computed(() => {
 
 const formatProductForModal = (prod) => {
   const p = JSON.parse(JSON.stringify(prod));
-  if (p.optionGroups) {
+  if (p.optionGroups && p.optionGroups.length > 0) {
     p.option_groups = p.optionGroups.map(og => og.id);
-  } else if (p.option_groups) {
+  } else if (p.option_groups && p.option_groups.length > 0) {
     p.option_groups = p.option_groups.map(og => og.id || og);
   } else {
-    p.option_groups = [];
+    const ogIds = [];
+    if (optionGroups.value && optionGroups.value.length > 0) {
+      optionGroups.value.forEach(og => {
+        if (og.products && og.products.some(item => item.id === p.id)) {
+          ogIds.push(og.id);
+        }
+      });
+    }
+    p.option_groups = ogIds;
   }
   
   if (p.excluded_options_relation) {
@@ -140,8 +151,30 @@ const viewProductOptions = (prod) => {
 
 const toggleProductActive = async (prod) => {
   try {
-    const updated = { ...prod, is_active: !prod.is_active };
+    const updated = formatProductForModal(prod);
+    updated.is_active = !prod.is_active;
+    if (updated.is_active) {
+      updated.reactivate_at = null;
+    }
     await apiFetch(`/products/${prod.id}`, { method: 'PUT', body: JSON.stringify(updated) });
+    await fetchData();
+  } catch (error) {
+    alertAction('Error actualizando producto: ' + (error.message || error));
+  }
+};
+
+const initiatePauseProduct = (prod) => {
+  activeProductForPause.value = prod;
+  showProductPauseModal.value = true;
+};
+
+const confirmPauseProduct = async ({ product, reactivate_at }) => {
+  showProductPauseModal.value = false;
+  try {
+    const updated = formatProductForModal(product);
+    updated.is_active = false;
+    updated.reactivate_at = reactivate_at;
+    await apiFetch(`/products/${product.id}`, { method: 'PUT', body: JSON.stringify(updated) });
     await fetchData();
   } catch (error) {
     alertAction('Error actualizando producto: ' + (error.message || error));
@@ -463,8 +496,11 @@ const handleUpdateSuccess = async (groupId) => {
                 v-for="prod in activeCategoryProducts" 
                 :key="prod.id"
                 :product="prod"
+                :optionGroups="optionGroups"
                 @edit="editProduct"
                 @toggle-active="toggleProductActive"
+                @pause-product="initiatePauseProduct"
+                @save-options="saveProduct"
                 @view-options="viewProductOptions"
               />
             </div>
@@ -596,6 +632,14 @@ const handleUpdateSuccess = async (groupId) => {
       :optionGroups="optionGroups"
       @save="saveProduct"
       @close="showProductOptionsModal = false"
+    />
+
+    <!-- MODAL PAUSA DE PRODUCTO -->
+    <ProductPauseModal
+      :show="showProductPauseModal"
+      :product="activeProductForPause"
+      @close="showProductPauseModal = false"
+      @confirm="confirmPauseProduct"
     />
 
     <!-- Modal de Confirmación Custom -->

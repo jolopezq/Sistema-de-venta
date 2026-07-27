@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
+import AssignOptionGroupsModal from './AssignOptionGroupsModal.vue';
 
 const props = defineProps({
   product: {
@@ -22,7 +23,37 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'delete', 'create-option-group']);
 
-const localProduct = ref(JSON.parse(JSON.stringify(props.product)));
+const initLocalProduct = (prod) => {
+  const lp = JSON.parse(JSON.stringify(prod));
+  
+  if (lp.optionGroups && lp.optionGroups.length > 0) {
+    lp.option_groups = lp.optionGroups.map(og => og.id);
+  } else if (lp.option_groups && lp.option_groups.length > 0) {
+    if (typeof lp.option_groups[0] === 'object') {
+      lp.option_groups = lp.option_groups.map(og => og.id);
+    }
+  } else {
+    // If empty or undefined, calculate from props.optionGroups which contains the links
+    const ogIds = [];
+    if (props.optionGroups && props.optionGroups.length > 0) {
+      props.optionGroups.forEach(og => {
+        if (og.products && og.products.some(p => p.id === lp.id)) {
+          ogIds.push(og.id);
+        }
+      });
+    }
+    lp.option_groups = ogIds;
+  }
+  return lp;
+};
+
+const localProduct = ref(initLocalProduct(props.product));
+const showAssignOptionsModal = ref(false);
+
+const selectedOptionGroups = computed(() => {
+  if (!props.optionGroups || !localProduct.value.option_groups) return [];
+  return props.optionGroups.filter(og => localProduct.value.option_groups.includes(og.id));
+});
 
 const resolveImageUrl = (url) => {
   if (!url) return null;
@@ -43,7 +74,7 @@ const categoryDropdownRef = ref(null);
 const tagDropdownRef = ref(null);
 
 watch(() => props.product, (newVal) => {
-  localProduct.value = JSON.parse(JSON.stringify(newVal));
+  localProduct.value = initLocalProduct(newVal);
   imagePreview.value = resolveImageUrl(localProduct.value.image_url);
 }, { deep: true });
 
@@ -248,24 +279,35 @@ onUnmounted(() => {
 
       <!-- GRUPOS DE OPCIONALES -->
       <div class="section-block">
-        <h3 class="section-title">Grupos de opcionales</h3>
+        <div class="section-header-row">
+          <h3 class="section-title">Grupos de opcionales ({{ localProduct.option_groups ? localProduct.option_groups.length : 0 }})</h3>
+          <button type="button" class="btn-text-red" @click="showAssignOptionsModal = true">+ Agregar</button>
+        </div>
         
-        <!-- Si no hay opcionales vinculados -->
-        <div v-if="!localProduct.option_groups || localProduct.option_groups.length === 0" class="empty-optionals-card">
-          <h4>Ningún opcional agregado</h4>
-          <p>Agregar un opcional a este producto permitirá a los consumidores personalizar sus órdenes.</p>
-          <button type="button" class="btn-create-option-group" @click="emit('create-option-group')">
-            + Crear grupo de opcionales
-          </button>
+        <!-- Si no hay opcionales asignados -->
+        <div v-if="!selectedOptionGroups || selectedOptionGroups.length === 0" class="empty-optionals-card">
+          <h4>Ningún opcional asignado</h4>
+          <p>Asigna un grupo de opcionales a este producto para que los clientes puedan personalizar su orden.</p>
         </div>
 
-        <!-- Lista de opcionales seleccionados / disponibles -->
-        <div class="optionals-selection-list">
-          <div v-for="og in optionGroups" :key="og.id" class="optional-item-checkbox">
-            <label>
-              <input type="checkbox" :value="og.id" v-model="localProduct.option_groups" />
-              <span>{{ og.name }} (Min: {{ og.min_selections }}, Max: {{ og.max_selections }})</span>
-            </label>
+        <!-- Lista de opcionales asignados (solo lectura en esta vista) -->
+        <div v-else class="option-groups-card-list">
+          <div v-for="og in selectedOptionGroups" :key="og.id" class="og-custom-card readonly-card">
+            <div class="og-custom-card-content">
+              <div class="og-info-wrapper" style="margin-left: 0;">
+                <span class="og-title">{{ og.name }}</span>
+                <span class="og-options-text" v-if="og.options && og.options.length">
+                  {{ og.options.map(o => o.name).join(', ') }}.
+                </span>
+                <span class="og-options-text" v-else>
+                  Sin opciones configuradas.
+                </span>
+              </div>
+            </div>
+            <div class="og-linked-products" v-if="og.products && og.products.length">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="link-icon"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              <span>{{ og.products.map(p => p.name).join(', ') }}.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -278,6 +320,14 @@ onUnmounted(() => {
       <button v-if="localProduct.id" type="button" class="btn-delete-pya" @click="deleteProduct">Eliminar producto</button>
     </div>
 
+    <!-- MODAL AGREGAR OPCIONALES -->
+    <AssignOptionGroupsModal 
+      v-if="showAssignOptionsModal"
+      :optionGroups="optionGroups"
+      :initialSelected="localProduct.option_groups || []"
+      @close="showAssignOptionsModal = false"
+      @confirm="(selected) => { localProduct.option_groups = selected; showAssignOptionsModal = false; }"
+    />
   </div>
 </template>
 
@@ -622,5 +672,99 @@ onUnmounted(() => {
   background: var(--passion-100);
   color: var(--passion-500);
   font-weight: 600;
+}
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.section-header-row .section-title {
+  margin-bottom: 0;
+}
+.btn-text-red {
+  background: none;
+  border: none;
+  color: var(--passion-500);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-size: 15px;
+}
+.option-groups-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.og-custom-card {
+  display: block;
+  border: 1px solid var(--cream-100);
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.og-custom-card:hover {
+  border-color: var(--cream-200);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+.og-custom-card-content {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+}
+.og-checkbox-wrapper {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+.hidden-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.custom-checkbox {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--cream-200);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  background: white;
+}
+.custom-checkbox.checked {
+  background: var(--passion-500);
+  border-color: var(--passion-500);
+  color: white;
+}
+.og-info-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.og-title {
+  font-weight: 700;
+  color: var(--ink-900);
+  font-size: 15px;
+}
+.og-options-text {
+  font-size: 14px;
+  color: var(--ink-500);
+  line-height: 1.4;
+}
+.og-linked-products {
+  border-top: 1px solid var(--cream-100);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-500);
+}
+.link-icon {
+  color: var(--ink-400);
 }
 </style>
