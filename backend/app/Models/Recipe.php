@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Recipe extends Model
 {
+    use \App\Traits\Auditable;
+
     use HasFactory;
 
     protected $fillable = [

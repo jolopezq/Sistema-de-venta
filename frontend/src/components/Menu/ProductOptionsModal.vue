@@ -132,13 +132,13 @@ const selectedGroup = ref(null);
 }
 
 .options-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 16px;
   width: 90%; 
   max-width: 500px;
   max-height: 85vh;
   display: flex; flex-direction: column;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-pop);
   overflow: hidden;
 }
 
@@ -189,18 +189,18 @@ const selectedGroup = ref(null);
 }
 
 .group-card {
-  border: 1px solid var(--cream-100);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  background: white;
+  background: var(--surface);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .group-card:hover {
-  border-color: var(--cream-200);
+  border-color: var(--ink-300);
   box-shadow: 0 4px 12px rgba(0,0,0,0.03);
 }
 
@@ -226,14 +226,14 @@ const selectedGroup = ref(null);
 }
 
 .option-card {
-  border: 1px solid var(--cream-100);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  background: white;
+  background: var(--surface);
 }
 
 .option-card-name {
@@ -247,7 +247,7 @@ const selectedGroup = ref(null);
 .toggle-switch-pya {
   width: 44px;
   height: 24px;
-  background: #E5E7EB; /* Light gray for OFF state */
+  background: var(--border); /* Light gray for OFF state */
   border-radius: 999px;
   position: relative;
   transition: background 0.2s, box-shadow 0.2s;
@@ -259,7 +259,7 @@ const selectedGroup = ref(null);
 .toggle-thumb-pya {
   width: 20px;
   height: 20px;
-  background: white;
+  background: var(--ink-900);
   border-radius: 50%;
   position: absolute;
   top: 2px;

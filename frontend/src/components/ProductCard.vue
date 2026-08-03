@@ -22,6 +22,14 @@ const displayPrice = computed(() => {
   }
   return `Bs ${Number(props.product.price).toFixed(2)}`;
 });
+
+const getImageUrl = computed(() => {
+  if (!props.product.image_url) return null;
+  if (props.product.image_url.startsWith('http') || props.product.image_url.startsWith('data:')) return props.product.image_url;
+  const baseUrl = 'http://127.0.0.1:8000';
+  const path = props.product.image_url.startsWith('/') ? props.product.image_url : '/storage/' + props.product.image_url;
+  return baseUrl + path;
+});
 </script>
 
 <template>
@@ -31,7 +39,10 @@ const displayPrice = computed(() => {
     @click="handleAdd"
   >
     <div class="product-icon">
-      {{ product.emoji || '🍓' }}
+      <img v-if="getImageUrl" :src="getImageUrl" :alt="product.name" class="product-img" />
+      <template v-else>
+        {{ product.emoji || '🍓' }}
+      </template>
     </div>
     <div class="product-name">{{ product.name }}</div>
     <div class="product-desc">
@@ -67,5 +78,11 @@ const displayPrice = computed(() => {
 .disabled-card:active {
   transform: none;
   box-shadow: none;
+}
+.product-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 </style>

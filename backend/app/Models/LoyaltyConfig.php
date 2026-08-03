@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class LoyaltyConfig extends Model
 {
+    use \App\Traits\Auditable;
+
     protected $table = 'loyalty_config';
 
     protected $fillable = [

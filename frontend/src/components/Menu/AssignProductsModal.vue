@@ -182,7 +182,7 @@ const resolveImageUrl = (url) => {
   background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;
 }
 .modal-content-full {
-  background: white;
+  background: var(--surface);
   width: 100%; max-width: 500px; height: 100%; max-height: 100vh;
   display: flex; flex-direction: column;
 }
@@ -195,7 +195,7 @@ const resolveImageUrl = (url) => {
 .modal-header-clean {
   padding: 16px 20px;
   display: flex; align-items: center; gap: 16px;
-  border-bottom: 1px solid var(--cream-100);
+  border-bottom: 1px solid var(--border);
 }
 .back-btn {
   background: none; border: none; padding: 0; cursor: pointer; color: var(--ink-900);
@@ -203,7 +203,7 @@ const resolveImageUrl = (url) => {
 }
 .modal-header-clean h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--ink-900); }
 .modal-body-clean {
-  flex: 1; overflow-y: auto; padding: 20px; background: white;
+  flex: 1; overflow-y: auto; padding: 20px; background: var(--surface);
 }
 .search-bar-wrapper {
   position: relative; margin-bottom: 24px;
@@ -213,8 +213,9 @@ const resolveImageUrl = (url) => {
 }
 .search-input {
   width: 100%; padding: 14px 16px 14px 44px;
-  border: 1px solid var(--cream-200); border-radius: 20px;
+  border: 1px solid var(--border); border-radius: 20px;
   font-size: 15px; outline: none; transition: border-color 0.2s;
+  background-color: var(--surface); color: var(--ink-900);
 }
 .search-input:focus { border-color: var(--passion-500); }
 .search-input::placeholder { color: var(--ink-400); }
@@ -223,11 +224,11 @@ const resolveImageUrl = (url) => {
   display: flex; flex-direction: column; gap: 12px;
 }
 .cat-card {
-  border: 1px solid var(--cream-200); border-radius: 12px; overflow: hidden; background: white;
+  border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface);
 }
 .cat-card-header {
   padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
-  cursor: pointer; background: white;
+  cursor: pointer; background: var(--surface);
 }
 .cat-left {
   display: flex; align-items: center; gap: 16px;
@@ -238,32 +239,32 @@ const resolveImageUrl = (url) => {
   display: flex; align-items: center;
 }
 .cat-checkbox {
-  width: 22px; height: 22px; border: 2px solid #9CA3AF; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center; background: white; transition: all 0.2s;
+  width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; background: var(--surface); transition: all 0.2s;
 }
 .cat-checkbox.checked, .cat-checkbox.indeterminate {
   background: var(--passion-500); border-color: var(--passion-500); color: white;
 }
 
 .cat-card-body {
-  border-top: 1px solid var(--cream-100); background: white;
+  border-top: 1px solid var(--border); background: var(--surface);
 }
 .prod-row {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 16px 20px; border-bottom: 1px solid var(--cream-100); cursor: pointer;
+  padding: 16px 20px; border-bottom: 1px solid var(--border); cursor: pointer;
 }
 .prod-row:last-child { border-bottom: none; }
 .prod-left {
   display: flex; align-items: center; gap: 16px;
 }
 .prod-image-wrapper {
-  width: 48px; height: 48px; border-radius: 8px; overflow: hidden; background: var(--cream-50); flex-shrink: 0;
+  width: 48px; height: 48px; border-radius: 8px; overflow: hidden; background: var(--surface-hover); flex-shrink: 0;
 }
 .prod-image-wrapper img {
   width: 100%; height: 100%; object-fit: cover;
 }
 .prod-placeholder-img {
-  width: 100%; height: 100%; background: var(--cream-200);
+  width: 100%; height: 100%; background: var(--surface-hover);
 }
 .prod-info {
   display: flex; flex-direction: column; gap: 4px;
@@ -272,8 +273,8 @@ const resolveImageUrl = (url) => {
 .prod-price { font-size: 14px; color: var(--ink-500); }
 
 .custom-checkbox {
-  width: 22px; height: 22px; border: 2px solid #9CA3AF; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center; background: white; transition: all 0.2s;
+  width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; background: var(--surface); transition: all 0.2s;
 }
 .custom-checkbox.checked {
   background: var(--passion-500); border-color: var(--passion-500); color: white;
@@ -282,7 +283,7 @@ const resolveImageUrl = (url) => {
 .empty-cat { padding: 16px 20px; font-size: 14px; color: var(--ink-500); font-style: italic; text-align: center; }
 
 .modal-footer-clean {
-  padding: 20px; background: white; border-top: 1px solid var(--cream-100);
+  padding: 20px; background: var(--surface); border-top: 1px solid var(--border);
 }
 .btn-confirm-full {
   width: 100%; background: var(--passion-500); color: white;

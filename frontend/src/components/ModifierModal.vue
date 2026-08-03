@@ -178,7 +178,7 @@ const isOptionInStock = (opt) => {
                 :name="'group_' + og.id"
                 :checked="selections[og.id]?.includes(opt.id)"
                 @change="toggleOption(og.id, opt.id, og.max_selections)"
-                :disabled="!isOptionInStock(opt) || (!selections[og.id]?.includes(opt.id) && selections[og.id]?.length >= og.max_selections)"
+                :disabled="!isOptionInStock(opt) || (og.max_selections > 1 && !selections[og.id]?.includes(opt.id) && selections[og.id]?.length >= og.max_selections)"
               >
               <span class="opt-name">
                 {{ opt.name }}
@@ -211,14 +211,14 @@ const isOptionInStock = (opt) => {
   z-index: 1000;
 }
 .modal-content {
-  background: white;
+  background: var(--surface);
   border-radius: 16px;
   width: 90%;
   max-width: 500px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-pop);
 }
 .modal-header {
   padding: 20px 24px;
@@ -257,13 +257,13 @@ const isOptionInStock = (opt) => {
   display: flex; align-items: center; padding: 12px 16px; border: 2px solid var(--border);
   border-radius: 10px; cursor: pointer; transition: 0.2s;
 }
-.option-item:hover { background: var(--cream-50); }
-.option-item.selected { border-color: var(--passion-500); background: var(--passion-50); }
+.option-item:hover { background: var(--surface-hover); }
+.option-item.selected { border-color: var(--passion-500); background: var(--surface-hover); }
 .option-item input { margin-right: 12px; accent-color: var(--passion-500); width: 16px; height: 16px; }
 .opt-name { flex: 1; font-weight: 600; color: var(--ink-900); }
 .opt-price { font-weight: 700; color: var(--passion-600); }
 .modal-footer {
-  padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--cream-50); border-radius: 0 0 16px 16px;
+  padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--surface-hover); border-radius: 0 0 16px 16px;
 }
 .total-preview { font-size: 18px; font-weight: 800; color: var(--ink-900); }
 .btn-primary { background: var(--passion-500); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 700; font-size: 15px; cursor: pointer; }
@@ -273,9 +273,9 @@ const isOptionInStock = (opt) => {
   opacity: 0.5;
   filter: grayscale(100%);
   cursor: not-allowed;
-  background: var(--cream-50);
+  background: var(--surface-hover);
 }
 .option-item.out-of-stock:hover {
-  background: var(--cream-50);
+  background: var(--surface-hover);
 }
 </style>

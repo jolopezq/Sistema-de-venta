@@ -207,11 +207,11 @@ const resetState = () => {
 }
 
 .pause-modal-content {
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 16px;
   width: 90%;
   max-width: 420px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-pop);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -272,7 +272,7 @@ const resetState = () => {
   transition: all 0.2s ease;
 }
 .option-item:hover {
-  background: var(--cream-100);
+  background: var(--surface-hover);
 }
 .option-item.selected {
   border-color: var(--passion-500);
@@ -351,7 +351,7 @@ const resetState = () => {
 }
 
 .info-box {
-  background: var(--cream-100);
+  background: var(--surface-hover);
   padding: 16px;
   border-radius: 8px;
   font-size: 14px;
@@ -374,12 +374,12 @@ const resetState = () => {
   transition: all 0.2s;
 }
 .btn-outline-danger {
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--passion-500);
   color: var(--passion-500);
 }
 .btn-outline-danger:hover {
-  background: var(--passion-50);
+  background: var(--surface-hover);
 }
 .btn-fill-danger {
   background: var(--passion-500);

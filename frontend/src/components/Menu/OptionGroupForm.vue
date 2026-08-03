@@ -284,7 +284,7 @@ const deleteGroup = () => emit('delete', localGroup.value.id);
   justify-content: center;
 }
 .btn-close:hover {
-  background: var(--cream-100);
+  background: var(--surface-hover);
   color: var(--ink-900);
 }
 
@@ -390,7 +390,7 @@ const deleteGroup = () => emit('delete', localGroup.value.id);
 }
 .slider:before {
   position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
-  background-color: white; transition: .3s;
+  background-color: #fff; transition: .3s;
 }
 input:checked + .slider { background-color: var(--passion-500); }
 input:checked + .slider:before { transform: translateX(20px); }
@@ -400,6 +400,8 @@ input:checked + .slider:before { transform: translateX(20px); }
 .input-number {
   width: 60px; text-align: center; padding: 6px; border: 1px solid var(--border);
   border-radius: 8px; font-size: 14px; outline: none;
+  background-color: var(--surface);
+  color: var(--ink-900);
 }
 
 /* Opcionales Card List */
@@ -440,14 +442,14 @@ input:checked + .slider:before { transform: translateX(20px); }
   border: 1px solid var(--passion-500); background: transparent; color: var(--passion-500);
   font-weight: 700; font-size: 15px; border-radius: 8px; cursor: pointer; transition: 0.2s;
 }
-.btn-outline-primary:hover { background: var(--passion-50); }
+.btn-outline-primary:hover { background: var(--surface-hover); }
 
 .btn-delete-group {
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid var(--border); color: var(--passion-500);
   padding: 10px 20px; border-radius: 24px; font-weight: 700; font-size: 14px; cursor: pointer;
 }
-.btn-delete-group:hover { background: var(--passion-50); }
+.btn-delete-group:hover { background: var(--surface-hover); }
 
 /* Footer */
 .drawer-footer {

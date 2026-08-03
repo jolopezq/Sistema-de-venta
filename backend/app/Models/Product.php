@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Product extends Model
 {
+    use \App\Traits\Auditable;
+
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -31,6 +33,7 @@ class Product extends Model
         'printer_target',
         'is_active',
         'reactivate_at',
+        'tag',
         'sort_order',
     ];
 

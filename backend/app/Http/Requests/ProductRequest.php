@@ -34,6 +34,7 @@ class ProductRequest extends FormRequest
             'printer_target' => ['required', 'in:kitchen,bar,none'],
             'is_active' => ['boolean'],
             'reactivate_at' => ['nullable', 'date'],
+            'tag' => ['nullable', 'string', 'in:popular,recomendado,nuevo'],
             'option_groups' => ['nullable', 'array'],
             'option_groups.*' => ['exists:option_groups,id'],
             'excluded_options' => ['nullable', 'array'],

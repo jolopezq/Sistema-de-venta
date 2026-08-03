@@ -22,6 +22,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Sale extends Model
 {
+    use \App\Traits\Auditable;
+
     use HasFactory, HasUuids, SoftDeletes;
 
     protected $keyType = 'string';

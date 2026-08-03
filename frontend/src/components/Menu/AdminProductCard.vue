@@ -92,7 +92,7 @@ const getImageUrl = computed(() => {
 }
 
 .product-row-card:hover {
-  background: var(--cream-100);
+  background: var(--surface-hover);
 }
 
 /* THUMBNAIL FOTO */
@@ -162,7 +162,7 @@ const getImageUrl = computed(() => {
 }
 
 .btn-pill-ghost:hover {
-  background: var(--cream-200);
+  background: var(--surface-hover);
   border-color: var(--ink-500);
   color: var(--ink-900);
 }
@@ -232,7 +232,7 @@ const getImageUrl = computed(() => {
 }
 
 .btn-pill-outline:hover {
-  background: var(--cream-100);
+  background: var(--surface-hover);
   border-color: var(--passion-600);
 }
 

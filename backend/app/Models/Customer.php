@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Customer extends Model
 {
+    use \App\Traits\Auditable;
+
     use HasFactory, SoftDeletes;
 
     protected $fillable = [

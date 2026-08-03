@@ -7,6 +7,7 @@ use App\Http\Requests\OptionGroupRequest;
 use App\Http\Resources\OptionGroupResource;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
 class OptionGroupController extends Controller
@@ -20,13 +21,13 @@ class OptionGroupController extends Controller
     {
         return DB::transaction(function () use ($request) {
             $group = OptionGroup::create($request->safe()->except('options'));
-            
+
             if ($request->has('options')) {
                 foreach ($request->input('options') as $optionData) {
                     $group->options()->create($optionData);
                 }
             }
-            
+
             return new OptionGroupResource($group->load(['options', 'products']));
         });
     }
@@ -40,42 +41,54 @@ class OptionGroupController extends Controller
     {
         return DB::transaction(function () use ($request, $optionGroup) {
             $optionGroup->update($request->safe()->except('options'));
-            
+
             if ($request->has('options')) {
                 $optionsData = collect($request->input('options'));
                 $existingIds = $optionsData->pluck('id')->filter()->toArray();
-                
-                // Delete options not present in the payload
+
+                // Soft-delete options not present in the payload (preserves sales history)
                 $optionGroup->options()->whereNotIn('id', $existingIds)->delete();
-                
+
                 foreach ($optionsData as $optionData) {
                     if (isset($optionData['id'])) {
                         $optionGroup->options()->where('id', $optionData['id'])->update([
-                            'name' => $optionData['name'],
+                            'name'             => $optionData['name'],
                             'additional_price' => $optionData['additional_price'],
-                            'is_active' => $optionData['is_active'] ?? true,
+                            'is_active'        => $optionData['is_active'] ?? true,
                         ]);
                     } else {
                         $optionGroup->options()->create($optionData);
                     }
                 }
             }
-            
+
             return new OptionGroupResource($optionGroup->fresh('options'));
         });
     }
 
+    /**
+     * Soft-delete del grupo de opciones — nunca DELETE físico (buenas-practicas.md §5).
+     * Preserva la integridad referencial del historial de ventas.
+     */
     public function destroy(OptionGroup $optionGroup): Response
     {
-        $optionGroup->delete();
+        DB::transaction(function () use ($optionGroup) {
+            // Soft-delete all options first to preserve sales history
+            $optionGroup->options()->delete();
+            // Detach product relationships (pivot table, no soft-delete needed)
+            $optionGroup->products()->detach();
+            // Soft-delete the group itself
+            $optionGroup->delete();
+        });
+
         return response()->noContent();
     }
 
     public function attachProducts(Request $request, OptionGroup $optionGroup): \Illuminate\Http\JsonResponse
     {
         $request->validate([
-            'product_ids' => ['present', 'array'],
-            'product_ids.*' => ['exists:products,id']
+            'product_ids'   => ['present', 'array'],
+            'product_ids.*' => ['exists:products,id'],
         ]);
 
         $optionGroup->products()->sync($request->product_ids);

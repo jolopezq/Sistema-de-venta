@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class IngredientCategory extends Model
 {
+    use \App\Traits\Auditable;
+
     use HasFactory, SoftDeletes;
 
     protected $fillable = [

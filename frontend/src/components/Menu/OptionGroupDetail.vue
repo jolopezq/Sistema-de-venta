@@ -18,6 +18,7 @@ const showAddOptionModal = ref(false);
 
 const newOptionName = ref('');
 const newOptionPrice = ref(0);
+const newOptionDeliveryPrice = ref(0);
 const isSubmittingOption = ref(false);
 
 // Computed linked products list
@@ -75,17 +76,22 @@ const handleAssignSave = async (productIds) => {
 const openAddOptionModal = () => {
   newOptionName.value = '';
   newOptionPrice.value = 0;
+  newOptionDeliveryPrice.value = 0;
   showAddOptionModal.value = true;
 };
 
 const confirmAddOption = async () => {
   if (!newOptionName.value.trim()) return;
+  if (Number(newOptionPrice.value) < 0 || Number(newOptionDeliveryPrice.value) < 0) {
+    emit('alert', 'El precio no puede ser negativo.');
+    return;
+  }
   isSubmittingOption.value = true;
   try {
     const newOpt = {
       name: newOptionName.value.trim(),
       additional_price: Number(newOptionPrice.value) || 0,
-      delivery_price: Number(newOptionPrice.value) || 0,
+      delivery_price: Number(newOptionDeliveryPrice.value) || 0,
       is_active: true,
       is_default: false,
       option_group_id: props.group.id
@@ -195,8 +201,13 @@ const confirmAddOption = async () => {
           </div>
 
           <div class="input-group">
-            <label>Precio adicional (BOB)</label>
+            <label>Precio adicional en local (BOB)</label>
             <input type="number" step="0.50" min="0" v-model="newOptionPrice" placeholder="0.00" class="form-control" />
+          </div>
+
+          <div class="input-group">
+            <label>Precio adicional en delivery (BOB)</label>
+            <input type="number" step="0.50" min="0" v-model="newOptionDeliveryPrice" placeholder="0.00" class="form-control" />
           </div>
         </div>
 
@@ -214,7 +225,7 @@ const confirmAddOption = async () => {
 
 <style scoped>
 .og-detail-card {
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
@@ -250,7 +261,7 @@ const confirmAddOption = async () => {
   height: 32px;
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: white;
+  background: var(--surface);
   color: var(--ink-700);
   display: flex;
   align-items: center;
@@ -269,7 +280,7 @@ const confirmAddOption = async () => {
 }
 
 .btn-add-option-pya {
-  background: white;
+  background: var(--surface);
   border: 1.5px solid var(--passion-500);
   color: var(--passion-500);
   font-size: 14px;
@@ -299,7 +310,7 @@ const confirmAddOption = async () => {
   align-items: center;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  background: white;
+  background: var(--surface);
 }
 
 .middle-left {
@@ -408,7 +419,7 @@ const confirmAddOption = async () => {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
+  background-color: #fff;
   transition: .3s;
 }
 
@@ -510,6 +521,8 @@ input:checked + .slider:before {
   font-size: 14px;
   outline: none;
   transition: border-color 0.2s;
+  background-color: var(--surface);
+  color: var(--ink-900);
 }
 
 .form-control:focus {
@@ -524,7 +537,7 @@ input:checked + .slider:before {
 }
 
 .btn-cancel {
-  background: var(--cream-100);
+  background: var(--surface-hover);
   border: 1px solid var(--border);
   padding: 10px 18px;
   border-radius: 10px;

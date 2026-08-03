@@ -69,7 +69,7 @@ const handleConfirm = () => {
 <style scoped>
 .modal-backdrop-full {
   position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-  background: white;
+  background: var(--surface);
   display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1100;
 }
 @media (min-width: 600px) {
@@ -79,7 +79,7 @@ const handleConfirm = () => {
 }
 
 .modal-content-full {
-  background: white;
+  background: var(--surface);
   width: 100%;
   height: 100%;
   display: flex;
@@ -130,9 +130,9 @@ const handleConfirm = () => {
   display: flex;
   gap: 16px;
   padding: 16px;
-  border: 1px solid var(--cream-100);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: white;
+  background: var(--surface);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -146,8 +146,8 @@ const handleConfirm = () => {
 }
 
 .custom-checkbox {
-  width: 22px; height: 22px; border: 2px solid #9CA3AF; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center; background: white; transition: all 0.2s;
+  width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; background: var(--surface); transition: all 0.2s;
   flex-shrink: 0;
 }
 .custom-checkbox.checked {
@@ -178,7 +178,7 @@ const handleConfirm = () => {
 .modal-footer-custom {
   padding: 20px 24px;
   border-top: 1px solid var(--border);
-  background: white;
+  background: var(--surface);
 }
 
 .btn-confirmar-full {

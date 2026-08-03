@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class SaleItem extends Model
 {
+    use \App\Traits\Auditable;
+
     use HasFactory;
 
     protected $fillable = [

@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SaleItemOption extends Model
 {
+    use \App\Traits\Auditable;
+
     use HasFactory;
 
     protected $fillable = [

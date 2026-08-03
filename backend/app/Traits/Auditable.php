@@ -56,7 +56,7 @@ trait Auditable
             'user_id' => $userId,
             'action' => $action,
             'module' => $module,
-            'description' => substr($description, 0, 1000), // Ensure we don't overflow the text column
+            'description' => substr($description, 0, 5000), // Ensure we don't overflow the text column
         ]);
     }
 }

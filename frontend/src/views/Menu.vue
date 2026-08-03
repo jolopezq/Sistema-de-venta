@@ -7,6 +7,7 @@ import OptionGroupDetail from '../components/Menu/OptionGroupDetail.vue';
 import AdminProductCard from '../components/Menu/AdminProductCard.vue';
 import ProductOptionsModal from '../components/Menu/ProductOptionsModal.vue';
 import ProductPauseModal from '../components/Menu/ProductPauseModal.vue';
+import { useCatalogStore } from '../stores/catalog';
 
 // State
 const categories = ref([]);
@@ -19,6 +20,8 @@ const activeCategory = ref(null);
 const activeOptionGroup = ref(null);
 
 const isLoading = ref(true);
+// Guard para prevenir doble-clic en operaciones de toggle
+const isTogglingProductId = ref(null);
 
 const showProductFormModal = ref(false);
 const showProductOptionsModal = ref(false);
@@ -55,18 +58,20 @@ function alertAction(message) {
   showAlertModal.value = true;
 }
 
-// Fetch Data
+// Fetch Data — maneja respuesta paginada del backend
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const [cats, prods, ogs, ings] = await Promise.all([
+    const [cats, prodsRes, ogs, ings] = await Promise.all([
       apiFetch('/categories'),
-      apiFetch('/products'),
+      apiFetch('/products?per_page=500'), // Solicita todos los productos sin corte en 20
       apiFetch('/option-groups'),
       apiFetch('/ingredients')
     ]);
     categories.value = cats.data || cats;
-    products.value = prods.data || prods;
+    // El backend devuelve paginación: { data: [...], meta: {...} }
+    // Tomamos siempre el array de datos, independiente del formato de respuesta
+    products.value = prodsRes.data ?? prodsRes;
     optionGroups.value = ogs.data || ogs;
     ingredients.value = (ings.data || ings).map(i => ({ id: i.id, name: i.name, unit: i.unit }));
 
@@ -76,6 +81,11 @@ const fetchData = async () => {
     if (optionGroups.value.length > 0 && !activeOptionGroup.value) {
       activeOptionGroup.value = optionGroups.value[0];
     }
+    
+    // Invalidamos y actualizamos el caché del POS en segundo plano
+    // para que refleje los cambios realizados en el menú inmediatamente.
+    useCatalogStore().fetchAndCache();
+    
   } catch (error) {
     alertAction('Error cargando catálogo: ' + (error.message || error));
   } finally {
@@ -150,6 +160,9 @@ const viewProductOptions = (prod) => {
 };
 
 const toggleProductActive = async (prod) => {
+  // Guard anti-doble-clic: evita dos PUTs simultáneos sobre el mismo producto
+  if (isTogglingProductId.value === prod.id) return;
+  isTogglingProductId.value = prod.id;
   try {
     const updated = formatProductForModal(prod);
     updated.is_active = !prod.is_active;
@@ -160,6 +173,8 @@ const toggleProductActive = async (prod) => {
     await fetchData();
   } catch (error) {
     alertAction('Error actualizando producto: ' + (error.message || error));
+  } finally {
+    isTogglingProductId.value = null;
   }
 };
 
@@ -169,6 +184,9 @@ const initiatePauseProduct = (prod) => {
 };
 
 const confirmPauseProduct = async ({ product, reactivate_at }) => {
+  // Guard anti-doble-clic
+  if (isTogglingProductId.value === product.id) return;
+  isTogglingProductId.value = product.id;
   showProductPauseModal.value = false;
   try {
     const updated = formatProductForModal(product);
@@ -178,6 +196,8 @@ const confirmPauseProduct = async ({ product, reactivate_at }) => {
     await fetchData();
   } catch (error) {
     alertAction('Error actualizando producto: ' + (error.message || error));
+  } finally {
+    isTogglingProductId.value = null;
   }
 };
 
@@ -742,7 +762,7 @@ const handleUpdateSuccess = async (groupId) => {
   font-size: 15px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  border-left: 4px solid transparent;
+  border-left: 4px solid var(--border);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1013,7 +1033,7 @@ const handleUpdateSuccess = async (groupId) => {
   padding: 14px 16px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  border-left: 4px solid transparent;
+  border-left: 4px solid var(--border);
   background: var(--surface);
   cursor: pointer;
   transition: all 0.2s ease;

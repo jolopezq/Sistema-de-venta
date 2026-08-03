@@ -165,7 +165,7 @@ onUnmounted(() => {
         <div class="banner-illustration">
           <img v-if="imagePreview" :src="imagePreview" class="uploaded-preview" />
           <svg v-else viewBox="0 0 100 80" class="camera-icon-svg">
-            <rect x="10" y="20" width="80" height="50" rx="8" fill="var(--cream-200)" stroke="var(--border)" stroke-width="3"/>
+            <rect x="10" y="20" width="80" height="50" rx="8" fill="var(--border)" stroke="var(--border)" stroke-width="3"/>
             <circle cx="50" cy="45" r="16" fill="var(--surface-alt)" stroke="var(--ink-500)" stroke-width="3"/>
             <circle cx="50" cy="45" r="8" fill="var(--ink-500)"/>
             <path d="M35 20 L42 10 L58 10 L65 20 Z" fill="var(--surface-alt)" stroke="var(--border)" stroke-width="2"/>
@@ -192,7 +192,7 @@ onUnmounted(() => {
 
       <!-- Descripción -->
       <div class="input-card" :class="{'has-error': formErrors.description}">
-        <span class="input-label">Descripción *</span>
+        <span class="input-label">Descripción</span>
         <textarea v-model="localProduct.description" class="textarea-field" placeholder="Descripción breve del producto..." rows="2"></textarea>
         <span v-if="formErrors.description" class="error-msg">{{ formErrors.description[0] }}</span>
       </div>
@@ -350,7 +350,7 @@ onUnmounted(() => {
 }
 
 .badge-required {
-  background: var(--cream-200);
+  background: var(--border);
   color: var(--ink-700);
   font-size: 11px;
   font-weight: 600;
@@ -425,7 +425,7 @@ onUnmounted(() => {
 }
 
 .btn-upload-photo:hover {
-  background: var(--cream-100);
+  background: var(--surface-hover);
   border-color: var(--passion-600);
 }
 
@@ -548,7 +548,7 @@ onUnmounted(() => {
 }
 
 .btn-create-option-group:hover {
-  background: var(--cream-100);
+  background: var(--surface-hover);
   border-color: var(--passion-600);
 }
 
@@ -665,7 +665,7 @@ onUnmounted(() => {
 }
 
 .custom-option:hover {
-  background: var(--cream-100);
+  background: var(--surface-hover);
 }
 
 .custom-option.selected {
@@ -698,14 +698,14 @@ onUnmounted(() => {
 }
 .og-custom-card {
   display: block;
-  border: 1px solid var(--cream-100);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: white;
+  background: var(--surface);
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .og-custom-card:hover {
-  border-color: var(--cream-200);
+  border-color: var(--ink-300);
   box-shadow: 0 4px 12px rgba(0,0,0,0.02);
 }
 .og-custom-card-content {
@@ -727,13 +727,13 @@ onUnmounted(() => {
 .custom-checkbox {
   width: 22px;
   height: 22px;
-  border: 2px solid var(--cream-200);
+  border: 2px solid var(--border);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  background: white;
+  background: var(--surface);
 }
 .custom-checkbox.checked {
   background: var(--passion-500);
@@ -756,7 +756,7 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 .og-linked-products {
-  border-top: 1px solid var(--cream-100);
+  border-top: 1px solid var(--border);
   padding: 12px 16px;
   display: flex;
   align-items: center;

@@ -15,13 +15,13 @@ const cart = useCartStore();
 const activeCategoryId = ref(null);
 
 onMounted(async () => {
-  // Offline-First: carga el catálogo local primero, luego sincroniza
+  // Offline-First: carga el catálogo local primero para mostrar la interfaz rápido
   if (catalog.categories.length === 0) {
     await catalog.loadFromLocal();
-    if (catalog.categories.length === 0) {
-      await catalog.fetchAndCache();
-    }
   }
+  // Sincroniza en segundo plano siempre para asegurar que tenemos
+  // los productos/categorías más recientes creados en el Menú.
+  catalog.fetchAndCache();
 });
 
 const filteredProducts = computed(() => {

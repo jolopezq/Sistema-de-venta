@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Ingredient extends Model
 {
+    use \App\Traits\Auditable;
+
     use HasFactory, SoftDeletes;
 
     protected $fillable = [

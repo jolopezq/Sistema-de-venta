@@ -62,6 +62,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/permissions', [\App\Http\Controllers\RolePermissionController::class, 'update']);
         Route::apiResource('users', \App\Http\Controllers\UserController::class)->except(['show']);
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index']);
+        Route::get('/audit-logs/export', [\App\Http\Controllers\AuditLogController::class, 'export']);
     });
 
     // Gestión de usuarios: reset password (super_admin o admin)

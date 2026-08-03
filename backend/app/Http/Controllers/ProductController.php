@@ -18,9 +18,10 @@ class ProductController extends Controller
      * Lista paginada de todos los productos.
      * Usar paginación evita traer toda la tabla en producción.
      */
-    public function index(): AnonymousResourceCollection
+    public function index(\Illuminate\Http\Request $request): AnonymousResourceCollection
     {
-        return ProductResource::collection($this->products->paginated());
+        $perPage = $request->input('per_page', 20);
+        return ProductResource::collection($this->products->paginated((int) $perPage));
     }
 
     /**
