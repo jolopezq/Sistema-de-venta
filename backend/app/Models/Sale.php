@@ -40,6 +40,7 @@ class Sale extends Model
         'void_reason',
         'voided_by',
         'source',
+        'notes',
         'sync_status',
     ];
 

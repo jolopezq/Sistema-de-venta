@@ -88,6 +88,7 @@ class SaleSyncService
             'total_amount'    => $data['total_amount'],
             'status'          => $data['status'] ?? 'completed',
             'source'          => $data['source'] ?? 'pos',
+            'notes'           => $data['notes'] ?? null,
             'sync_status'     => 'synced',
             'created_at'      => $data['created_at'] ?? now(),
         ]);
@@ -134,6 +135,8 @@ class SaleSyncService
                 'quantity'              => $itemData['quantity'],
                 'unit_price'            => $itemData['unit_price'],
                 'subtotal'              => $itemData['subtotal'],
+                'item_note'             => $itemData['item_note'] ?? null,
+                'allergen_flags'        => isset($itemData['allergen_flags']) && is_array($itemData['allergen_flags']) ? $itemData['allergen_flags'] : null,
             ]);
 
             // Save sale_item_options

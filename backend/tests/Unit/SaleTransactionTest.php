@@ -25,17 +25,15 @@ class SaleTransactionTest extends TestCase
 
     public function test_idempotency_prevents_duplicate_sales()
     {
+        $user = User::factory()->create();
         $uuid = Str::uuid()->toString();
 
-        // This assumes a factory exists for Sale, otherwise we can just use create()
-        // Wait, since I don't know if SaleFactory exists, let's just insert
         DB::table('sales')->insert([
             'id' => $uuid,
-            'user_id' => 1, // dummy user
-            'cash_register_session_id' => 1,
+            'cashier_id' => $user->id,
             'subtotal' => 100,
-            'discount' => 0,
-            'total' => 100,
+            'discount_amount' => 0,
+            'total_amount' => 100,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -47,17 +45,17 @@ class SaleTransactionTest extends TestCase
 
     public function test_sale_creation_is_transactional()
     {
+        $user = User::factory()->create();
         $uuid = Str::uuid()->toString();
         
         try {
-            DB::transaction(function () use ($uuid) {
+            DB::transaction(function () use ($uuid, $user) {
                 $this->saleRepository->create([
                     'id' => $uuid,
-                    'user_id' => 1,
-                    'cash_register_session_id' => 1,
+                    'cashier_id' => $user->id,
                     'subtotal' => 100,
-                    'discount' => 0,
-                    'total' => 100,
+                    'discount_amount' => 0,
+                    'total_amount' => 100,
                 ]);
 
                 // Simulamos un error para asegurar el rollback

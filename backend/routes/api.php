@@ -10,6 +10,7 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\LoyaltyConfigController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\CashRegisterSessionController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\InventoryMovementController;
 use App\Http\Controllers\OptionRecipeController;
@@ -48,11 +49,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/inventory/movements', [InventoryMovementController::class, 'store']);
     Route::get('/ingredients/{ingredient}/movements', [InventoryMovementController::class, 'index']);
     
-    // Ventas (Sincronización Offline)
+    // Ventas (Sincronización Offline e Historial)
     Route::post('/sales/sync', [SaleController::class, 'sync']);
     Route::post('/sales/{sale}/void', [SaleController::class, 'voidSale']);
     Route::apiResource('sales', SaleController::class)->only(['index', 'show']);
     
+    // Sesiones de Caja / Turno y Arqueo
+    Route::get('/cash-sessions/active', [CashRegisterSessionController::class, 'active']);
+    Route::post('/cash-sessions/{cashSession}/close', [CashRegisterSessionController::class, 'close']);
+    Route::get('/cash-sessions/{cashSession}/report', [CashRegisterSessionController::class, 'report']);
+    Route::apiResource('cash-sessions', CashRegisterSessionController::class)->only(['index', 'store', 'show']);
+
     Route::get('/loyalty-config', [LoyaltyConfigController::class, 'show']);
     Route::put('/loyalty-config', [LoyaltyConfigController::class, 'update']);
 

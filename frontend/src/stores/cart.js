@@ -11,12 +11,15 @@ export const useCartStore = defineStore('cart', {
     total: (state) => state.items.reduce((acc, item) => acc + item.subtotal, 0),
   },
   actions: {
-    addItem(product, quantity = 1) {
-      // Create a unique key based on product ID and selected modifiers
+    addItem(product, quantity = 1, itemNote = '', allergenFlags = []) {
+      // Create a unique key based on product ID, selected modifiers, notes and allergens
       const modifiersHash = product.modifiers && product.modifiers.length > 0 
         ? JSON.stringify(product.modifiers.map(m => m.option_id).sort()) 
         : '';
-      const cartKey = `${product.id}-${modifiersHash}`;
+      const notesHash = itemNote ? encodeURIComponent(itemNote) : '';
+      const allergensHash = allergenFlags.length > 0 ? allergenFlags.sort().join(',') : '';
+      const takeawayHash = product.is_takeaway ? '-takeaway' : '';
+      const cartKey = `${product.id}-${modifiersHash}-${notesHash}-${allergensHash}${takeawayHash}`;
 
       const existing = this.items.find(i => i.cart_key === cartKey);
       if (existing) {
@@ -32,6 +35,9 @@ export const useCartStore = defineStore('cart', {
           subtotal: quantity * product.price,
           modifiers: product.modifiers || [],
           base_price: product.base_price || product.price,
+          item_note: itemNote,
+          allergen_flags: allergenFlags,
+          is_takeaway: product.is_takeaway || false
         });
       }
     },
@@ -45,19 +51,21 @@ export const useCartStore = defineStore('cart', {
     async checkout(checkoutData) {
       if (this.items.length === 0) return null;
       
-      // checkoutData contiene: { payments: [], customerId: null, discountAmount: 0 }
+      // checkoutData contiene: { payments: [], customerId: null, discountAmount: 0, saleNote: '' }
       const payments = checkoutData.payments || [];
       const customerId = checkoutData.customerId || this.customerId;
       const discountAmount = checkoutData.discountAmount || 0;
+      const saleNote = checkoutData.saleNote || '';
       
       const sale = {
-        id: crypto.randomUUID(), // Generación de UUID v4 en cliente
+        id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'pos-' + Date.now() + '-' + Math.floor(Math.random()*1000), // Generación de UUID v4 en cliente o fallback
         customer_id: customerId,
         subtotal: this.subtotal,
         discount_amount: discountAmount,
         total_amount: this.total - discountAmount,
         status: 'completed',
         source: 'pos',
+        notes: saleNote,
         sync_status: 'pending',
         created_at: new Date().toISOString(),
         items: this.items.map(i => ({
@@ -67,13 +75,17 @@ export const useCartStore = defineStore('cart', {
           unit_price: i.unit_price,
           subtotal: i.subtotal,
           modifiers: i.modifiers || [],
-          base_price: i.base_price || i.unit_price
+          base_price: i.base_price || i.unit_price,
+          item_note: i.item_note || null,
+          allergen_flags: i.allergen_flags || [],
+          is_takeaway: i.is_takeaway || false
         })),
         payments: payments
       };
 
-      // Guarda la venta en IndexedDB
-      await db.sales.add(sale);
+      // Guarda la venta en IndexedDB (quitando los Proxies reactivos de Vue)
+      const pureSale = JSON.parse(JSON.stringify(sale));
+      await db.sales.add(pureSale);
       
       // Reduce el stock localmente en memoria y en IndexedDB
       const { useCatalogStore } = await import('./catalog.js');

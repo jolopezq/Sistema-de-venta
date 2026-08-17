@@ -23,6 +23,8 @@ class CashRegisterSession extends Model
         'expected_closing',
         'actual_closing',
         'difference',
+        'bill_breakdown',
+        'diff_note',
         'status',
         'opened_at',
         'closed_at',
@@ -35,6 +37,7 @@ class CashRegisterSession extends Model
             'expected_closing' => 'decimal:2',
             'actual_closing' => 'decimal:2',
             'difference' => 'decimal:2',
+            'bill_breakdown' => 'array',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
         ];

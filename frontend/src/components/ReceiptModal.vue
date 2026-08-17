@@ -40,6 +40,9 @@ const change = computed(() => props.sale?.change || 0);
               {{ mod.option_name }}<span v-if="idx < item.modifiers.length - 1">, </span>
             </span>
           </div>
+          <div v-if="item.item_note" style="font-size:11px;color:var(--ink-500);padding-left:16px;font-style:italic;">
+            Nota: {{ item.item_note }}
+          </div>
         </div>
       </div>
 

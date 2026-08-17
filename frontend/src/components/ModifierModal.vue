@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { useCatalogStore } from '../stores/catalog';
 
 const catalog = useCatalogStore();
@@ -13,21 +13,46 @@ const emit = defineEmits(['close', 'confirm']);
 
 // Store selected options: { optionGroupId: [optionId1, optionId2] }
 const selections = ref({});
+const expandedGroups = ref({});
 const errorMessages = ref({});
+const itemNote = ref('');
+const selectedAllergens = ref([]);
+const isTakeaway = ref(false);
+const allergens = [
+  { id: 'lactose', name: 'Lactosa', icon: '🥛' },
+  { id: 'gluten', name: 'Gluten', icon: '🌾' },
+  { id: 'almond', name: 'Almendras', icon: '🥜' },
+  { id: 'fruit', name: 'Fruta', icon: '🍓' },
+  { id: 'egg', name: 'Huevo', icon: '🥚' }
+];
 
 watch(() => props.show, (newVal) => {
   if (newVal && props.product) {
     selections.value = {};
+    expandedGroups.value = {};
     errorMessages.value = {};
+    itemNote.value = '';
+    selectedAllergens.value = [];
+    isTakeaway.value = false;
     // Initialize selections with default values
     if (filteredGroups.value) {
       filteredGroups.value.forEach(og => {
         const defaultOptions = og.options.filter(o => o.is_default).map(o => o.id);
         selections.value[og.id] = defaultOptions.slice(0, og.max_selections); // Limit defaults to max_selections
+        
+        if (og.max_selections === 1) {
+          expandedGroups.value[og.id] = true;
+        } else {
+          expandedGroups.value[og.id] = false;
+        }
       });
     }
   }
 });
+
+const toggleAccordion = (groupId) => {
+  expandedGroups.value[groupId] = !expandedGroups.value[groupId];
+};
 
 const filteredGroups = computed(() => {
   if (!props.product?.option_groups) return [];
@@ -44,10 +69,14 @@ const filteredGroups = computed(() => {
 });
 
 const toggleOption = (groupId, optionId, maxSelections) => {
-  const current = selections.value[groupId];
+  const current = selections.value[groupId] || [];
   if (maxSelections === 1) {
-    // Radio behavior
-    selections.value[groupId] = [optionId];
+    // Radio behavior (toggle if already selected)
+    if (current.includes(optionId)) {
+      selections.value[groupId] = [];
+    } else {
+      selections.value[groupId] = [optionId];
+    }
   } else {
     // Checkbox behavior
     const idx = current.indexOf(optionId);
@@ -129,8 +158,20 @@ const handleConfirm = () => {
   emit('confirm', {
     product: props.product,
     modifiers: selectedModifiers,
-    finalPrice: totalPrice.value
+    finalPrice: totalPrice.value,
+    itemNote: itemNote.value,
+    allergenFlags: selectedAllergens.value,
+    isTakeaway: isTakeaway.value
   });
+};
+
+const toggleAllergen = (allergenId) => {
+  const index = selectedAllergens.value.indexOf(allergenId);
+  if (index > -1) {
+    selectedAllergens.value.splice(index, 1);
+  } else {
+    selectedAllergens.value.push(allergenId);
+  }
 };
 
 const isOptionInStock = (opt) => {
@@ -144,6 +185,34 @@ const isOptionInStock = (opt) => {
   }
   return true;
 };
+
+const handleOptionClick = (og, opt) => {
+  if (!isOptionInStock(opt)) return;
+  if (og.max_selections > 1 && !(selections.value[og.id] || []).includes(opt.id) && (selections.value[og.id] || []).length >= og.max_selections) {
+    return;
+  }
+  toggleOption(og.id, opt.id, og.max_selections);
+};
+
+const handleGlobalKeydown = (e) => {
+  if (props.show && e.key === 'Enter') {
+    if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'textarea') {
+      return; // allow newline in textarea
+    }
+    e.preventDefault();
+    if (isValid.value) {
+      handleConfirm();
+    }
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown);
+});
 </script>
 
 <template>
@@ -157,27 +226,39 @@ const isOptionInStock = (opt) => {
       <div class="modal-body">
         <p class="base-price">Precio Base: Bs {{ Number(product?.price || 0).toFixed(2) }}</p>
         
-        <div v-for="og in filteredGroups" :key="og.id" class="option-group">
-          <div class="og-header">
-            <h4>{{ og.name }}</h4>
-            <span class="og-rules">
-              (Mín: {{ og.min_selections }}, Máx: {{ og.max_selections }})
-            </span>
+        <div v-for="og in filteredGroups" :key="og.id" class="option-group" :class="{ 'is-single': og.max_selections === 1 }">
+          <div class="og-header" :class="{ 'cursor-pointer': og.max_selections > 1 }" @click="og.max_selections > 1 ? toggleAccordion(og.id) : null">
+            <div class="og-header-title">
+              <h4>{{ og.name }}</h4>
+              <span class="og-rules">
+                (Mín: {{ og.min_selections }}, Máx: {{ og.max_selections }})
+              </span>
+            </div>
+            <div v-if="og.max_selections > 1" class="accordion-icon">
+              <span v-if="expandedGroups[og.id]">▲</span>
+              <span v-else>▼</span>
+            </div>
           </div>
           <div v-if="errorMessages[og.id]" class="error-msg">{{ errorMessages[og.id] }}</div>
           
-          <div class="options-list">
+          <div class="options-list" :class="{ 'grid-list': og.max_selections === 1 }" v-show="expandedGroups[og.id]">
             <label 
               v-for="opt in og.options" 
               :key="opt.id" 
               class="option-item"
-              :class="{ selected: selections[og.id]?.includes(opt.id), 'out-of-stock': !isOptionInStock(opt) }"
+              :class="{ 
+                selected: selections[og.id]?.includes(opt.id), 
+                'out-of-stock': !isOptionInStock(opt),
+                'single-option': og.max_selections === 1
+              }"
+              @click.prevent="handleOptionClick(og, opt)"
             >
               <input 
-                :type="og.max_selections === 1 ? 'radio' : 'checkbox'"
+                v-if="og.max_selections > 1"
+                type="checkbox"
                 :name="'group_' + og.id"
                 :checked="selections[og.id]?.includes(opt.id)"
-                @change="toggleOption(og.id, opt.id, og.max_selections)"
+                readonly
                 :disabled="!isOptionInStock(opt) || (og.max_selections > 1 && !selections[og.id]?.includes(opt.id) && selections[og.id]?.length >= og.max_selections)"
               >
               <span class="opt-name">
@@ -186,6 +267,43 @@ const isOptionInStock = (opt) => {
               </span>
               <span class="opt-price" v-if="opt.additional_price > 0">+Bs {{ Number(opt.additional_price).toFixed(2) }}</span>
             </label>
+          </div>
+        </div>
+
+        <div class="takeaway-section" :class="{ 'is-active': isTakeaway }">
+          <label class="switch-label">
+            <span class="switch-text">
+              <strong>Para llevar</strong>
+              <small>Empaquetar este ítem para llevar</small>
+            </span>
+            <div class="toggle-switch">
+              <input type="checkbox" v-model="isTakeaway">
+              <span class="slider"></span>
+            </div>
+          </label>
+        </div>
+
+        <div class="note-section">
+          <h4>Nota especial del ítem (Opcional)</h4>
+          <textarea 
+            v-model="itemNote" 
+            placeholder="Ej: Sin fresa, leche deslactosada..."
+            class="note-textarea"
+          ></textarea>
+        </div>
+
+        <div class="allergen-section">
+          <h4>Alertas de Alérgenos</h4>
+          <div class="allergen-chips">
+            <button 
+              v-for="allergen in allergens" 
+              :key="allergen.id"
+              class="allergen-chip"
+              :class="{ active: selectedAllergens.includes(allergen.id) }"
+              @click="toggleAllergen(allergen.id)"
+            >
+              {{ allergen.icon }} {{ allergen.name }}
+            </button>
           </div>
         </div>
       </div>
@@ -243,7 +361,21 @@ const isOptionInStock = (opt) => {
   margin-bottom: 24px;
 }
 .og-header {
-  display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px;
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+  padding: 8px 0;
+}
+.og-header.cursor-pointer {
+  cursor: pointer;
+  user-select: none;
+}
+.og-header.cursor-pointer:hover h4 {
+  color: var(--passion-500);
+}
+.og-header-title {
+  display: flex; align-items: baseline; gap: 8px;
+}
+.accordion-icon {
+  font-size: 12px; color: var(--ink-500);
 }
 .og-header h4 { margin: 0; font-size: 15px; color: var(--ink-800); }
 .og-rules { font-size: 12px; color: var(--ink-500); }
@@ -253,9 +385,31 @@ const isOptionInStock = (opt) => {
 .options-list {
   display: flex; flex-direction: column; gap: 8px;
 }
+.options-list.grid-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
 .option-item {
   display: flex; align-items: center; padding: 12px 16px; border: 2px solid var(--border);
-  border-radius: 10px; cursor: pointer; transition: 0.2s;
+  border-radius: 10px; cursor: pointer; transition: all 0.2s ease;
+}
+.option-item.single-option {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  text-align: center;
+  border-radius: 12px;
+  height: 100%;
+}
+.option-item.single-option .opt-name {
+  margin-bottom: 4px;
+  text-align: center;
+  width: 100%;
+}
+.option-item.single-option .opt-price {
+  font-size: 13px;
 }
 .option-item:hover { background: var(--surface-hover); }
 .option-item.selected { border-color: var(--passion-500); background: var(--surface-hover); }
@@ -277,5 +431,131 @@ const isOptionInStock = (opt) => {
 }
 .option-item.out-of-stock:hover {
   background: var(--surface-hover);
+}
+
+.note-section {
+  margin-bottom: 20px;
+}
+.note-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--ink-800);
+}
+.note-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+  background: var(--surface);
+  color: var(--ink-900);
+}
+.note-textarea:focus {
+  outline: none;
+  border-color: var(--passion-500);
+}
+
+.takeaway-section {
+  margin-bottom: 20px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  transition: all 0.2s ease;
+}
+.takeaway-section.is-active {
+  border-color: var(--passion-500);
+  background: var(--surface-hover);
+}
+.switch-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+.switch-text {
+  display: flex;
+  flex-direction: column;
+}
+.switch-text strong {
+  font-size: 15px;
+  color: var(--ink-900);
+}
+.switch-text small {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--ink-300);
+  transition: .3s;
+  border-radius: 24px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+}
+input:checked + .slider {
+  background-color: var(--passion-500);
+}
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+.allergen-section {
+  margin-bottom: 10px;
+}
+.allergen-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--ink-800);
+}
+.allergen-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.allergen-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--ink-700);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  font-weight: 600;
+}
+.allergen-chip:hover {
+  background: var(--surface-hover);
+}
+.allergen-chip.active {
+  background: var(--warning-100);
+  border-color: var(--warning-500);
+  color: var(--warning-800);
 }
 </style>

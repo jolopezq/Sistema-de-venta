@@ -23,6 +23,8 @@ class SaleItem extends Model
         'quantity',
         'unit_price',
         'subtotal',
+        'item_note',
+        'allergen_flags',
     ];
 
     protected function casts(): array
@@ -31,6 +33,7 @@ class SaleItem extends Model
             'quantity' => 'decimal:4',
             'unit_price' => 'decimal:2',
             'subtotal' => 'decimal:2',
+            'allergen_flags' => 'array',
         ];
     }
 

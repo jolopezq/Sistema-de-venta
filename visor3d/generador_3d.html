@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador 3D Inteligente - Apartamento 6B</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a1a1a; color: white; font-family: -apple-system, sans-serif; }
+        #info { 
+            position: absolute; top: 20px; left: 20px; 
+            background: rgba(0,0,0,0.7); padding: 20px; 
+            border-radius: 10px; pointer-events: none;
+            border: 1px solid #444;
+        }
+        h1 { margin: 0 0 10px 0; font-size: 1.2rem; }
+        p { margin: 0; font-size: 0.9rem; color: #ccc; }
+        #export-btn { 
+            position: absolute; bottom: 30px; left: 50%; 
+            transform: translateX(-50%); padding: 15px 30px; 
+            background: #4caf50; color: white; border: none; 
+            border-radius: 8px; cursor: pointer; font-size: 16px;
+            font-weight: bold; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+            transition: background 0.3s;
+        }
+        #export-btn:hover { background: #43a047; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1>Generador 3D Procedural</h1>
+        <p>Apartamento 6B - 32m²</p>
+        <p style="margin-top: 10px; font-size: 0.8rem; color: #888;">He programado este modelado a partir<br>de las cotas de tu plano.</p>
+    </div>
+    
+    <button id="export-btn">📥 Exportar Modelo (.GLTF)</button>
+
+    <!-- Usamos Import Maps para cargar Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+        // 1. Configuración de Escena
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        
+        // 2. Iluminación
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        // 3. Grupo que contendrá el apartamento entero (para poder exportarlo junto)
+        const apartamento = new THREE.Group();
+        scene.add(apartamento);
+
+        // 4. Materiales básicos (Colores pastel para diferenciar áreas)
+        const matPared = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+        const matPiso = new THREE.MeshLambertMaterial({ color: 0xdeb887 }); // Madera clara
+        const matMueble = new THREE.MeshLambertMaterial({ color: 0x4a90e2 }); // Azul para muebles
+        const matBano = new THREE.MeshLambertMaterial({ color: 0x95a5a6 }); // Gris
+        const matExterior = new THREE.MeshLambertMaterial({ color: 0x34495e }); 
+
+        // Función auxiliar para crear bloques fácilmente
+        function crearBloque(w, h, d, x, y, z, material, nombre) {
+            const geo = new THREE.BoxGeometry(w, h, d);
+            const mesh = new THREE.Mesh(geo, material);
+            mesh.position.set(x, y + h/2, z); // Posicionar desde el suelo hacia arriba
+            mesh.name = nombre;
+            apartamento.add(mesh);
+            return mesh;
+        }
+
+        // --- MEDIDAS APROXIMADAS DEL PLANO (en metros) ---
+        // Área habitable ~29m2 -> aprox 6.4m de largo x 4.5m de ancho
+        const anchoApto = 4.5;
+        const largoApto = 6.4;
+        const alturaPared = 2.6;
+        const grosorPared = 0.15;
+
+        // --- CONSTRUCCIÓN DEL MODELO ---
+
+        // 1. Piso del Monoambiente (29m2)
+        crearBloque(anchoApto, 0.1, largoApto, 0, -0.1, 0, matPiso, "Piso");
+
+        // 2. Muros Perimetrales
+        crearBloque(anchoApto, alturaPared, grosorPared, 0, 0, -largoApto/2, matPared, "Muro Norte");
+        crearBloque(anchoApto, alturaPared, grosorPared, 0, 0, largoApto/2, matPared, "Muro Sur");
+        crearBloque(grosorPared, alturaPared, largoApto, -anchoApto/2, 0, 0, matPared, "Muro Este (Ventanal)");
+        crearBloque(grosorPared, alturaPared, largoApto, anchoApto/2, 0, 0, matPared, "Muro Oeste");
+
+        // 3. Baño (2.31m x 1.55m) - Esquina inferior derecha (Oeste-Sur)
+        const anchoBano = 1.55;
+        const largoBano = 2.31;
+        // Muros interiores del baño
+        crearBloque(anchoBano, alturaPared, grosorPared, anchoApto/2 - anchoBano/2, 0, largoApto/2 - largoBano, matPared, "Muro Baño 1");
+        crearBloque(grosorPared, alturaPared, largoBano, anchoApto/2 - anchoBano, 0, largoApto/2 - largoBano/2, matPared, "Muro Baño 2");
+        // Piso del baño (Gris)
+        crearBloque(anchoBano, 0.12, largoBano, anchoApto/2 - anchoBano/2, -0.1, largoApto/2 - largoBano/2, matBano, "Piso Baño");
+
+        // 4. Mobiliario (Volúmenes básicos según tus medidas)
+        
+        // Zona Dormitorio (Cama)
+        crearBloque(1.4, 0.5, 1.9, -anchoApto/2 + 0.8, 0, largoApto/2 - 1.2, matMueble, "Cama");
+
+        // Zona Estar (Sofá 2.28m frente ventana)
+        crearBloque(1.8, 0.7, 0.8, -anchoApto/2 + 1.2, 0, 0, matMueble, "Sofa");
+
+        // Zona Cocina (Barra 1.70 x 0.60 y Mesada 0.95)
+        crearBloque(0.60, 1.0, 1.70, anchoApto/2 - 1.5, 0, -largoApto/2 + 1.0, matMueble, "Barra Desayunadora");
+        crearBloque(0.95, 0.9, 2.0, anchoApto/2 - 0.5, 0, -largoApto/2 + 1.0, matMueble, "Mesada Cocina");
+
+        // 5. Losas Exteriores
+        // Losa Técnica (3.14m2 -> 1.00 x 3.14)
+        crearBloque(1.0, 0.1, 3.14, anchoApto/2 + 0.5, -0.1, largoApto/2 - 1.57, matExterior, "Losa Tecnica");
+        
+        // Losa Fachada Este (1.58m2)
+        crearBloque(1.0, 0.1, 1.58, -anchoApto/2 - 0.5, -0.1, 0, matExterior, "Losa Fachada Este");
+
+
+        // --- CONFIGURACIÓN DE CÁMARA Y RENDERER ---
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(-7, 7, 7); // Vista isométrica inicial
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.maxPolarAngle = Math.PI / 2 - 0.1; // Evitar ir por debajo del suelo
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- LÓGICA DE EXPORTACIÓN A GLTF ---
+        document.getElementById('export-btn').addEventListener('click', () => {
+            const exporter = new GLTFExporter();
+            // Exportamos solo el grupo "apartamento"
+            exporter.parse(
+                apartamento,
+                function ( gltf ) {
+                    // Generar archivo
+                    const output = JSON.stringify( gltf, null, 2 );
+                    const blob = new Blob( [ output ], { type: 'text/plain' } );
+                    const url = URL.createObjectURL( blob );
+                    
+                    // Forzar descarga
+                    const link = document.createElement( 'a' );
+                    link.style.display = 'none';
+                    link.href = url;
+                    link.download = 'Modelo_Apartamento_6B.gltf';
+                    document.body.appendChild( link );
+                    link.click();
+                    
+                    // Limpieza
+                    document.body.removeChild( link );
+                    URL.revokeObjectURL( url );
+                },
+                function ( error ) { console.error('Error exportando:', error); },
+                { binary: false } 
+            );
+        });
+    </script>
+</body>
+</html>

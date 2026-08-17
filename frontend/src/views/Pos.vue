@@ -7,6 +7,7 @@ import ProductCard from '../components/ProductCard.vue';
 import CartItem from '../components/CartItem.vue';
 import CheckoutModal from '../components/CheckoutModal.vue';
 import ReceiptModal from '../components/ReceiptModal.vue';
+import KitchenTicketModal from '../components/KitchenTicketModal.vue';
 import ModifierModal from '../components/ModifierModal.vue';
 
 const catalog = useCatalogStore();
@@ -62,7 +63,7 @@ function isProductInStock(product) {
   return true;
 }
 
-function handleConfirmModifiers({ product, modifiers, finalPrice }) {
+function handleConfirmModifiers({ product, modifiers, finalPrice, itemNote, allergenFlags }) {
   showModifierModal.value = false;
   selectedProduct.value = null;
   
@@ -72,7 +73,7 @@ function handleConfirmModifiers({ product, modifiers, finalPrice }) {
     price: finalPrice,
     modifiers: modifiers,
     base_price: product.price
-  }, 1);
+  }, 1, itemNote, allergenFlags);
 }
 
 function handleIncrease(item) {
@@ -82,8 +83,9 @@ function handleIncrease(item) {
     name: item.name, 
     price: item.unit_price, 
     modifiers: item.modifiers,
-    base_price: item.base_price 
-  }, 1);
+    base_price: item.base_price,
+    is_takeaway: item.is_takeaway
+  }, 1, item.item_note, item.allergen_flags);
 }
 
 function handleDecrease(item) {
@@ -100,18 +102,33 @@ function handleDecrease(item) {
 
 const showCheckout = ref(false);
 const showReceipt = ref(false);
+const showKitchenTicket = ref(false);
 const completedSale = ref(null);
+const posErrorMessage = ref(null);
 
 function handleCheckout() { showCheckout.value = true; }
 
 async function handleConfirmCheckout(checkoutData) {
-  const sale = await cart.checkout(checkoutData);
-  if (sale) {
-    sale.change = checkoutData.change;
-    completedSale.value = sale;
-    showCheckout.value = false;
-    showReceipt.value = true;
+  posErrorMessage.value = null;
+  try {
+    const sale = await cart.checkout(checkoutData);
+    if (sale) {
+      sale.change = checkoutData.change;
+      completedSale.value = sale;
+      showCheckout.value = false;
+      showKitchenTicket.value = true;
+    } else {
+      posErrorMessage.value = "Error: cart.checkout devolvió null";
+    }
+  } catch (err) {
+    console.error(err);
+    posErrorMessage.value = err.message + "\\n" + err.stack;
   }
+}
+
+function handleNextFromKitchen() {
+  showKitchenTicket.value = false;
+  showReceipt.value = true;
 }
 
 function handleCloseReceipt() {
@@ -157,6 +174,11 @@ function handleCloseReceipt() {
 
       <!-- Ticket -->
       <div class="pos-ticket">
+        <div v-if="posErrorMessage" style="background:#fee2e2;color:#991b1b;padding:12px;margin:10px;border-radius:6px;font-family:monospace;white-space:pre-wrap;font-size:12px;user-select:text;border:1px solid #ef4444;">
+          <strong>Error de Sistema:</strong><br/>
+          {{ posErrorMessage }}
+        </div>
+
         <div class="ticket-header">
           <h3>Ticket actual</h3>
         </div>
@@ -207,6 +229,12 @@ function handleCloseReceipt() {
       :total="cart.total"
       @close="showCheckout = false"
       @confirm="handleConfirmCheckout"
+    />
+    <KitchenTicketModal
+      :show="showKitchenTicket"
+      :sale="completedSale"
+      @close="showKitchenTicket = false"
+      @next="handleNextFromKitchen"
     />
     <ReceiptModal
       :show="showReceipt"

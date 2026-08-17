@@ -11,6 +11,7 @@ const emit = defineEmits(['increase', 'decrease']);
       <div>
         <div class="ticket-item-name">
           {{ item.name }}
+          <span v-if="item.is_takeaway" style="font-size: 11px; color: var(--passion-600); margin-left: 6px;">(Para Llevar)</span>
         </div>
         <div class="ticket-item-mods" v-if="item.modifiers && item.modifiers.length > 0">
           <span v-for="(mod, idx) in item.modifiers" :key="idx">
@@ -21,8 +22,14 @@ const emit = defineEmits(['increase', 'decrease']);
         <div class="ticket-item-mods" v-else-if="item.is_weight_based">
           {{ item.quantity }} g · Bs ${(item.unit_price / 100).toFixed(4)}/g
         </div>
-        <div class="ticket-item-mods" v-else>
+        <div class="ticket-item-mods" v-else-if="!item.item_note && (!item.allergen_flags || item.allergen_flags.length === 0)">
           Sin modificadores
+        </div>
+        <div class="ticket-item-mods" style="color: var(--passion-600); font-weight: 600;" v-if="item.item_note">
+          Nota: {{ item.item_note }}
+        </div>
+        <div class="ticket-item-mods" style="color: var(--warning-600); font-weight: 600;" v-if="item.allergen_flags && item.allergen_flags.length > 0">
+          Alergias: {{ item.allergen_flags.join(', ') }}
         </div>
       </div>
       <div class="ticket-item-price">Bs {{ Number(item.subtotal).toFixed(2) }}</div>
