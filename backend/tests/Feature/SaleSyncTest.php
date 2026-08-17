@@ -80,7 +80,8 @@ class SaleSyncTest extends TestCase
         // 2. Ejecutar primera sincronización
         $response = $this->actingAs($cashier)->postJson('/api/sales/sync', $payload);
         
-        $response->assertStatus(202);
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.synced.0', $uuid);
         $this->assertDatabaseHas('sales', ['id' => $uuid, 'total_amount' => 35]);
         $this->assertDatabaseHas('sale_items', ['sale_id' => $uuid, 'product_id' => $product->id]);
         $this->assertDatabaseHas('sale_payments', ['sale_id' => $uuid, 'method' => 'cash']);
@@ -100,7 +101,8 @@ class SaleSyncTest extends TestCase
         
         // 3. Ejecutar segunda sincronización (Idempotencia) - Simula reintento por red inestable
         $response2 = $this->actingAs($cashier)->postJson('/api/sales/sync', $payload);
-        $response2->assertStatus(202);
+        $response2->assertStatus(200);
+        $response2->assertJsonPath('data.synced.0', $uuid);
         
         // El inventario debe seguir en 9.8, no se debe haber descontado de nuevo
         $this->assertDatabaseHas('ingredients', [

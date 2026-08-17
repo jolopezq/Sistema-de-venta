@@ -54,6 +54,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/sales/{sale}/void', [SaleController::class, 'voidSale']);
     Route::apiResource('sales', SaleController::class)->only(['index', 'show']);
     
+    // Cola de Pedidos (KDS)
+    Route::get('/order-queue', [\App\Http\Controllers\OrderQueueController::class, 'index']);
+    Route::patch('/order-queue/{sale}/status', [\App\Http\Controllers\OrderQueueController::class, 'updateStatus']);
+
     // Sesiones de Caja / Turno y Arqueo
     Route::get('/cash-sessions/active', [CashRegisterSessionController::class, 'active']);
     Route::post('/cash-sessions/{cashSession}/close', [CashRegisterSessionController::class, 'close']);

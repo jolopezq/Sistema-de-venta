@@ -37,6 +37,10 @@ class Sale extends Model
         'discount_amount',
         'total_amount',
         'status',
+        'preparation_status',
+        'preparation_started_at',
+        'ready_at',
+        'delivered_at',
         'void_reason',
         'voided_by',
         'source',
@@ -50,6 +54,9 @@ class Sale extends Model
             'subtotal' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'total_amount' => 'decimal:2',
+            'preparation_started_at' => 'datetime',
+            'ready_at' => 'datetime',
+            'delivered_at' => 'datetime',
         ];
     }
 

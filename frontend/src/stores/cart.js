@@ -1,6 +1,17 @@
 import { defineStore } from 'pinia';
 import { db } from '../db/database';
 
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export const useCartStore = defineStore('cart', {
   state: () => ({
     items: [],
@@ -58,7 +69,7 @@ export const useCartStore = defineStore('cart', {
       const saleNote = checkoutData.saleNote || '';
       
       const sale = {
-        id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'pos-' + Date.now() + '-' + Math.floor(Math.random()*1000), // Generación de UUID v4 en cliente o fallback
+        id: generateUUID(),
         customer_id: customerId,
         subtotal: this.subtotal,
         discount_amount: discountAmount,
@@ -86,6 +97,11 @@ export const useCartStore = defineStore('cart', {
       // Guarda la venta en IndexedDB (quitando los Proxies reactivos de Vue)
       const pureSale = JSON.parse(JSON.stringify(sale));
       await db.sales.add(pureSale);
+
+      // Notificar al network store
+      const { useNetworkStore } = await import('./network.js');
+      const networkStore = useNetworkStore();
+      await networkStore.updatePendingCount();
       
       // Reduce el stock localmente en memoria y en IndexedDB
       const { useCatalogStore } = await import('./catalog.js');
@@ -137,9 +153,7 @@ export const useCartStore = defineStore('cart', {
 
       this.clearCart();
       
-      // Intenta sincronizar inmediatamente
-      const { useNetworkStore } = await import('./network.js');
-      const networkStore = useNetworkStore();
+      // Sincronizar inmediatamente con el servidor
       networkStore.triggerSync();
 
       return sale; // Devolvemos la venta para mostrar el recibo

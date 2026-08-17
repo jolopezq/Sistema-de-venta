@@ -133,7 +133,8 @@ class SaleController extends Controller
     }
 
     /**
-     * Sincroniza un lote de ventas recibidas del frontend de manera asíncrona.
+     * Sincroniza un lote de ventas recibidas del frontend (Offline-First).
+     * Procesa las ventas dentro de transacciones ACID y devuelve los UUIDs sincronizados.
      */
     public function sync(SyncSalesRequest $request): JsonResponse
     {
@@ -141,14 +142,12 @@ class SaleController extends Controller
         
         $cashierId = $request->user()->id;
 
-        foreach ($validated['sales'] as $saleData) {
-            $saleData['cashier_id'] = $cashierId; // Inyectamos el ID del cajero
-            \App\Jobs\ProcessOfflineSaleJob::dispatch($saleData);
-        }
+        $results = $this->syncService->syncBatch($validated['sales'], $cashierId);
 
         return response()->json([
-            'message' => 'Lote de ventas enviado a la cola para procesamiento asíncrono.',
-        ], 202);
+            'message' => 'Lote de ventas procesado exitosamente.',
+            'data' => $results,
+        ], 200);
     }
 
     /**

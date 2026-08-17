@@ -86,11 +86,12 @@ class SaleSyncService
             'subtotal'        => $data['subtotal'],
             'discount_amount' => $data['discount_amount'] ?? 0,
             'total_amount'    => $data['total_amount'],
-            'status'          => $data['status'] ?? 'completed',
-            'source'          => $data['source'] ?? 'pos',
-            'notes'           => $data['notes'] ?? null,
-            'sync_status'     => 'synced',
-            'created_at'      => $data['created_at'] ?? now(),
+            'status'             => $data['status'] ?? 'completed',
+            'preparation_status' => $data['preparation_status'] ?? 'received',
+            'source'             => $data['source'] ?? 'pos',
+            'notes'              => $data['notes'] ?? null,
+            'sync_status'        => 'synced',
+            'created_at'         => $data['created_at'] ?? now(),
         ]);
 
         // 2. Insertar Items y Descontar Stock
