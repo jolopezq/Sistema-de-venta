@@ -91,6 +91,7 @@
 
 <script setup>
 import { ref } from 'vue';
+import { db } from '../db/database';
 
 const emit = defineEmits(['close', 'restored']);
 
@@ -143,6 +144,13 @@ async function handleRestore() {
 
     if (!response.ok) {
       throw new Error(data.message || 'Error al restaurar la base de datos.');
+    }
+
+    // Limpiar toda la caché local (IndexedDB) para que se recargue del nuevo backend
+    try {
+      await Promise.all(db.tables.map(table => table.clear()));
+    } catch (e) {
+      console.error("Error limpiando IndexedDB:", e);
     }
 
     successMessage.value = data.message;
