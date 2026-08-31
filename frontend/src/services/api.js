@@ -65,3 +65,58 @@ export async function apiFetch(endpoint, options = {}) {
 
   return response.json();
 }
+
+/**
+ * Realiza una petición autenticada para descargar un archivo binario (ej: backup Gzip/CSV).
+ */
+export async function apiDownload(endpoint, bodyData = {}, defaultFilename = 'download') {
+  const token = localStorage.getItem('auth_token');
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/gzip, application/octet-stream, application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(bodyData),
+  });
+
+  if (!response.ok) {
+    let errorMessage = 'Error al descargar archivo';
+    try {
+      const errJson = await response.json();
+      errorMessage = errJson.message || errorMessage;
+    } catch (_) {}
+    const err = new Error(errorMessage);
+    err.status = response.status;
+    throw err;
+  }
+
+  // Extraer nombre del archivo si viene en content-disposition
+  let filename = defaultFilename;
+  const disposition = response.headers.get('content-disposition');
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    if (match && match[1]) {
+      filename = match[1];
+    }
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(downloadUrl);
+  a.remove();
+
+  return { filename, size: blob.size };
+}
+

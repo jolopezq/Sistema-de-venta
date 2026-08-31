@@ -83,6 +83,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::apiResource('users', \App\Http\Controllers\UserController::class)->except(['show']);
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index']);
         Route::get('/audit-logs/export', [\App\Http\Controllers\AuditLogController::class, 'export']);
+        Route::post('/system/backup/download', [\App\Http\Controllers\SystemBackupController::class, 'download'])->middleware('throttle:5,60');
     });
 
     // Gestión de usuarios: reset password (super_admin o admin)
