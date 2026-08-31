@@ -126,7 +126,7 @@ async function handleRestore() {
     formData.append('backup_file', selectedFile.value);
     formData.append('password', password.value);
 
-    const token = localStorage.getItem('ohana_auth_token') || sessionStorage.getItem('ohana_auth_token');
+    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
     
     // As it is a multipart/form-data, fetch is easier than api.js wrapper
     const apiUrl = import.meta.env.VITE_API_URL || '';
