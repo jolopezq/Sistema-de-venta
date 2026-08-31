@@ -21,14 +21,44 @@ for /f "tokens=5" %%p in ('netstat -aon ^| findstr /r ":5173.*LISTENING"') do (
 )
 
 :: 2. Detectar IP Local para Comandas y Tablets
-echo [2/4] Detectando IP en la red local para conectar Tablets/Comandas...
-echo ----------------------------------------------------------------
+echo [2/4] Detectando IP en la red local...
+
+set "LOCAL_IP="
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
-    echo   Dirección en red local: %%a
+    if not defined LOCAL_IP set "LOCAL_IP=%%a"
 )
-echo.
-echo   Para conectar la Tablet de Comandas, ingresa en la App:
-echo   http://[TU_IP]:8000/api
+set "LOCAL_IP=%LOCAL_IP: =%"
+
+:: Leer configuracion de red de casa si existe
+set "HOME_PREFIX="
+if exist "%~dp0home-network.conf" (
+    for /f "tokens=1,2 delims==" %%A in ('type "%~dp0home-network.conf" ^| findstr /v "^#"') do (
+        if "%%A"=="HOME_NETWORK_PREFIX" set "HOME_PREFIX=%%B"
+    )
+)
+
+echo ----------------------------------------------------------------
+echo   Dirección en red local: %LOCAL_IP%
+
+:: Verificar si estamos en casa
+set "EN_CASA=0"
+if defined HOME_PREFIX (
+    echo %LOCAL_IP% | findstr /b /c:"%HOME_PREFIX%" >nul
+    if not errorlevel 1 (
+        set "EN_CASA=1"
+        color 0B
+        echo.
+        echo   [INFO] Estás en tu red de casa ^(Acceso Mac habilitado^)
+        echo   Usa el archivo "conectar-mac-casa.command" en tu Mac.
+        echo   URL Directa Mac: http://%LOCAL_IP%:5173
+    )
+)
+
+if "%EN_CASA%"=="0" (
+    echo.
+    echo   Para conectar la Tablet de Comandas, ingresa en la App:
+    echo   http://%LOCAL_IP%:8000/api
+)
 echo ----------------------------------------------------------------
 echo.
 
@@ -98,10 +128,18 @@ echo Opciones disponibles:
 echo   [X] Cerrar POS y detener servidores
 echo   [B] Realizar copia de seguridad (Respaldo)
 echo   [A] Iniciar Vigilante de Actualizaciones (Auto-Update desde GitHub)
-echo   [T] Iniciar Túnel Remoto Cloudflare (Para conectar desde tu casa)
+echo   [T] Iniciar Túnel Remoto Cloudflare (Para conectar por Internet)
+if "%EN_CASA%"=="1" echo   [M] Conectar Mac en red de casa (Copiar enlace)
 echo   [D] Iniciar servidor de desarrollo Vite (Puerto 5173)
 echo   [K] Instalar / Abrir App KDS en Android conectado
-set /p OPT="Selecciona una opción [X / B / A / T / D / K]: "
+set /p OPT="Selecciona una opción [X/B/A/T/M/D/K]: "
+if /i "%OPT%"=="M" if "%EN_CASA%"=="1" (
+    echo http://%LOCAL_IP%:5173 | clip
+    echo.
+    echo ✓ Enlace copiado al portapapeles: http://%LOCAL_IP%:5173
+    echo.
+    goto loop
+)
 if /i "%OPT%"=="X" goto salir
 if /i "%OPT%"=="B" (
     call "%~dp0respaldo-diario.bat"

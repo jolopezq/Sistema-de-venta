@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 chcp 65001 >nul
 title Ohana Acai POS - Configuracion de Firewall
 color 0B
@@ -24,16 +24,19 @@ if %errorLevel% neq 0 (
     exit /b 1
 )
 
-echo [1/2] Creando regla de Firewall para el puerto 8000 (API y POS)...
+echo [1/2] Creando reglas de Firewall para puertos 8000 (API) y 5173 (Frontend)...
 netsh advfirewall firewall delete rule name="Ohana POS Server (8000)" >nul 2>&1
 netsh advfirewall firewall add rule name="Ohana POS Server (8000)" dir=in action=allow protocol=TCP localport=8000 profile=private,domain >nul
 
+netsh advfirewall firewall delete rule name="Ohana POS Frontend (5173)" >nul 2>&1
+netsh advfirewall firewall add rule name="Ohana POS Frontend (5173)" dir=in action=allow protocol=TCP localport=5173 profile=private,domain >nul
+
 if %errorLevel% equ 0 (
     color 0A
-    echo       ✓ Regla de Firewall creada con éxito para el puerto 8000.
+    echo       ✓ Reglas de Firewall creadas con éxito.
 ) else (
     color 0C
-    echo       [ADVERTENCIA] No se pudo crear automáticamente la regla.
+    echo       [ADVERTENCIA] No se pudieron crear automáticamente las reglas.
 )
 
 echo.

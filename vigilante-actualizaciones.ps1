@@ -135,6 +135,25 @@ Write-Host "  Repositorio Remoto : $Remote/$Branch" -ForegroundColor Gray
 Write-Host "  Intervalo de sondeo: Cada $IntervalSeconds segundos" -ForegroundColor Gray
 Write-Host "  Directorio del POS : $RootDir" -ForegroundColor Gray
 Write-Host "  Archivo de Logs    : $LogFile" -ForegroundColor Gray
+
+# Deteccion de red de casa
+$homePrefix = ""
+$confPath = Join-Path $RootDir "home-network.conf"
+if (Test-Path $confPath) {
+    $confLines = Get-Content $confPath | Where-Object { $_ -notmatch "^#" }
+    foreach ($line in $confLines) {
+        if ($line -match "HOME_NETWORK_PREFIX=(.+)") {
+            $homePrefix = $matches[1].Trim()
+        }
+    }
+}
+
+$localIp = (Test-Connection -ComputerName (hostname) -Count 1).IPV4Address.IPAddressToString
+if ($homePrefix -and $localIp -match "^$homePrefix") {
+    Write-Host "  Entorno detectado  : Casa (Conexión LAN directa)" -ForegroundColor Green
+} else {
+    Write-Host "  Entorno detectado  : Negocio (Se requiere túnel Cloudflare para acceso remoto)" -ForegroundColor Yellow
+}
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host "Presiona Ctrl + C en cualquier momento para detener el vigilante.`n" -ForegroundColor DarkGray
 
