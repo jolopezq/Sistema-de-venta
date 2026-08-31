@@ -1,13 +1,15 @@
 #!/bin/bash
 # ==============================================================================
-# Ohana POS — Conexión directa desde Mac (Red de Casa)
+# Ohana POS — Conexión desde Mac
 # ==============================================================================
-# Coloca este archivo en tu Mac y haz doble clic cuando estés en casa
-# para acceder al sistema POS de manera rápida y sin túneles.
+# Haz doble clic para conectarte al servidor Windows de Ohana POS.
+# Intenta primero por red local (ultrarrápido), y si no hay conexión,
+# ofrece abrir el acceso remoto por internet.
 
 # Configuración
 SERVER_IP="192.168.1.9"
-FRONTEND_PORT="5173"
+SERVER_PORT="8000"
+REMOTE_URL="https://www.pos.ohana.com"
 
 # Colores para terminal
 GREEN='\033[0;32m'
@@ -17,26 +19,30 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${CYAN}====================================================${NC}"
-echo -e "${GREEN}  🌺 OHANA AÇAÍ POS — Acceso desde Mac (Casa) 🌺${NC}"
+echo -e "${GREEN}  🌺 OHANA AÇAÍ POS — Conectando desde Mac 🌺${NC}"
 echo -e "${CYAN}====================================================${NC}"
-echo -e "${YELLOW}Buscando servidor en $SERVER_IP...${NC}"
+echo -e "${YELLOW}Buscando servidor en red local ($SERVER_IP)...${NC}"
 
-# Ping al servidor para verificar si está activo
+# Intentar conexión por red local (LAN)
 if ping -c 1 -W 2 "$SERVER_IP" &>/dev/null; then
-    echo -e "${GREEN}✓ Servidor encontrado en la red de casa${NC}"
-    echo -e "${CYAN}Abriendo Punto de Venta en tu navegador por defecto...${NC}"
-    
-    # Abre en el navegador (macOS)
-    open "http://${SERVER_IP}:${FRONTEND_PORT}"
-    
+    echo -e "${GREEN}✓ Servidor encontrado en la red local${NC}"
+    echo -e "${CYAN}Abriendo Ohana POS en tu navegador...${NC}"
+    open "http://${SERVER_IP}:${SERVER_PORT}"
     echo -e "\n${YELLOW}Puedes cerrar esta ventana.${NC}"
     sleep 3
 else
-    echo -e "\n${RED}✗ No se pudo conectar a $SERVER_IP${NC}"
-    echo -e "\n${YELLOW}Verifica lo siguiente:${NC}"
-    echo "  1. ¿Estás conectado al Wi-Fi de tu casa?"
-    echo "  2. ¿El PC Windows está encendido y tiene el POS abierto?"
-    echo "  3. ¿La IP del PC Windows sigue siendo $SERVER_IP?"
-    echo -e "\nPresiona Enter para salir..."
-    read -r
+    echo -e "\n${RED}✗ No hay conexión local con $SERVER_IP${NC}"
+    echo -e "${YELLOW}Puede que estés fuera de casa o que la Windows esté apagada.${NC}\n"
+    echo -e "Opciones:"
+    echo -e "  ${CYAN}[1]${NC} Abrir por internet: ${GREEN}$REMOTE_URL${NC}"
+    echo -e "  ${CYAN}[2]${NC} Salir"
+    echo ""
+    read -rp "Selecciona una opción [1/2]: " OPT
+    if [[ "$OPT" == "1" ]]; then
+        echo -e "${CYAN}Abriendo acceso remoto...${NC}"
+        open "$REMOTE_URL"
+        sleep 2
+    else
+        echo -e "${YELLOW}Hasta pronto.${NC}"
+    fi
 fi

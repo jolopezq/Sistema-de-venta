@@ -14,24 +14,38 @@ Esta es la mejor opción cuando el Mac y la laptop Windows están conectados al 
 1. Asegúrate de que el PC Windows está encendido y tiene ejecutando el script `iniciar-pos.bat`.
 2. En este repositorio (desde el Mac), busca el archivo llamado **`conectar-mac-casa.command`**.
 3. Haz doble clic sobre él.
-4. Automáticamente buscará el PC Windows en la red local y abrirá la pantalla del POS en tu navegador.
+4. Automáticamente buscará el PC Windows en la red local y abrirá el sistema en tu navegador.
 
-*(Nota: La IP actual de la laptop Windows en casa está guardada como `192.168.1.9`. Si tu router cambia esa IP en el futuro, solo debes actualizar el archivo `home-network.conf` en el PC Windows y el script `conectar-mac-casa.command`)*
+*(Nota: La IP de la laptop Windows en casa es `192.168.1.9`. Si tu router cambia esa IP en el futuro, actualiza el archivo `conectar-mac-casa.command`.)*
 
 ---
 
-## Opción 2: Estás fuera de casa (Vía Cloudflare Tunnel) 🌍
+## Opción 2: Estás fuera de casa o en el negocio (Vía Cloudflare Tunnel) 🌍
 
-Si te llevas el Mac a otro lugar, o estás usando los datos móviles en la calle, puedes seguir accediendo al sistema completo a través del túnel seguro de Cloudflare, que se ejecuta permanentemente en el servidor Windows como un servicio.
+Si te llevas el Mac a otro lugar, al negocio, o estás usando datos móviles, puedes acceder al sistema a través del túnel seguro de Cloudflare, que se ejecuta automáticamente en la laptop Windows.
 
 **Pasos:**
-1. Pídele al administrador del sistema (o fíjate en el link de Cloudflare que se genera) la URL pública vigente.
-2. Ingresa esa URL en el navegador de tu Mac (Google Chrome o Safari).
-3. Podrás hacer comandas, ver reportes e inventarios en tiempo real desde cualquier parte del mundo.
+1. Abre Google Chrome o Safari en tu Mac (o en tu celular).
+2. Ingresa directamente a: **`https://www.pos.ohana.com`**
+3. Inicia sesión con tu usuario y contraseña de Super Admin.
+4. ✅ Acceso completo en tiempo real desde cualquier parte del mundo.
+
+> ⚠️ El túnel solo funciona cuando la laptop Windows está **encendida**. El servicio `cloudflared` se inicia automáticamente con Windows — no necesitas hacer nada extra.
 
 ---
 
-### Notas Técnicas (Cambios recientes en el servidor)
-- **CORS y Sanctum**: El servidor Laravel ahora permite peticiones desde la red `192.168.1.*` (IPs de casa). Las sesiones y logins funcionarán perfectamente por red local.
-- **Firewall**: El Windows ahora tiene abierto el puerto `5173` (Frontend) y `8000` (Backend API).
-- **Servicio en Segundo Plano**: Cloudflare ahora se ejecuta como servicio nativo en Windows, iniciando automáticamente con el sistema.
+### Resumen Rápido
+
+| Situación | Qué usar |
+|---|---|
+| En casa, mismo Wi-Fi que la Windows | Doble clic en `conectar-mac-casa.command` |
+| En el negocio o fuera de casa | Abrir `https://www.pos.ohana.com` en el browser |
+
+---
+
+### Notas Técnicas
+- **CORS y Sanctum**: El servidor Laravel permite peticiones desde la red `192.168.1.*` (LAN de casa) y desde `https://www.pos.ohana.com` (túnel Cloudflare).
+- **Firewall Windows**: Puerto `8000` abierto (API + Frontend compilado).
+- **Servicio Cloudflare**: Se ejecuta automáticamente al iniciar Windows (túnel `sistema-pos`).
+- **Puerto de acceso**: El sistema completo corre en el puerto `8000`. El puerto `5173` es exclusivo para desarrollo local.
+- **URL fija del túnel**: `https://www.pos.ohana.com`
