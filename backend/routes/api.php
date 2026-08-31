@@ -23,6 +23,7 @@ use App\Http\Controllers\OptionRecipeController;
 
 // --- Rutas Públicas ---
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/ping', function () { return response()->json(['status' => 'ok']); });
 
 // --- Rutas Protegidas ---
 Route::middleware(['auth:sanctum'])->group(function () {

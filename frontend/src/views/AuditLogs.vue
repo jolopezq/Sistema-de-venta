@@ -6,6 +6,12 @@
         <p>Historial de cambios y accesos sensibles en el sistema.</p>
       </div>
       <div class="oh-topbar-actions">
+        <button class="oh-btn oh-btn-ghost" @click="pingWindows" :disabled="pingStatus === 'loading'">
+          <svg v-if="pingStatus === 'success'" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime-500)"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <svg v-else-if="pingStatus === 'error'" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--danger-500)"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+          {{ pingStatus === 'success' ? 'Windows Conectado' : (pingStatus === 'error' ? 'Sin Conexión' : (pingStatus === 'loading' ? 'Probando...' : 'Test Red Windows')) }}
+        </button>
         <button class="oh-btn oh-btn-backup-restore" @click="showRestoreModal = true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
           Restaurar BD
@@ -146,6 +152,30 @@ const users = ref([]);
 const selectedLog = ref(null);
 const showBackupModal = ref(false);
 const showRestoreModal = ref(false);
+const pingStatus = ref(null);
+
+const pingWindows = async () => {
+  pingStatus.value = 'loading';
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch('http://192.168.1.9:8000/api/ping', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      pingStatus.value = 'success';
+    } else {
+      pingStatus.value = 'error';
+    }
+  } catch (e) {
+    console.error('Error al probar conexión:', e);
+    pingStatus.value = 'error';
+  }
+  setTimeout(() => { pingStatus.value = null; }, 3500);
+};
 
 const filters = reactive({
   date_from: '',
