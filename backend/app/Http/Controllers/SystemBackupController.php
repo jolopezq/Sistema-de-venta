@@ -70,4 +70,55 @@ class SystemBackupController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Sube y restaura un respaldo de base de datos comprimido en GZIP.
+     */
+    public function restore(Request $request): JsonResponse
+    {
+        $request->validate([
+            'password' => 'required|string',
+            'backup_file' => 'required|file|mimes:gz,gzip|max:102400', // max 100MB
+        ], [
+            'password.required' => 'Debes ingresar tu contraseña para autorizar la restauración.',
+            'backup_file.required' => 'Debes seleccionar un archivo de respaldo.',
+            'backup_file.mimes' => 'El archivo debe tener formato .gz',
+            'backup_file.max' => 'El archivo no puede pesar más de 100MB',
+        ]);
+
+        $user = $request->user();
+
+        // Validar contraseña del usuario autenticado
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La contraseña de confirmación es incorrecta.',
+            ], 422);
+        }
+
+        $file = $request->file('backup_file');
+        
+        try {
+            $this->backupService->restoreCompressedSqliteBackup($file->getRealPath());
+
+            // Registrar auditoría de acción sensible
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'restore_backup',
+                'module' => 'System',
+                'description' => "Restauración de base de datos desde copia de seguridad ({$file->getClientOriginalName()}) por IP: " . $request->ip(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Base de datos restaurada correctamente. Recarga la página para ver los cambios.',
+            ]);
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al restaurar la copia de seguridad: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }

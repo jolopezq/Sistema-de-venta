@@ -106,4 +106,53 @@ class BackupService
         fclose($srcHandle);
         gzclose($gzHandle);
     }
+
+    /**
+     * Restaura la base de datos a partir de un archivo SQLite comprimido en GZIP.
+     * Sobrescribe directamente la base de datos actual.
+     *
+     * @param string $gzSourcePath Ruta del archivo .gz a restaurar.
+     * @throws RuntimeException
+     */
+    public function restoreCompressedSqliteBackup(string $gzSourcePath): void
+    {
+        $dbConnection = config('database.default');
+        if ($dbConnection !== 'sqlite') {
+            throw new RuntimeException("El servicio de respaldo atómico está optimizado únicamente para conexiones SQLite.");
+        }
+
+        $dbPath = config('database.connections.sqlite.database');
+        
+        if (!$dbPath || $dbPath === ':memory:') {
+            throw new RuntimeException("No se puede restaurar una base de datos en memoria.");
+        }
+
+        if (!File::exists($gzSourcePath)) {
+            throw new RuntimeException("El archivo de respaldo no existe.");
+        }
+
+        $gzHandle = gzopen($gzSourcePath, 'rb');
+        if ($gzHandle === false) {
+            throw new RuntimeException("No se pudo abrir el archivo de respaldo para su lectura.");
+        }
+
+        // Antes de sobrescribir, cerramos cualquier conexión activa de PDO si es posible
+        DB::disconnect();
+
+        $destHandle = fopen($dbPath, 'wb');
+        if ($destHandle === false) {
+            gzclose($gzHandle);
+            throw new RuntimeException("No se pudo abrir la base de datos de destino para su escritura.");
+        }
+
+        while (!gzeof($gzHandle)) {
+            fwrite($destHandle, gzread($gzHandle, 1024 * 1024));
+        }
+
+        fclose($destHandle);
+        gzclose($gzHandle);
+        
+        // Reconectar la base de datos para futuras consultas
+        DB::reconnect();
+    }
 }

@@ -6,6 +6,10 @@
         <p>Historial de cambios y accesos sensibles en el sistema.</p>
       </div>
       <div class="oh-topbar-actions">
+        <button class="oh-btn oh-btn-backup-restore" @click="showRestoreModal = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Restaurar BD
+        </button>
         <button class="oh-btn oh-btn-backup" @click="showBackupModal = true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           Descargar BD (.sqlite.gz)
@@ -119,6 +123,12 @@
       @close="showBackupModal = false"
       @downloaded="fetchLogs(1)"
     />
+
+    <RestoreBackupModal
+      v-if="showRestoreModal"
+      @close="showRestoreModal = false"
+      @restored="fetchLogs(1)"
+    />
   </div>
 </template>
 
@@ -128,12 +138,14 @@ import { apiFetch, API_URL } from '../services/api';
 import { useRouter } from 'vue-router';
 import AuditLogDetailModal from '../components/AuditLogDetailModal.vue';
 import DownloadBackupModal from '../components/DownloadBackupModal.vue';
+import RestoreBackupModal from '../components/RestoreBackupModal.vue';
 
 const router = useRouter();
 const logs = ref([]);
 const users = ref([]);
 const selectedLog = ref(null);
 const showBackupModal = ref(false);
+const showRestoreModal = ref(false);
 
 const filters = reactive({
   date_from: '',
@@ -334,6 +346,8 @@ table.oh-table tbody tr:hover { background: var(--cream-100); }
 .oh-btn-primary:hover { background: var(--acai-600); }
 .oh-btn-backup { background: #0f766e; color: #ffffff; box-shadow: 0 2px 4px rgba(15, 118, 110, 0.2); }
 .oh-btn-backup:hover { background: #115e59; }
+.oh-btn-backup-restore { background: #be123c; color: #ffffff; box-shadow: 0 2px 4px rgba(190, 18, 60, 0.2); }
+.oh-btn-backup-restore:hover { background: #9f1239; }
 .oh-btn-secondary { background: var(--cream-200); color: var(--ink-700); }
 .oh-btn-secondary:hover { background: var(--cream-300); }
 .oh-btn-ghost { background: transparent; color: var(--ink-500); border: 1px solid var(--border); }
