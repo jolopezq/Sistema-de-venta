@@ -110,6 +110,7 @@ async function handleConfirmVoid() {
                   <span class="item-qty">{{ Number(item.quantity) }}x</span>
                   <strong class="item-name">{{ item.name || item.product?.name }}</strong>
                   <span v-if="item.is_takeaway" class="takeaway-tag">Para llevar</span>
+                  <span v-else class="dinein-tag">Para mesa</span>
                 </div>
                 <div class="item-price">Bs {{ Number(item.subtotal).toFixed(2) }}</div>
               </div>
@@ -117,7 +118,7 @@ async function handleConfirmVoid() {
               <!-- MODIFICADORES / TOPPINGS -->
               <div v-if="item.modifiers && item.modifiers.length > 0" class="item-mods">
                 <span v-for="(m, idx) in item.modifiers" :key="idx" class="mod-chip">
-                  + {{ m.option_name }} <small v-if="m.price > 0">(+Bs {{ m.price }})</small>
+                  + {{ m.quantity > 1 ? `${m.quantity}x ` : '' }}{{ m.option_name }} <small v-if="m.price > 0">(+Bs {{ ((Number(m.price) || 0) * (m.quantity || 1)).toFixed(2) }})</small>
                 </span>
               </div>
 
@@ -146,7 +147,7 @@ async function handleConfirmVoid() {
         <div class="info-card">
           <h4>💳 Formas de Pago</h4>
           <div v-if="sale.payments && sale.payments.length > 0" class="payments-list">
-            <div v-for="p in sale.payments" :key="p.id" class="payment-row">
+            <div v-for="(p, index) in sale.payments" :key="p.id || index" class="payment-row">
               <span>{{ getPaymentLabel(p.method) }}</span>
               <strong>Bs {{ Number(p.amount).toFixed(2) }}</strong>
             </div>
@@ -396,6 +397,20 @@ async function handleConfirmVoid() {
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 6px;
+}
+
+.dinein-tag {
+  background: #F1F5F9;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+:global(html.dark) .dinein-tag {
+  background: #251c33;
+  color: #CBD5E1;
 }
 
 .item-price {

@@ -24,6 +24,7 @@ const isLoading = ref(true);
 const isTogglingProductId = ref(null);
 
 const showProductFormModal = ref(false);
+const isSavingProduct = ref(false);
 const showProductOptionsModal = ref(false);
 const showOptionGroupModal = ref(false);
 const showProductPauseModal = ref(false);
@@ -137,9 +138,11 @@ const newProduct = () => {
     name: '',
     description: '',
     price: 0,
-    vip_price: 0,
+    vip_price: null,
+    delivery_price: null,
     category_id: activeCategory.value ? activeCategory.value.id : (categories.value.length ? categories.value[0].id : null),
-    printer_target: 'none',
+    printer_target: 'kitchen',
+    tag: '',
     is_active: true,
     option_groups: [],
     excluded_options: []
@@ -202,30 +205,79 @@ const confirmPauseProduct = async ({ product, reactivate_at }) => {
 };
 
 const saveProduct = async (productData) => {
+  if (isSavingProduct.value) return;
+  isSavingProduct.value = true;
+  formErrors.value = {};
   try {
     let body;
     let method = 'POST';
     let url = '/products';
     
+    // Lista explícita de campos escalares permitidos
+    const validFields = [
+      'name', 'description', 'price', 'vip_price', 'delivery_price',
+      'is_weight_based', 'price_per_gram', 'category_id', 'printer_target',
+      'is_active', 'reactivate_at', 'tag'
+    ];
+
     if (productData.image instanceof File) {
       body = new FormData();
-      for (const key in productData) {
-        if (key === 'option_groups' || key === 'excluded_options') {
-          if (Array.isArray(productData[key])) {
-            productData[key].forEach(val => body.append(`${key}[]`, val));
-          }
-        } else if (productData[key] !== null && productData[key] !== undefined && key !== 'image_url') {
-          // Add booleans correctly for FormData
-          const val = typeof productData[key] === 'boolean' ? (productData[key] ? 1 : 0) : productData[key];
-          body.append(key, val);
+      
+      validFields.forEach(field => {
+        let val = productData[field];
+        if (field === 'tag' && (val === '' || val === 'none' || val === 'Ninguna')) {
+          val = null;
         }
+        if (typeof val === 'boolean') {
+          body.append(field, val ? '1' : '0');
+        } else if (val !== null && val !== undefined && val !== '') {
+          body.append(field, val);
+        }
+      });
+
+      // Grupos de opcionales vinculados
+      if (Array.isArray(productData.option_groups)) {
+        productData.option_groups.forEach(ogId => {
+          const cleanId = typeof ogId === 'object' ? ogId.id : ogId;
+          if (cleanId) body.append('option_groups[]', cleanId);
+        });
       }
+
+      // Opciones excluidas
+      if (Array.isArray(productData.excluded_options)) {
+        productData.excluded_options.forEach(optId => {
+          if (optId) body.append('excluded_options[]', optId);
+        });
+      }
+
+      // Archivo de imagen
+      body.append('image', productData.image);
+
       if (productData.id) {
         body.append('_method', 'PUT');
         url = `/products/${productData.id}`;
       }
     } else {
-      body = JSON.stringify(productData);
+      const cleanData = {};
+      validFields.forEach(field => {
+        let val = productData[field];
+        if (field === 'tag' && (val === '' || val === 'none' || val === 'Ninguna')) {
+          val = null;
+        }
+        if (val === '') {
+          val = null;
+        }
+        cleanData[field] = val !== undefined ? val : null;
+      });
+
+      cleanData.option_groups = Array.isArray(productData.option_groups) 
+        ? productData.option_groups.map(og => typeof og === 'object' ? og.id : og).filter(Boolean)
+        : [];
+      cleanData.excluded_options = Array.isArray(productData.excluded_options) 
+        ? productData.excluded_options.filter(Boolean)
+        : [];
+
+      body = JSON.stringify(cleanData);
       if (productData.id) {
         method = 'PUT';
         url = `/products/${productData.id}`;
@@ -241,9 +293,12 @@ const saveProduct = async (productData) => {
   } catch (error) {
     if (error.validationErrors) {
       formErrors.value = error.validationErrors;
+      alertAction(error.message || 'Por favor verifica los campos obligatorios del formulario.');
     } else {
       alertAction('Error guardando producto: ' + (error.message || error));
     }
+  } finally {
+    isSavingProduct.value = false;
   }
 };
 
@@ -330,7 +385,14 @@ const updateCategory = async () => {
 
 const deleteCategory = async () => {
   if (!activeCategory.value) return;
-  confirmAction('¿Seguro que deseas eliminar esta sección?', async () => {
+
+  const prodsInCat = products.value.filter(p => p.category_id === activeCategory.value.id);
+  if (prodsInCat.length > 0) {
+    alertAction(`No se puede eliminar la sección "${activeCategory.value.name}" porque contiene ${prodsInCat.length} producto(s). Debes eliminar o reasignar los productos primero.`);
+    return;
+  }
+
+  confirmAction(`¿Seguro que deseas eliminar la sección "${activeCategory.value.name}"?`, async () => {
     try {
       await apiFetch(`/categories/${activeCategory.value.id}`, {
         method: 'DELETE'
@@ -344,7 +406,7 @@ const deleteCategory = async () => {
       }
       alertAction('Sección eliminada correctamente');
     } catch (error) {
-      alertAction('Error eliminando sección: ' + (error.message || error));
+      alertAction(error.message || 'Error eliminando sección: ' + (error.message || error));
     }
   });
 };
@@ -613,7 +675,13 @@ const handleUpdateSuccess = async (groupId) => {
       <div class="modal-content pya-modal-large">
         <div class="pya-modal-header">
           <h3>{{ activeProductForModal.id ? 'Editar producto' : 'Agregar producto' }}</h3>
-          <button class="btn-close-pya" @click="showProductFormModal = false" aria-label="Cerrar">&times;</button>
+          <button 
+            class="btn-close-pya" 
+            :disabled="isSavingProduct" 
+            :class="{ 'btn-disabled': isSavingProduct }"
+            @click="!isSavingProduct && (showProductFormModal = false)" 
+            aria-label="Cerrar"
+          >&times;</button>
         </div>
         <div class="pya-modal-scroll-body">
           <ProductForm
@@ -621,6 +689,7 @@ const handleUpdateSuccess = async (groupId) => {
             :categories="categories"
             :optionGroups="optionGroups"
             :formErrors="formErrors"
+            :isSaving="isSavingProduct"
             @save="saveProduct"
             @delete="deleteProduct"
             @create-option-group="handleCreateOptionGroupFromModal"
@@ -694,7 +763,15 @@ const handleUpdateSuccess = async (groupId) => {
 </template>
 
 <style scoped>
-.admin-layout { display: flex; flex-direction: column; height: 100%; width: 100%; background-color: var(--cream-100); overflow: hidden; }
+.admin-layout { 
+  display: flex; 
+  flex-direction: column; 
+  height: 100%; 
+  width: 100%; 
+  min-height: 0;
+  background-color: var(--cream-100); 
+  overflow: hidden; 
+}
 
 /* TABS */
 .admin-tabs {
@@ -702,6 +779,7 @@ const handleUpdateSuccess = async (groupId) => {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   padding: 0 24px;
+  flex-shrink: 0;
 }
 .tab-item {
   padding: 16px 24px;
@@ -718,14 +796,34 @@ const handleUpdateSuccess = async (groupId) => {
   border-bottom-color: var(--passion-600);
 }
 
-.admin-body { display: flex; flex: 1; overflow: hidden; }
-.admin-side { width: 280px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+.admin-body { 
+  display: flex; 
+  flex: 1; 
+  min-height: 0; 
+  overflow: hidden; 
+}
+
+.admin-side { 
+  width: 280px; 
+  background: var(--surface); 
+  border-right: 1px solid var(--border); 
+  display: flex; 
+  flex-direction: column; 
+  overflow-y: auto; 
+  min-height: 0;
+}
 .section-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: var(--cream-50); border-bottom: 1px solid var(--cream-200); }
 .section-header h3 { margin: 0; font-size: 13px; text-transform: uppercase; color: var(--ink-900); letter-spacing: .05em; font-weight: 800; }
 .btn-icon { background: var(--acai-100); color: var(--acai-700); border: none; width: 24px; height: 24px; border-radius: 6px; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.15s; }
 .btn-icon:hover { background: var(--acai-200); }
 
-.admin-main { flex: 1; padding: 32px; overflow-y: auto; background: var(--cream-100); }
+.admin-main { 
+  flex: 1; 
+  padding: 32px; 
+  overflow-y: auto; 
+  min-height: 0;
+  background: var(--cream-100); 
+}
 
 /* SIDEBAR ACTIONS */
 .sidebar-add-action {
@@ -785,7 +883,12 @@ const handleUpdateSuccess = async (groupId) => {
 }
 
 /* GRID PRODUCTOS */
-.products-grid-view { height: 100%; display: flex; flex-direction: column; }
+.products-grid-view { 
+  min-height: 100%; 
+  display: flex; 
+  flex-direction: column; 
+  padding-bottom: 32px;
+}
 .category-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
 .category-title-container { display: flex; align-items: center; gap: 12px; }
 .category-header h2 { margin: 0; font-size: 28px; font-weight: 800; color: var(--ink-900); letter-spacing: -0.5px; }
@@ -797,7 +900,7 @@ const handleUpdateSuccess = async (groupId) => {
   box-shadow: var(--shadow-card);
 }
 
-.options-detail-view { height: 100%; }
+.options-detail-view { min-height: 100%; padding-bottom: 32px; }
 
 .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 
@@ -854,6 +957,13 @@ const handleUpdateSuccess = async (groupId) => {
 .btn-close-pya:hover {
   background: var(--cream-100);
   color: var(--ink-900);
+}
+
+.btn-close-pya:disabled,
+.btn-close-pya.btn-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .pya-modal-scroll-body {

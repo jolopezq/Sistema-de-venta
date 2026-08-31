@@ -208,4 +208,68 @@ class ProductTest extends TestCase
         // Group must be soft-deleted, not physically removed
         $this->assertSoftDeleted('option_groups', ['id' => $group->id]);
     }
+
+    /** @test */
+    public function test_can_create_product_with_image_upload()
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $category = Category::create(['name' => 'Bowls']);
+
+        $file = \Illuminate\Http\UploadedFile::fake()->image('bowl_tropical.jpg', 800, 600);
+
+        $payload = [
+            'name'           => 'Bowl Tropical',
+            'price'          => 28.50,
+            'category_id'    => $category->id,
+            'printer_target' => 'kitchen',
+            'image'          => $file,
+        ];
+
+        $response = $this->actingAs($this->user, 'sanctum')->postJson('/api/products', $payload);
+
+        $response->assertStatus(201);
+        $product = Product::where('name', 'Bowl Tropical')->first();
+        $this->assertNotNull($product->image_url);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists($product->image_url);
+    }
+
+    /** @test */
+    public function test_can_update_product_with_new_image_and_replaces_old_one()
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $category = Category::create(['name' => 'Bowls']);
+
+        $oldFile = \Illuminate\Http\UploadedFile::fake()->image('old_photo.jpg');
+        $storedPath = $oldFile->store('products', 'public');
+
+        $product = Product::create([
+            'name'           => 'Acai Bowl',
+            'price'          => 30.00,
+            'category_id'    => $category->id,
+            'printer_target' => 'kitchen',
+            'image_url'      => $storedPath,
+        ]);
+
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists($storedPath);
+
+        $newFile = \Illuminate\Http\UploadedFile::fake()->image('new_photo.png');
+
+        $payload = [
+            'name'           => 'Acai Bowl Premium',
+            'price'          => 35.00,
+            'category_id'    => $category->id,
+            'printer_target' => 'kitchen',
+            'image'          => $newFile,
+        ];
+
+        $response = $this->actingAs($this->user, 'sanctum')->putJson('/api/products/' . $product->id, $payload);
+
+        $response->assertStatus(200);
+        $product->refresh();
+        $this->assertEquals('Acai Bowl Premium', $product->name);
+        $this->assertNotEquals($storedPath, $product->image_url);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists($product->image_url);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertMissing($storedPath);
+    }
 }
+

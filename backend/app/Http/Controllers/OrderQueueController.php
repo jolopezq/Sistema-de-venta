@@ -18,6 +18,7 @@ class OrderQueueController extends Controller
             'cashier:id,name',
             'items.product:id,name',
             'items.saleItemOptions.option:id,name,additional_price',
+            'items.saleItemOptions.optionGroup:id,name',
             'deliveryOrder',
         ])
         ->where('status', 'completed')

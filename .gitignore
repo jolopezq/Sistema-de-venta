@@ -22,8 +22,21 @@ backend/database/database.sqlite
 backend/storage/logs/
 npm-debug.log*
 
-# Build
-frontend/dist/
-
 # Agentes IA
 .agents/
+
+# Build & Test artifacts
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+backend/public/assets/
+backend/public/index.html
+backend/public/sw.js
+backend/public/workbox-*.js
+backend/public/manifest.webmanifest
+
+# Binarios locales y temporales
+AnyDesk.exe
+screenshot_device.png
+backups/
+*.lock

@@ -6,137 +6,224 @@ const catalog = useCatalogStore();
 
 const props = defineProps({
   show: Boolean,
-  product: Object
+  product: Object,
+  /**
+   * Cuando se abre en modo edición, contiene la configuración actual del
+   * ítem del carrito: { cartKey, modifiers, itemNote, allergenFlags, isTakeaway }
+   */
+  initialData: { type: Object, default: null }
 });
+
+/** true cuando se está editando un ítem ya existente en el carrito */
+const isEditMode = computed(() => !!props.initialData?.cartKey);
 
 const emit = defineEmits(['close', 'confirm']);
 
-// Store selected options: { optionGroupId: [optionId1, optionId2] }
+// Store selected options: { [groupId]: [optionId1, optionId2, ...] }
 const selections = ref({});
-const expandedGroups = ref({});
 const errorMessages = ref({});
 const itemNote = ref('');
 const selectedAllergens = ref([]);
 const isTakeaway = ref(false);
-const allergens = [
-  { id: 'lactose', name: 'Lactosa', icon: '🥛' },
-  { id: 'gluten', name: 'Gluten', icon: '🌾' },
-  { id: 'almond', name: 'Almendras', icon: '🥜' },
-  { id: 'fruit', name: 'Fruta', icon: '🍓' },
-  { id: 'egg', name: 'Huevo', icon: '🥚' }
-];
+
+const isOptionSelected = (groupId, optionId) => {
+  return (selections.value[groupId] || []).includes(optionId);
+};
+
+const getGroupSelectedCount = (groupId) => {
+  return (selections.value[groupId] || []).length;
+};
 
 watch(() => props.show, (newVal) => {
   if (newVal && props.product) {
-    selections.value = {};
-    expandedGroups.value = {};
     errorMessages.value = {};
-    itemNote.value = '';
-    selectedAllergens.value = [];
-    isTakeaway.value = false;
-    // Initialize selections with default values
-    if (filteredGroups.value) {
-      filteredGroups.value.forEach(og => {
-        const defaultOptions = og.options.filter(o => o.is_default).map(o => o.id);
-        selections.value[og.id] = defaultOptions.slice(0, og.max_selections); // Limit defaults to max_selections
-        
-        if (og.max_selections === 1) {
-          expandedGroups.value[og.id] = true;
-        } else {
-          expandedGroups.value[og.id] = false;
-        }
-      });
+
+    if (props.initialData) {
+      // --- MODO EDICIÓN: precarga la configuración existente del carrito ---
+      itemNote.value = props.initialData.itemNote || '';
+      selectedAllergens.value = [...(props.initialData.allergenFlags || [])];
+      isTakeaway.value = props.initialData.isTakeaway || false;
+
+      // Reconstruye el array de selecciones por groupId deduplicando option_ids guardados
+      const preloaded = {};
+      if (filteredGroups.value) {
+        filteredGroups.value.forEach(og => {
+          const selectedIds = [...new Set(
+            (props.initialData.modifiers || [])
+              .filter(m => og.options.some(o => o.id === m.option_id))
+              .map(m => m.option_id)
+          )];
+          preloaded[og.id] = selectedIds;
+        });
+      }
+      selections.value = preloaded;
+    } else {
+      // --- MODO CREACIÓN: estado inicial limpio con defaults ---
+      const initialSelections = {};
+      itemNote.value = '';
+      selectedAllergens.value = [];
+      isTakeaway.value = false;
+      if (filteredGroups.value) {
+        filteredGroups.value.forEach(og => {
+          const isFruitGroup = (og.name || '').toLowerCase().includes('fruta');
+          const defaultOptions = !isFruitGroup
+            ? og.options.filter(o => o.is_default).map(o => o.id).slice(0, og.max_selections)
+            : [];
+          initialSelections[og.id] = defaultOptions;
+        });
+      }
+      selections.value = initialSelections;
     }
   }
 });
-
-const toggleAccordion = (groupId) => {
-  expandedGroups.value[groupId] = !expandedGroups.value[groupId];
-};
 
 const filteredGroups = computed(() => {
   if (!props.product?.option_groups) return [];
   return props.product.option_groups
     .filter(og => og.is_active)
-    .map(og => {
-      return {
-        ...og,
-        options: [...og.options]
-          .filter(opt => opt.is_active && !(props.product?.excluded_options || []).includes(opt.id))
-          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-      };
-    });
+    .map(og => ({
+      ...og,
+      options: [...og.options]
+        .filter(opt => opt.is_active && !(props.product?.excluded_options || []).includes(opt.id))
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    }));
 });
 
-const toggleOption = (groupId, optionId, maxSelections) => {
-  const current = selections.value[groupId] || [];
-  if (maxSelections === 1) {
-    // Radio behavior (toggle if already selected)
-    if (current.includes(optionId)) {
-      selections.value[groupId] = [];
-    } else {
-      selections.value[groupId] = [optionId];
+const singleSelectGroups = computed(() =>
+  filteredGroups.value.filter(og => og.max_selections === 1)
+);
+const multiSelectGroups = computed(() =>
+  filteredGroups.value.filter(og => og.max_selections > 1)
+);
+
+const getGroupIcon = (name) => {
+  const lower = (name || '').toLowerCase();
+  if (lower.includes('tamaño') || lower.includes('size')) return '🥣';
+  if (lower.includes('fruta')) return '🍓';
+  if (lower.includes('topping')) return '🍫';
+  if (lower.includes('salsa') || lower.includes('sirope')) return '🍯';
+  return '✨';
+};
+
+const handleSingleSelect = (og, opt) => {
+  if (!isOptionInStock(opt)) return;
+  const currentList = selections.value[og.id] || [];
+  if (currentList.includes(opt.id)) {
+    if ((og.min_selections || 0) === 0) {
+      selections.value = {
+        ...selections.value,
+        [og.id]: []
+      };
     }
   } else {
-    // Checkbox behavior
-    const idx = current.indexOf(optionId);
-    if (idx > -1) {
-      current.splice(idx, 1); // Deselect
-    } else {
-      if (current.length < maxSelections) {
-        current.push(optionId); // Select
-      }
+    selections.value = {
+      ...selections.value,
+      [og.id]: [opt.id]
+    };
+  }
+  validateGroup(og.id);
+};
+
+const toggleMultiSelect = (og, opt) => {
+  if (!isOptionInStock(opt)) return;
+  const currentList = selections.value[og.id] || [];
+  const isSelected = currentList.includes(opt.id);
+
+  if (isSelected) {
+    // Deseleccionar
+    selections.value = {
+      ...selections.value,
+      [og.id]: currentList.filter(id => id !== opt.id)
+    };
+  } else {
+    // Seleccionar si no superó el límite máximo
+    if (currentList.length < og.max_selections) {
+      selections.value = {
+        ...selections.value,
+        [og.id]: [...currentList, opt.id]
+      };
     }
   }
-  validateGroup(groupId);
+  validateGroup(og.id);
+};
+
+const getMinRequired = (og) => {
+  const isFruit = (og.name || '').toLowerCase().includes('fruta');
+  if (isFruit) return Math.max(og.min_selections || 0, 1);
+  return og.min_selections || 0;
 };
 
 const validateGroup = (groupId) => {
   const og = filteredGroups.value.find(g => g.id === groupId);
   if (!og) return;
-  const selectedCount = selections.value[groupId]?.length || 0;
-  if (selectedCount < og.min_selections) {
-    errorMessages.value[groupId] = `Selecciona al menos ${og.min_selections} opción(es).`;
-  } else {
-    errorMessages.value[groupId] = null;
-  }
+  const minReq = getMinRequired(og);
+  const selectedCount = getGroupSelectedCount(groupId);
+  errorMessages.value = {
+    ...errorMessages.value,
+    [groupId]: selectedCount < minReq
+      ? (og.name.toLowerCase().includes('fruta') ? 'Debes seleccionar al menos 1 fruta.' : `Selecciona al menos ${minReq} opción(es).`)
+      : null
+  };
 };
 
 const isValid = computed(() => {
   if (!filteredGroups.value || filteredGroups.value.length === 0) return true;
-  for (const og of filteredGroups.value) {
-    if ((selections.value[og.id]?.length || 0) < og.min_selections) {
-      return false;
-    }
-  }
-  return true;
+  return filteredGroups.value.every(og => {
+    const minReq = getMinRequired(og);
+    const selectedCount = getGroupSelectedCount(og.id);
+    return selectedCount >= minReq;
+  });
 });
 
-const totalPrice = computed(() => {
-  if (!props.product) return 0;
-  let total = Number(props.product.price) || 0;
+const confirmButtonText = computed(() => {
+  if (isEditMode.value) {
+    return '✅ Actualizar en Carrito';
+  }
+  if (!isValid.value && filteredGroups.value) {
+    for (const og of filteredGroups.value) {
+      const minReq = getMinRequired(og);
+      const count = getGroupSelectedCount(og.id);
+      if (count < minReq) {
+        if ((og.name || '').toLowerCase().includes('tamaño') || (og.name || '').toLowerCase().includes('size')) {
+          return '🥣 Elige un tamaño';
+        }
+        if ((og.name || '').toLowerCase().includes('fruta')) {
+          return '🍓 Elige al menos 1 fruta';
+        }
+        return `⚠️ Elige ${og.name}`;
+      }
+    }
+  }
+  return 'Agregar al Carrito';
+});
+
+const extrasPrice = computed(() => {
+  let extras = 0;
   if (filteredGroups.value) {
     filteredGroups.value.forEach(og => {
       const selectedIds = selections.value[og.id] || [];
       selectedIds.forEach(optId => {
         const opt = og.options.find(o => o.id === optId);
         if (opt) {
-          total += Number(opt.additional_price) || 0;
+          extras += Number(opt.additional_price) || 0;
         }
       });
     });
   }
-  return total;
+  return extras;
+});
+
+const totalPrice = computed(() => {
+  if (!props.product) return 0;
+  return (Number(props.product.price) || 0) + extrasPrice.value;
 });
 
 const handleConfirm = () => {
-  // Check validation one last time
   if (filteredGroups.value) {
     filteredGroups.value.forEach(og => validateGroup(og.id));
   }
   if (!isValid.value) return;
 
-  // Build selected modifiers array for the cart
   const selectedModifiers = [];
   if (filteredGroups.value) {
     filteredGroups.value.forEach(og => {
@@ -148,7 +235,8 @@ const handleConfirm = () => {
             group_name: og.name,
             option_id: opt.id,
             option_name: opt.name,
-            price: Number(opt.additional_price) || 0
+            price: Number(opt.additional_price) || 0,
+            quantity: 1
           });
         }
       });
@@ -161,17 +249,9 @@ const handleConfirm = () => {
     finalPrice: totalPrice.value,
     itemNote: itemNote.value,
     allergenFlags: selectedAllergens.value,
-    isTakeaway: isTakeaway.value
+    isTakeaway: isTakeaway.value,
+    editingCartKey: props.initialData?.cartKey || null
   });
-};
-
-const toggleAllergen = (allergenId) => {
-  const index = selectedAllergens.value.indexOf(allergenId);
-  if (index > -1) {
-    selectedAllergens.value.splice(index, 1);
-  } else {
-    selectedAllergens.value.push(allergenId);
-  }
 };
 
 const isOptionInStock = (opt) => {
@@ -179,141 +259,216 @@ const isOptionInStock = (opt) => {
   for (const recipe of opt.recipes) {
     if (recipe.quantity_delta <= 0) continue;
     const ingredient = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
-    if (ingredient && ingredient.current_stock < recipe.quantity_delta) {
-      return false; // Out of stock
-    }
+    if (ingredient && ingredient.current_stock < recipe.quantity_delta) return false;
   }
   return true;
 };
 
-const handleOptionClick = (og, opt) => {
-  if (!isOptionInStock(opt)) return;
-  if (og.max_selections > 1 && !(selections.value[og.id] || []).includes(opt.id) && (selections.value[og.id] || []).length >= og.max_selections) {
-    return;
-  }
-  toggleOption(og.id, opt.id, og.max_selections);
+const getSortedOptions = (og) => {
+  if (!og || !og.options) return [];
+  return [...og.options].sort((a, b) => {
+    return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
+  });
 };
 
 const handleGlobalKeydown = (e) => {
   if (props.show && e.key === 'Enter') {
-    if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'textarea') {
-      return; // allow newline in textarea
-    }
+    if (e.target?.tagName?.toLowerCase() === 'textarea') return;
     e.preventDefault();
-    if (isValid.value) {
-      handleConfirm();
-    }
+    if (isValid.value) handleConfirm();
   }
 };
 
-onMounted(() => {
-  window.addEventListener('keydown', handleGlobalKeydown);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleGlobalKeydown);
-});
+onMounted(() => window.addEventListener('keydown', handleGlobalKeydown));
+onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
 </script>
 
 <template>
   <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
     <div class="modal-content">
-      <div class="modal-header">
-        <h3>{{ product?.name }}</h3>
-        <button class="close-btn" @click="$emit('close')">×</button>
+
+      <!-- ── HEADER ── -->
+      <div class="modal-header" :class="{ 'header-edit-mode': isEditMode }">
+        <div class="header-left">
+          <h3>
+            <span v-if="isEditMode" class="edit-mode-prefix">✏️ Editando: </span>{{ product?.name }}
+          </h3>
+          <span class="base-price-badge">Base: Bs {{ Number(product?.price || 0).toFixed(2) }}</span>
+          <span v-if="extrasPrice > 0" class="extras-badge">+Extras: Bs {{ extrasPrice.toFixed(2) }}</span>
+          <span v-if="isEditMode" class="edit-badge">Modo Edición</span>
+        </div>
+        <div class="header-right">
+          <div class="total-chip">
+            <span class="total-label">Total</span>
+            <span class="total-value">Bs {{ totalPrice.toFixed(2) }}</span>
+          </div>
+          <button class="close-btn" @click="$emit('close')" aria-label="Cerrar">×</button>
+        </div>
       </div>
-      
+
+      <!-- ── BODY ── -->
       <div class="modal-body">
-        <p class="base-price">Precio Base: Bs {{ Number(product?.price || 0).toFixed(2) }}</p>
-        
-        <div v-for="og in filteredGroups" :key="og.id" class="option-group" :class="{ 'is-single': og.max_selections === 1 }">
-          <div class="og-header" :class="{ 'cursor-pointer': og.max_selections > 1 }" @click="og.max_selections > 1 ? toggleAccordion(og.id) : null">
-            <div class="og-header-title">
-              <h4>{{ og.name }}</h4>
-              <span class="og-rules">
-                (Mín: {{ og.min_selections }}, Máx: {{ og.max_selections }})
-              </span>
-            </div>
-            <div v-if="og.max_selections > 1" class="accordion-icon">
-              <span v-if="expandedGroups[og.id]">▲</span>
-              <span v-else>▼</span>
-            </div>
-          </div>
-          <div v-if="errorMessages[og.id]" class="error-msg">{{ errorMessages[og.id] }}</div>
-          
-          <div class="options-list" :class="{ 'grid-list': og.max_selections === 1 }" v-show="expandedGroups[og.id]">
-            <label 
-              v-for="opt in og.options" 
-              :key="opt.id" 
-              class="option-item"
-              :class="{ 
-                selected: selections[og.id]?.includes(opt.id), 
-                'out-of-stock': !isOptionInStock(opt),
-                'single-option': og.max_selections === 1
-              }"
-              @click.prevent="handleOptionClick(og, opt)"
-            >
-              <input 
-                v-if="og.max_selections > 1"
-                type="checkbox"
-                :name="'group_' + og.id"
-                :checked="selections[og.id]?.includes(opt.id)"
-                readonly
-                :disabled="!isOptionInStock(opt) || (og.max_selections > 1 && !selections[og.id]?.includes(opt.id) && selections[og.id]?.length >= og.max_selections)"
-              >
-              <span class="opt-name">
-                {{ opt.name }}
-                <span v-if="!isOptionInStock(opt)" style="font-size: 11px; color: var(--danger-600); margin-left: 6px;">(Agotado)</span>
-              </span>
-              <span class="opt-price" v-if="opt.additional_price > 0">+Bs {{ Number(opt.additional_price).toFixed(2) }}</span>
-            </label>
-          </div>
-        </div>
 
-        <div class="takeaway-section" :class="{ 'is-active': isTakeaway }">
-          <label class="switch-label">
-            <span class="switch-text">
-              <strong>Para llevar</strong>
-              <small>Empaquetar este ítem para llevar</small>
+        <!-- BLOQUE 1: TAMAÑOS (Selección Única) -->
+        <div v-for="og in singleSelectGroups" :key="og.id" class="section-block size-block">
+          <div class="section-header">
+            <div class="title-with-icon">
+              <span class="group-icon">{{ getGroupIcon(og.name) }}</span>
+              <span class="section-title">{{ og.name }}</span>
+            </div>
+            <span class="section-badge" :class="{ 'badge-required': og.min_selections > 0 }">
+              {{ og.min_selections > 0 ? 'Obligatorio' : 'Opcional (Elige 1)' }}
             </span>
-            <div class="toggle-switch">
-              <input type="checkbox" v-model="isTakeaway">
-              <span class="slider"></span>
-            </div>
-          </label>
-        </div>
+            <span v-if="errorMessages[og.id]" class="error-inline">{{ errorMessages[og.id] }}</span>
+          </div>
 
-        <div class="note-section">
-          <h4>Nota especial del ítem (Opcional)</h4>
-          <textarea 
-            v-model="itemNote" 
-            placeholder="Ej: Sin fresa, leche deslactosada..."
-            class="note-textarea"
-          ></textarea>
-        </div>
-
-        <div class="allergen-section">
-          <h4>Alertas de Alérgenos</h4>
-          <div class="allergen-chips">
-            <button 
-              v-for="allergen in allergens" 
-              :key="allergen.id"
-              class="allergen-chip"
-              :class="{ active: selectedAllergens.includes(allergen.id) }"
-              @click="toggleAllergen(allergen.id)"
+          <div class="size-row">
+            <button
+              v-for="opt in og.options"
+              :key="opt.id"
+              class="size-btn"
+              :class="{
+                selected: isOptionSelected(og.id, opt.id),
+                'out-of-stock': !isOptionInStock(opt)
+              }"
+              :disabled="!isOptionInStock(opt)"
+              @click="handleSingleSelect(og, opt)"
             >
-              {{ allergen.icon }} {{ allergen.name }}
+              <div class="size-btn-content">
+                <div class="size-radio-indicator">
+                  <span v-if="isOptionSelected(og.id, opt.id)" class="radio-check">✓</span>
+                </div>
+                <span class="size-name">{{ opt.name }}</span>
+              </div>
+              <span class="size-price-badge" v-if="opt.additional_price > 0">+Bs {{ Number(opt.additional_price).toFixed(2) }}</span>
+              <span class="size-included-badge" v-else>Incluido</span>
+              <span class="size-agotado-badge" v-if="!isOptionInStock(opt)">Agotado</span>
             </button>
           </div>
         </div>
+
+        <!-- BLOQUES MULTI-SELECT: Frutas y Toppings -->
+        <div v-for="og in multiSelectGroups" :key="og.id" class="section-block">
+          <div class="section-header">
+            <div class="title-with-icon">
+              <span class="group-icon">{{ getGroupIcon(og.name) }}</span>
+              <span class="section-title">{{ og.name }}</span>
+            </div>
+
+            <!-- Regla / Instrucción destacada -->
+            <span class="rule-hint" :class="{ 'rule-hint--required': getMinRequired(og) > 0 }">
+              {{ getMinRequired(og) > 0 ? `Mín. ${getMinRequired(og)} • ` : '' }}Máx. {{ og.max_selections }}
+            </span>
+
+            <!-- Contador dinámico interactivo -->
+            <div
+              class="selection-counter-badge"
+              :class="{
+                'is-empty': getGroupSelectedCount(og.id) === 0 && getMinRequired(og) === 0,
+                'is-required-empty': getGroupSelectedCount(og.id) === 0 && getMinRequired(og) > 0,
+                'is-active': getGroupSelectedCount(og.id) > 0 && getGroupSelectedCount(og.id) < og.max_selections,
+                'is-max': getGroupSelectedCount(og.id) >= og.max_selections
+              }"
+            >
+              <span v-if="getGroupSelectedCount(og.id) >= og.max_selections" class="counter-check">✓</span>
+              <span v-else-if="getMinRequired(og) > 0 && getGroupSelectedCount(og.id) < getMinRequired(og)" class="counter-alert">⚠️</span>
+              <span class="counter-text">
+                <template v-if="getMinRequired(og) > 0 && getGroupSelectedCount(og.id) < getMinRequired(og)">
+                  Elige al menos {{ getMinRequired(og) }}
+                </template>
+                <template v-else>
+                  {{ getGroupSelectedCount(og.id) }} de {{ og.max_selections }} seleccionados
+                </template>
+              </span>
+              <span v-if="getGroupSelectedCount(og.id) >= og.max_selections" class="counter-max-tag">Límite alcanzado</span>
+            </div>
+
+            <span v-if="errorMessages[og.id]" class="error-inline">{{ errorMessages[og.id] }}</span>
+          </div>
+
+          <!-- Grid de chips de opciones (Alta Densidad 3 Columnas) -->
+          <div class="options-grid">
+            <button
+              type="button"
+              v-for="opt in getSortedOptions(og)"
+              :key="opt.id"
+              class="option-chip"
+              :class="{
+                selected: isOptionSelected(og.id, opt.id),
+                'out-of-stock': !isOptionInStock(opt),
+                'limit-reached': !isOptionSelected(og.id, opt.id) && getGroupSelectedCount(og.id) >= og.max_selections && isOptionInStock(opt)
+              }"
+              :disabled="!isOptionInStock(opt) || (!isOptionSelected(og.id, opt.id) && getGroupSelectedCount(og.id) >= og.max_selections)"
+              @click="toggleMultiSelect(og, opt)"
+            >
+              <div class="option-chip-content">
+                <span class="chip-indicator" :class="{ 'is-selected': isOptionSelected(og.id, opt.id) }">
+                  <span v-if="isOptionSelected(og.id, opt.id)" class="indicator-check">✓</span>
+                  <span v-else class="indicator-plus">+</span>
+                </span>
+
+                <span class="chip-name" :title="opt.name">{{ opt.name }}</span>
+              </div>
+
+              <!-- Precio adicional si tiene -->
+              <span
+                class="chip-price"
+                v-if="opt.additional_price > 0"
+              >
+                +Bs {{ Number(opt.additional_price).toFixed(2) }}
+              </span>
+            </button>
+          </div>
+        </div>
+
       </div>
-      
+
+      <!-- ── FOOTER UNIFICADO (Nota + Para llevar + Botón en 1 sola fila) ── -->
       <div class="modal-footer">
-        <div class="total-preview">Total: Bs {{ totalPrice.toFixed(2) }}</div>
-        <button class="btn btn-primary" :disabled="!isValid" @click="handleConfirm">
-          Agregar al Carrito
+        <div class="footer-left-group">
+          <!-- Nota Especial -->
+          <div class="footer-note-box">
+            <span class="footer-note-icon">📝</span>
+            <input
+              v-model="itemNote"
+              type="text"
+              placeholder="Nota especial (ej. sin fresa, leche deslactosada...)"
+              class="footer-note-input"
+            />
+          </div>
+
+          <!-- Selector de Destino: Para Mesa vs Para Llevar -->
+          <div class="destination-segmented-control" role="group" aria-label="Destino del producto">
+            <button
+              type="button"
+              class="dest-segment-btn"
+              :class="{ active: !isTakeaway }"
+              @click="isTakeaway = false"
+              title="Consumir en mesa / local"
+            >
+              <span class="segment-icon">🍽️</span>
+              <span class="segment-text">Para mesa</span>
+              <span class="segment-check" v-if="!isTakeaway">✓</span>
+            </button>
+            <button
+              type="button"
+              class="dest-segment-btn dest-segment-btn--takeaway"
+              :class="{ active: isTakeaway }"
+              @click="isTakeaway = true"
+              title="Empacar para llevar"
+            >
+              <span class="segment-icon">🛍️</span>
+              <span class="segment-text">Para llevar</span>
+              <span class="segment-check" v-if="isTakeaway">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <button class="btn-confirm" :class="{ 'btn-confirm--edit': isEditMode }" :disabled="!isValid" @click="handleConfirm">
+          {{ confirmButtonText }} • Bs {{ totalPrice.toFixed(2) }}
         </button>
       </div>
+
     </div>
   </div>
 </template>
@@ -321,241 +476,903 @@ onUnmounted(() => {
 <style scoped>
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  padding: 16px;
 }
+
 .modal-content {
   background: var(--surface);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 1060px;
+  max-height: 94vh;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-pop);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  border: 1px solid var(--border);
 }
+
+/* ── HEADER ── */
 .modal-header {
-  padding: 20px 24px;
+  padding: 14px 22px;
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-.modal-header h3 { margin: 0; color: var(--ink-900); }
-.close-btn {
-  background: none; border: none; font-size: 24px; cursor: pointer; color: var(--ink-500);
-}
-.modal-body {
-  padding: 24px;
-  overflow-y: auto;
-  flex: 1;
-}
-.base-price {
-  font-weight: 700; color: var(--ink-900); margin-top: 0; margin-bottom: 20px;
-}
-.option-group {
-  margin-bottom: 24px;
-}
-.og-header {
-  display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
-  padding: 8px 0;
-}
-.og-header.cursor-pointer {
-  cursor: pointer;
-  user-select: none;
-}
-.og-header.cursor-pointer:hover h4 {
-  color: var(--passion-500);
-}
-.og-header-title {
-  display: flex; align-items: baseline; gap: 8px;
-}
-.accordion-icon {
-  font-size: 12px; color: var(--ink-500);
-}
-.og-header h4 { margin: 0; font-size: 15px; color: var(--ink-800); }
-.og-rules { font-size: 12px; color: var(--ink-500); }
-.error-msg {
-  color: var(--danger-600); font-size: 12px; margin-bottom: 8px; font-weight: 600;
-}
-.options-list {
-  display: flex; flex-direction: column; gap: 8px;
-}
-.options-list.grid-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-.option-item {
-  display: flex; align-items: center; padding: 12px 16px; border: 2px solid var(--border);
-  border-radius: 10px; cursor: pointer; transition: all 0.2s ease;
-}
-.option-item.single-option {
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 16px;
-  text-align: center;
-  border-radius: 12px;
-  height: 100%;
-}
-.option-item.single-option .opt-name {
-  margin-bottom: 4px;
-  text-align: center;
-  width: 100%;
-}
-.option-item.single-option .opt-price {
-  font-size: 13px;
-}
-.option-item:hover { background: var(--surface-hover); }
-.option-item.selected { border-color: var(--passion-500); background: var(--surface-hover); }
-.option-item input { margin-right: 12px; accent-color: var(--passion-500); width: 16px; height: 16px; }
-.opt-name { flex: 1; font-weight: 600; color: var(--ink-900); }
-.opt-price { font-weight: 700; color: var(--passion-600); }
-.modal-footer {
-  padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--surface-hover); border-radius: 0 0 16px 16px;
-}
-.total-preview { font-size: 18px; font-weight: 800; color: var(--ink-900); }
-.btn-primary { background: var(--passion-500); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 700; font-size: 15px; cursor: pointer; }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.option-item.out-of-stock {
-  opacity: 0.5;
-  filter: grayscale(100%);
-  cursor: not-allowed;
-  background: var(--surface-hover);
-}
-.option-item.out-of-stock:hover {
-  background: var(--surface-hover);
-}
-
-.note-section {
-  margin-bottom: 20px;
-}
-.note-section h4 {
-  margin: 0 0 8px;
-  font-size: 14px;
-  color: var(--ink-800);
-}
-.note-textarea {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-family: inherit;
-  resize: vertical;
-  min-height: 60px;
   background: var(--surface);
+  flex-shrink: 0;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
   color: var(--ink-900);
 }
-.note-textarea:focus {
-  outline: none;
-  border-color: var(--passion-500);
+.base-price-badge {
+  background: var(--surface-hover);
+  color: var(--ink-700);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.extras-badge {
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #ffe0b2;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.total-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--acai-900, #20112F);
+  border-radius: 20px;
+  padding: 6px 14px;
+  box-shadow: 0 2px 8px rgba(32, 17, 47, 0.35);
+  transition: transform 0.2s;
+}
+.total-label { font-size: 11px; color: rgba(255,255,255,0.75); font-weight: 700; text-transform: uppercase; }
+.total-value { font-size: 15px; font-weight: 900; color: #ffffff; }
+.close-btn {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--ink-500);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.close-btn:hover { background: var(--danger-100); color: var(--danger-600); border-color: var(--danger-300); }
+
+/* ── BODY ── */
+.modal-body {
+  padding: 14px 22px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.takeaway-section {
-  margin-bottom: 20px;
-  background: var(--surface);
-  border: 2px solid var(--border);
-  border-radius: 10px;
-  padding: 12px 16px;
-  transition: all 0.2s ease;
-}
-.takeaway-section.is-active {
-  border-color: var(--passion-500);
+/* ── SECCIÓN BLOQUE ── */
+.section-block {
   background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  transition: border-color 0.2s;
 }
-.switch-label {
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.title-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.group-icon {
+  font-size: 15px;
+}
+.section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-900);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.rule-hint {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-500);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* ── CONTADOR DE SELECCIÓN RESALTADO ── */
+.selection-counter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 20px;
+  transition: all 0.25s ease;
+}
+.selection-counter-badge.is-empty {
+  background: var(--surface);
+  color: var(--ink-500);
+  border: 1px solid var(--border);
+}
+.selection-counter-badge.is-active {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffb74d;
+  box-shadow: 0 2px 6px rgba(230, 81, 0, 0.15);
+}
+.selection-counter-badge.is-max {
+  background: var(--lime-100, #E3F5E5);
+  color: var(--lime-700, #217A2E);
+  border: 1px solid var(--lime-500, #3CAE49);
+  box-shadow: 0 2px 8px rgba(33, 122, 46, 0.15);
+}
+.counter-check {
+  font-size: 11px;
+  font-weight: 900;
+}
+.counter-max-tag {
+  background: var(--lime-600, #2E8E3B);
+  color: white;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  text-transform: uppercase;
+  margin-left: 4px;
+}
+
+.section-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--ink-100);
+  color: var(--ink-600);
+  border: 1px solid var(--border);
+}
+.section-badge.badge-required {
+  background: var(--warning-100);
+  color: var(--warning-800);
+  border-color: var(--warning-400);
+}
+.error-inline {
+  font-size: 11px;
+  color: var(--danger-600);
+  font-weight: 600;
+}
+
+/* ── TAMAÑOS (Chips Horizontales Inline) ── */
+.size-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 2px 0;
+}
+
+.size-btn {
+  flex: 1;
+  min-width: 140px;
+  min-height: 42px;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 14px;
+  border: 1.5px solid var(--border, #e2e8f0);
+  border-radius: 999px;
+  background: var(--surface, #ffffff);
+  cursor: pointer;
+  transition: transform 0.15s ease,
+              border-color 0.15s ease,
+              background-color 0.15s ease,
+              box-shadow 0.15s ease;
+  font-family: inherit;
+  position: relative;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.size-btn:focus {
+  outline: none;
+}
+
+.size-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--passion-400, #FF9640);
+}
+
+.size-btn-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.size-radio-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border, #E4E0DC);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface, #ffffff);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.size-btn.selected .size-radio-indicator {
+  border-color: var(--passion-500, #FB7810);
+  background: var(--passion-500, #FB7810);
+}
+
+.radio-check {
+  font-size: 11px;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.size-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+  white-space: nowrap;
+}
+
+.size-price-badge {
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(251, 120, 16, 0.12);
+  color: var(--passion-600);
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.size-included-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--cream-200, #f1efec);
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+.size-agotado-badge {
+  font-size: 10px;
+  color: var(--danger-600);
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--danger-100);
+}
+
+/* Hover no seleccionado */
+.size-btn:hover:not(:disabled):not(.selected) {
+  border-color: var(--passion-400, #FF9640);
+  background: #fffaf8;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(251, 120, 16, 0.08);
+}
+
+/* Seleccionado */
+.size-btn.selected {
+  border: 2px solid var(--passion-500, #FB7810);
+  background: #fff7f5;
+  box-shadow: 0 0 0 1px var(--passion-500, #FB7810), 0 2px 8px rgba(251, 120, 16, 0.15);
+}
+
+.size-btn.selected .size-price-badge {
+  background: var(--passion-500, #FB7810);
+  color: #ffffff;
+}
+
+.size-btn.selected .size-name {
+  color: var(--passion-700, #C24D00);
+}
+
+.size-btn.selected:hover:not(:disabled) {
+  border-color: var(--passion-600, #E56506);
+  background: #ffede8;
+}
+
+.size-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(1);
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+:global(html.dark) .size-btn {
+  background: #251c33;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+:global(html.dark) .size-btn:hover:not(:disabled):not(.selected) {
+  background: #322545;
+  border-color: var(--passion-400);
+}
+:global(html.dark) .size-btn.selected {
+  background: rgba(255, 150, 64, 0.15);
+  border-color: var(--passion-500);
+}
+:global(html.dark) .size-btn.selected .size-name {
+  color: #ffffff;
+}
+:global(html.dark) .size-included-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink-500);
+}
+
+/* ── CHIPS MULTI-SELECT (Frutas / Toppings - Grid 3 Columnas) ── */
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 10px;
+}
+
+.option-chip {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink-900);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.option-chip:focus {
+  outline: none;
+}
+
+.option-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--acai-500, #7448A6);
+}
+
+.option-chip-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.chip-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  background: var(--surface-hover, #f1efec);
+  color: var(--ink-600);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.indicator-plus {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.indicator-check {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.chip-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.chip-price {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--passion-600);
+  background: rgba(251, 120, 16, 0.1);
+  padding: 2px 5px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Hover en chips NO seleccionados */
+.option-chip:hover:not(:disabled):not(.selected) {
+  border-color: var(--acai-300, #A886C6);
+  background: var(--acai-50, #F4F0F9);
+  color: var(--ink-900);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(32, 17, 47, 0.08);
+}
+.option-chip:hover:not(:disabled):not(.selected) .chip-name {
+  color: var(--ink-900);
+}
+.option-chip:hover:not(:disabled):not(.selected) .chip-price {
+  color: var(--passion-600, #E56506);
+  background: rgba(251, 120, 16, 0.12);
+}
+
+/* Estado Seleccionado Remarcado (Açaí Profundo #20112F con Acento Naranja) */
+.option-chip.selected {
+  border-color: var(--acai-700, #522B80);
+  background: var(--acai-900, #20112F);
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(32, 17, 47, 0.35);
+}
+.option-chip.selected .chip-indicator {
+  background: #ffffff;
+  color: var(--acai-900, #20112F);
+}
+.option-chip.selected .chip-name {
+  color: #ffffff !important;
+  font-weight: 700;
+}
+.option-chip.selected .chip-price {
+  color: #ffffff !important;
+  background: var(--passion-500, #FB7810);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Hover en chips YA seleccionados */
+.option-chip.selected:hover:not(:disabled) {
+  border-color: var(--acai-500, #7448A6);
+  background: var(--acai-800, #2C1841) !important;
+  color: #ffffff !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(32, 17, 47, 0.45);
+}
+.option-chip.selected:hover:not(:disabled) .chip-name {
+  color: #ffffff !important;
+}
+
+/* Deshabilitados por límite o sin stock */
+.option-chip:disabled {
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.option-chip.out-of-stock {
+  opacity: 0.35;
+  filter: grayscale(1);
+  background: var(--ink-100);
+}
+.option-chip.limit-reached {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+:global(html.dark) .option-chip {
+  background: #251c33;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--ink-900);
+}
+:global(html.dark) .option-chip:hover:not(:disabled):not(.selected) {
+  background: #322545;
+  border-color: var(--acai-300, #A886C6);
+}
+:global(html.dark) .option-chip.selected {
+  background: var(--acai-700, #522B80);
+  border-color: var(--acai-500, #7448A6);
+}
+:global(html.dark) .option-chip.selected .chip-indicator {
+  background: #ffffff;
+  color: var(--acai-900, #20112F);
+}
+:global(html.dark) .option-chip.selected:hover:not(:disabled) {
+  background: var(--acai-800, #2C1841) !important;
+  border-color: var(--acai-500, #7448A6);
+}
+:global(html.dark) .option-chip-content .chip-name {
+  color: #ffffff;
+}
+:global(html.dark) .chip-indicator {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+}
+
+/* ── FOOTER UNIFICADO EN UNA SOLA FILA ── */
+.modal-footer {
+  padding: 10px 18px;
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  cursor: pointer;
-}
-.switch-text {
-  display: flex;
-  flex-direction: column;
-}
-.switch-text strong {
-  font-size: 15px;
-  color: var(--ink-900);
-}
-.switch-text small {
-  font-size: 12px;
-  color: var(--ink-500);
-}
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-}
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: var(--ink-300);
-  transition: .3s;
-  border-radius: 24px;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);
-}
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: .3s;
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-}
-input:checked + .slider {
-  background-color: var(--passion-500);
-}
-input:checked + .slider:before {
-  transform: translateX(20px);
+  gap: 12px;
+  background: var(--surface);
+  border-radius: 0 0 20px 20px;
+  flex-shrink: 0;
 }
 
-.allergen-section {
-  margin-bottom: 10px;
-}
-.allergen-section h4 {
-  margin: 0 0 8px;
-  font-size: 14px;
-  color: var(--ink-800);
-}
-.allergen-chips {
+.footer-left-group {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.footer-note-box {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 160px;
+  height: 42px;
+  background: var(--surface-hover, #f8fafc);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 0 12px;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
 }
-.allergen-chip {
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: var(--surface);
-  color: var(--ink-700);
+
+.footer-note-box:focus-within {
+  border-color: var(--passion-500);
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(251, 120, 16, 0.12);
+}
+
+.footer-note-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.footer-note-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--ink-900);
+}
+
+.footer-note-input::placeholder {
+  color: var(--ink-400, #94a3b8);
+}
+
+.destination-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 42px;
+  padding: 3px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-hover, #f1f5f9);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.dest-segment-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
   cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-600, #64748b);
+  white-space: nowrap;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.dest-segment-btn:hover:not(.active) {
+  color: var(--ink-900, #0f172a);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.dest-segment-btn.active {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--acai-800, #2C1841);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.dest-segment-btn--takeaway.active {
+  background: #ffffff;
+  border-color: rgba(249, 115, 22, 0.3);
+  color: #ea580c;
+  box-shadow: 0 2px 6px rgba(234, 88, 12, 0.15);
+}
+
+.segment-icon {
   font-size: 13px;
-  transition: all 0.2s;
-  font-weight: 600;
+  line-height: 1;
 }
-.allergen-chip:hover {
-  background: var(--surface-hover);
+
+.segment-check {
+  font-size: 10px;
+  font-weight: 900;
+  background: var(--acai-700, #522B80);
+  color: #ffffff;
+  border-radius: 50%;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
-.allergen-chip.active {
-  background: var(--warning-100);
-  border-color: var(--warning-500);
-  color: var(--warning-800);
+
+.dest-segment-btn--takeaway.active .segment-check {
+  background: #ea580c;
+}
+
+.btn-confirm {
+  height: 42px;
+  padding: 0 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--passion-500);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.18s ease;
+  box-shadow: 0 3px 10px rgba(230, 78, 57, 0.25);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+:global(html.dark) .footer-note-box {
+  background: #251c33;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+:global(html.dark) .footer-note-box:focus-within {
+  background: #2d223d;
+  border-color: var(--passion-500);
+}
+:global(html.dark) .footer-note-input {
+  color: #ffffff;
+}
+:global(html.dark) .destination-segmented-control {
+  background: #1f172b;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+:global(html.dark) .dest-segment-btn {
+  color: #94a3b8;
+}
+:global(html.dark) .dest-segment-btn:hover:not(.active) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+:global(html.dark) .dest-segment-btn.active {
+  background: #2f2342;
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+:global(html.dark) .dest-segment-btn--takeaway.active {
+  background: rgba(234, 88, 12, 0.22);
+  border-color: rgba(249, 115, 22, 0.4);
+  color: #fb923c;
+}
+.btn-confirm:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(230, 78, 57, 0.4);
+}
+.btn-confirm:active:not(:disabled) { transform: translateY(0); }
+.btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; filter: grayscale(0.5); }
+
+.is-required-empty {
+  background: #fff1f2 !important;
+  color: #e11d48 !important;
+  border-color: #fecdd3 !important;
+  font-weight: 700;
+}
+.rule-hint--required {
+  color: #e11d48;
+  font-weight: 700;
+}
+.counter-alert {
+  font-size: 11px;
+}
+
+/* ── RESPONSIVE COMPACT (1366x768 & Laptops) ── */
+@media (max-width: 1366px), (max-height: 800px) {
+  .modal-content {
+    max-width: 960px;
+    max-height: 92vh;
+    border-radius: 16px;
+  }
+  .modal-header {
+    padding: 10px 16px;
+  }
+  .modal-header h3 {
+    font-size: 16px;
+  }
+  .modal-body {
+    padding: 10px 16px;
+    gap: 8px;
+  }
+  .section-block {
+    padding: 8px 12px;
+    border-radius: 10px;
+  }
+  .section-header {
+    margin-bottom: 6px;
+    gap: 6px;
+  }
+  .section-title {
+    font-size: 12px;
+  }
+  .size-btn {
+    min-height: 38px;
+    padding: 5px 12px;
+    gap: 8px;
+  }
+  .size-name {
+    font-size: 12.5px;
+  }
+  .size-price-badge {
+    font-size: 10.5px;
+    padding: 1px 6px;
+  }
+  .options-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px 8px;
+  }
+  .option-chip {
+    min-height: 36px;
+    padding: 4px 7px;
+    gap: 5px;
+    border-radius: 8px;
+  }
+  .chip-name {
+    font-size: 12px;
+  }
+  .chip-price {
+    font-size: 10px;
+    padding: 1px 5px;
+  }
+  .modal-footer {
+    padding: 8px 16px;
+    border-radius: 0 0 16px 16px;
+  }
+  .footer-note-box,
+  .destination-segmented-control,
+  .btn-confirm {
+    height: 38px;
+  }
+  .btn-confirm {
+    padding: 0 20px;
+    font-size: 13.5px;
+  }
+}
+
+@media (max-width: 768px) {
+  .options-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .footer-left-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn-confirm {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .modal-overlay { padding: 0; }
+  .modal-content { max-width: 100%; max-height: 100vh; border-radius: 0; }
+  .size-row { flex-wrap: wrap; }
+  .modal-header, .modal-body, .modal-footer { padding: 12px 14px; }
+}
+
+/* ── EDIT MODE ── */
+.header-edit-mode {
+  border-bottom: 2px solid #3b82f6;
+  background: linear-gradient(to right, #eff6ff, transparent);
+}
+.edit-mode-prefix {
+  color: #2563eb;
+  font-size: 0.9em;
+}
+.edit-badge {
+  display: inline-block;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: 8px;
+  vertical-align: middle;
+  border: 1px solid #93c5fd;
+}
+.btn-confirm--edit {
+  background: linear-gradient(135deg, #16a34a, #15803d) !important;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35) !important;
+}
+.btn-confirm--edit:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.45) !important;
 }
 </style>

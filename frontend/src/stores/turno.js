@@ -202,11 +202,15 @@ export const useTurnoStore = defineStore('turno', {
         localSales.forEach(s => {
           if (s.status !== 'voided') {
             total += Number(s.total_amount || 0);
-            (s.payments || []).forEach(p => {
-              if (p.method === 'cash') cash += Number(p.amount || 0);
-              else if (p.method === 'qr') qr += Number(p.amount || 0);
-              else if (p.method === 'card') card += Number(p.amount || 0);
-            });
+            if (s.payments && s.payments.length > 0) {
+              s.payments.forEach(p => {
+                if (p.method === 'cash') cash += Number(p.amount || 0);
+                else if (p.method === 'qr') qr += Number(p.amount || 0);
+                else if (p.method === 'card') card += Number(p.amount || 0);
+              });
+            } else {
+              cash += Number(s.total_amount || 0);
+            }
           }
         });
 

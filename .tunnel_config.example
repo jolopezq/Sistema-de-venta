@@ -1,0 +1,9 @@
+# ==============================================================================
+# Configuración para URL Pública Fija Permanente (Ngrok Gratuito)
+# ==============================================================================
+# 1. Regístrate gratis en https://dashboard.ngrok.com
+# 2. Ve a la pestaña 'Domains' y obtén tu dominio gratuito (ej: tu-nombre.ngrok-free.app)
+# 3. Pega aquí tu dominio asignado y tu authtoken:
+
+NGROK_DOMAIN=""
+NGROK_AUTHTOKEN=""

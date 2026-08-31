@@ -15,6 +15,37 @@ class ProductRequest extends FormRequest
     }
 
     /**
+     * Prepare the data for validation.
+     */
+    protected function prepareForValidation(): void
+    {
+        $sanitized = [];
+
+        if ($this->has('tag') && ($this->tag === '' || $this->tag === 'none' || $this->tag === 'null')) {
+            $sanitized['tag'] = null;
+        }
+        if ($this->has('vip_price') && ($this->vip_price === '' || $this->vip_price === 'null')) {
+            $sanitized['vip_price'] = null;
+        }
+        if ($this->has('delivery_price') && ($this->delivery_price === '' || $this->delivery_price === 'null')) {
+            $sanitized['delivery_price'] = null;
+        }
+        if ($this->has('price_per_gram') && ($this->price_per_gram === '' || $this->price_per_gram === 'null')) {
+            $sanitized['price_per_gram'] = null;
+        }
+        if ($this->has('reactivate_at') && ($this->reactivate_at === '' || $this->reactivate_at === 'null')) {
+            $sanitized['reactivate_at'] = null;
+        }
+        if ($this->has('description') && ($this->description === '' || $this->description === 'null')) {
+            $sanitized['description'] = null;
+        }
+
+        if (!empty($sanitized)) {
+            $this->merge($sanitized);
+        }
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
@@ -63,6 +94,10 @@ class ProductRequest extends FormRequest
             'printer_target.required' => 'El destino de impresión es obligatorio.',
             'printer_target.in' => 'El destino de impresión seleccionado no es válido.',
             'is_active.boolean' => 'El estado del producto debe ser verdadero o falso.',
+            'image.uploaded' => 'La imagen no pudo subirse. Por favor intenta con una imagen JPG, PNG o WEBP.',
+            'image.image' => 'El archivo adjunto debe ser una imagen válida.',
+            'image.mimes' => 'La imagen debe ser de tipo JPG, JPEG, PNG, WEBP o SVG.',
+            'image.max' => 'La imagen no puede exceder los 20MB de tamaño.',
         ];
     }
 }

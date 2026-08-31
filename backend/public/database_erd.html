@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ohana Açaí V3 - Mapa Entidad-Relación (ERD)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #12091D;
+      --card-bg: #1C122C;
+      --card-header: #26173D;
+      --border: #3A2559;
+      --border-highlight: #7448A6;
+      --text: #F4F0F9;
+      --text-muted: #A89CB8;
+      --text-dim: #6E5F80;
+      
+      --c-sec: #9B72D4;   /* Seguridad */
+      --c-cat: #FF9640;   /* Catálogo / Menú */
+      --c-inv: #3CAE49;   /* Inventario / Recetas */
+      --c-pos: #2AA4AF;   /* Ventas / POS */
+      --c-loy: #FAD15C;   /* Fidelidad */
+      
+      --pk-color: #E56506;
+      --fk-color: #00859B;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 30px;
+      overflow-x: auto;
+    }
+
+    .header {
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+    }
+    .header h1 {
+      font-family: 'Baloo 2', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      background: rgba(255,255,255,0.03);
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+    }
+
+    .erd-container {
+      display: grid;
+      grid-template-columns: repeat(4, 320px);
+      gap: 28px;
+      position: relative;
+      align-items: start;
+    }
+
+    .domain-column {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .domain-title {
+      font-family: 'Baloo 2', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 6px 12px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-left: 4px solid;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .card:hover {
+      border-color: var(--border-highlight);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(116,72,166,0.3);
+    }
+
+    .card-head {
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .card-tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+
+    .card-body {
+      padding: 8px 0;
+    }
+    .col-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 14px;
+      font-size: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .col-row:last-child { border-bottom: none; }
+    .col-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge-pk {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--pk-color);
+      background: rgba(229,101,6,0.15);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    .badge-fk {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--fk-color);
+      background: rgba(0,133,155,0.15);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    .col-name {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .col-type {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Colores por Dominio */
+    .dom-sec { border-color: var(--c-sec); color: var(--c-sec); background: rgba(155,114,212,0.1); }
+    .dom-cat { border-color: var(--c-cat); color: var(--c-cat); background: rgba(255,150,64,0.1); }
+    .dom-inv { border-color: var(--c-inv); color: var(--c-inv); background: rgba(60,174,73,0.1); }
+    .dom-pos { border-color: var(--c-pos); color: var(--c-pos); background: rgba(42,164,175,0.1); }
+
+    .head-sec { background: rgba(155,114,212,0.15); border-top: 3px solid var(--c-sec); }
+    .head-cat { background: rgba(255,150,64,0.15); border-top: 3px solid var(--c-cat); }
+    .head-inv { background: rgba(60,174,73,0.15); border-top: 3px solid var(--c-inv); }
+    .head-pos { background: rgba(42,164,175,0.15); border-top: 3px solid var(--c-pos); }
+
+    .tag-sec { background: var(--c-sec); color: #fff; }
+    .tag-cat { background: var(--c-cat); color: #fff; }
+    .tag-inv { background: var(--c-inv); color: #fff; }
+    .tag-pos { background: var(--c-pos); color: #fff; }
+
+    .offline-banner {
+      margin-top: 30px;
+      background: rgba(42,164,175,0.12);
+      border: 1px solid var(--c-pos);
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .offline-banner h3 {
+      font-family: 'Baloo 2';
+      font-size: 16px;
+      color: #fff;
+    }
+    .offline-banner p {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>🫐 Ohana Açaí V3 — Mapa Visual de Base de Datos</h1>
+      <p>Esquema Relacional MySQL (Servidor) y Replicación IndexedDB Dexie.js (Offline-First)</p>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--c-pos)"></div> Ventas & POS</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--c-cat)"></div> Catálogo & Opciones</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--c-inv)"></div> Inventario & Recetas</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--c-sec)"></div> Seguridad & Usuarios</div>
+    </div>
+  </div>
+
+  <div class="erd-container">
+
+    <!-- COLUMNA 1: VENTAS Y POS -->
+    <div class="domain-column">
+      <div class="domain-title dom-pos">🛒 Ventas & Caja (POS)</div>
+
+      <!-- Tabla: sales -->
+      <div class="card">
+        <div class="card-head head-pos">
+          <span class="card-title">sales</span>
+          <span class="card-tag tag-pos">UUID v4</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">uuid</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">session_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">customer_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">user_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">subtotal</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">discount</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">total_amount</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">payment_status</span></div><span class="col-type">enum</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">prep_status</span></div><span class="col-type">enum</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">notes</span></div><span class="col-type">text</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: sale_items -->
+      <div class="card">
+        <div class="card-head head-pos">
+          <span class="card-title">sale_items</span>
+          <span class="card-tag tag-pos">Líneas</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">sale_id</span></div><span class="col-type">uuid</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">product_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">product_name</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">quantity</span></div><span class="col-type">int</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">unit_price</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">modifiers</span></div><span class="col-type">json</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">allergen_flags</span></div><span class="col-type">json</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">is_takeaway</span></div><span class="col-type">boolean</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">item_note</span></div><span class="col-type">varchar</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: sale_payments -->
+      <div class="card">
+        <div class="card-head head-pos">
+          <span class="card-title">sale_payments</span>
+          <span class="card-tag tag-pos">Split Pay</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">sale_id</span></div><span class="col-type">uuid</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">payment_method</span></div><span class="col-type">enum</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">amount</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">cash_received</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">change_given</span></div><span class="col-type">decimal</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: cash_register_sessions -->
+      <div class="card">
+        <div class="card-head head-pos">
+          <span class="card-title">cash_sessions</span>
+          <span class="card-tag tag-pos">Turnos</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">user_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">initial_cash</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">actual_cash</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">difference</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">status</span></div><span class="col-type">enum</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLUMNA 2: CATÁLOGO Y PERSONALIZACIONES -->
+    <div class="domain-column">
+      <div class="domain-title dom-cat">🍓 Catálogo & Opciones</div>
+
+      <!-- Tabla: categories -->
+      <div class="card">
+        <div class="card-head head-cat">
+          <span class="card-title">categories</span>
+          <span class="card-tag tag-cat">Catálogo</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">name</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">icon</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">sort_order</span></div><span class="col-type">int</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">is_active</span></div><span class="col-type">boolean</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: products -->
+      <div class="card">
+        <div class="card-head head-cat">
+          <span class="card-title">products</span>
+          <span class="card-tag tag-cat">Bowls</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">category_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">name</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">price</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">delivery_price</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">is_active</span></div><span class="col-type">boolean</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: option_groups -->
+      <div class="card">
+        <div class="card-head head-cat">
+          <span class="card-title">option_groups</span>
+          <span class="card-tag tag-cat">Grupos</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">name</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">min_select</span></div><span class="col-type">int</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">max_select</span></div><span class="col-type">int</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">free_quantity</span></div><span class="col-type">int</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">is_required</span></div><span class="col-type">boolean</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: options -->
+      <div class="card">
+        <div class="card-head head-cat">
+          <span class="card-title">options</span>
+          <span class="card-tag tag-cat">Items</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">group_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">name</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">extra_price</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">is_active</span></div><span class="col-type">boolean</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLUMNA 3: INVENTARIO, RECETAS Y KARDEX -->
+    <div class="domain-column">
+      <div class="domain-title dom-inv">📦 Inventario & Costeo</div>
+
+      <!-- Tabla: ingredients -->
+      <div class="card">
+        <div class="card-head head-inv">
+          <span class="card-title">ingredients</span>
+          <span class="card-tag tag-inv">Stock</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">category_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">name</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">unit</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">current_stock</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">cost_per_unit</span></div><span class="col-type">decimal (CPP)</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: recipes (Base) -->
+      <div class="card">
+        <div class="card-head head-inv">
+          <span class="card-title">recipes</span>
+          <span class="card-tag tag-inv">Base</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">product_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">ingredient_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">quantity_req</span></div><span class="col-type">decimal</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: option_recipes (Modificadores) -->
+      <div class="card">
+        <div class="card-head head-inv">
+          <span class="card-title">option_recipes</span>
+          <span class="card-tag tag-inv">Custom</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">option_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">ingredient_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">quantity_req</span></div><span class="col-type">decimal</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: inventory_movements -->
+      <div class="card">
+        <div class="card-head head-inv">
+          <span class="card-title">inv_movements</span>
+          <span class="card-tag tag-inv">Kardex</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">ingredient_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">type</span></div><span class="col-type">enum</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">quantity</span></div><span class="col-type">decimal</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">resulting_stock</span></div><span class="col-type">decimal</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLUMNA 4: SEGURIDAD Y CLIENTES -->
+    <div class="domain-column">
+      <div class="domain-title dom-sec">🔐 Seguridad & Clientes</div>
+
+      <!-- Tabla: users -->
+      <div class="card">
+        <div class="card-head head-sec">
+          <span class="card-title">users</span>
+          <span class="card-tag tag-sec">Auth</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">name</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">email</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">role</span></div><span class="col-type">enum</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">is_active</span></div><span class="col-type">boolean</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: customers -->
+      <div class="card">
+        <div class="card-head head-sec">
+          <span class="card-title">customers</span>
+          <span class="card-tag tag-sec">VIP</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">name</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">ci_or_phone</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">points</span></div><span class="col-type">int</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">is_vip</span></div><span class="col-type">boolean</span></div>
+        </div>
+      </div>
+
+      <!-- Tabla: audit_logs -->
+      <div class="card">
+        <div class="card-head head-sec">
+          <span class="card-title">audit_logs</span>
+          <span class="card-tag tag-sec">Auditoría</span>
+        </div>
+        <div class="card-body">
+          <div class="col-row"><div class="col-left"><span class="badge-pk">PK</span><span class="col-name">id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="badge-fk">FK</span><span class="col-name">user_id</span></div><span class="col-type">bigint</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">action</span></div><span class="col-type">varchar</span></div>
+          <div class="col-row"><div class="col-left"><span class="col-name">details</span></div><span class="col-type">json</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="offline-banner">
+    <div>
+      <h3>⚡ Puente de Sincronización Offline-First (IndexedDB + Dexie.js)</h3>
+      <p>Las ventas se originan en el navegador con UUID v4 único. Al conectar a internet, se sincronizan con Laravel y MySQL de forma idempotente.</p>
+    </div>
+    <div style="font-family:'JetBrains Mono'; font-size:12px; color:var(--c-pos); font-weight:700;">
+      OhanaAcaiDB (IndexedDB v5) ➔ MySQL API REST
+    </div>
+  </div>
+
+</body>
+</html>

@@ -23,12 +23,10 @@ const displayPrice = computed(() => {
   return `Bs ${Number(props.product.price).toFixed(2)}`;
 });
 
+import { resolveImageUrl } from '../utils/imageUrl.js';
+
 const getImageUrl = computed(() => {
-  if (!props.product.image_url) return null;
-  if (props.product.image_url.startsWith('http') || props.product.image_url.startsWith('data:')) return props.product.image_url;
-  const baseUrl = 'http://127.0.0.1:8000';
-  const path = props.product.image_url.startsWith('/') ? props.product.image_url : '/storage/' + props.product.image_url;
-  return baseUrl + path;
+  return resolveImageUrl(props.product.image_url);
 });
 </script>
 
@@ -39,26 +37,41 @@ const getImageUrl = computed(() => {
     @click="handleAdd"
   >
     <div class="product-icon">
-      <img v-if="getImageUrl" :src="getImageUrl" :alt="product.name" class="product-img" />
-      <template v-else>
-        {{ product.emoji || '🍓' }}
-      </template>
-    </div>
-    <div class="product-name">{{ product.name }}</div>
-    <div class="product-desc">
-      {{ product.is_weight_based ? 'Venta por peso' : (product.description || '') }}
+      <img
+        v-if="getImageUrl"
+        :src="getImageUrl"
+        :alt="product.name"
+        class="product-img"
+        loading="lazy"
+      />
+      <div v-else class="product-fallback">
+        <span class="fallback-emoji">{{ product.emoji || '🍓' }}</span>
+      </div>
+
+      <!-- Badge 'Personalizable' superpuesto elegantemente en la imagen -->
+      <span
+        v-if="product.option_groups && product.option_groups.length > 0"
+        class="product-img-badge"
+      >
+        ✨ Personalizable
+      </span>
     </div>
 
-    <!-- If it has modifiers, we can show a small badge or note -->
-    <div v-if="product.option_groups && product.option_groups.length > 0" style="margin:4px 0;">
-      <span class="size-chip active" style="font-size:10px;padding:3px 8px;background:var(--acai-700);color:white;border-color:var(--acai-700);">
-        Personalizable
-      </span>
+    <div class="product-name" :title="product.name">{{ product.name }}</div>
+    <div class="product-desc" :title="product.description">
+      {{ product.is_weight_based ? 'Venta por peso' : (product.description || 'Sin descripción disponible') }}
     </div>
 
     <div class="product-row">
       <span class="product-price" :class="{ weight: product.is_weight_based }">{{ displayPrice }}</span>
-      <button class="add-btn" :disabled="disabled" @click.stop="handleAdd">+</button>
+      <button
+        class="add-btn"
+        :disabled="disabled"
+        aria-label="Agregar al carrito"
+        @click.stop="handleAdd"
+      >
+        +
+      </button>
     </div>
   </div>
 </template>
@@ -66,7 +79,7 @@ const getImageUrl = computed(() => {
 <style scoped>
 @keyframes pulse {
   0% { transform: scale(1); }
-  50% { transform: scale(1.03); border-color: var(--lime-500); }
+  50% { transform: scale(1.02); border-color: var(--lime-500); }
   100% { transform: scale(1); }
 }
 .pulse-add { animation: pulse 0.3s ease; }
@@ -83,6 +96,26 @@ const getImageUrl = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: inherit;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: block;
+}
+.product-card:hover .product-img {
+  transform: scale(1.06);
+}
+.product-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--cream-200) 0%, var(--cream-300) 100%);
+}
+.fallback-emoji {
+  font-size: 38px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+  transition: transform 0.3s ease;
+}
+.product-card:hover .fallback-emoji {
+  transform: scale(1.15) rotate(5deg);
 }
 </style>

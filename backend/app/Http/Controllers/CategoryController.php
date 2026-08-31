@@ -49,9 +49,16 @@ class CategoryController extends Controller
 
     /**
      * Soft-delete de una categoría.
+     * Rechaza la eliminación si la categoría contiene productos asociados.
      */
-    public function destroy(\App\Models\Category $category): Response
+    public function destroy(\App\Models\Category $category): Response|\Illuminate\Http\JsonResponse
     {
+        if ($category->products()->exists()) {
+            return response()->json([
+                'message' => 'No se puede eliminar la categoría porque contiene productos asociados. Elimina o reasigna los productos primero.'
+            ], 422);
+        }
+
         $this->categories->delete($category);
         return response()->noContent();
     }

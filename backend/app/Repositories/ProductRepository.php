@@ -22,7 +22,10 @@ class ProductRepository
      */
     public function allActive(): Collection
     {
-        return Product::active()->with(['category', 'recipes', 'optionGroups.options.recipes', 'excludedOptions'])->get();
+        return Product::active()
+            ->whereHas('category')
+            ->with(['category', 'recipes', 'optionGroups.options.recipes', 'excludedOptions'])
+            ->get();
     }
 
     /**

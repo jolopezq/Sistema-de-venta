@@ -1,4 +1,4 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+export const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem('auth_token');
@@ -21,10 +21,16 @@ export async function apiFetch(endpoint, options = {}) {
     headers,
   });
 
-  // Si el token expira o es inválido, forzar logout
-  if (response.status === 401) {
+  // Si el token expira o es inválido, forzar logout (excepto si la petición es al endpoint de /login)
+  if (response.status === 401 && endpoint !== '/login') {
     localStorage.removeItem('auth_token');
-    // Para no importar router directamente y causar dependencias circulares, usamos window
+    try {
+      const { useAuthStore } = await import('../stores/auth.js');
+      const auth = useAuthStore();
+      auth.token = null;
+      auth.user = null;
+    } catch (_) {}
+
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
@@ -33,6 +39,7 @@ export async function apiFetch(endpoint, options = {}) {
   if (!response.ok) {
     let errorMessage = 'Error en la petición';
     let errorObj = new Error(errorMessage);
+    errorObj.status = response.status;
     
     try {
       const errData = await response.json();

@@ -98,13 +98,7 @@ const handleSave = () => {
   emit('save', selectedProductIds.value);
 };
 
-const resolveImageUrl = (url) => {
-  if (!url) return null;
-  if (url.startsWith('http') || url.startsWith('data:')) return url;
-  const baseUrl = 'http://127.0.0.1:8000';
-  const path = url.startsWith('/') ? url : '/storage/' + url;
-  return baseUrl + path;
-};
+import { resolveImageUrl } from '../../utils/imageUrl.js';
 </script>
 
 <template>

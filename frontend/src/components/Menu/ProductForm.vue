@@ -18,6 +18,10 @@ const props = defineProps({
   formErrors: {
     type: Object,
     default: () => ({})
+  },
+  isSaving: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -26,14 +30,21 @@ const emit = defineEmits(['save', 'delete', 'create-option-group']);
 const initLocalProduct = (prod) => {
   const lp = JSON.parse(JSON.stringify(prod));
   
+  lp.vip_price = (lp.vip_price !== null && lp.vip_price !== undefined) ? lp.vip_price : null;
+  lp.delivery_price = (lp.delivery_price !== null && lp.delivery_price !== undefined) ? lp.delivery_price : null;
+  lp.printer_target = lp.printer_target || 'none';
+  lp.tag = lp.tag || '';
+  
   if (lp.optionGroups && lp.optionGroups.length > 0) {
     lp.option_groups = lp.optionGroups.map(og => og.id);
   } else if (lp.option_groups && lp.option_groups.length > 0) {
     if (typeof lp.option_groups[0] === 'object') {
       lp.option_groups = lp.option_groups.map(og => og.id);
     }
+  } else if (Array.isArray(lp.option_groups)) {
+    lp.option_groups = [...lp.option_groups];
   } else {
-    // If empty or undefined, calculate from props.optionGroups which contains the links
+    // If undefined or null, calculate from props.optionGroups which contains the links
     const ogIds = [];
     if (props.optionGroups && props.optionGroups.length > 0) {
       props.optionGroups.forEach(og => {
@@ -47,6 +58,18 @@ const initLocalProduct = (prod) => {
   return lp;
 };
 
+const toggleOptionGroup = (groupId) => {
+  if (!localProduct.value.option_groups) {
+    localProduct.value.option_groups = [];
+  }
+  const index = localProduct.value.option_groups.indexOf(groupId);
+  if (index > -1) {
+    localProduct.value.option_groups.splice(index, 1);
+  } else {
+    localProduct.value.option_groups.push(groupId);
+  }
+};
+
 const localProduct = ref(initLocalProduct(props.product));
 const showAssignOptionsModal = ref(false);
 
@@ -55,13 +78,7 @@ const selectedOptionGroups = computed(() => {
   return props.optionGroups.filter(og => localProduct.value.option_groups.includes(og.id));
 });
 
-const resolveImageUrl = (url) => {
-  if (!url) return null;
-  if (url.startsWith('http') || url.startsWith('data:')) return url;
-  const baseUrl = 'http://127.0.0.1:8000';
-  const path = url.startsWith('/') ? url : '/storage/' + url;
-  return baseUrl + path;
-};
+import { resolveImageUrl } from '../../utils/imageUrl.js';
 
 const imagePreview = ref(resolveImageUrl(localProduct.value.image_url));
 const fileInput = ref(null);
@@ -82,15 +99,63 @@ const triggerFileInput = () => {
   fileInput.value?.click();
 };
 
-const handleImageUpload = (e) => {
+const compressImage = (file, maxWidth = 1280, maxHeight = 1280, quality = 0.85) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+      return resolve(file);
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            return resolve(file);
+          }
+          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+          resolve(compressedFile);
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+};
+
+const handleImageUpload = async (e) => {
   const file = e.target.files[0];
   if (file) {
+    const optimizedFile = await compressImage(file);
     const reader = new FileReader();
     reader.onload = (event) => {
       imagePreview.value = event.target.result;
-      localProduct.value.image = file;
+      localProduct.value.image = optimizedFile;
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(optimizedFile);
   }
 };
 
@@ -146,7 +211,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="product-form-pya">
+  <div class="product-form-pya" :class="{ 'is-saving-locked': isSaving }">
     
     <!-- BANNER DE SUBIDA DE FOTO -->
     <div class="photo-upload-banner">
@@ -178,6 +243,7 @@ onUnmounted(() => {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
         Sube una foto del plato
       </button>
+      <span v-if="formErrors.image" class="error-msg" style="color: var(--danger-500); font-size: 13px; font-weight: 600; margin-top: 4px;">{{ formErrors.image[0] }}</span>
     </div>
 
     <!-- CAMPOS DE TEXTO -->
@@ -226,7 +292,7 @@ onUnmounted(() => {
         <div class="input-card" :class="{'has-error': formErrors.price}">
           <span class="input-label">Precio *</span>
           <div class="price-input-row">
-            <input type="number" step="0.5" v-model="localProduct.price" class="input-field" placeholder="0.00" />
+            <input type="number" step="0.5" min="0" v-model="localProduct.price" class="input-field" placeholder="0.00" />
             <span class="currency-tag">BOB</span>
           </div>
           <span v-if="formErrors.price" class="error-msg">{{ formErrors.price[0] }}</span>
@@ -257,21 +323,21 @@ onUnmounted(() => {
               :class="{ 'selected': localProduct.tag === 'popular' }"
               @click="selectTag('popular')"
             >
-              Popular
+              🔥 Popular
             </div>
             <div 
               class="custom-option" 
               :class="{ 'selected': localProduct.tag === 'recomendado' }"
               @click="selectTag('recomendado')"
             >
-              Recomendado
+              ⭐ Recomendado
             </div>
             <div 
               class="custom-option" 
               :class="{ 'selected': localProduct.tag === 'nuevo' }"
               @click="selectTag('nuevo')"
             >
-              Nuevo
+              ✨ Nuevo
             </div>
           </div>
         </div>
@@ -290,11 +356,21 @@ onUnmounted(() => {
           <p>Asigna un grupo de opcionales a este producto para que los clientes puedan personalizar su orden.</p>
         </div>
 
-        <!-- Lista de opcionales asignados (solo lectura en esta vista) -->
+        <!-- Lista de opcionales asignados -->
         <div v-else class="option-groups-card-list">
-          <div v-for="og in selectedOptionGroups" :key="og.id" class="og-custom-card readonly-card">
+          <div 
+            v-for="og in selectedOptionGroups" 
+            :key="og.id" 
+            class="og-custom-card"
+            @click="toggleOptionGroup(og.id)"
+          >
             <div class="og-custom-card-content">
-              <div class="og-info-wrapper" style="margin-left: 0;">
+              <div class="og-checkbox-wrapper">
+                <div class="custom-checkbox" :class="{ 'checked': (localProduct.option_groups || []).includes(og.id) }">
+                  <svg v-if="(localProduct.option_groups || []).includes(og.id)" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" class="check-icon"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </div>
+              </div>
+              <div class="og-info-wrapper">
                 <span class="og-title">{{ og.name }}</span>
                 <span class="og-options-text" v-if="og.options && og.options.length">
                   {{ og.options.map(o => o.name).join(', ') }}.
@@ -316,8 +392,29 @@ onUnmounted(() => {
 
     <!-- BOTÓN FINAL DE GUARDAR / CONFIRMAR -->
     <div class="form-actions-footer">
-      <button type="button" class="btn-confirmar-pya" @click="save">Confirmar</button>
-      <button v-if="localProduct.id" type="button" class="btn-delete-pya" @click="deleteProduct">Eliminar producto</button>
+      <button 
+        type="button" 
+        class="btn-confirmar-pya" 
+        :class="{ 'is-loading': isSaving }"
+        :disabled="isSaving" 
+        @click="save"
+      >
+        <span v-if="isSaving" class="spinner-pya"></span>
+        <span>{{ isSaving ? 'Guardando producto...' : 'Confirmar' }}</span>
+      </button>
+      <button 
+        v-if="localProduct.id" 
+        type="button" 
+        class="btn-delete-pya" 
+        :disabled="isSaving" 
+        @click="deleteProduct"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+        Eliminar producto
+      </button>
     </div>
 
     <!-- MODAL AGREGAR OPCIONALES -->
@@ -568,7 +665,16 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-/* FOOTER BUTTONS */
+/* FOOTER BUTTONS & LOADING STATE */
+.is-saving-locked .form-fields-container,
+.is-saving-locked .photo-upload-banner {
+  opacity: 0.65;
+  pointer-events: none;
+  user-select: none;
+  filter: grayscale(0.25);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
 .form-actions-footer {
   display: flex;
   flex-direction: column;
@@ -586,11 +692,41 @@ onUnmounted(() => {
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.2s, background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: opacity 0.2s, background-color 0.2s, transform 0.1s;
 }
 
-.btn-confirmar-pya:hover {
+.btn-confirmar-pya:hover:not(:disabled) {
   background: var(--passion-600);
+}
+
+.btn-confirmar-pya:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.btn-confirmar-pya:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.spinner-pya {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: pya-spin 0.75s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+@keyframes pya-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .btn-delete-pya {
@@ -603,12 +739,22 @@ onUnmounted(() => {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   transition: background 0.2s, border-color 0.2s;
 }
 
-.btn-delete-pya:hover {
+.btn-delete-pya:hover:not(:disabled) {
   background: var(--danger-100);
   border-color: var(--danger-500);
+}
+
+.btn-delete-pya:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* CUSTOM DROPDOWNS CSS */
@@ -734,10 +880,14 @@ onUnmounted(() => {
   justify-content: center;
   transition: all 0.2s;
   background: var(--surface);
+  flex-shrink: 0;
 }
 .custom-checkbox.checked {
   background: var(--passion-500);
   border-color: var(--passion-500);
+  color: white;
+}
+.check-icon {
   color: white;
 }
 .og-info-wrapper {

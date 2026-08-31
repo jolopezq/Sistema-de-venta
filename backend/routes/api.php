@@ -36,6 +36,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('categories', CategoryController::class);
     Route::apiResource('ingredient-categories', \App\Http\Controllers\IngredientCategoryController::class);
     Route::post('option-groups/{option_group}/attach-products', [\App\Http\Controllers\OptionGroupController::class, 'attachProducts']);
+    Route::post('option-groups/{option_group}/reorder-options', [\App\Http\Controllers\OptionGroupController::class, 'reorderOptions']);
     Route::apiResource('option-groups', \App\Http\Controllers\OptionGroupController::class);
     Route::apiResource('options', \App\Http\Controllers\OptionController::class);
     Route::apiResource('products', ProductController::class);
@@ -54,9 +55,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/sales/{sale}/void', [SaleController::class, 'voidSale']);
     Route::apiResource('sales', SaleController::class)->only(['index', 'show']);
     
-    // Cola de Pedidos (KDS)
+    // Cola de Pedidos (KDS Web & Android App)
     Route::get('/order-queue', [\App\Http\Controllers\OrderQueueController::class, 'index']);
     Route::patch('/order-queue/{sale}/status', [\App\Http\Controllers\OrderQueueController::class, 'updateStatus']);
+
+    // KDS Mobile API Especializada (Android / Comandas / Realtime Stream)
+    Route::prefix('kds')->group(function () {
+        Route::get('/orders', [\App\Http\Controllers\KdsController::class, 'index']);
+        Route::patch('/orders/{sale}/status', [\App\Http\Controllers\KdsController::class, 'updateStatus']);
+        Route::get('/stats', [\App\Http\Controllers\KdsController::class, 'stats']);
+        Route::get('/stream', [\App\Http\Controllers\KdsController::class, 'stream']);
+    });
 
     // Sesiones de Caja / Turno y Arqueo
     Route::get('/cash-sessions/active', [CashRegisterSessionController::class, 'active']);

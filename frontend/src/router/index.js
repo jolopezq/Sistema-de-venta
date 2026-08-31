@@ -30,6 +30,10 @@ router.beforeEach(async (to, from, next) => {
   const { useAuthStore } = await import('../stores/auth.js');
   const authStore = useAuthStore();
   
+  if (authStore.token && !authStore.user) {
+    await authStore.fetchUser();
+  }
+  
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login');
   } else if (to.path === '/login' && authStore.isAuthenticated) {

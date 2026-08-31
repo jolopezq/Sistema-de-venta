@@ -78,20 +78,42 @@ class SaleSyncService
      */
     public function processSale(array $data, int $cashierId): void
     {
+        $createdAt = isset($data['created_at']) ? \Carbon\Carbon::parse($data['created_at']) : now();
+        $datePrefix = $createdAt->format('dmy'); // Formato Día-Mes-Año DDMMAA (ej: 270826)
+        
+        $dailySeq = $data['daily_sequence'] ?? null;
+        $orderNumber = $data['order_number'] ?? null;
+
+        if (!$orderNumber) {
+            $todayCount = Sale::whereDate('created_at', $createdAt->toDateString())->count();
+            $dailySeq = $todayCount + 1;
+            $orderNumber = sprintf('%s-%04d', $datePrefix, $dailySeq);
+        }
+
+        $itemsCollection = collect($data['items'] ?? []);
+        $totalItemsCount = $itemsCollection->count();
+        $takeawayItemsCount = $itemsCollection->filter(fn($i) => !empty($i['is_takeaway']))->count();
+
+        // La orden es 'takeaway' solo si se forzó a nivel global o si el 100% de los ítems son para llevar
+        $orderIsTakeaway = !empty($data['is_takeaway']) || ($totalItemsCount > 0 && $takeawayItemsCount === $totalItemsCount);
+
         // 1. Insertar Venta Principal
         $sale = $this->saleRepository->create([
-            'id'              => $data['id'],
-            'cashier_id'      => $cashierId,
-            'customer_id'     => $data['customer_id'] ?? null,
-            'subtotal'        => $data['subtotal'],
-            'discount_amount' => $data['discount_amount'] ?? 0,
-            'total_amount'    => $data['total_amount'],
+            'id'                 => $data['id'],
+            'order_number'       => $orderNumber,
+            'daily_sequence'     => $dailySeq,
+            'cashier_id'         => $cashierId,
+            'customer_id'        => $data['customer_id'] ?? null,
+            'subtotal'           => $data['subtotal'],
+            'discount_amount'    => $data['discount_amount'] ?? 0,
+            'total_amount'       => $data['total_amount'],
             'status'             => $data['status'] ?? 'completed',
             'preparation_status' => $data['preparation_status'] ?? 'received',
             'source'             => $data['source'] ?? 'pos',
+            'is_takeaway'        => $orderIsTakeaway,
             'notes'              => $data['notes'] ?? null,
             'sync_status'        => 'synced',
-            'created_at'         => $data['created_at'] ?? now(),
+            'created_at'         => $createdAt,
         ]);
 
         // 2. Insertar Items y Descontar Stock
@@ -130,12 +152,15 @@ class SaleSyncService
                 }
             }
 
+            $itemIsTakeaway = $orderIsTakeaway ? true : !empty($itemData['is_takeaway']);
+
             $saleItem = SaleItem::create([
                 'sale_id'               => $sale->id,
                 'product_id'            => $product->id,
                 'quantity'              => $itemData['quantity'],
                 'unit_price'            => $itemData['unit_price'],
                 'subtotal'              => $itemData['subtotal'],
+                'is_takeaway'           => $itemIsTakeaway,
                 'item_note'             => $itemData['item_note'] ?? null,
                 'allergen_flags'        => isset($itemData['allergen_flags']) && is_array($itemData['allergen_flags']) ? $itemData['allergen_flags'] : null,
             ]);

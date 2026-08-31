@@ -36,6 +36,12 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make('password'),
             'role' => 'cashier',
         ]);
+        User::create([
+            'name' => 'Pantalla Cocina KDS',
+            'email' => 'cocina@example.com',
+            'password' => Hash::make('password'),
+            'role' => 'kitchen',
+        ]);
 
         // 2. Crear Insumos
         $acai = Ingredient::create(['name' => 'Pulpa de Açaí', 'unit' => 'kg', 'current_stock' => 50, 'unit_cost' => 12]);

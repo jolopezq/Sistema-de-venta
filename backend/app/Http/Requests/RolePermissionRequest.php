@@ -22,7 +22,7 @@ class RolePermissionRequest extends FormRequest
     {
         return [
             'permissions' => ['required', 'array'],
-            'permissions.*.role' => ['required', 'string', 'in:super_admin,admin,cashier'],
+            'permissions.*.role' => ['required', 'string', 'in:super_admin,admin,cashier,kitchen'],
             'permissions.*.module' => ['required', 'string'],
             'permissions.*.access_level' => ['required', 'string', 'in:none,read,edit'],
         ];

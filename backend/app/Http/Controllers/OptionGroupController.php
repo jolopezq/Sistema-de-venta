@@ -95,4 +95,20 @@ class OptionGroupController extends Controller
 
         return response()->json(['message' => 'Products attached successfully']);
     }
+
+    public function reorderOptions(Request $request, OptionGroup $optionGroup): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'option_ids'   => ['required', 'array'],
+            'option_ids.*' => ['integer', 'exists:options,id'],
+        ]);
+
+        DB::transaction(function () use ($request, $optionGroup) {
+            foreach ($request->option_ids as $index => $id) {
+                $optionGroup->options()->where('id', $id)->update(['sort_order' => $index]);
+            }
+        });
+
+        return response()->json(['message' => 'Options reordered successfully']);
+    }
 }

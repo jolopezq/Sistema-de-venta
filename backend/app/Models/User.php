@@ -84,4 +84,9 @@ class User extends Authenticatable
     {
         return $this->role === 'cashier';
     }
+
+    public function isKitchen(): bool
+    {
+        return $this->role === 'kitchen';
+    }
 }

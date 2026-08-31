@@ -132,6 +132,18 @@ async function handleLogout() {
           <div class="name">{{ auth.user?.name || 'Usuario' }}</div>
           <div class="role">{{ userRole }}</div>
         </div>
+        <!-- Performance Toggle Button -->
+        <button 
+          class="oh-perf-btn" 
+          :class="{ active: theme.isPerfLite }" 
+          @click="theme.togglePerfLite()" 
+          :title="theme.isPerfLite ? 'Modo Alto Rendimiento Activo (Optimizado para Toshiba A10)' : 'Cambiar a Modo Alto Rendimiento'"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+        </button>
+
         <button class="oh-theme-btn" @click="theme.toggleTheme()" title="Cambiar tema">
           <svg v-if="theme.isDark" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="5"></circle>
@@ -163,6 +175,17 @@ async function handleLogout() {
       <!-- Top bar: title + network indicator -->
       <div class="oh-shell-topbar">
         <div class="topbar-actions">
+          <button 
+            class="oh-perf-btn-top" 
+            :class="{ active: theme.isPerfLite }" 
+            @click="theme.togglePerfLite()" 
+            :title="theme.isPerfLite ? 'Modo Rendimiento Ligero Activado (60 FPS)' : 'Activar Modo Rendimiento Ligero'"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span class="perf-tag" v-if="theme.isPerfLite">60 FPS</span>
+          </button>
           <button class="oh-theme-btn-top" @click="theme.toggleTheme()" title="Cambiar tema">
             <svg v-if="theme.isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
@@ -234,12 +257,13 @@ async function handleLogout() {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: var(--cream-50) var(--logo-uri) center/72% no-repeat;
+  background: #ffffff var(--logo-uri) center/86% no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
   flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
 .pos-brand span {
@@ -303,7 +327,7 @@ async function handleLogout() {
 .oh-sidebar-foot-info .name { font-size: 12.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .oh-sidebar-foot-info .role { font-size: 10.5px; color: #C8AECC; }
 
-.oh-logout-btn, .oh-theme-btn {
+.oh-logout-btn, .oh-theme-btn, .oh-perf-btn {
   width: 28px;
   height: 28px;
   border: none;
@@ -317,8 +341,9 @@ async function handleLogout() {
   flex-shrink: 0;
   transition: background .15s ease, color .15s ease;
 }
-.oh-logout-btn:hover, .oh-theme-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
-.oh-logout-btn svg, .oh-theme-btn svg { width: 14px; height: 14px; }
+.oh-logout-btn:hover, .oh-theme-btn:hover, .oh-perf-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+.oh-logout-btn svg, .oh-theme-btn svg, .oh-perf-btn svg { width: 14px; height: 14px; }
+.oh-perf-btn.active { background: rgba(251, 120, 16, 0.25); color: #FF9640; }
 
 /* ---- MAIN ---- */
 .oh-shell-main {
@@ -342,26 +367,37 @@ async function handleLogout() {
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
-.oh-theme-btn-top {
-  width: 32px;
+.oh-theme-btn-top, .oh-perf-btn-top {
   height: 32px;
   border: none;
   background: var(--cream-200);
   border-radius: 8px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
   cursor: pointer;
   color: var(--ink-700);
+  font-size: 11.5px;
+  font-weight: 700;
   transition: all .15s ease;
 }
-.oh-theme-btn-top:hover {
+.oh-theme-btn-top { width: 32px; padding: 0; }
+.oh-theme-btn-top:hover, .oh-perf-btn-top:hover {
   background: var(--border-local);
   color: var(--ink-900);
 }
+.oh-perf-btn-top.active {
+  background: var(--passion-100);
+  color: var(--passion-700);
+  border: 1px solid rgba(251, 120, 16, 0.3);
+}
+.oh-perf-btn-top svg { width: 15px; height: 15px; }
 .oh-theme-btn-top svg { width: 18px; height: 18px; }
+.perf-tag { font-family: var(--font-heading); font-size: 11px; }
 
 .oh-shell-content {
   flex: 1;
@@ -370,7 +406,31 @@ async function handleLogout() {
   flex-direction: column;
 }
 
-/* ---- RESPONSIVE ---- */
+/* ---- RESPONSIVE: Laptop 1366x768 & Compact Displays ---- */
+@media (max-width: 1366px), (max-height: 800px) {
+  .oh-sidebar {
+    width: 175px;
+    padding: 14px 10px;
+    gap: 16px;
+  }
+  .pos-brand span { font-size: 15px; }
+  .pos-brand .logo-chip { width: 30px; height: 30px; }
+  .oh-nav a {
+    padding: 7px 8px;
+    font-size: 12.5px;
+    gap: 8px;
+  }
+  .oh-nav a svg { width: 14px; height: 14px; }
+  .oh-nav-label { font-size: 9px; margin: 4px 0 2px 6px; }
+  .oh-avatar-sm { width: 24px; height: 24px; font-size: 10px; }
+  .oh-sidebar-foot-info .name { font-size: 11.5px; }
+  .oh-sidebar-foot-info .role { font-size: 9.5px; }
+  .oh-sidebar-foot { padding: 8px 6px; gap: 6px; }
+  .oh-logout-btn, .oh-theme-btn, .oh-perf-btn { width: 24px; height: 24px; }
+  .oh-shell-topbar { min-height: 38px; padding: 6px 14px; }
+  .oh-theme-btn-top, .oh-perf-btn-top { height: 28px; }
+}
+
 @media (max-width: 760px) {
   .oh-sidebar {
     width: 64px;

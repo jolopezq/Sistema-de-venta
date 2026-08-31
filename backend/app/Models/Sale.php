@@ -31,6 +31,8 @@ class Sale extends Model
 
     protected $fillable = [
         'id',
+        'order_number',
+        'daily_sequence',
         'cashier_id',
         'customer_id',
         'subtotal',
@@ -44,6 +46,7 @@ class Sale extends Model
         'void_reason',
         'voided_by',
         'source',
+        'is_takeaway',
         'notes',
         'sync_status',
     ];
@@ -54,6 +57,7 @@ class Sale extends Model
             'subtotal' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'total_amount' => 'decimal:2',
+            'is_takeaway' => 'boolean',
             'preparation_started_at' => 'datetime',
             'ready_at' => 'datetime',
             'delivered_at' => 'datetime',

@@ -19,6 +19,12 @@ export const useAuthStore = defineStore('auth', {
       this.token = response.access_token;
       this.user = response.user;
       localStorage.setItem('auth_token', response.access_token);
+      
+      try {
+        const { useCatalogStore } = await import('./catalog.js');
+        const catalog = useCatalogStore();
+        catalog.errorMessage = null;
+      } catch (_) {}
     },
 
     async logout() {

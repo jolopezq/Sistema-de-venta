@@ -30,6 +30,7 @@ class SyncSalesRequest extends FormRequest
             'sales.*.total_amount' => ['required', 'numeric', 'min:0'],
             'sales.*.status' => ['nullable', 'in:completed,voided'],
             'sales.*.source' => ['nullable', 'in:pos,pedidosya'],
+            'sales.*.is_takeaway' => ['nullable', 'boolean'],
             'sales.*.created_at' => ['nullable', 'date'],
             
             // Items
@@ -38,6 +39,7 @@ class SyncSalesRequest extends FormRequest
             'sales.*.items.*.quantity'               => ['required', 'numeric', 'min:0.01'],
             'sales.*.items.*.unit_price'             => ['required', 'numeric', 'min:0'],
             'sales.*.items.*.subtotal'               => ['required', 'numeric', 'min:0'],
+            'sales.*.items.*.is_takeaway'            => ['nullable', 'boolean'],
             // El frontend envía 'modifiers'; el legado usa 'topping_modifications'. Ambos son aceptados.
             'sales.*.items.*.modifiers'              => ['nullable', 'array'],
             'sales.*.items.*.modifiers.*.option_id'  => ['required_with:sales.*.items.*.modifiers', 'integer'],

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { apiFetch } from '../../services/api';
 import AssignProductsModal from './AssignProductsModal.vue';
 
@@ -12,13 +12,99 @@ const props = defineProps({
 
 const emit = defineEmits(['edit-group', 'update-group', 'alert', 'confirm']);
 
+// Local reactive options copy for instant drag reordering
+const localOptions = ref([]);
+
+watch(
+  () => props.group?.options,
+  (newOptions) => {
+    localOptions.value = newOptions ? [...newOptions] : [];
+  },
+  { immediate: true, deep: true }
+);
+
+// Drag & Drop State
+const draggedIndex = ref(null);
+const dragOverIndex = ref(null);
+const isSavingOrder = ref(false);
+let hasMoved = false;
+
+const onDragStart = (e, index) => {
+  draggedIndex.value = index;
+  hasMoved = false;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', index);
+};
+
+const onDragOver = (e, index) => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (dragOverIndex.value !== index) {
+    dragOverIndex.value = index;
+  }
+};
+
+const onDragLeave = (e, index) => {
+  if (dragOverIndex.value === index) {
+    dragOverIndex.value = null;
+  }
+};
+
+const onDragEnd = () => {
+  draggedIndex.value = null;
+  dragOverIndex.value = null;
+};
+
+const onDrop = async (e, targetIndex) => {
+  e.preventDefault();
+  const sourceIndex = draggedIndex.value;
+  
+  if (sourceIndex === null || sourceIndex === undefined || sourceIndex === targetIndex) {
+    draggedIndex.value = null;
+    dragOverIndex.value = null;
+    return;
+  }
+
+  hasMoved = true;
+
+  // Reorder locally
+  const reordered = [...localOptions.value];
+  const [movedItem] = reordered.splice(sourceIndex, 1);
+  reordered.splice(targetIndex, 0, movedItem);
+  localOptions.value = reordered;
+
+  draggedIndex.value = null;
+  dragOverIndex.value = null;
+
+  // Persist order in backend
+  try {
+    isSavingOrder.value = true;
+    const optionIds = localOptions.value.map(o => o.id);
+    await apiFetch(`/option-groups/${props.group.id}/reorder-options`, {
+      method: 'POST',
+      body: JSON.stringify({ option_ids: optionIds })
+    });
+    emit('update-group', props.group.id);
+  } catch (error) {
+    emit('alert', 'Error al guardar el nuevo orden: ' + (error.message || error));
+    // Rollback
+    localOptions.value = props.group.options ? [...props.group.options] : [];
+  } finally {
+    isSavingOrder.value = false;
+  }
+};
+
 // Modal states
 const showAssignModal = ref(false);
-const showAddOptionModal = ref(false);
+const showOptionModal = ref(false);
+const editingOption = ref(null);
 
-const newOptionName = ref('');
-const newOptionPrice = ref(0);
-const newOptionDeliveryPrice = ref(0);
+const optionForm = ref({
+  name: '',
+  additional_price: 0,
+  delivery_price: 0,
+  is_active: true
+});
 const isSubmittingOption = ref(false);
 
 // Computed linked products list
@@ -72,41 +158,91 @@ const handleAssignSave = async (productIds) => {
   }
 };
 
-// Handle Create Quick Option
+// Open modal to create option
 const openAddOptionModal = () => {
-  newOptionName.value = '';
-  newOptionPrice.value = 0;
-  newOptionDeliveryPrice.value = 0;
-  showAddOptionModal.value = true;
+  editingOption.value = null;
+  optionForm.value = {
+    name: '',
+    additional_price: 0,
+    delivery_price: 0,
+    is_active: true
+  };
+  showOptionModal.value = true;
 };
 
-const confirmAddOption = async () => {
-  if (!newOptionName.value.trim()) return;
-  if (Number(newOptionPrice.value) < 0 || Number(newOptionDeliveryPrice.value) < 0) {
+// Open modal to edit selected option
+const openEditOptionModal = (opt) => {
+  if (hasMoved) {
+    hasMoved = false;
+    return;
+  }
+  editingOption.value = opt;
+  optionForm.value = {
+    name: opt.name,
+    additional_price: Number(opt.additional_price) || 0,
+    delivery_price: Number(opt.delivery_price) || 0,
+    is_active: opt.is_active ?? true
+  };
+  showOptionModal.value = true;
+};
+
+// Save Option (Create or Update)
+const saveOption = async () => {
+  if (!optionForm.value.name.trim()) return;
+  if (Number(optionForm.value.additional_price) < 0 || Number(optionForm.value.delivery_price) < 0) {
     emit('alert', 'El precio no puede ser negativo.');
     return;
   }
   isSubmittingOption.value = true;
   try {
-    const newOpt = {
-      name: newOptionName.value.trim(),
-      additional_price: Number(newOptionPrice.value) || 0,
-      delivery_price: Number(newOptionDeliveryPrice.value) || 0,
-      is_active: true,
-      is_default: false,
+    const payload = {
+      name: optionForm.value.name.trim(),
+      additional_price: Number(optionForm.value.additional_price) || 0,
+      delivery_price: Number(optionForm.value.delivery_price) || 0,
+      is_active: optionForm.value.is_active,
+      is_default: editingOption.value ? (editingOption.value.is_default || false) : false,
       option_group_id: props.group.id
     };
-    await apiFetch('/options', {
-      method: 'POST',
-      body: JSON.stringify(newOpt)
-    });
-    showAddOptionModal.value = false;
+    if (editingOption.value) {
+      await apiFetch(`/options/${editingOption.value.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      emit('alert', 'Opción actualizada correctamente');
+    } else {
+      await apiFetch('/options', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      emit('alert', 'Opción creada correctamente');
+    }
+    showOptionModal.value = false;
     emit('update-group', props.group.id);
   } catch (error) {
-    emit('alert', 'Error al crear opción: ' + (error.message || error));
+    emit('alert', 'Error al guardar la opción: ' + (error.message || error));
   } finally {
     isSubmittingOption.value = false;
   }
+};
+
+// Delete option
+const deleteOption = async () => {
+  if (!editingOption.value) return;
+  emit('confirm', `¿Seguro que deseas eliminar la opción "${editingOption.value.name}"?`, async () => {
+    isSubmittingOption.value = true;
+    try {
+      await apiFetch(`/options/${editingOption.value.id}`, {
+        method: 'DELETE'
+      });
+      showOptionModal.value = false;
+      emit('alert', 'Opción eliminada correctamente');
+      emit('update-group', props.group.id);
+    } catch (error) {
+      emit('alert', 'Error al eliminar la opción: ' + (error.message || error));
+    } finally {
+      isSubmittingOption.value = false;
+    }
+  });
 };
 </script>
 
@@ -126,6 +262,9 @@ const confirmAddOption = async () => {
       </div>
 
       <div class="top-right">
+        <span v-if="isSavingOrder" class="saving-order-indicator">
+          Guardando orden...
+        </span>
         <button class="btn-add-option-pya" @click="openAddOptionModal">
           <span class="plus-sign">+</span> Crear Opcional
         </button>
@@ -148,17 +287,46 @@ const confirmAddOption = async () => {
       </div>
     </div>
 
-    <!-- Bottom section (Options list) -->
+    <!-- Bottom section (Options list with Drag & Drop) -->
     <div class="card-section options-section">
+      <div class="drag-hint" v-if="localOptions.length > 1">
+        <span>💡 Arrastra y suelta las opciones con el icono ⠿ para cambiar el orden de visualización</span>
+      </div>
+
       <div 
-        v-for="opt in group.options" 
+        v-for="(opt, index) in localOptions" 
         :key="opt.id"
         class="option-row-card"
-        :class="{ inactive: !opt.is_active }"
+        :class="{ 
+          inactive: !opt.is_active,
+          'is-dragging': draggedIndex === index,
+          'is-drag-over-top': dragOverIndex === index && draggedIndex !== null && draggedIndex > index,
+          'is-drag-over-bottom': dragOverIndex === index && draggedIndex !== null && draggedIndex < index
+        }"
+        draggable="true"
+        @dragstart="onDragStart($event, index)"
+        @dragover="onDragOver($event, index)"
+        @dragleave="onDragLeave($event, index)"
+        @dragend="onDragEnd"
+        @drop="onDrop($event, index)"
       >
-        <div class="opt-name">{{ opt.name }}</div>
+        <!-- Drag Handle Icon -->
+        <div class="drag-handle" title="Mantén presionado para mover de posición">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <circle cx="9" cy="5" r="1.6"/>
+            <circle cx="15" cy="5" r="1.6"/>
+            <circle cx="9" cy="12" r="1.6"/>
+            <circle cx="15" cy="12" r="1.6"/>
+            <circle cx="9" cy="19" r="1.6"/>
+            <circle cx="15" cy="19" r="1.6"/>
+          </svg>
+        </div>
 
-        <div class="opt-right-controls">
+        <div class="opt-left clickable-area" @click="openEditOptionModal(opt)" title="Haz clic para editar este opcional">
+          <div class="opt-name">{{ opt.name }}</div>
+        </div>
+
+        <div class="opt-right-controls" @click.stop>
           <label class="toggle-switch">
             <input 
               type="checkbox" 
@@ -171,7 +339,7 @@ const confirmAddOption = async () => {
         </div>
       </div>
 
-      <div v-if="!group.options || group.options.length === 0" class="empty-options">
+      <div v-if="!localOptions || localOptions.length === 0" class="empty-options">
         No hay opciones registradas.
       </div>
     </div>
@@ -186,36 +354,53 @@ const confirmAddOption = async () => {
       @save="handleAssignSave"
     />
 
-    <!-- MODAL QUICK CREAR OPCIONAL -->
-    <div v-if="showAddOptionModal" class="modal-backdrop" @click.self="showAddOptionModal = false">
+    <!-- MODAL CREAR / EDITAR OPCIONAL -->
+    <div v-if="showOptionModal" class="modal-backdrop" @click.self="showOptionModal = false">
       <div class="modal-content-sm">
         <div class="modal-header-sm">
-          <h3>Crear opcional</h3>
-          <button class="btn-close-sm" @click="showAddOptionModal = false">&times;</button>
+          <h3>{{ editingOption ? 'Editar opcional' : 'Crear opcional' }}</h3>
+          <button class="btn-close-sm" @click="showOptionModal = false">&times;</button>
         </div>
 
         <div class="modal-body-sm">
           <div class="input-group">
             <label>Nombre de la opción <span class="required">*</span></label>
-            <input type="text" v-model="newOptionName" placeholder="Ej: Mediano, Extra queso" class="form-control" autofocus />
+            <input type="text" v-model="optionForm.name" placeholder="Ej: Mediano, Grande" class="form-control" autofocus />
           </div>
 
           <div class="input-group">
             <label>Precio adicional en local (BOB)</label>
-            <input type="number" step="0.50" min="0" v-model="newOptionPrice" placeholder="0.00" class="form-control" />
+            <input type="number" step="0.50" min="0" v-model="optionForm.additional_price" placeholder="0.00" class="form-control" />
           </div>
 
           <div class="input-group">
             <label>Precio adicional en delivery (BOB)</label>
-            <input type="number" step="0.50" min="0" v-model="newOptionDeliveryPrice" placeholder="0.00" class="form-control" />
+            <input type="number" step="0.50" min="0" v-model="optionForm.delivery_price" placeholder="0.00" class="form-control" />
+          </div>
+
+          <div class="input-group-row" v-if="editingOption">
+            <label>Disponible</label>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="optionForm.is_active" />
+              <span class="slider round"></span>
+            </label>
           </div>
         </div>
 
         <div class="modal-footer-sm">
-          <button class="btn-cancel" @click="showAddOptionModal = false">Cancelar</button>
-          <button class="btn-save" :disabled="!newOptionName.trim() || isSubmittingOption" @click="confirmAddOption">
-            {{ isSubmittingOption ? 'Guardando...' : 'Crear' }}
+          <button v-if="editingOption" class="btn-delete-opt-sub" @click="deleteOption" :disabled="isSubmittingOption">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Eliminar
           </button>
+          <div class="footer-right-actions">
+            <button class="btn-cancel" @click="showOptionModal = false">Cancelar</button>
+            <button class="btn-save" :disabled="!optionForm.name.trim() || isSubmittingOption" @click="saveOption">
+              {{ isSubmittingOption ? 'Guardando...' : (editingOption ? 'Guardar' : 'Crear') }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -277,6 +462,22 @@ const confirmAddOption = async () => {
 .top-right {
   display: flex;
   align-items: center;
+  gap: 12px;
+}
+
+.saving-order-indicator {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--passion-600);
+  background: #fff3e0;
+  padding: 4px 10px;
+  border-radius: 20px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .btn-add-option-pya {
@@ -352,42 +553,108 @@ const confirmAddOption = async () => {
 .options-section {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+}
+
+.drag-hint {
+  font-size: 12px;
+  color: var(--ink-500);
+  padding: 0 4px 10px 4px;
+  font-weight: 500;
 }
 
 .option-row-card {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 16px 0;
+  align-items: center;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
+  border-radius: 10px;
+  transition: background-color 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+  background-color: var(--surface);
+  user-select: none;
+  position: relative;
 }
 
 .option-row-card:last-child {
   border-bottom: none;
 }
 
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-400);
+  cursor: grab;
+  padding: 6px 8px 6px 2px;
+  border-radius: 6px;
+  transition: color 0.15s, transform 0.15s;
+}
+
+.drag-handle:hover {
+  color: var(--passion-500);
+  transform: scale(1.1);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.clickable-area {
+  flex: 1;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.clickable-area:hover {
+  background-color: var(--surface-hover);
+}
+
 .option-row-card.inactive {
   opacity: 0.65;
 }
 
+/* Estados de Drag and Drop */
+.option-row-card.is-dragging {
+  opacity: 0.35;
+  background-color: var(--surface-hover);
+  border: 2px dashed var(--passion-400);
+}
+
+.option-row-card.is-drag-over-top {
+  border-top: 3px solid var(--passion-500);
+  background-color: #fff8f6;
+}
+
+.option-row-card.is-drag-over-bottom {
+  border-bottom: 3px solid var(--passion-500);
+  background-color: #fff8f6;
+}
+
+.opt-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .opt-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--ink-900);
-  padding-top: 4px;
 }
 
 .opt-right-controls {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: 6px;
 }
 
 .opt-price-below {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-500);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* TOGGLE SWITCH */
@@ -529,11 +796,52 @@ input:checked + .slider:before {
   border-color: var(--passion-500);
 }
 
+.input-group-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.input-group-row label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-700);
+}
+
 .modal-footer-sm {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 12px;
   margin-top: 24px;
+}
+
+.footer-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.btn-delete-opt-sub {
+  background: transparent;
+  border: 1px solid var(--danger-300);
+  color: var(--danger-500);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-delete-opt-sub:hover {
+  background: var(--danger-50);
+  border-color: var(--danger-500);
 }
 
 .btn-cancel {

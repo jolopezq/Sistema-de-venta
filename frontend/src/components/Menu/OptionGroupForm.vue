@@ -20,14 +20,24 @@ watch(() => props.optionGroup, (newVal) => {
   if (!localGroup.value.options) localGroup.value.options = [];
 }, { deep: true, immediate: true });
 
-// --- Sub-modal Agregar Opcional ---
+// --- Sub-modal Agregar/Editar Opcional ---
 const showAddOptionModal = ref(false);
+const editingOptionIndex = ref(null);
 const newOptName = ref('');
 const newOptPrice = ref(0);
 
 const openAddOptionModal = () => {
+  editingOptionIndex.value = null;
   newOptName.value = '';
   newOptPrice.value = 0;
+  showAddOptionModal.value = true;
+};
+
+const openEditOptionModal = (index) => {
+  editingOptionIndex.value = index;
+  const opt = localGroup.value.options[index];
+  newOptName.value = opt.name;
+  newOptPrice.value = opt.additional_price || 0;
   showAddOptionModal.value = true;
 };
 
@@ -35,13 +45,18 @@ const confirmAddOption = () => {
   if (!newOptName.value) return;
   if (!localGroup.value.options) localGroup.value.options = [];
   
-  localGroup.value.options.push({
-    name: newOptName.value,
-    additional_price: Number(newOptPrice.value) || 0,
-    delivery_price: 0,
-    is_active: true,
-    is_default: false
-  });
+  if (editingOptionIndex.value !== null) {
+    localGroup.value.options[editingOptionIndex.value].name = newOptName.value;
+    localGroup.value.options[editingOptionIndex.value].additional_price = Number(newOptPrice.value) || 0;
+  } else {
+    localGroup.value.options.push({
+      name: newOptName.value,
+      additional_price: Number(newOptPrice.value) || 0,
+      delivery_price: 0,
+      is_active: true,
+      is_default: false
+    });
+  }
   
   showAddOptionModal.value = false;
 };
@@ -145,12 +160,12 @@ const deleteGroup = () => emit('delete', localGroup.value.id);
 
         <!-- Lista de opcionales del grupo -->
         <div class="options-list-card" v-if="localGroup.options && localGroup.options.length > 0">
-          <div v-for="(opt, index) in localGroup.options" :key="index" class="option-item-row">
+          <div v-for="(opt, index) in localGroup.options" :key="index" class="option-item-row clickable" @click="openEditOptionModal(index)" title="Haz clic para editar este opcional">
             <div class="opt-info">
               <div class="opt-name">{{ opt.name }}</div>
               <div class="opt-price">+{{ Number(opt.additional_price).toFixed(2) }} BOB</div>
             </div>
-            <div class="opt-actions">
+            <div class="opt-actions" @click.stop>
               <button class="btn-remove-opt" @click="removeOption(index)">✕</button>
             </div>
           </div>
@@ -189,11 +204,11 @@ const deleteGroup = () => emit('delete', localGroup.value.id);
 
     </div>
 
-    <!-- SUB-MODAL AGREGAR OPCIONAL (IMAGEN 2) -->
+    <!-- SUB-MODAL AGREGAR/EDITAR OPCIONAL (IMAGEN 2) -->
     <div v-if="showAddOptionModal" class="submodal-overlay" @click.self="showAddOptionModal = false">
       <div class="submodal-card">
         <div class="submodal-header">
-          <h3 class="submodal-title">Agregar opcional</h3>
+          <h3 class="submodal-title">{{ editingOptionIndex !== null ? 'Editar opcional' : 'Agregar opcional' }}</h3>
           <button class="btn-close" @click="showAddOptionModal = false">✕</button>
         </div>
         <div class="submodal-body">
@@ -417,6 +432,13 @@ input:checked + .slider:before { transform: translateX(20px); }
   align-items: center;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
+}
+.option-item-row.clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.option-item-row.clickable:hover {
+  background-color: var(--surface-hover);
 }
 .option-item-row:last-child { border-bottom: none; }
 .opt-name { font-weight: 700; font-size: 14.5px; color: var(--ink-900); }
