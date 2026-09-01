@@ -423,7 +423,7 @@ const newOptionGroup = () => {
     id: null,
     name: '',
     min_selections: 0,
-    max_selections: 0,
+    max_selections: 1,
     is_active: true,
     options: []
   };

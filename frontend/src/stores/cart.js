@@ -115,7 +115,10 @@ export const useCartStore = defineStore('cart', {
           base_price: product.base_price || product.price,
           item_note: itemNote,
           allergen_flags: allergenFlags,
-          is_takeaway: product.is_takeaway || false
+          is_takeaway: product.is_takeaway || false,
+          is_weight_based: Boolean(product.is_weight_based),
+          weight_grams: product.weight_grams || null,
+          price_per_gram: product.price_per_gram || null
         });
       }
     },
@@ -163,7 +166,10 @@ export const useCartStore = defineStore('cart', {
         base_price: updatedProduct.base_price || updatedProduct.price,
         item_note: itemNote,
         allergen_flags: allergenFlags,
-        is_takeaway: updatedProduct.is_takeaway || false
+        is_takeaway: updatedProduct.is_takeaway || false,
+        is_weight_based: Boolean(updatedProduct.is_weight_based),
+        weight_grams: updatedProduct.weight_grams || null,
+        price_per_gram: updatedProduct.price_per_gram || null
       });
     },
 

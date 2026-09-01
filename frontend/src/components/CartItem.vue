@@ -44,10 +44,10 @@ function getModPillClass(groupName = '') {
             <span v-if="mod.quantity > 1" style="font-weight:800;">{{ mod.quantity }}x </span>{{ mod.option_name }}<span v-if="mod.price > 0"> +{{ (Number(mod.price) * (mod.quantity || 1)).toFixed(2) }}</span>
           </span>
         </div>
-        <div v-else-if="item.is_weight_based" class="ticket-item-mods">
-          {{ item.quantity }} g · Bs ${{ (item.unit_price / 100).toFixed(4) }}/g
+        <div v-if="item.is_weight_based" class="ticket-item-mods" style="color: #86198f; font-weight: 600;">
+          ⚖️ {{ item.weight_grams || item.quantity }} g pesados
         </div>
-        <div v-else-if="!item.item_note && (!item.allergen_flags || item.allergen_flags.length === 0)" class="ticket-item-mods">
+        <div v-else-if="(!item.modifiers || item.modifiers.length === 0) && !item.item_note && (!item.allergen_flags || item.allergen_flags.length === 0)" class="ticket-item-mods">
           Sin modificadores
         </div>
 
@@ -76,7 +76,7 @@ function getModPillClass(groupName = '') {
     <!-- Cantidad -->
     <div class="qty-control">
       <button @click="emit('decrease', item)">−</button>
-      <span class="qty-val">{{ item.is_weight_based ? item.quantity + ' g' : item.quantity }}</span>
+      <span class="qty-val">{{ item.is_weight_based ? (item.weight_grams ? item.weight_grams + 'g' : item.quantity + 'g') : item.quantity }}</span>
       <button @click="emit('increase', item)">+</button>
     </div>
   </div>

@@ -35,7 +35,7 @@ const selectedProduct = ref(null);
 const editingCartItem = ref(null);
 
 function handleAddToCart(product) {
-  if (product.option_groups && product.option_groups.length > 0) {
+  if (product.is_weight_based || (product.option_groups && product.option_groups.length > 0)) {
     selectedProduct.value = product;
     editingCartItem.value = null; // Modo creación
     showModifierModal.value = true;
@@ -45,7 +45,8 @@ function handleAddToCart(product) {
       id: product.id,
       name: product.name,
       price: product.price,
-      modifiers: []
+      modifiers: [],
+      is_weight_based: false
     }, 1);
   }
 }
@@ -63,7 +64,8 @@ function handleEditCartItem(cartItem) {
     modifiers:    cartItem.modifiers || [],
     itemNote:     cartItem.item_note || '',
     allergenFlags: cartItem.allergen_flags || [],
-    isTakeaway:   cartItem.is_takeaway || false
+    isTakeaway:   cartItem.is_takeaway || false,
+    weightGrams:  cartItem.weight_grams || (cartItem.is_weight_based ? cartItem.quantity : null)
   };
   showModifierModal.value = true;
 }
@@ -95,24 +97,30 @@ function isProductInStock(product) {
   return true;
 }
 
-function handleConfirmModifiers({ product, modifiers, finalPrice, itemNote, allergenFlags, isTakeaway, editingCartKey }) {
+function handleConfirmModifiers({ product, modifiers, finalPrice, itemNote, allergenFlags, isTakeaway, editingCartKey, weightGrams }) {
   showModifierModal.value = false;
 
+  const isWeight = Boolean(product.is_weight_based);
   const updatedProduct = {
-    id:          product.id,
-    name:        product.name,
-    price:       finalPrice,
-    modifiers:   modifiers,
-    base_price:  product.price,
-    is_takeaway: isTakeaway || false
+    id:              product.id,
+    name:            product.name,
+    price:           finalPrice,
+    modifiers:       modifiers,
+    base_price:      product.price,
+    is_takeaway:     isTakeaway || false,
+    is_weight_based: isWeight,
+    weight_grams:    weightGrams,
+    price_per_gram:  product.price_per_gram
   };
+
+  const quantity = isWeight ? 1 : 1;
 
   if (editingCartKey) {
     // MODO EDICIÓN: reemplaza el ítem en su posición preservando cantidad
     cart.updateItem(editingCartKey, updatedProduct, itemNote, allergenFlags);
   } else {
     // MODO CREACIÓN: agrega un nuevo ítem al carrito
-    cart.addItem(updatedProduct, 1, itemNote, allergenFlags);
+    cart.addItem(updatedProduct, quantity, itemNote, allergenFlags);
   }
 
   selectedProduct.value = null;

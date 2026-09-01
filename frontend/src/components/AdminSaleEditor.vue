@@ -126,9 +126,47 @@ function recalcItemPricesAndModifiers(item) {
     });
   });
 
-  item.unit_price = Number((basePrice + extrasPrice).toFixed(2));
+  // Cálculo según el modo de precio
+  if (item.priceMode === 'weight') {
+    const pGram = Number(item.pricePerGram || p?.price_per_gram || 0.08);
+    const weightGrams = Number(item.weightGrams || 0);
+    const weightCost = Number((weightGrams * pGram).toFixed(2));
+    item.unit_price = Number((weightCost + extrasPrice).toFixed(2));
+  } else if (item.priceMode === 'manual') {
+    // Preserva el precio que el admin ingresó directamente
+    item.unit_price = Number(Number(item.unit_price || 0).toFixed(2));
+  } else {
+    // Modo 'auto' (Catálogo estándar)
+    item.unit_price = Number((basePrice + extrasPrice).toFixed(2));
+  }
+
   item.subtotal = Number((item.quantity * item.unit_price).toFixed(2));
   item.modifiers = modifiers;
+}
+
+function setItemPriceMode(item, mode) {
+  item.priceMode = mode;
+  const p = getProduct(item.product_id);
+  if (mode === 'weight') {
+    if (!item.pricePerGram || item.pricePerGram <= 0) {
+      item.pricePerGram = Number(p?.price_per_gram || 0.08);
+    }
+    if (!item.weightGrams || item.weightGrams <= 0) {
+      item.weightGrams = 350;
+    }
+  }
+  recalcItemPricesAndModifiers(item);
+  autoSyncPayments();
+}
+
+function onWeightGramsChange(item) {
+  recalcItemPricesAndModifiers(item);
+  autoSyncPayments();
+}
+
+function onManualPriceChange(item) {
+  item.subtotal = Number((item.quantity * Number(item.unit_price || 0)).toFixed(2));
+  autoSyncPayments();
 }
 
 function handleSingleSelect(item, og, opt) {
@@ -194,18 +232,64 @@ function initForm() {
           selectedOptionIds[og.id] = selected;
         });
 
+        const rawUnitPrice = Number(i.unit_price || p?.price || 0);
+        const isWeight = Boolean(p?.is_weight_based);
+
+        // Detectar si el precio fue modificado manualmente
+        let autoPriceExpected = Number(p?.price || 0);
+        groups.forEach(og => {
+          const selected = selectedOptionIds[og.id] || [];
+          selected.forEach(optId => {
+            const opt = og.options.find(o => o.id === optId);
+            if (opt) autoPriceExpected += Number(opt.additional_price || 0);
+          });
+        });
+
+        let priceMode = 'auto';
+        if (isWeight) {
+          priceMode = 'weight';
+        } else if (Math.abs(rawUnitPrice - autoPriceExpected) > 0.05) {
+          priceMode = 'manual';
+        }
+
         const itemObj = {
           product_id: i.product_id,
           quantity: Number(i.quantity || 1),
-          unit_price: Number(i.unit_price || p?.price || 0),
-          subtotal: Number(i.subtotal || 0),
+          priceMode,
+          weightGrams: isWeight ? Number(i.quantity || 350) : 0,
+          pricePerGram: Number(p?.price_per_gram || 0.08),
+          unit_price: rawUnitPrice,
+          subtotal: Number(i.subtotal || (Number(i.quantity || 1) * rawUnitPrice)),
           is_takeaway: Boolean(i.is_takeaway),
           item_note: i.item_note || '',
           selectedOptionIds,
           modifiers: [],
           isExpanded: true
         };
-        recalcItemPricesAndModifiers(itemObj);
+
+        if (priceMode !== 'manual') {
+          recalcItemPricesAndModifiers(itemObj);
+        } else {
+          // Reconstruir modificadores para que no se pierdan
+          const modifiers = [];
+          groups.forEach(og => {
+            const selectedIds = itemObj.selectedOptionIds[og.id] || [];
+            selectedIds.forEach(optId => {
+              const opt = og.options.find(o => o.id === optId);
+              if (opt) {
+                modifiers.push({
+                  option_id: opt.id,
+                  option_name: opt.name,
+                  group_name: og.name,
+                  price: Number(opt.additional_price || 0),
+                  quantity: 1
+                });
+              }
+            });
+          });
+          itemObj.modifiers = modifiers;
+        }
+
         return itemObj;
       }),
       payments: (props.sale.payments && props.sale.payments.length > 0)
@@ -290,9 +374,15 @@ function addProductToSale(product) {
     selectedOptionIds[og.id] = defaultOptions;
   });
 
+  const isWeight = Boolean(product.is_weight_based);
+  const pricePerGram = Number(product.price_per_gram || 0.08);
+
   const newItem = {
     product_id: product.id,
     quantity: 1,
+    priceMode: isWeight ? 'weight' : 'auto',
+    weightGrams: isWeight ? 350 : 0,
+    pricePerGram: pricePerGram,
     unit_price: Number(product.price || 0),
     subtotal: Number(product.price || 0),
     is_takeaway: formData.value.is_takeaway,
@@ -322,6 +412,11 @@ function onProductSelectChange(item) {
     selectedOptionIds[og.id] = defaultOptions;
   });
   item.selectedOptionIds = selectedOptionIds;
+  if (p.is_weight_based) {
+    item.priceMode = 'weight';
+    item.weightGrams = item.weightGrams || 350;
+    item.pricePerGram = Number(p.price_per_gram || 0.08);
+  }
   recalcItemPricesAndModifiers(item);
   autoSyncPayments();
 }
@@ -586,7 +681,9 @@ async function handleSave() {
               >
                 <div class="card-info">
                   <strong class="card-name">{{ p.name }}</strong>
-                  <span class="card-price">Bs {{ Number(p.price).toFixed(2) }}</span>
+                  <span class="card-price">
+                    {{ p.is_weight_based ? `Bs ${(Number(p.price_per_gram || 0) * 100).toFixed(2)}/100g` : `Bs ${Number(p.price).toFixed(2)}` }}
+                  </span>
                 </div>
                 <div class="card-add-icon">＋</div>
               </button>
@@ -622,7 +719,7 @@ async function handleSave() {
                     class="item-product-select"
                   >
                     <option v-for="p in catalogStore.products" :key="p.id" :value="p.id">
-                      {{ p.name }} (Base: Bs {{ Number(p.price).toFixed(2) }})
+                      {{ p.name }} ({{ p.is_weight_based ? `Bs ${(Number(p.price_per_gram || 0) * 100).toFixed(2)}/100g` : `Base: Bs ${Number(p.price).toFixed(2)}` }})
                     </option>
                   </select>
                 </div>
@@ -667,6 +764,89 @@ async function handleSave() {
                 </div>
               </div>
 
+              <!-- BARRA DE MODALIDAD DE PRECIO (AUTO / PESO / MANUAL) -->
+              <div class="item-price-modes-bar">
+                <div class="price-mode-pills-wrap">
+                  <span class="mode-bar-label">Modo Precio:</span>
+                  <div class="mode-pills">
+                    <button 
+                      type="button" 
+                      class="mode-pill-btn" 
+                      :class="{ active: item.priceMode === 'auto' }"
+                      @click="setItemPriceMode(item, 'auto')"
+                      title="Calcula automáticamente según precio del catálogo + opciones"
+                    >
+                      🔒 Catálogo Auto
+                    </button>
+                    <button 
+                      type="button" 
+                      class="mode-pill-btn" 
+                      :class="{ active: item.priceMode === 'weight' }"
+                      @click="setItemPriceMode(item, 'weight')"
+                      title="Calcula multiplicando gramos por precio/gramo"
+                    >
+                      ⚖️ Por Peso (g)
+                    </button>
+                    <button 
+                      type="button" 
+                      class="mode-pill-btn" 
+                      :class="{ active: item.priceMode === 'manual' }"
+                      @click="setItemPriceMode(item, 'manual')"
+                      title="Permite escribir cualquier precio directo"
+                    >
+                      ✏️ Manual Libre
+                    </button>
+                  </div>
+                </div>
+
+                <!-- INPUTS SEGÚN EL MODO -->
+                <div v-if="item.priceMode === 'weight'" class="mode-weight-inputs">
+                  <div class="weight-field">
+                    <label>Peso:</label>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      step="10" 
+                      v-model.number="item.weightGrams" 
+                      @input="onWeightGramsChange(item)"
+                      class="input-weight-g"
+                      placeholder="Gramos"
+                    />
+                    <span class="unit-tag">g</span>
+                  </div>
+                  <div class="weight-field">
+                    <label>Precio/g:</label>
+                    <input 
+                      type="number" 
+                      min="0.001" 
+                      step="0.005" 
+                      v-model.number="item.pricePerGram" 
+                      @input="onWeightGramsChange(item)"
+                      class="input-price-per-g"
+                    />
+                    <span class="unit-tag">Bs/g</span>
+                  </div>
+                  <div class="weight-calc-hint">
+                    = Bs {{ ((Number(item.weightGrams) || 0) * (Number(item.pricePerGram) || 0)).toFixed(2) }}
+                  </div>
+                </div>
+
+                <div v-else-if="item.priceMode === 'manual'" class="mode-manual-inputs">
+                  <label>Precio Unitario Directo:</label>
+                  <div class="manual-price-field">
+                    <span class="currency-sym">Bs</span>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="0.5" 
+                      v-model.number="item.unit_price" 
+                      @input="onManualPriceChange(item)"
+                      class="input-manual-price"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <!-- CUERPO DE OPCIONES / MODIFICADORES (EXPANDIBLE) -->
               <div v-show="item.isExpanded" class="item-card-body">
                 <!-- GRUPOS DE OPCIONES (TAMAÑO, FRUTAS, TOPPINGS, ETC.) -->
@@ -684,18 +864,18 @@ async function handleSave() {
                         <span class="group-icon">{{ getGroupIcon(og.name) }}</span>
                         <strong class="group-name">{{ og.name }}</strong>
                         <span class="group-limit-badge" :class="{ 'badge-required': og.min_selections > 0 }">
-                          {{ og.max_selections === 1 ? 'Elige 1' : `Máx. ${og.max_selections}` }}
+                          {{ (!og.max_selections || Number(og.max_selections) <= 1) ? 'Elige 1' : `Máx. ${og.max_selections}` }}
                         </span>
                       </div>
 
                       <!-- Contador para multiselect -->
-                      <span v-if="og.max_selections > 1" class="group-counter">
+                      <span v-if="Number(og.max_selections) > 1" class="group-counter">
                         {{ getGroupSelectedCount(item, og.id) }} / {{ og.max_selections }} seleccionados
                       </span>
                     </div>
 
                     <!-- CASO 1: SINGLE-SELECT (TAMAÑOS / RADIOS) -->
-                    <div v-if="og.max_selections === 1" class="single-select-row">
+                    <div v-if="!og.max_selections || Number(og.max_selections) <= 1" class="single-select-row">
                       <button 
                         type="button" 
                         v-for="opt in og.options" 
@@ -1385,6 +1565,148 @@ async function handleSave() {
 
 .btn-remove-item:hover {
   opacity: 1;
+}
+
+/* BARRA DE MODOS DE PRECIO */
+.item-price-modes-bar {
+  background: #f1f5f9;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.price-mode-pills-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-bar-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.mode-pills {
+  display: flex;
+  gap: 4px;
+}
+
+.mode-pill-btn {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mode-pill-btn:hover {
+  background: #f8fafc;
+}
+
+.mode-pill-btn.active {
+  background: var(--primary, #8b5cf6);
+  border-color: var(--primary, #8b5cf6);
+  color: #ffffff;
+}
+
+.mode-weight-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weight-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.weight-field label {
+  font-weight: 700;
+}
+
+.input-weight-g {
+  width: 65px;
+  padding: 2px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  background: #ffffff;
+}
+
+.input-price-per-g {
+  width: 70px;
+  padding: 2px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  background: #ffffff;
+}
+
+.unit-tag {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.weight-calc-hint {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--primary-700, #6d28d9);
+  background: #ede9fe;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.mode-manual-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.mode-manual-inputs label {
+  font-weight: 700;
+}
+
+.manual-price-field {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.currency-sym {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.input-manual-price {
+  width: 80px;
+  padding: 3px 6px;
+  border: 1.5px solid var(--primary, #8b5cf6);
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  background: #ffffff;
+  color: var(--primary-700, #6d28d9);
 }
 
 /* OPCIONES DEL ITEM */

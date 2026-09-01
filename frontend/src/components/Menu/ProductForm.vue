@@ -34,6 +34,8 @@ const initLocalProduct = (prod) => {
   lp.delivery_price = (lp.delivery_price !== null && lp.delivery_price !== undefined) ? lp.delivery_price : null;
   lp.printer_target = lp.printer_target || 'none';
   lp.tag = lp.tag || '';
+  lp.is_weight_based = Boolean(lp.is_weight_based);
+  lp.price_per_gram = (lp.price_per_gram !== null && lp.price_per_gram !== undefined) ? lp.price_per_gram : null;
   
   if (lp.optionGroups && lp.optionGroups.length > 0) {
     lp.option_groups = lp.optionGroups.map(og => og.id);
@@ -286,16 +288,72 @@ onUnmounted(() => {
         <span v-if="formErrors.category_id" class="error-msg">{{ formErrors.category_id[0] }}</span>
       </div>
 
-      <!-- PRECIO -->
+      <!-- PRECIO Y MODALIDAD -->
       <div class="section-block">
-        <h3 class="section-title">Precio</h3>
-        <div class="input-card" :class="{'has-error': formErrors.price}">
-          <span class="input-label">Precio *</span>
+        <h3 class="section-title">Modalidad de Venta y Precio</h3>
+
+        <!-- Selector de Modalidad -->
+        <div class="input-card" style="margin-bottom: 12px;">
+          <span class="input-label">Tipo de Venta *</span>
+          <div class="sale-mode-selector">
+            <button 
+              type="button" 
+              class="sale-mode-btn" 
+              :class="{ active: !localProduct.is_weight_based }"
+              @click="localProduct.is_weight_based = false"
+            >
+              📦 Por Unidad (Precio Fijo)
+            </button>
+            <button 
+              type="button" 
+              class="sale-mode-btn" 
+              :class="{ active: localProduct.is_weight_based }"
+              @click="localProduct.is_weight_based = true"
+            >
+              ⚖️ Por Peso (Gramos)
+            </button>
+          </div>
+        </div>
+
+        <!-- Si es por Unidad -->
+        <div v-if="!localProduct.is_weight_based" class="input-card" :class="{'has-error': formErrors.price}">
+          <span class="input-label">Precio Unitario *</span>
           <div class="price-input-row">
             <input type="number" step="0.5" min="0" v-model="localProduct.price" class="input-field" placeholder="0.00" />
             <span class="currency-tag">BOB</span>
           </div>
           <span v-if="formErrors.price" class="error-msg">{{ formErrors.price[0] }}</span>
+        </div>
+
+        <!-- Si es por Peso -->
+        <div v-else class="weight-pricing-grid">
+          <div class="input-card" :class="{'has-error': formErrors.price_per_gram}">
+            <span class="input-label">Precio por Gramo *</span>
+            <div class="price-input-row">
+              <input 
+                type="number" 
+                step="0.005" 
+                min="0.001" 
+                v-model="localProduct.price_per_gram" 
+                class="input-field" 
+                placeholder="Ej: 0.08" 
+                @input="localProduct.price = ((Number(localProduct.price_per_gram) || 0) * 100).toFixed(2)"
+              />
+              <span class="currency-tag">BOB/g</span>
+            </div>
+            <span v-if="formErrors.price_per_gram" class="error-msg">{{ formErrors.price_per_gram[0] }}</span>
+            <div class="weight-equiv-hint" v-if="localProduct.price_per_gram > 0">
+              💡 Equivale a <strong>Bs {{ (Number(localProduct.price_per_gram) * 100).toFixed(2) }}</strong> por 100g (Bs {{ (Number(localProduct.price_per_gram) * 1000).toFixed(2) }} / kg)
+            </div>
+          </div>
+
+          <div class="input-card">
+            <span class="input-label">Precio Referencial (100g)</span>
+            <div class="price-input-row">
+              <input type="number" step="0.5" min="0" v-model="localProduct.price" class="input-field" placeholder="0.00" />
+              <span class="currency-tag">BOB</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -916,5 +974,45 @@ onUnmounted(() => {
 }
 .link-icon {
   color: var(--ink-400);
+}
+
+/* MODALIDAD DE VENTA Y PESO */
+.sale-mode-selector {
+  display: flex;
+  gap: 8px;
+  background: var(--cream-100, #f1f5f9);
+  padding: 4px;
+  border-radius: 10px;
+}
+.sale-mode-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--ink-600, #475569);
+  transition: all 0.2s;
+}
+.sale-mode-btn.active {
+  background: var(--surface, #ffffff);
+  color: var(--passion-600, #e11d48);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.weight-pricing-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.weight-equiv-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #475569;
+  background: #f8fafc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
 }
 </style>

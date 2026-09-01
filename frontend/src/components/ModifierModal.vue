@@ -25,6 +25,7 @@ const errorMessages = ref({});
 const itemNote = ref('');
 const selectedAllergens = ref([]);
 const isTakeaway = ref(false);
+const weightGrams = ref(350);
 
 const isOptionSelected = (groupId, optionId) => {
   return (selections.value[groupId] || []).includes(optionId);
@@ -43,6 +44,7 @@ watch(() => props.show, (newVal) => {
       itemNote.value = props.initialData.itemNote || '';
       selectedAllergens.value = [...(props.initialData.allergenFlags || [])];
       isTakeaway.value = props.initialData.isTakeaway || false;
+      weightGrams.value = props.initialData.weightGrams || 350;
 
       // Reconstruye el array de selecciones por groupId deduplicando option_ids guardados
       const preloaded = {};
@@ -90,11 +92,19 @@ const filteredGroups = computed(() => {
 });
 
 const singleSelectGroups = computed(() =>
-  filteredGroups.value.filter(og => og.max_selections === 1)
+  filteredGroups.value.filter(og => !og.max_selections || Number(og.max_selections) <= 1)
 );
 const multiSelectGroups = computed(() =>
-  filteredGroups.value.filter(og => og.max_selections > 1)
+  filteredGroups.value.filter(og => Number(og.max_selections) > 1)
 );
+
+const isCompactModal = computed(() => {
+  if (props.product?.is_weight_based) return false;
+  const multiCount = multiSelectGroups.value.length;
+  const singleCount = singleSelectGroups.value.length;
+  const totalOptions = (filteredGroups.value || []).reduce((sum, g) => sum + (g.options?.length || 0), 0);
+  return multiCount === 0 && (singleCount <= 2 || totalOptions <= 4);
+});
 
 const getGroupIcon = (name) => {
   const lower = (name || '').toLowerCase();
@@ -215,6 +225,10 @@ const extrasPrice = computed(() => {
 
 const totalPrice = computed(() => {
   if (!props.product) return 0;
+  if (props.product.is_weight_based) {
+    const weightCost = (Number(weightGrams.value) || 0) * (Number(props.product.price_per_gram) || 0.08);
+    return Number((weightCost + extrasPrice.value).toFixed(2));
+  }
   return (Number(props.product.price) || 0) + extrasPrice.value;
 });
 
@@ -250,7 +264,8 @@ const handleConfirm = () => {
     itemNote: itemNote.value,
     allergenFlags: selectedAllergens.value,
     isTakeaway: isTakeaway.value,
-    editingCartKey: props.initialData?.cartKey || null
+    editingCartKey: props.initialData?.cartKey || null,
+    weightGrams: props.product.is_weight_based ? Number(weightGrams.value) : null
   });
 };
 
@@ -285,7 +300,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
 
 <template>
   <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content">
+    <div class="modal-content" :class="{ 'modal-content--compact': isCompactModal }">
 
       <!-- ── HEADER ── -->
       <div class="modal-header" :class="{ 'header-edit-mode': isEditMode }">
@@ -308,6 +323,36 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
 
       <!-- ── BODY ── -->
       <div class="modal-body">
+
+        <!-- BLOQUE PESO (Si el producto es vendido por peso) -->
+        <div v-if="product?.is_weight_based" class="section-block weight-modal-block">
+          <div class="section-header">
+            <div class="title-with-icon">
+              <span class="group-icon">⚖️</span>
+              <span class="section-title">Peso del Producto</span>
+            </div>
+            <span class="section-badge badge-required">Venta por Peso</span>
+          </div>
+
+          <div class="weight-config-row">
+            <div class="weight-input-box">
+              <label>Gramos:</label>
+              <input 
+                type="number" 
+                min="1" 
+                step="10" 
+                v-model.number="weightGrams" 
+                class="weight-g-input"
+                placeholder="Ej: 350" 
+              />
+              <span class="g-tag">g</span>
+            </div>
+            <div class="weight-calc-info">
+              <span>Tarifa: <strong>Bs {{ (Number(product.price_per_gram || 0) * 100).toFixed(2) }} / 100g</strong></span>
+              <span class="weight-subtotal-tag">Base: Bs {{ ((Number(weightGrams) || 0) * (Number(product.price_per_gram) || 0)).toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
 
         <!-- BLOQUE 1: TAMAÑOS (Selección Única) -->
         <div v-for="og in singleSelectGroups" :key="og.id" class="section-block size-block">
@@ -490,13 +535,18 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   background: var(--surface);
   border-radius: 20px;
   width: 100%;
-  max-width: 1060px;
+  max-width: 960px;
   max-height: 94vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
   overflow: hidden;
   border: 1px solid var(--border);
+  transition: max-width 0.25s ease;
+}
+
+.modal-content--compact {
+  max-width: 520px;
 }
 
 /* ── HEADER ── */
@@ -688,18 +738,20 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   gap: 10px;
   flex-wrap: wrap;
   padding: 2px 0;
+  justify-content: flex-start;
 }
 
 .size-btn {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 140px;
+  max-width: 280px;
   min-height: 42px;
   display: inline-flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 7px 14px;
+  gap: 12px;
+  padding: 7px 16px;
   border: 1.5px solid var(--border, #e2e8f0);
   border-radius: 999px;
   background: var(--surface, #ffffff);
@@ -1374,5 +1426,88 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
 }
 .btn-confirm--edit:hover:not(:disabled) {
   box-shadow: 0 6px 20px rgba(22, 163, 74, 0.45) !important;
+}
+
+/* ── WEIGHT CONFIG BLOCK ── */
+.weight-modal-block {
+  background: #fdf4ff !important;
+  border-color: #f0abfc !important;
+}
+.weight-config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.weight-input-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  padding: 4px 10px;
+  border: 1.5px solid #d946ef;
+  border-radius: 10px;
+}
+.weight-input-box label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #86198f;
+}
+.weight-g-input {
+  width: 90px;
+  padding: 4px 6px;
+  border: none;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: right;
+  color: #86198f;
+}
+.weight-g-input:focus {
+  outline: none;
+}
+.g-tag {
+  font-size: 13px;
+  font-weight: 800;
+  color: #a21caf;
+}
+.weight-calc-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #475569;
+}
+.weight-subtotal-tag {
+  font-weight: 800;
+  color: #86198f;
+  background: #fae8ff;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+/* ── COMPACT MODAL SPECIFIC STYLES ── */
+.modal-content--compact .modal-body {
+  padding: 16px 20px;
+  gap: 12px;
+}
+
+.modal-content--compact .modal-footer {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px 20px;
+}
+
+.modal-content--compact .footer-left-group {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+}
+
+.modal-content--compact .btn-confirm {
+  width: 100%;
+  height: 44px;
+  font-size: 14px;
+  justify-content: center;
 }
 </style>
