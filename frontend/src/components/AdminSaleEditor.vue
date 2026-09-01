@@ -130,8 +130,8 @@ function recalcItemPricesAndModifiers(item) {
   if (item.priceMode === 'weight') {
     const pGram = Number(item.pricePerGram || p?.price_per_gram || 0.08);
     const weightGrams = Number(item.weightGrams || 0);
-    const weightCost = Number((weightGrams * pGram).toFixed(2));
-    item.unit_price = Number((weightCost + extrasPrice).toFixed(2));
+    const weightCost = weightGrams * pGram;
+    item.unit_price = Math.round(weightCost + extrasPrice);
   } else if (item.priceMode === 'manual') {
     // Preserva el precio que el admin ingresó directamente
     item.unit_price = Number(Number(item.unit_price || 0).toFixed(2));
@@ -827,7 +827,7 @@ async function handleSave() {
                     <span class="unit-tag">Bs/g</span>
                   </div>
                   <div class="weight-calc-hint">
-                    = Bs {{ ((Number(item.weightGrams) || 0) * (Number(item.pricePerGram) || 0)).toFixed(2) }}
+                    = Bs {{ Math.round((Number(item.weightGrams) || 0) * (Number(item.pricePerGram) || 0)) }}
                   </div>
                 </div>
 

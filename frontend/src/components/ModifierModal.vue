@@ -227,7 +227,7 @@ const totalPrice = computed(() => {
   if (!props.product) return 0;
   if (props.product.is_weight_based) {
     const weightCost = (Number(weightGrams.value) || 0) * (Number(props.product.price_per_gram) || 0.08);
-    return Number((weightCost + extrasPrice.value).toFixed(2));
+    return Math.round(weightCost + extrasPrice.value);
   }
   return (Number(props.product.price) || 0) + extrasPrice.value;
 });
@@ -349,7 +349,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
             </div>
             <div class="weight-calc-info">
               <span>Tarifa: <strong>Bs {{ (Number(product.price_per_gram || 0) * 100).toFixed(2) }} / 100g</strong></span>
-              <span class="weight-subtotal-tag">Base: Bs {{ ((Number(weightGrams) || 0) * (Number(product.price_per_gram) || 0)).toFixed(2) }}</span>
+              <span class="weight-subtotal-tag">Base: Bs {{ Math.round((Number(weightGrams) || 0) * (Number(product.price_per_gram) || 0)) }}</span>
             </div>
           </div>
         </div>
@@ -510,7 +510,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
         </div>
 
         <button class="btn-confirm" :class="{ 'btn-confirm--edit': isEditMode }" :disabled="!isValid" @click="handleConfirm">
-          {{ confirmButtonText }} • Bs {{ totalPrice.toFixed(2) }}
+          {{ confirmButtonText }} • Bs {{ product?.is_weight_based ? totalPrice.toFixed(0) : totalPrice.toFixed(2) }}
         </button>
       </div>
 

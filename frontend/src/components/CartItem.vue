@@ -63,7 +63,7 @@ function getModPillClass(groupName = '') {
       </div>
 
       <div class="ticket-item-price-col">
-        <div class="ticket-item-price">Bs {{ Number(item.subtotal).toFixed(2) }}</div>
+        <div class="ticket-item-price">Bs {{ item.is_weight_based ? Number(item.subtotal).toFixed(0) : Number(item.subtotal).toFixed(2) }}</div>
         <!-- Botón editar — siempre visible en tablet, hover en desktop -->
         <button
           class="btn-edit-item"
