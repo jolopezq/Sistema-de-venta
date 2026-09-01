@@ -78,11 +78,10 @@ class SystemBackupController extends Controller
     {
         $request->validate([
             'password' => 'required|string',
-            'backup_file' => 'required|file|mimes:gz,gzip|max:102400', // max 100MB
+            'backup_file' => 'required|file|max:102400', // max 100MB
         ], [
             'password.required' => 'Debes ingresar tu contraseña para autorizar la restauración.',
             'backup_file.required' => 'Debes seleccionar un archivo de respaldo.',
-            'backup_file.mimes' => 'El archivo debe tener formato .gz',
             'backup_file.max' => 'El archivo no puede pesar más de 100MB',
         ]);
 

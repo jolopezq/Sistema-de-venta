@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul
 title Ohana POS - Actualizador de Sistema
@@ -48,6 +48,14 @@ if %errorLevel% neq 0 (
 )
 
 cd /d "%~dp0backend"
+where composer >nul 2>&1
+if %errorLevel% equ 0 (
+    echo [INFO] Regenerando autoload de Composer...
+    call composer dump-autoload -q
+) else if exist "%~dp0backend\composer.phar" (
+    echo [INFO] Regenerando autoload de Composer...
+    "%PHP_BIN%" "%~dp0backend\composer.phar" dump-autoload -q
+)
 "%PHP_BIN%" %PHP_INI% artisan migrate --force
 "%PHP_BIN%" %PHP_INI% artisan optimize:clear
 if not exist "%~dp0backend\public\storage" (

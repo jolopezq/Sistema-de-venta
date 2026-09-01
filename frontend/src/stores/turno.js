@@ -2,6 +2,13 @@ import { defineStore } from 'pinia';
 import { apiFetch } from '../services/api';
 import { db } from '../db/database';
 
+function formatLocalDate(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export const useTurnoStore = defineStore('turno', {
   state: () => ({
     activeSession: null,
@@ -24,7 +31,7 @@ export const useTurnoStore = defineStore('turno', {
     },
     filters: {
       period: 'today',
-      date: new Date().toISOString().split('T')[0],
+      date: formatLocalDate(new Date()),
       from: null,
       to: null,
       payment_method: null,
@@ -241,35 +248,33 @@ export const useTurnoStore = defineStore('turno', {
     setPeriod(periodKey) {
       this.filters.period = periodKey;
       const now = new Date();
-      const format = (d) => d.toISOString().split('T')[0];
 
       if (periodKey === 'today') {
-        this.filters.date = format(now);
+        this.filters.date = formatLocalDate(now);
         this.filters.from = null;
         this.filters.to = null;
       } else if (periodKey === 'yesterday') {
-        const y = new Date(now);
-        y.setDate(y.getDate() - 1);
-        this.filters.date = format(y);
+        const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        this.filters.date = formatLocalDate(y);
         this.filters.from = null;
         this.filters.to = null;
       } else if (periodKey === 'week') {
         const day = now.getDay();
         const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Lunes
-        const monday = new Date(now.setDate(diff));
+        const monday = new Date(now.getFullYear(), now.getMonth(), diff);
         this.filters.date = null;
-        this.filters.from = format(monday);
-        this.filters.to = format(new Date());
+        this.filters.from = formatLocalDate(monday);
+        this.filters.to = formatLocalDate(new Date());
       } else if (periodKey === 'month') {
         const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
         this.filters.date = null;
-        this.filters.from = format(firstDay);
-        this.filters.to = format(new Date());
+        this.filters.from = formatLocalDate(firstDay);
+        this.filters.to = formatLocalDate(new Date());
       } else if (periodKey === 'year') {
         const firstDayOfYear = new Date(now.getFullYear(), 0, 1);
         this.filters.date = null;
-        this.filters.from = format(firstDayOfYear);
-        this.filters.to = format(new Date());
+        this.filters.from = formatLocalDate(firstDayOfYear);
+        this.filters.to = formatLocalDate(new Date());
       }
       this.fetchSales(1);
     },
@@ -318,6 +323,46 @@ export const useTurnoStore = defineStore('turno', {
     },
 
     /**
+     * Registra una venta retroactiva en fecha pasada (Solo Super Admin).
+     */
+    async adminCreateSale(saleData) {
+      this.loading = true;
+      try {
+        const response = await apiFetch('/admin/sales', {
+          method: 'POST',
+          body: JSON.stringify(saleData),
+        });
+        await this.fetchSales(this.pagination.currentPage);
+        await this.fetchActiveSession();
+        return response;
+      } catch (err) {
+        throw err;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    /**
+     * Edita una venta existente corrigiendo items, montos y stock (Solo Super Admin).
+     */
+    async adminUpdateSale(saleId, saleData) {
+      this.loading = true;
+      try {
+        const response = await apiFetch(`/admin/sales/${saleId}`, {
+          method: 'PUT',
+          body: JSON.stringify(saleData),
+        });
+        await this.fetchSales(this.pagination.currentPage);
+        await this.fetchActiveSession();
+        return response;
+      } catch (err) {
+        throw err;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    /**
      * Abre el drawer de detalle de una venta.
      */
     openSaleDetail(sale) {
@@ -334,3 +379,4 @@ export const useTurnoStore = defineStore('turno', {
     },
   },
 });
+

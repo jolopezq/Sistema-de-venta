@@ -10,6 +10,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+use App\Http\Requests\AdminSaleRequest;
+
 class SaleController extends Controller
 {
     protected SaleSyncService $syncService;
@@ -61,6 +63,7 @@ class SaleController extends Controller
         if ($search = $request->search) {
             $baseQuery->where(function ($q) use ($search) {
                 $q->where('id', 'like', "%{$search}%")
+                  ->orWhere('order_number', 'like', "%{$search}%")
                   ->orWhere('notes', 'like', "%{$search}%")
                   ->orWhereHas('customer', function ($cq) use ($search) {
                       $cq->where('name', 'like', "%{$search}%")
@@ -105,6 +108,7 @@ class SaleController extends Controller
             'items.saleItemOptions.option:id,name,additional_price',
             'payments',
             'voidedByUser:id,name',
+            'editedByUser:id,name',
         ])
         ->latest('created_at')
         ->paginate($request->per_page ?? 20);
@@ -127,6 +131,7 @@ class SaleController extends Controller
             'items.saleItemOptions.option',
             'payments',
             'voidedByUser:id,name',
+            'editedByUser:id,name',
         ]);
 
         return response()->json($sale);
@@ -134,12 +139,10 @@ class SaleController extends Controller
 
     /**
      * Sincroniza un lote de ventas recibidas del frontend (Offline-First).
-     * Procesa las ventas dentro de transacciones ACID y devuelve los UUIDs sincronizados.
      */
     public function sync(SyncSalesRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        
         $cashierId = $request->user()->id;
 
         $results = $this->syncService->syncBatch($validated['sales'], $cashierId);
@@ -148,6 +151,51 @@ class SaleController extends Controller
             'message' => 'Lote de ventas procesado exitosamente.',
             'data' => $results,
         ], 200);
+    }
+
+    /**
+     * Registra una venta manual o retroactiva (Solo Super Admin).
+     */
+    public function adminCreate(AdminSaleRequest $request): JsonResponse
+    {
+        try {
+            $sale = $this->syncService->adminCreateSale(
+                $request->validated(),
+                $request->user()->id
+            );
+
+            return response()->json([
+                'message' => 'Venta retroactiva registrada correctamente.',
+                'sale'    => $sale,
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al registrar la venta retroactiva: ' . $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Edita una venta existente corrigiendo items, pagos y stock (Solo Super Admin).
+     */
+    public function adminUpdate(AdminSaleRequest $request, Sale $sale): JsonResponse
+    {
+        try {
+            $updatedSale = $this->syncService->adminUpdateSale(
+                $sale,
+                $request->validated(),
+                $request->user()->id
+            );
+
+            return response()->json([
+                'message' => 'Venta actualizada correctamente.',
+                'sale'    => $updatedSale,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al actualizar la venta: ' . $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**

@@ -14,16 +14,7 @@ const updateSW = registerSW({
   },
 })
 
-// Auto-limpieza de caché (IndexedDB) para eliminar datos fantasmas tras reset manual
-if (!localStorage.getItem('ohana_db_cleared_v1')) {
-  try {
-    indexedDB.deleteDatabase('OhanaAcaiDB');
-    localStorage.setItem('ohana_db_cleared_v1', 'true');
-    console.log('IndexedDB limpiada automáticamente por inconsistencia.');
-  } catch (e) {
-    console.error('Error al limpiar IndexedDB', e);
-  }
-}
+// Inicialización de la aplicación Vue (IndexedDB es gestionada de forma segura por Dexie.js con control de versiones)
 
 const app = createApp(App)
 

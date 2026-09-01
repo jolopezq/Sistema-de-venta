@@ -45,6 +45,9 @@ class Sale extends Model
         'delivered_at',
         'void_reason',
         'voided_by',
+        'edited_by',
+        'edited_at',
+        'edit_reason',
         'source',
         'is_takeaway',
         'notes',
@@ -61,6 +64,7 @@ class Sale extends Model
             'preparation_started_at' => 'datetime',
             'ready_at' => 'datetime',
             'delivered_at' => 'datetime',
+            'edited_at' => 'datetime',
         ];
     }
 
@@ -88,6 +92,14 @@ class Sale extends Model
     public function voidedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    /**
+     * Super Admin que editó manualmente la venta (si aplica).
+     */
+    public function editedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'edited_by');
     }
 
     /**

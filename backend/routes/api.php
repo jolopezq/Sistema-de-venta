@@ -82,6 +82,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/permissions', [\App\Http\Controllers\RolePermissionController::class, 'index']);
         Route::put('/permissions', [\App\Http\Controllers\RolePermissionController::class, 'update']);
         Route::apiResource('users', \App\Http\Controllers\UserController::class)->except(['show']);
+        // Gestión manual / retroactiva de ventas (Solo Super Admin)
+        Route::post('/admin/sales', [SaleController::class, 'adminCreate']);
+        Route::put('/admin/sales/{sale}', [SaleController::class, 'adminUpdate']);
+
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index']);
         Route::get('/audit-logs/export', [\App\Http\Controllers\AuditLogController::class, 'export']);
         Route::post('/system/backup/download', [\App\Http\Controllers\SystemBackupController::class, 'download'])->middleware('throttle:5,60');

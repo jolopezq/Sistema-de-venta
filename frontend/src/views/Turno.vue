@@ -6,10 +6,25 @@ import { useAuthStore } from '../stores/auth';
 import CashCloseWizard from '../components/CashCloseWizard.vue';
 import SaleDetailDrawer from '../components/SaleDetailDrawer.vue';
 import CashSessionReport from '../components/CashSessionReport.vue';
+import AdminSaleEditor from '../components/AdminSaleEditor.vue';
 
 const router = useRouter();
 const turnoStore = useTurnoStore();
 const authStore = useAuthStore();
+
+// Modal de Venta Retroactiva / Edición (Super Admin)
+const isRetroactiveModalOpen = ref(false);
+const editingSaleForAdmin = ref(null);
+
+function openRetroactiveSaleModal() {
+  editingSaleForAdmin.value = null;
+  isRetroactiveModalOpen.value = true;
+}
+
+function openEditSaleModal(sale) {
+  editingSaleForAdmin.value = sale;
+  isRetroactiveModalOpen.value = true;
+}
 
 // Modal de Apertura de Caja
 const openingAmountInput = ref(200);
@@ -199,7 +214,17 @@ async function handleRefresh() {
       <!-- HEADER CON TÍTULO Y FILTROS RÁPIDOS -->
       <div class="history-header">
         <div class="header-left">
-          <h2>Registro e Historial de Ventas</h2>
+          <div class="header-title-row">
+            <h2>Registro e Historial de Ventas</h2>
+            <button 
+              v-if="authStore.user?.role === 'super_admin'" 
+              class="btn-retroactive" 
+              @click="openRetroactiveSaleModal"
+              title="Registrar venta manual en fecha pasada (Solo Super Admin)"
+            >
+              🔒 ＋ Venta Retroactiva
+            </button>
+          </div>
           <p>Consulta, filtra y audita las ventas por fecha, día, mes o método de pago.</p>
         </div>
 
@@ -380,7 +405,11 @@ async function handleRefresh() {
             >
               <!-- TICKET ID -->
               <td>
-                <span class="ticket-badge">#{{ sale.id ? sale.id.substring(0, 8).toUpperCase() : '---' }}</span>
+                <div class="ticket-cell-wrap">
+                  <span class="ticket-badge">#{{ sale.order_number || (sale.id ? sale.id.substring(0, 8).toUpperCase() : '---') }}</span>
+                  <span v-if="sale.source === 'manual_retroactive'" class="badge-source-manual" title="Venta manual / retroactiva">Manual</span>
+                  <span v-if="sale.edited_by" class="badge-source-edited" title="Venta editada por Super Admin">Editado</span>
+                </div>
               </td>
 
               <!-- FECHA Y HORA -->
@@ -443,13 +472,23 @@ async function handleRefresh() {
 
               <!-- ACCIONES -->
               <td style="text-align: right;" @click.stop>
-                <button 
-                  class="btn-icon-view" 
-                  @click="turnoStore.openSaleDetail(sale)"
-                  title="Ver detalle del ticket"
-                >
-                  👁️ Detalle
-                </button>
+                <div class="actions-cell">
+                  <button 
+                    v-if="authStore.user?.role === 'super_admin' && sale.status !== 'voided'"
+                    class="btn-icon-edit"
+                    @click="openEditSaleModal(sale)"
+                    title="Editar venta y corregir items/montos (Solo Super Admin)"
+                  >
+                    ✏️
+                  </button>
+                  <button 
+                    class="btn-icon-view" 
+                    @click="turnoStore.openSaleDetail(sale)"
+                    title="Ver detalle del ticket"
+                  >
+                    👁️ Detalle
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -550,6 +589,14 @@ async function handleRefresh() {
     <SaleDetailDrawer 
       @close="turnoStore.closeSaleDetail"
       @voided="handleRefresh"
+    />
+
+    <!-- MODAL DE VENTA RETROACTIVA Y EDICIÓN (SUPER ADMIN) -->
+    <AdminSaleEditor 
+      :visible="isRetroactiveModalOpen"
+      :sale="editingSaleForAdmin"
+      @close="isRetroactiveModalOpen = false"
+      @saved="handleRefresh"
     />
   </div>
 </template>
@@ -1245,5 +1292,85 @@ async function handleRefresh() {
   .search-box {
     max-width: 100%;
   }
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-retroactive {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.3);
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-retroactive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(217, 119, 6, 0.4);
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+}
+
+.ticket-cell-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.badge-source-manual {
+  font-size: 10px;
+  font-weight: 800;
+  background: #fef3c7;
+  color: #b45309;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #fde68a;
+  text-transform: uppercase;
+}
+
+.badge-source-edited {
+  font-size: 10px;
+  font-weight: 800;
+  background: #ede9fe;
+  color: #6d28d9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #ddd6fe;
+  text-transform: uppercase;
+}
+
+.actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.btn-icon-edit {
+  background: #ede9fe;
+  border: 1px solid #ddd6fe;
+  color: #6d28d9;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+
+.btn-icon-edit:hover {
+  background: #ddd6fe;
 }
 </style>

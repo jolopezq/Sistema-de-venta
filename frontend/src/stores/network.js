@@ -24,6 +24,13 @@ export const useNetworkStore = defineStore('network', {
       if (this.isOnline) {
         this.triggerSync();
       }
+
+      // Reintento automático periódico cada 30 segundos si hay ventas pendientes
+      setInterval(() => {
+        if (this.pendingSyncCount > 0 && this.isOnline && !this.isSyncing) {
+          this.triggerSync();
+        }
+      }, 30000);
     },
 
     async updatePendingCount() {
