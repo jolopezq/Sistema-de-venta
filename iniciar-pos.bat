@@ -105,6 +105,12 @@ if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" (
     start "" "%ProgramFiles%\Google\Chrome\Application\chrome.exe" --app=http://localhost:8000
 ) else if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" (
     start "" "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" --app=http://localhost:8000
+) else if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" (
+    start "" "%LocalAppData%\Google\Chrome\Application\chrome.exe" --app=http://localhost:8000
+) else if exist "%ProgramFiles%\BraveSoftware\Brave-Browser\Application\brave.exe" (
+    start "" "%ProgramFiles%\BraveSoftware\Brave-Browser\Application\brave.exe" --app=http://localhost:8000
+) else if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" (
+    start "" "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" --app=http://localhost:8000
 ) else if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
     start "" "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" --app=http://localhost:8000
 ) else (

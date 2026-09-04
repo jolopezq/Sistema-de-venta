@@ -28,7 +28,12 @@ for /f "tokens=5" %%p in ('netstat -aon ^| findstr /r ":5173.*LISTENING"') do (
 :: 3. Descargar cambios desde GitHub
 echo.
 echo [3/5] Descargando últimos cambios desde GitHub...
+git stash >nul 2>&1
 git pull origin main
+if %errorLevel% neq 0 (
+    echo.
+    echo [ADVERTENCIA] Falló 'git pull'. Verificando conexión a Internet o credenciales de GitHub...
+)
 
 :: 4. Migraciones y mantenimiento backend
 echo.
@@ -63,12 +68,19 @@ if not exist "%~dp0backend\public\storage" (
 )
 cd /d "%~dp0"
 
-:: 5. Reconstruir Frontend si es necesario
+:: 5. Reconstruir Frontend
 echo.
 echo [5/5] Compilando interfaz web actualizada...
 cd /d "%~dp0frontend"
-call npm.cmd run build
-xcopy /e /y /i "%~dp0frontend\dist\*" "%~dp0backend\public\" >nul 2>&1
+where npm >nul 2>&1
+if %errorLevel% equ 0 (
+    call npm run build
+) else (
+    call npm.cmd run build
+)
+if exist "%~dp0frontend\dist" (
+    xcopy /e /y /i "%~dp0frontend\dist\*" "%~dp0backend\public\" >nul 2>&1
+)
 cd /d "%~dp0"
 
 echo.
