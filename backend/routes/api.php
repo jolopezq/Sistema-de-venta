@@ -22,7 +22,7 @@ use App\Http\Controllers\OptionRecipeController;
 */
 
 // --- Rutas Públicas ---
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::get('/ping', function () { return response()->json(['status' => 'ok']); });
 
 // --- Rutas Protegidas ---
