@@ -1,0 +1,126 @@
+/*
+ * Fuentes alojadas localmente (subconjunto latino: incluye á é í ó ú ñ ¿ ¡).
+ * Origen: paquetes @fontsource v5.3.0, licencia SIL Open Font License 1.1 (ver LICENSE-*.txt).
+ * Van en el repositorio para que el POS funcione sin internet y la actualización
+ * de producción (que no ejecuta npm install) no necesite dependencias nuevas.
+ */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('./inter-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('./inter-latin-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('./inter-latin-600-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('./inter-latin-700-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 800;
+  src: url('./inter-latin-800-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 900;
+  src: url('./inter-latin-900-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('./baloo-2-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('./baloo-2-latin-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('./baloo-2-latin-600-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('./baloo-2-latin-700-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 800;
+  src: url('./baloo-2-latin-800-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('./jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('./jetbrains-mono-latin-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('./jetbrains-mono-latin-600-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('./jetbrains-mono-latin-700-normal.woff2') format('woff2');
+}
