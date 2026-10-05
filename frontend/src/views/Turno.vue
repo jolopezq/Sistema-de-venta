@@ -7,14 +7,16 @@ import CashCloseWizard from '../components/CashCloseWizard.vue';
 import SaleDetailDrawer from '../components/SaleDetailDrawer.vue';
 import CashSessionReport from '../components/CashSessionReport.vue';
 import AdminSaleEditor from '../components/AdminSaleEditor.vue';
+import CashExpenseModal from '../components/CashExpenseModal.vue';
 
 const router = useRouter();
 const turnoStore = useTurnoStore();
 const authStore = useAuthStore();
 
-// Modal de Venta Retroactiva / Edición (Super Admin)
+// Modal de Venta Retroactiva / Edición (Admin / Super Admin)
 const isRetroactiveModalOpen = ref(false);
 const editingSaleForAdmin = ref(null);
+const isCashExpenseModalOpen = ref(false);
 
 function openRetroactiveSaleModal() {
   editingSaleForAdmin.value = null;
@@ -25,6 +27,8 @@ function openEditSaleModal(sale) {
   editingSaleForAdmin.value = sale;
   isRetroactiveModalOpen.value = true;
 }
+
+const isAdmin = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'super_admin');
 
 // Modal de Apertura de Caja
 const openingAmountInput = ref(200);
@@ -119,6 +123,14 @@ async function handleOpenSession() {
   }
 }
 
+function initOpeningModal() {
+  openingAmountInput.value = turnoStore.suggestedOpeningAmount > 0 
+    ? turnoStore.suggestedOpeningAmount 
+    : 200;
+  openingError.value = '';
+  turnoStore.isOpeningModalOpen = true;
+}
+
 // Recargar datos
 async function handleRefresh() {
   await turnoStore.fetchActiveSession();
@@ -155,18 +167,26 @@ async function handleRefresh() {
         <button 
           v-if="!turnoStore.hasActiveSession"
           class="btn btn-primary"
-          @click="turnoStore.isOpeningModalOpen = true"
+          @click="initOpeningModal"
         >
           ➕ Abrir Caja / Turno
         </button>
 
-        <button 
-          v-else
-          class="btn btn-danger-soft"
-          @click="turnoStore.isWizardOpen = true"
-        >
-          🔒 Cerrar Caja / Arqueo
-        </button>
+        <template v-else>
+          <button 
+            class="btn btn-ghost"
+            @click="isCashExpenseModalOpen = true"
+          >
+            💸 Ingreso / Egreso
+          </button>
+          
+          <button 
+            class="btn btn-danger-soft"
+            @click="turnoStore.isWizardOpen = true"
+          >
+            🔒 Cerrar Caja / Arqueo
+          </button>
+        </template>
       </div>
     </div>
 
@@ -177,7 +197,16 @@ async function handleRefresh() {
         <div class="metric-content">
           <div class="metric-label">Efectivo en Gaveta</div>
           <div class="metric-value">Bs {{ turnoStore.currentCashInDrawer.toFixed(2) }}</div>
-          <div class="metric-hint">Fondo: Bs {{ Number(turnoStore.activeSession.opening_amount).toFixed(2) }} + Ventas: Bs {{ Number(turnoStore.sessionStats?.cash_sales || 0).toFixed(2) }}</div>
+          <div class="metric-hint">F: Bs {{ Number(turnoStore.activeSession.opening_amount).toFixed(2) }} + V: Bs {{ Number(turnoStore.sessionStats?.cash_sales || 0).toFixed(2) }} - E: Bs {{ Number(turnoStore.sessionStats?.total_expenses || 0).toFixed(2) }}</div>
+        </div>
+      </div>
+
+      <div class="metric-card" v-if="Number(turnoStore.sessionStats?.total_expenses || 0) > 0">
+        <div class="metric-icon" style="color: #f87171;">💸</div>
+        <div class="metric-content">
+          <div class="metric-label text-danger">Egresos de Caja</div>
+          <div class="metric-value text-danger">Bs {{ Number(turnoStore.sessionStats?.total_expenses || 0).toFixed(2) }}</div>
+          <div class="metric-hint">Dinero retirado durante el turno</div>
         </div>
       </div>
 
@@ -217,10 +246,10 @@ async function handleRefresh() {
           <div class="header-title-row">
             <h2>Registro e Historial de Ventas</h2>
             <button 
-              v-if="authStore.user?.role === 'super_admin'" 
+              v-if="isAdmin" 
               class="btn-retroactive" 
               @click="openRetroactiveSaleModal"
-              title="Registrar venta manual en fecha pasada (Solo Super Admin)"
+              title="Registrar venta manual en fecha pasada (Admin / Super Admin)"
             >
               🔒 ＋ Venta Retroactiva
             </button>
@@ -474,10 +503,10 @@ async function handleRefresh() {
               <td style="text-align: right;" @click.stop>
                 <div class="actions-cell">
                   <button 
-                    v-if="authStore.user?.role === 'super_admin' && sale.status !== 'voided'"
+                    v-if="isAdmin && sale.status !== 'voided'"
                     class="btn-icon-edit"
                     @click="openEditSaleModal(sale)"
-                    title="Editar venta y corregir items/montos (Solo Super Admin)"
+                    title="Editar venta y corregir items/montos (Admin / Super Admin)"
                   >
                     ✏️
                   </button>
@@ -589,13 +618,21 @@ async function handleRefresh() {
     <SaleDetailDrawer 
       @close="turnoStore.closeSaleDetail"
       @voided="handleRefresh"
+      @edit="(s) => { turnoStore.closeSaleDetail(); openEditSaleModal(s); }"
     />
 
-    <!-- MODAL DE VENTA RETROACTIVA Y EDICIÓN (SUPER ADMIN) -->
+    <!-- MODAL DE VENTA RETROACTIVA Y EDICIÓN (ADMIN / SUPER ADMIN) -->
     <AdminSaleEditor 
       :visible="isRetroactiveModalOpen"
       :sale="editingSaleForAdmin"
       @close="isRetroactiveModalOpen = false"
+      @saved="handleRefresh"
+    />
+
+    <!-- MODAL DE EGRESOS -->
+    <CashExpenseModal
+      :visible="isCashExpenseModalOpen"
+      @close="isCashExpenseModalOpen = false"
       @saved="handleRefresh"
     />
   </div>

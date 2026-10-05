@@ -110,8 +110,14 @@ const tagLabel = computed(() => {
             Editar
           </button>
           <div class="price-container">
-            <span class="product-price">{{ formatPrice(product.price) }} BOB</span>
-            <span v-if="product.is_weight_based" class="weight-tag">/ kg</span>
+            <div class="main-price-row">
+              <span class="product-price">{{ formatPrice(product.price) }} BOB</span>
+              <span v-if="product.is_weight_based" class="weight-tag">/ kg</span>
+            </div>
+            <div v-if="product.delivery_price" class="delivery-price-row" title="Precio para pedidos de PedidosYa">
+              <span class="pya-tag">🛵</span>
+              <span class="pya-price">{{ formatPrice(product.delivery_price) }} BOB</span>
+            </div>
           </div>
         </div>
       </div>
@@ -353,6 +359,13 @@ const tagLabel = computed(() => {
 
 .price-container {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.main-price-row {
+  display: flex;
   align-items: baseline;
   gap: 3px;
 }
@@ -368,6 +381,28 @@ const tagLabel = computed(() => {
   font-size: 11px;
   color: var(--ink-500);
   font-weight: 600;
+}
+
+.delivery-price-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(225, 29, 72, 0.08);
+  border: 1px solid rgba(225, 29, 72, 0.2);
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+.pya-tag {
+  font-size: 10px;
+}
+
+.pya-price {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--passion-500);
+  white-space: nowrap;
 }
 </style>
 

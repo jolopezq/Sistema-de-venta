@@ -52,6 +52,8 @@ class Sale extends Model
         'is_takeaway',
         'notes',
         'sync_status',
+        'created_at',
+        'updated_at',
     ];
 
     protected function casts(): array

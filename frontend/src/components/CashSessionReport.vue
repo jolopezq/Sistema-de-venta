@@ -83,6 +83,10 @@ function formatDate(dateStr) {
         <span>Ventas Tarjeta / POS:</span>
         <span>Bs {{ Number(summary.card_sales || 0).toFixed(2) }}</span>
       </div>
+      <div class="row" v-if="Number(summary.other_sales || 0) > 0">
+        <span>Ventas Plataformas (PedidosYa):</span>
+        <span>Bs {{ Number(summary.other_sales || 0).toFixed(2) }}</span>
+      </div>
       <div class="row total-row">
         <span>TOTAL FACTURADO:</span>
         <strong class="total-amt">Bs {{ Number(summary.total_sales || 0).toFixed(2) }}</strong>
@@ -102,6 +106,10 @@ function formatDate(dateStr) {
         <span>(+) Ventas Efectivo:</span>
         <span>Bs {{ Number(summary.cash_sales || 0).toFixed(2) }}</span>
       </div>
+      <div class="row" v-if="Number(summary.total_expenses || 0) > 0">
+        <span>(-) Egresos:</span>
+        <span class="text-danger">Bs {{ Number(summary.total_expenses || 0).toFixed(2) }}</span>
+      </div>
       <div class="row highlight-row">
         <span>(=) Efectivo Teórico:</span>
         <strong>Bs {{ Number(reportData.expected_closing || 0).toFixed(2) }}</strong>
@@ -118,6 +126,22 @@ function formatDate(dateStr) {
         </strong>
       </div>
     </div>
+
+    <!-- DISTRIBUCIÓN DEL EFECTIVO (SI APLICA) -->
+    <template v-if="reportData.cash_withdrawn !== undefined || session.cash_withdrawn !== undefined">
+      <div class="divider">--------------------------------</div>
+      <div class="section-title">DISTRIBUCIÓN DEL EFECTIVO</div>
+      <div class="dist-section">
+        <div class="row">
+          <span>Dejado para mañana:</span>
+          <strong>Bs {{ Number(reportData.cash_left_for_next || session.cash_left_for_next || 0).toFixed(2) }}</strong>
+        </div>
+        <div class="row">
+          <span>Efectivo retirado:</span>
+          <strong>Bs {{ Number(reportData.cash_withdrawn || session.cash_withdrawn || 0).toFixed(2) }}</strong>
+        </div>
+      </div>
+    </template>
 
     <!-- DESGLOSE DE BILLETES SI EXISTE -->
     <template v-if="reportData.bill_breakdown || session.bill_breakdown">

@@ -3,10 +3,11 @@ import { ref, computed } from 'vue';
 import { useTurnoStore } from '../stores/turno';
 import { useAuthStore } from '../stores/auth';
 
-const emit = defineEmits(['close', 'voided']);
+const emit = defineEmits(['close', 'voided', 'edit']);
 const turnoStore = useTurnoStore();
 const authStore = useAuthStore();
 
+const isAdmin = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'super_admin');
 const sale = computed(() => turnoStore.selectedSale);
 
 const showVoidModal = ref(false);
@@ -31,6 +32,7 @@ function getPaymentLabel(method) {
     cash: '💵 Efectivo',
     qr: '📱 QR / Transferencia',
     card: '💳 Tarjeta de Débito/Crédito',
+    delivery_platform: '🛵 PedidosYa / Delivery Platform',
   };
   return map[method] || method;
 }
@@ -63,10 +65,16 @@ async function handleConfirmVoid() {
       <!-- DRAWER HEADER -->
       <div class="drawer-header">
         <div>
-          <div class="sale-status-badge" :class="sale.status">
-            {{ sale.status === 'completed' ? '✅ Completada' : '❌ Anulada' }}
+          <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;">
+            <div class="sale-status-badge" :class="sale.status">
+              {{ sale.status === 'completed' ? '✅ Completada' : '❌ Anulada' }}
+            </div>
+            <span v-if="sale.source === 'pedidosya'" class="source-tag-pya">🛵 PedidosYa</span>
+            <span v-else-if="sale.is_takeaway" class="source-tag-takeaway">🥡 Para Llevar</span>
+            <span v-else class="source-tag-dinein">🍽️ En Mesa</span>
+            <span v-if="sale.edited_by" class="source-tag-edited">✏️ Editado</span>
           </div>
-          <h3>Ticket #{{ sale.id ? sale.id.substring(0, 8).toUpperCase() : '---' }}</h3>
+          <h3>Ticket #{{ sale.order_number || (sale.id ? sale.id.substring(0, 8).toUpperCase() : '---') }}</h3>
           <p class="drawer-subtitle">{{ formatDate(sale.created_at) }} · Atendido por: <strong>{{ sale.cashier?.name || 'Cajero' }}</strong></p>
         </div>
         <button class="btn-close" @click="emit('close')">✕</button>
@@ -160,6 +168,14 @@ async function handleConfirmVoid() {
 
         <!-- TOTALES -->
         <div class="totals-card">
+          <div class="row" v-if="sale.notes" style="margin-bottom: 8px;">
+            <span>Notas / Recargo:</span>
+            <strong style="color: #475569; font-size: 12px;">💬 {{ sale.notes }}</strong>
+          </div>
+          <div class="row" v-if="sale.edit_reason" style="margin-bottom: 8px;">
+            <span>Motivo de Registro/Edición:</span>
+            <span style="color: #64748b; font-size: 11.5px; font-style: italic;">"{{ sale.edit_reason }}"</span>
+          </div>
           <div class="row">
             <span>Subtotal:</span>
             <span>Bs {{ Number(sale.subtotal || sale.total_amount).toFixed(2) }}</span>
@@ -177,13 +193,24 @@ async function handleConfirmVoid() {
 
       <!-- DRAWER FOOTER -->
       <div class="drawer-footer">
-        <button 
-          v-if="sale.status === 'completed'" 
-          class="btn btn-danger-outline" 
-          @click="showVoidModal = true"
-        >
-          🗑️ Anular Venta
-        </button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button 
+            v-if="isAdmin && sale.status !== 'voided'" 
+            type="button"
+            class="btn btn-warning-outline" 
+            @click="emit('edit', sale)"
+            title="Editar productos, precios, origen y pagos (Super Admin)"
+          >
+            ✏️ Editar Orden
+          </button>
+          <button 
+            v-if="sale.status === 'completed'" 
+            class="btn btn-danger-outline" 
+            @click="showVoidModal = true"
+          >
+            🗑️ Anular Venta
+          </button>
+        </div>
         <button class="btn btn-ghost" @click="emit('close')">Cerrar</button>
       </div>
     </div>
@@ -517,6 +544,63 @@ async function handleConfirmVoid() {
 .btn-danger-outline:hover {
   background: var(--danger-100);
   border-color: var(--danger-500);
+}
+
+.btn-warning-outline {
+  background: transparent;
+  color: #b45309;
+  border: 1.5px solid #fcd34d;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-warning-outline:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+.source-tag-pya {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.source-tag-takeaway {
+  background: #fdf2f8;
+  color: #db2777;
+  border: 1px solid #fbcfe8;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.source-tag-dinein {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.source-tag-edited {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .btn-danger {

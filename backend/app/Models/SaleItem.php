@@ -26,6 +26,8 @@ class SaleItem extends Model
         'is_takeaway',
         'item_note',
         'allergen_flags',
+        'created_at',
+        'updated_at',
     ];
 
     protected function casts(): array

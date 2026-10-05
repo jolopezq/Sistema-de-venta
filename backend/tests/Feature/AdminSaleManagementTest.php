@@ -111,6 +111,49 @@ class AdminSaleManagementTest extends TestCase
         ]);
     }
 
+    public function test_super_admin_can_create_retroactive_sale_with_pedidosya_source(): void
+    {
+        $pastDate = Carbon::now()->subDays(2)->setTime(20, 15, 0);
+
+        // En PedidosYa el precio puede ser diferente (ej. 35.0 en vez de 30.0 de catálogo)
+        $payload = [
+            'created_at' => $pastDate->toDateTimeString(),
+            'cashier_id' => $this->cashier->id,
+            'source' => 'pedidosya',
+            'subtotal' => 35.0,
+            'discount_amount' => 0.0,
+            'total_amount' => 35.0,
+            'edit_reason' => 'Orden PedidosYa #9841 ingresada manualmente para arqueo de caja',
+            'notes' => 'Ticket PedidosYa #9841',
+            'items' => [
+                [
+                    'product_id' => $this->product1->id,
+                    'quantity' => 1,
+                    'unit_price' => 35.0, // Precio de la plataforma PedidosYa
+                    'subtotal' => 35.0,
+                ]
+            ],
+            'payments' => [
+                [
+                    'method' => 'delivery_platform',
+                    'amount' => 35.0,
+                ]
+            ]
+        ];
+
+        $response = $this->actingAs($this->superAdmin)->postJson('/api/admin/sales', $payload);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('sale.source', 'pedidosya');
+        $response->assertJsonPath('sale.total_amount', '35.00');
+
+        $this->assertDatabaseHas('sales', [
+            'id' => $response->json('sale.id'),
+            'source' => 'pedidosya',
+            'total_amount' => 35.0,
+        ]);
+    }
+
     public function test_super_admin_can_edit_existing_sale_and_recalculate_stock(): void
     {
         // 1. Crear venta inicial (1x Bowl Mediano = -0.2kg)
@@ -187,7 +230,7 @@ class AdminSaleManagementTest extends TestCase
         ]);
     }
 
-    public function test_cashier_and_admin_cannot_access_admin_sales_endpoints(): void
+    public function test_cashier_cannot_access_admin_sales_endpoints_but_admin_can(): void
     {
         $payload = [
             'created_at' => now()->toDateTimeString(),
@@ -208,7 +251,7 @@ class AdminSaleManagementTest extends TestCase
 
         // Admin regular
         $resAdmin = $this->actingAs($this->admin)->postJson('/api/admin/sales', $payload);
-        $resAdmin->assertStatus(403);
+        $resAdmin->assertStatus(201);
     }
 
     public function test_edit_reason_is_mandatory(): void
@@ -260,5 +303,77 @@ class AdminSaleManagementTest extends TestCase
 
         $res = $this->actingAs($this->superAdmin)->putJson("/api/admin/sales/{$sale->id}", $payload);
         $res->assertStatus(422);
+    }
+
+    public function test_admin_can_create_pedidosya_sale_with_delivery_price(): void
+    {
+        // El producto tiene price = 30, pero delivery_price = 38
+        $this->product1->update(['delivery_price' => 38.00]);
+
+        $payload = [
+            'created_at'    => Carbon::now()->subHours(2)->toDateTimeString(),
+            'source'        => 'pedidosya',
+            'is_takeaway'   => true,
+            'subtotal'      => 38.0,
+            'discount_amount' => 0.0,
+            'total_amount'  => 38.0,
+            'edit_reason'   => 'Comanda PedidosYa registrada manualmente con precio delivery',
+            'items'         => [[
+                'product_id' => $this->product1->id,
+                'quantity'   => 1,
+                'unit_price' => 38.0, // Precio PedidosYa
+                'subtotal'   => 38.0,
+                'is_takeaway' => true,
+            ]],
+            'payments' => [[
+                'method' => 'delivery_platform',
+                'amount' => 38.0,
+            ]],
+        ];
+
+        $response = $this->actingAs($this->superAdmin)
+                         ->postJson('/api/admin/sales', $payload);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('sale.source', 'pedidosya');
+        $response->assertJsonPath('sale.total_amount', '38.00');
+
+        // Verifica que el inventario se descontó correctamente en base a su receta
+        $this->assertDatabaseHas('inventory_movements', [
+            'ingredient_id' => $this->ingredient->id,
+            'type'          => 'sale',
+        ]);
+    }
+
+    public function test_pedidosya_sale_with_surcharge_saves_correctly(): void
+    {
+        $payload = [
+            'created_at'   => Carbon::now()->subHour()->toDateTimeString(),
+            'source'       => 'pedidosya',
+            'is_takeaway'  => true,
+            'subtotal'     => 33.0, // 30 producto + 3 recargo empaque
+            'discount_amount' => 0.0,
+            'total_amount' => 33.0,
+            'edit_reason'  => 'Comanda PedidosYa con recargo de empaque',
+            'notes'        => 'Recargo/Empaque: Bs 3.00',
+            'items'        => [[
+                'product_id' => $this->product1->id,
+                'quantity'   => 1,
+                'unit_price' => 30.0,
+                'subtotal'   => 30.0,
+                'is_takeaway' => true,
+            ]],
+            'payments' => [[
+                'method' => 'delivery_platform',
+                'amount' => 33.0,
+            ]],
+        ];
+
+        $response = $this->actingAs($this->superAdmin)
+                         ->postJson('/api/admin/sales', $payload);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('sale.total_amount', '33.00');
+        $response->assertJsonPath('sale.source', 'pedidosya');
     }
 }

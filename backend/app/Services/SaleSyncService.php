@@ -171,6 +171,8 @@ class SaleSyncService
                 'is_takeaway'    => $itemIsTakeaway,
                 'item_note'      => $itemData['item_note'] ?? null,
                 'allergen_flags' => isset($itemData['allergen_flags']) && is_array($itemData['allergen_flags']) ? $itemData['allergen_flags'] : null,
+                'created_at'     => $sale->created_at,
+                'updated_at'     => $sale->created_at,
             ]);
 
             $saleItemOptions = collect();
@@ -184,6 +186,8 @@ class SaleSyncService
                         'option_name_snapshot'      => $opt->name,
                         'additional_price_snapshot' => $opt->additional_price,
                         'quantity'                  => $mod['quantity'] ?? 1,
+                        'created_at'                => $sale->created_at,
+                        'updated_at'                => $sale->created_at,
                     ]);
                     $saleItemOptions->push($saleItemOption);
                 }
@@ -215,7 +219,9 @@ class SaleSyncService
     public function adminCreateSale(array $data, int $superAdminId): Sale
     {
         return DB::transaction(function () use ($data, $superAdminId) {
-            $createdAt = isset($data['created_at']) ? Carbon::parse($data['created_at']) : now();
+            $createdAt = isset($data['created_at']) 
+                ? Carbon::parse($data['created_at'])->setTimezone(config('app.timezone', 'America/La_Paz')) 
+                : now();
             $datePrefix = $createdAt->format('dmy');
 
             $todayCount = Sale::whereDate('created_at', $createdAt->toDateString())->count();
@@ -241,7 +247,8 @@ class SaleSyncService
                 'total_amount'       => $data['total_amount'],
                 'status'             => 'completed',
                 'preparation_status' => 'delivered',
-                'source'             => 'manual_retroactive',
+                // Permite registrar el canal de origen ('pedidosya' o 'pos') para trazabilidad y arqueo de caja
+                'source'             => $data['source'] ?? 'manual_retroactive',
                 'is_takeaway'        => $orderIsTakeaway,
                 'notes'              => $data['notes'] ?? null,
                 'edit_reason'        => $data['edit_reason'],
@@ -251,14 +258,19 @@ class SaleSyncService
                 'created_at'         => $createdAt,
             ]);
 
+            $sale->created_at = $createdAt;
+            $sale->saveQuietly();
+
             $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway);
 
             if (!empty($data['payments'])) {
                 foreach ($data['payments'] as $paymentData) {
                     SalePayment::create([
-                        'sale_id' => $sale->id,
-                        'method'  => $paymentData['method'],
-                        'amount'  => $paymentData['amount'],
+                        'sale_id'    => $sale->id,
+                        'method'     => $paymentData['method'],
+                        'amount'     => $paymentData['amount'],
+                        'created_at' => $sale->created_at,
+                        'updated_at' => $sale->created_at,
                     ]);
                 }
             }
@@ -338,7 +350,9 @@ class SaleSyncService
             $sale->payments()->delete();
 
             // 4. Actualizar cabecera de la venta
-            $createdAt = isset($data['created_at']) ? Carbon::parse($data['created_at']) : $sale->created_at;
+            $createdAt = isset($data['created_at']) 
+                ? Carbon::parse($data['created_at'])->setTimezone(config('app.timezone', 'America/La_Paz')) 
+                : $sale->created_at;
             $itemsCollection = collect($data['items'] ?? []);
             $totalItemsCount = $itemsCollection->count();
             $takeawayItemsCount = $itemsCollection->filter(fn($i) => !empty($i['is_takeaway']))->count();
@@ -352,6 +366,8 @@ class SaleSyncService
                 'subtotal'        => $data['subtotal'],
                 'discount_amount' => $data['discount_amount'] ?? 0,
                 'total_amount'    => $data['total_amount'],
+                // Preservar o actualizar el canal de origen de la venta (ej. 'pedidosya')
+                'source'          => $data['source'] ?? $sale->source,
                 'is_takeaway'     => $orderIsTakeaway,
                 'notes'           => $data['notes'] ?? null,
                 'edited_by'       => $superAdminId,
@@ -360,6 +376,9 @@ class SaleSyncService
                 'created_at'      => $createdAt,
             ]);
 
+            $sale->created_at = $createdAt;
+            $sale->saveQuietly();
+
             // 5. Insertar nuevos items y descontar nuevo inventario
             $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway);
 
@@ -367,9 +386,11 @@ class SaleSyncService
             if (!empty($data['payments'])) {
                 foreach ($data['payments'] as $paymentData) {
                     SalePayment::create([
-                        'sale_id' => $sale->id,
-                        'method'  => $paymentData['method'],
-                        'amount'  => $paymentData['amount'],
+                        'sale_id'    => $sale->id,
+                        'method'     => $paymentData['method'],
+                        'amount'     => $paymentData['amount'],
+                        'created_at' => $sale->created_at,
+                        'updated_at' => $sale->created_at,
                     ]);
                 }
             }

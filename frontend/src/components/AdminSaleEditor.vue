@@ -13,6 +13,18 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  inline: {
+    type: Boolean,
+    default: false,
+  },
+  semiLote: {
+    type: Boolean,
+    default: false,
+  },
+  defaultDate: {
+    type: String,
+    default: '',
+  },
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -32,6 +44,32 @@ const selectedCategoryId = ref('');
 const productSearchQuery = ref('');
 const showProductPicker = ref(false);
 
+// Origen de la Venta (Plataformas, Mesa, Llevar)
+const saleOrigin = ref('pos_mesa');
+
+watch(saleOrigin, (newOrigin) => {
+  if (newOrigin === 'pedidosya') {
+    formData.value.is_takeaway = true;
+    formData.value.items.forEach(item => {
+      item.is_takeaway = true;
+      if (item.priceMode !== 'weight' && item.priceMode !== 'manual') {
+        recalcItemPricesAndModifiers(item);
+      }
+    });
+    quickSetPaymentMethod('delivery_platform');
+  } else {
+    formData.value.is_takeaway = (newOrigin === 'pos_llevar');
+    formData.value.items.forEach(item => {
+      item.is_takeaway = (newOrigin === 'pos_llevar');
+      if (item.priceMode !== 'weight' && item.priceMode !== 'manual') {
+        recalcItemPricesAndModifiers(item);
+      }
+    });
+    quickSetPaymentMethod('cash');
+  }
+  autoSyncPayments();
+});
+
 // Form state
 const formData = ref({
   created_at: '',
@@ -41,13 +79,20 @@ const formData = ref({
   notes: '',
   edit_reason: '',
   discount_amount: 0,
+  surcharge_amount: 0,
   items: [],
   payments: [
     { method: 'cash', amount: 0 }
   ]
 });
 
-function formatForDatetimeLocal(isoStr) {
+function formatForDatetimeLocal(isoStr, customDate = null) {
+  if (customDate) {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    return `${customDate}T${hh}:${mm}`;
+  }
   if (!isoStr) {
     const now = new Date();
     const tzOffset = now.getTimezoneOffset() * 60000;
@@ -69,7 +114,7 @@ async function loadUsers() {
 
 // Helpers de productos y grupos de opciones
 function getProduct(productId) {
-  return catalogStore.products.find(p => p.id === productId);
+  return catalogStore.products.find(p => Number(p.id) === Number(productId));
 }
 
 function getProductOptionGroups(product) {
@@ -94,16 +139,30 @@ function getGroupIcon(name) {
 }
 
 function isOptionSelected(item, groupId, optionId) {
-  return (item.selectedOptionIds[groupId] || []).includes(optionId);
+  return (item.selectedOptionIds[groupId] || []).some(id => Number(id) === Number(optionId));
 }
 
 function getGroupSelectedCount(item, groupId) {
   return (item.selectedOptionIds[groupId] || []).length;
 }
 
+function getActiveBasePrice(product) {
+  if (saleOrigin.value === 'pedidosya' && product?.delivery_price && Number(product.delivery_price) > 0) {
+    return Number(product.delivery_price);
+  }
+  return Number(product?.price || 0);
+}
+
+function getActiveOptionPrice(opt) {
+  if (saleOrigin.value === 'pedidosya' && opt?.delivery_price && Number(opt.delivery_price) > 0) {
+    return Number(opt.delivery_price);
+  }
+  return Number(opt?.additional_price || 0);
+}
+
 function recalcItemPricesAndModifiers(item) {
   const p = getProduct(item.product_id);
-  const basePrice = Number(p?.price || 0);
+  const basePrice = getActiveBasePrice(p);
   let extrasPrice = 0;
   const modifiers = [];
 
@@ -111,9 +170,9 @@ function recalcItemPricesAndModifiers(item) {
   groups.forEach(og => {
     const selectedIds = item.selectedOptionIds[og.id] || [];
     selectedIds.forEach(optId => {
-      const opt = og.options.find(o => o.id === optId);
+      const opt = og.options.find(o => Number(o.id) === Number(optId));
       if (opt) {
-        const optPrice = Number(opt.additional_price || 0);
+        const optPrice = getActiveOptionPrice(opt);
         extrasPrice += optPrice;
         modifiers.push({
           option_id: opt.id,
@@ -136,7 +195,7 @@ function recalcItemPricesAndModifiers(item) {
     // Preserva el precio que el admin ingresó directamente
     item.unit_price = Number(Number(item.unit_price || 0).toFixed(2));
   } else {
-    // Modo 'auto' (Catálogo estándar)
+    // Modo 'auto' (Catálogo estándar / Tarifa activa PedidosYa)
     item.unit_price = Number((basePrice + extrasPrice).toFixed(2));
   }
 
@@ -171,7 +230,8 @@ function onManualPriceChange(item) {
 
 function handleSingleSelect(item, og, opt) {
   const currentList = item.selectedOptionIds[og.id] || [];
-  if (currentList.includes(opt.id)) {
+  const isAlreadySelected = currentList.some(id => Number(id) === Number(opt.id));
+  if (isAlreadySelected) {
     if ((og.min_selections || 0) === 0) {
       item.selectedOptionIds[og.id] = [];
     }
@@ -184,10 +244,10 @@ function handleSingleSelect(item, og, opt) {
 
 function toggleMultiSelect(item, og, opt) {
   const currentList = item.selectedOptionIds[og.id] || [];
-  const isSel = currentList.includes(opt.id);
+  const isSel = currentList.some(id => Number(id) === Number(opt.id));
 
   if (isSel) {
-    item.selectedOptionIds[og.id] = currentList.filter(id => id !== opt.id);
+    item.selectedOptionIds[og.id] = currentList.filter(id => Number(id) !== Number(opt.id));
   } else {
     const maxSel = og.max_selections || 999;
     if (currentList.length < maxSel) {
@@ -206,6 +266,13 @@ function initForm() {
   selectedCategoryId.value = '';
 
   if (isEditMode.value && props.sale) {
+    if (props.sale.source === 'pedidosya') {
+      saleOrigin.value = 'pedidosya';
+    } else {
+      saleOrigin.value = props.sale.is_takeaway ? 'pos_llevar' : 'pos_mesa';
+    }
+
+    const rawDiscount = Number(props.sale.discount_amount || 0);
     formData.value = {
       created_at: formatForDatetimeLocal(props.sale.created_at),
       cashier_id: props.sale.cashier_id || '',
@@ -213,7 +280,8 @@ function initForm() {
       is_takeaway: Boolean(props.sale.is_takeaway),
       notes: props.sale.notes || '',
       edit_reason: '',
-      discount_amount: Number(props.sale.discount_amount || 0),
+      discount_amount: rawDiscount > 0 ? rawDiscount : 0,
+      surcharge_amount: rawDiscount < 0 ? Math.abs(rawDiscount) : 0,
       items: (props.sale.items || []).map(i => {
         const p = getProduct(i.product_id);
         const groups = getProductOptionGroups(p);
@@ -235,13 +303,22 @@ function initForm() {
         const rawUnitPrice = Number(i.unit_price || p?.price || 0);
         const isWeight = Boolean(p?.is_weight_based);
 
-        // Detectar si el precio fue modificado manualmente
-        let autoPriceExpected = Number(p?.price || 0);
+        // Detectar si el precio fue modificado manualmente tomando en cuenta PedidosYa
+        const isPya = props.sale.source === 'pedidosya';
+        let autoPriceExpected = isPya && p?.delivery_price && Number(p.delivery_price) > 0
+          ? Number(p.delivery_price)
+          : Number(p?.price || 0);
+
         groups.forEach(og => {
           const selected = selectedOptionIds[og.id] || [];
           selected.forEach(optId => {
-            const opt = og.options.find(o => o.id === optId);
-            if (opt) autoPriceExpected += Number(opt.additional_price || 0);
+            const opt = og.options.find(o => Number(o.id) === Number(optId));
+            if (opt) {
+              const optPrice = isPya && opt.delivery_price && Number(opt.delivery_price) > 0
+                ? Number(opt.delivery_price)
+                : Number(opt.additional_price || 0);
+              autoPriceExpected += optPrice;
+            }
           });
         });
 
@@ -277,11 +354,14 @@ function initForm() {
             selectedIds.forEach(optId => {
               const opt = og.options.find(o => o.id === optId);
               if (opt) {
+                const optPrice = isPya && opt.delivery_price && Number(opt.delivery_price) > 0
+                  ? Number(opt.delivery_price)
+                  : Number(opt.additional_price || 0);
                 modifiers.push({
                   option_id: opt.id,
                   option_name: opt.name,
                   group_name: og.name,
-                  price: Number(opt.additional_price || 0),
+                  price: optPrice,
                   quantity: 1
                 });
               }
@@ -300,14 +380,16 @@ function initForm() {
         : [{ method: 'cash', amount: Number(props.sale.total_amount || 0) }]
     };
   } else {
+    saleOrigin.value = 'pos_mesa';
     formData.value = {
-      created_at: formatForDatetimeLocal(),
+      created_at: formatForDatetimeLocal(null, props.defaultDate),
       cashier_id: usersList.value[0]?.id || '',
       customer_id: '',
       is_takeaway: false,
       notes: '',
       edit_reason: '',
       discount_amount: 0,
+      surcharge_amount: 0,
       items: [],
       payments: [
         { method: 'cash', amount: 0 }
@@ -316,6 +398,12 @@ function initForm() {
   }
 }
 
+watch(() => props.defaultDate, (newDate) => {
+  if (newDate && !isEditMode.value) {
+    formData.value.created_at = formatForDatetimeLocal(null, newDate);
+  }
+});
+
 watch(() => props.visible, (newVal) => {
   if (newVal) {
     initForm();
@@ -323,10 +411,11 @@ watch(() => props.visible, (newVal) => {
 });
 
 onMounted(async () => {
-  await loadUsers();
-  if (catalogStore.products.length === 0) {
-    await catalogStore.fetchAndCache();
+  if (props.visible) {
+    initForm();
   }
+  await loadUsers();
+  await catalogStore.fetchAndCache();
 });
 
 // Filtrado de productos disponibles en el picker
@@ -347,9 +436,33 @@ const calculatedSubtotal = computed(() => {
   return formData.value.items.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
 });
 
-const calculatedTotal = computed(() => {
-  const total = calculatedSubtotal.value - Number(formData.value.discount_amount || 0);
-  return Math.max(0, total);
+const calculatedTotal = computed({
+  get() {
+    const sub = calculatedSubtotal.value;
+    const disc = Number(formData.value.discount_amount || 0);
+    const surch = Number(formData.value.surcharge_amount || 0);
+    return Math.max(0, Number((sub - disc + surch).toFixed(2)));
+  },
+  set(newTotal) {
+    const val = Number(newTotal || 0);
+    const sub = calculatedSubtotal.value;
+    if (val >= sub) {
+      formData.value.discount_amount = 0;
+      formData.value.surcharge_amount = Number((val - sub).toFixed(2));
+    } else {
+      formData.value.discount_amount = Number((sub - val).toFixed(2));
+      formData.value.surcharge_amount = 0;
+    }
+    autoSyncPayments();
+  }
+});
+
+const hasProductsWithoutDeliveryPrice = computed(() => {
+  if (saleOrigin.value !== 'pedidosya') return false;
+  return formData.value.items.some(item => {
+    const p = getProduct(item.product_id);
+    return p && !p.is_weight_based && (!p.delivery_price || Number(p.delivery_price) <= 0);
+  });
 });
 
 const totalPayments = computed(() => {
@@ -376,6 +489,7 @@ function addProductToSale(product) {
 
   const isWeight = Boolean(product.is_weight_based);
   const pricePerGram = Number(product.price_per_gram || 0.08);
+  const initialBasePrice = getActiveBasePrice(product);
 
   const newItem = {
     product_id: product.id,
@@ -383,8 +497,8 @@ function addProductToSale(product) {
     priceMode: isWeight ? 'weight' : 'auto',
     weightGrams: isWeight ? 350 : 0,
     pricePerGram: pricePerGram,
-    unit_price: Number(product.price || 0),
-    subtotal: Number(product.price || 0),
+    unit_price: initialBasePrice,
+    subtotal: initialBasePrice,
     is_takeaway: formData.value.is_takeaway,
     item_note: '',
     selectedOptionIds,
@@ -416,6 +530,8 @@ function onProductSelectChange(item) {
     item.priceMode = 'weight';
     item.weightGrams = item.weightGrams || 350;
     item.pricePerGram = Number(p.price_per_gram || 0.08);
+  } else if (item.priceMode === 'weight') {
+    item.priceMode = 'auto';
   }
   recalcItemPricesAndModifiers(item);
   autoSyncPayments();
@@ -461,38 +577,79 @@ function quickSetPaymentMethod(method) {
   formData.value.payments = [{ method, amount: Number(calculatedTotal.value.toFixed(2)) }];
 }
 
+function syncPaymentToTotal() {
+  if (formData.value.payments.length === 1) {
+    formData.value.payments[0].amount = Number(calculatedTotal.value.toFixed(2));
+  } else if (formData.value.payments.length > 1) {
+    const otherPayments = formData.value.payments.slice(0, -1).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const lastIdx = formData.value.payments.length - 1;
+    formData.value.payments[lastIdx].amount = Math.max(0, Number((calculatedTotal.value - otherPayments).toFixed(2)));
+  }
+  errorMessage.value = '';
+}
+
+function applyPaymentDifferenceAsSurcharge() {
+  const diff = Number((totalPayments.value - (calculatedSubtotal.value - Number(formData.value.discount_amount || 0))).toFixed(2));
+  if (diff > 0) {
+    formData.value.surcharge_amount = diff;
+  }
+  errorMessage.value = '';
+}
+
+function scrollToError() {
+  setTimeout(() => {
+    const errorEl = document.querySelector('.error-banner-footer') || document.querySelector('.error-banner') || document.querySelector('.payment-difference-alert-box');
+    if (errorEl) {
+      errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 50);
+}
+
 async function handleSave() {
   errorMessage.value = '';
   successMessage.value = '';
 
   if (!formData.value.created_at) {
     errorMessage.value = 'Debes ingresar una fecha y hora válida.';
+    scrollToError();
     return;
   }
   if (!formData.value.items || formData.value.items.length === 0) {
     errorMessage.value = 'Debes agregar al menos un producto a la venta.';
+    scrollToError();
     return;
   }
   if (!formData.value.edit_reason || formData.value.edit_reason.trim().length < 5) {
     errorMessage.value = 'El motivo/justificación es obligatorio para el registro de auditoría (mínimo 5 caracteres).';
+    scrollToError();
     return;
   }
   if (Math.abs(paymentDifference.value) > 0.05) {
-    errorMessage.value = `Los pagos (Bs ${totalPayments.value.toFixed(2)}) no coinciden con el total (Bs ${calculatedTotal.value.toFixed(2)}).`;
+    errorMessage.value = `Los pagos ingresados (Bs ${totalPayments.value.toFixed(2)}) no coinciden con el total de la comanda (Bs ${calculatedTotal.value.toFixed(2)}). Corrige el pago o pulsa "Ajustar Pago".`;
+    scrollToError();
     return;
   }
 
   isSaving.value = true;
 
   const payload = {
-    created_at: new Date(formData.value.created_at).toISOString(),
+    created_at: formData.value.created_at
+      ? (formData.value.created_at.includes('T')
+          ? formData.value.created_at.replace('T', ' ') + (formData.value.created_at.length === 16 ? ':00' : '')
+          : formData.value.created_at)
+      : null,
     cashier_id: formData.value.cashier_id ? Number(formData.value.cashier_id) : null,
     customer_id: formData.value.customer_id ? Number(formData.value.customer_id) : null,
-    subtotal: calculatedSubtotal.value,
+    subtotal: Number((calculatedSubtotal.value + Number(formData.value.surcharge_amount || 0)).toFixed(2)),
     discount_amount: Number(formData.value.discount_amount || 0),
     total_amount: calculatedTotal.value,
+    source: saleOrigin.value === 'pedidosya' ? 'pedidosya' : 'pos',
     is_takeaway: formData.value.is_takeaway,
-    notes: formData.value.notes,
+    notes: Number(formData.value.surcharge_amount || 0) > 0
+      ? (formData.value.notes 
+          ? `${formData.value.notes} | Recargo/Empaque: Bs ${Number(formData.value.surcharge_amount).toFixed(2)}`
+          : `Recargo/Empaque: Bs ${Number(formData.value.surcharge_amount).toFixed(2)}`)
+      : formData.value.notes,
     edit_reason: formData.value.edit_reason.trim(),
     items: formData.value.items.map(item => ({
       product_id: item.product_id,
@@ -513,15 +670,25 @@ async function handleSave() {
     let result;
     if (isEditMode.value) {
       result = await turnoStore.adminUpdateSale(props.sale.id, payload);
-      successMessage.value = `Venta #${result.order_number || props.sale.id} actualizada con éxito.`;
+      const updatedSale = result?.sale || result;
+      successMessage.value = `Venta #${updatedSale.order_number || props.sale.id} actualizada con éxito.`;
     } else {
       result = await turnoStore.adminCreateSale(payload);
-      successMessage.value = `Venta #${result.order_number || 'creada'} registrada correctamente.`;
+      const createdSale = result?.sale || result;
+      successMessage.value = `Venta #${createdSale.order_number || 'creada'} registrada correctamente.`;
     }
 
     setTimeout(() => {
       emit('saved', result);
-      emit('close');
+      if (!props.semiLote || isEditMode.value) {
+        emit('close');
+      } else {
+        // Modo semi-lote: reset items and payments, but keep metadata
+        formData.value.items = [];
+        formData.value.payments = [{ method: 'cash', amount: 0 }];
+        formData.value.discount_amount = 0;
+        formData.value.edit_reason = '';
+      }
     }, 1200);
   } catch (err) {
     console.error('Error guardando venta admin:', err);
@@ -530,15 +697,19 @@ async function handleSave() {
     isSaving.value = false;
   }
 }
+
+function resetForm() {
+  initForm();
+}
 </script>
 
 <template>
-  <div v-if="visible" class="modal-overlay" @click.self="$emit('close')">
-    <div class="editor-modal">
+  <div v-if="visible" :class="inline ? 'inline-editor-overlay' : 'modal-overlay'" @click.self="!inline && $emit('close')">
+    <div :class="inline ? 'inline-editor-card' : 'editor-modal'">
       <!-- HEADER -->
-      <div class="modal-header">
+      <div v-if="!inline" class="modal-header">
         <div class="header-titles">
-          <span class="badge-super-admin">🔒 Modo Super Admin</span>
+          <span class="badge-super-admin">🔒 Modo Admin / Super Admin</span>
           <h3>{{ isEditMode ? `Editar Venta #${sale?.order_number}` : 'Registrar Venta Retroactiva / Manual' }}</h3>
         </div>
         <button class="close-btn" @click="$emit('close')" aria-label="Cerrar">✕</button>
@@ -585,23 +756,31 @@ async function handleSave() {
           </div>
 
           <div class="form-group">
-            <label><strong>🏷️ Destino General:</strong></label>
+            <label><strong>🏷️ Origen / Destino:</strong></label>
             <div class="destination-toggle">
               <button 
                 type="button" 
                 class="dest-btn" 
-                :class="{ active: !formData.is_takeaway }"
-                @click="formData.is_takeaway = false"
+                :class="{ active: saleOrigin === 'pos_mesa' }"
+                @click="saleOrigin = 'pos_mesa'"
               >
                 🍽️ En Mesa
               </button>
               <button 
                 type="button" 
                 class="dest-btn" 
-                :class="{ active: formData.is_takeaway }"
-                @click="formData.is_takeaway = true"
+                :class="{ active: saleOrigin === 'pos_llevar' }"
+                @click="saleOrigin = 'pos_llevar'"
               >
                 🛍️ Para Llevar
+              </button>
+              <button 
+                type="button" 
+                class="dest-btn" 
+                :class="{ active: saleOrigin === 'pedidosya' }"
+                @click="saleOrigin = 'pedidosya'"
+              >
+                🛵 PedidosYa
               </button>
             </div>
           </div>
@@ -634,6 +813,17 @@ async function handleSave() {
 
         <!-- SECCIÓN 3: PRODUCTOS E ITEMS -->
         <div class="items-section-wrapper">
+          <!-- BANNER DE CONTEXTO PEDIDOSYA -->
+          <div v-if="saleOrigin === 'pedidosya'" class="pedidosya-context-banner">
+            <span class="pedidosya-banner-icon">🛵</span>
+            <div class="pedidosya-banner-text">
+              <strong>Tarifario PedidosYa activo:</strong> Los productos aplican automáticamente su precio de delivery registrado en el sistema.
+              <div v-if="hasProductsWithoutDeliveryPrice" class="pedidosya-warning-note">
+                ⚠️ Hay productos en la comanda sin precio de PedidosYa definido en el catálogo (usando precio de mostrador). Puedes usar <strong>✏️ Manual Libre</strong> si necesitas ajustar el monto unitario.
+              </div>
+            </div>
+          </div>
+
           <div class="items-section-header">
             <div>
               <h4>🛒 Productos e Ítems de la Venta</h4>
@@ -682,7 +872,15 @@ async function handleSave() {
                 <div class="card-info">
                   <strong class="card-name">{{ p.name }}</strong>
                   <span class="card-price">
-                    {{ p.is_weight_based ? `Bs ${(Number(p.price_per_gram || 0) * 100).toFixed(2)}/100g` : `Bs ${Number(p.price).toFixed(2)}` }}
+                    <template v-if="p.is_weight_based">
+                      Bs {{ (Number(p.price_per_gram || 0) * 100).toFixed(2) }}/100g
+                    </template>
+                    <template v-else-if="saleOrigin === 'pedidosya' && p.delivery_price">
+                      🛵 Bs {{ Number(p.delivery_price).toFixed(2) }}
+                    </template>
+                    <template v-else>
+                      Bs {{ Number(p.price).toFixed(2) }}
+                    </template>
                   </span>
                 </div>
                 <div class="card-add-icon">＋</div>
@@ -842,13 +1040,24 @@ async function handleSave() {
                       v-model.number="item.unit_price" 
                       @input="onManualPriceChange(item)"
                       class="input-manual-price"
+                      placeholder="0.00"
                     />
+                  </div>
+                  <!-- Referencia visual de catálogo al estar en modo PedidosYa -->
+                  <div v-if="saleOrigin === 'pedidosya'" class="catalog-price-hint">
+                    💡 Catálogo tienda: <strong>Bs {{ (Number(getProduct(item.product_id)?.price) || 0).toFixed(2) }}</strong>
+                    <span v-if="getProduct(item.product_id)?.delivery_price"> | PedidosYa: <strong>Bs {{ (Number(getProduct(item.product_id)?.delivery_price) || 0).toFixed(2) }}</strong></span>
                   </div>
                 </div>
               </div>
 
               <!-- CUERPO DE OPCIONES / MODIFICADORES (EXPANDIBLE) -->
               <div v-show="item.isExpanded" class="item-card-body">
+                <!-- AVISO INFORMATIVO SI ESTÁ EN MODO MANUAL -->
+                <div v-if="item.priceMode === 'manual'" class="manual-mode-notice">
+                  <span>✏️ <strong>Modo Manual Libre activo:</strong> El precio unitario está fijo en <strong>Bs {{ Number(item.unit_price || 0).toFixed(2) }}</strong>. Si deseas que los tamaños y agregados calculen el monto automáticamente, pulsa <button type="button" class="btn-link-switch-auto" @click="setItemPriceMode(item, 'auto')">🔒 Catálogo Auto</button>.</span>
+                </div>
+
                 <!-- GRUPOS DE OPCIONES (TAMAÑO, FRUTAS, TOPPINGS, ETC.) -->
                 <div 
                   v-if="getProductOptionGroups(getProduct(item.product_id)).length > 0" 
@@ -886,8 +1095,8 @@ async function handleSave() {
                       >
                         <span class="radio-dot"></span>
                         <span class="opt-name">{{ opt.name }}</span>
-                        <span v-if="opt.additional_price > 0" class="opt-price-add">
-                          +Bs {{ Number(opt.additional_price).toFixed(2) }}
+                        <span v-if="getActiveOptionPrice(opt) > 0" class="opt-price-add">
+                          +Bs {{ Number(getActiveOptionPrice(opt)).toFixed(2) }}
                         </span>
                       </button>
                     </div>
@@ -908,8 +1117,8 @@ async function handleSave() {
                       >
                         <span class="chip-indicator">{{ isOptionSelected(item, og.id, opt.id) ? '✓' : '+' }}</span>
                         <span class="opt-name">{{ opt.name }}</span>
-                        <span v-if="opt.additional_price > 0" class="opt-price-add">
-                          +Bs {{ Number(opt.additional_price).toFixed(2) }}
+                        <span v-if="getActiveOptionPrice(opt) > 0" class="opt-price-add">
+                          +Bs {{ Number(getActiveOptionPrice(opt)).toFixed(2) }}
                         </span>
                       </button>
                     </div>
@@ -941,23 +1150,47 @@ async function handleSave() {
         <!-- RESUMEN DE TOTALES -->
         <div class="totals-bar">
           <div class="total-row">
-            <span>Subtotal:</span>
+            <span>Subtotal Ítems:</span>
             <strong>Bs {{ calculatedSubtotal.toFixed(2) }}</strong>
           </div>
-          <div class="total-row discount-row">
-            <span>Descuento (Bs):</span>
+          <div class="total-row discount-row" v-if="saleOrigin !== 'pedidosya' || Number(formData.discount_amount) > 0">
+            <span>Descuento:</span>
             <input 
               type="number" 
-              min="0" 
+              min="0"
               step="0.5" 
               v-model.number="formData.discount_amount" 
               @input="autoSyncPayments"
               class="discount-input" 
+              placeholder="0.00"
+            />
+          </div>
+          <div class="total-row surcharge-row" v-if="saleOrigin === 'pedidosya' || Number(formData.surcharge_amount) > 0">
+            <span title="Cargos adicionales como empaque, bolsas o recargo de envío">🛵 Recargo / Empaque:</span>
+            <input 
+              type="number" 
+              min="0"
+              step="0.5" 
+              v-model.number="formData.surcharge_amount" 
+              @input="autoSyncPayments"
+              class="discount-input surcharge-input" 
+              placeholder="0.00"
             />
           </div>
           <div class="total-row total-highlight">
             <span>Total a Cobrar:</span>
-            <strong>Bs {{ calculatedTotal.toFixed(2) }}</strong>
+            <div style="display: flex; align-items: center; gap: 0.25rem;">
+              <strong>Bs</strong>
+              <input 
+                type="number" 
+                min="0" 
+                step="0.5" 
+                v-model.lazy="calculatedTotal"
+                class="discount-input"
+                style="font-weight: bold; width: 100px; padding: 0.25rem; font-size: 1rem; color: #1e293b;"
+                title="Si modificas el total final, se ajustará automáticamente como recargo o descuento."
+              />
+            </div>
           </div>
         </div>
 
@@ -969,6 +1202,14 @@ async function handleSave() {
             <h4>💳 Métodos de Pago</h4>
             <div class="quick-method-pills">
               <span style="font-size: 11px; color: #64748b;">Llenado Rápido:</span>
+              <button 
+                v-if="saleOrigin === 'pedidosya'" 
+                type="button" 
+                class="method-pill method-pill-pya" 
+                @click="quickSetPaymentMethod('delivery_platform')"
+              >
+                🛵 PedidosYa Total
+              </button>
               <button type="button" class="method-pill" @click="quickSetPaymentMethod('cash')">💵 Efectivo Total</button>
               <button type="button" class="method-pill" @click="quickSetPaymentMethod('qr')">📱 QR Total</button>
               <button type="button" class="method-pill" @click="quickSetPaymentMethod('card')">💳 Tarjeta Total</button>
@@ -979,10 +1220,10 @@ async function handleSave() {
           <div class="payment-rows">
             <div v-for="(p, pIdx) in formData.payments" :key="pIdx" class="payment-item-row">
               <select v-model="p.method" class="form-input payment-method-select">
-                <option value="cash">💵 Efectivo (Cash)</option>
+                <option value="delivery_platform">🛵 PedidosYa / Delivery Platform</option>
+                <option value="cash">💵 Efectivo (Cash / Gaveta)</option>
                 <option value="qr">📱 Pago QR</option>
                 <option value="card">💳 Tarjeta Débito / Crédito</option>
-                <option value="transfer">🏦 Transferencia Bancaria</option>
               </select>
 
               <div class="payment-amount-wrap">
@@ -1008,8 +1249,33 @@ async function handleSave() {
             </div>
           </div>
 
-          <div v-if="Math.abs(paymentDifference) > 0.01" class="payment-difference-alert">
-            ⚠️ Diferencia de pagos: Hay una discrepancia de Bs {{ Math.abs(paymentDifference).toFixed(2) }} (Total Pagos: Bs {{ totalPayments.toFixed(2) }} vs Venta: Bs {{ calculatedTotal.toFixed(2) }}).
+          <!-- ALERTA INTELIGENTE DE DISCREPANCIA CON ACCIONES EN 1 CLIC -->
+          <div v-if="Math.abs(paymentDifference) > 0.01" class="payment-difference-alert-box">
+            <div class="diff-header">
+              <span class="diff-icon">⚠️</span>
+              <div class="diff-text">
+                <strong>Diferencia de pagos:</strong> Hay una discrepancia de Bs {{ Math.abs(paymentDifference).toFixed(2) }} (Pagos: <strong>Bs {{ totalPayments.toFixed(2) }}</strong> vs Total Comanda: <strong>Bs {{ calculatedTotal.toFixed(2) }}</strong>).
+              </div>
+            </div>
+            <div class="diff-actions">
+              <button 
+                type="button" 
+                class="btn-diff-action btn-diff-sync" 
+                @click="syncPaymentToTotal"
+                title="Ajusta el monto del método de pago para que coincida exactamente con los Bs {{ calculatedTotal.toFixed(2) }} de la comanda"
+              >
+                ⚡ Ajustar Pago a Bs {{ calculatedTotal.toFixed(2) }}
+              </button>
+              <button 
+                v-if="totalPayments > calculatedTotal" 
+                type="button" 
+                class="btn-diff-action btn-diff-surcharge" 
+                @click="applyPaymentDifferenceAsSurcharge"
+                title="Suma la diferencia al Recargo/Empaque para que la comanda totalice exactamente lo pagado"
+              >
+                🛵 Sumar diferencia (+Bs {{ (totalPayments - calculatedTotal).toFixed(2) }}) como Recargo/Empaque
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1032,10 +1298,31 @@ async function handleSave() {
         </div>
       </div>
 
+      <!-- ALERTA DE ERROR VISIBLE EN EL FOOTER SI EL GUARDADO ES BLOQUEADO -->
+      <div v-if="errorMessage" class="error-banner-footer">
+        <div class="error-footer-content">
+          <span class="error-footer-icon">⚠️</span>
+          <span class="error-footer-text">{{ errorMessage }}</span>
+        </div>
+        <button 
+          v-if="Math.abs(paymentDifference) > 0.05" 
+          type="button" 
+          class="btn-autofix-footer"
+          @click="syncPaymentToTotal"
+        >
+          ⚡ Sincronizar Pago a Bs {{ calculatedTotal.toFixed(2) }}
+        </button>
+      </div>
+
       <!-- FOOTER ACCIONES -->
       <div class="modal-footer">
-        <button type="button" class="btn btn-ghost" @click="$emit('close')" :disabled="isSaving">
-          Cancelar
+        <button 
+          type="button" 
+          class="btn btn-ghost" 
+          @click="inline ? resetForm() : $emit('close')" 
+          :disabled="isSaving"
+        >
+          {{ inline ? 'Limpiar Campos' : 'Cancelar' }}
         </button>
         <button 
           type="button" 
@@ -1052,6 +1339,22 @@ async function handleSave() {
 </template>
 
 <style scoped>
+.inline-editor-overlay {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.inline-editor-card {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1673,10 +1976,89 @@ async function handleSave() {
   border-radius: 4px;
 }
 
+/* BANNER Y REFERENCIA PEDIDOSYA */
+.pedidosya-context-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-left: 4px solid #ea580c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  color: #9a3412;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.pedidosya-banner-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.pedidosya-banner-text strong {
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.pedidosya-warning-note {
+  margin-top: 4px;
+  color: #b45309;
+  font-size: 11.5px;
+  background: #fef3c7;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px dashed #fcd34d;
+}
+
+.catalog-price-hint {
+  font-size: 11px;
+  color: #c2410c;
+  background: #ffedd5;
+  border: 1px solid #fed7aa;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.catalog-price-hint strong {
+  color: #9a3412;
+}
+
+.manual-mode-notice {
+  background: #fef9c3;
+  border: 1px solid #fde047;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  color: #854d0e;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.btn-link-switch-auto {
+  background: none;
+  border: none;
+  padding: 0 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--primary-700, #6d28d9);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.btn-link-switch-auto:hover {
+  color: var(--primary-900, #4c1d95);
+}
+
 .mode-manual-inputs {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   font-size: 11px;
   color: #475569;
 }
@@ -1942,6 +2324,18 @@ async function handleSave() {
   font-size: 13px;
 }
 
+.surcharge-row {
+  color: #ea580c !important;
+  font-weight: 600;
+}
+
+.surcharge-input {
+  border-color: #fdba74 !important;
+  background: #fff7ed !important;
+  color: #c2410c !important;
+  font-weight: 700;
+}
+
 .total-highlight {
   font-size: 15px;
   color: var(--primary-700, #6d28d9);
@@ -2024,10 +2418,129 @@ async function handleSave() {
   text-align: right;
 }
 
-.payment-difference-alert {
+.payment-difference-alert-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.diff-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.diff-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.diff-text {
   font-size: 12px;
-  color: #dc2626;
+  color: #991b1b;
+  line-height: 1.4;
+}
+
+.diff-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: 24px;
+}
+
+.btn-diff-action {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.btn-diff-sync {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+.btn-diff-sync:hover {
+  background: #fecaca;
+}
+
+.btn-diff-surcharge {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.btn-diff-surcharge:hover {
+  background: #fde68a;
+}
+
+.method-pill-pya {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border-color: #fca5a5 !important;
+  font-weight: 700 !important;
+}
+
+.error-banner-footer {
+  margin: 0 24px;
+  background: #fef2f2;
+  border: 1px solid #f87171;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  animation: shake 0.3s ease-in-out;
+}
+
+.error-footer-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error-footer-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.error-footer-text {
+  font-size: 12px;
+  color: #991b1b;
   font-weight: 600;
+}
+
+.btn-autofix-footer {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.btn-autofix-footer:hover {
+  background: #b91c1c;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
 }
 
 /* AUDIT REASON */

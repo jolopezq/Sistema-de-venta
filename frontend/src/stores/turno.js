@@ -49,16 +49,34 @@ export const useTurnoStore = defineStore('turno', {
     loading: false,
     salesLoading: false,
     error: null,
+    suggestedForNext: 0,
   }),
 
   getters: {
     hasActiveSession: (state) => !!state.activeSession && state.activeSession.status === 'open',
+
+    /**
+     * Efectivo físico esperado en la gaveta en tiempo real.
+     * Ecuación: fondo inicial + ventas en efectivo - egresos registrados
+     */
     currentCashInDrawer: (state) => {
       if (!state.activeSession) return 0;
-      const opening = Number(state.activeSession.opening_amount || 0);
+      if (state.sessionStats?.expected_cash !== undefined) {
+        return Number(state.sessionStats.expected_cash);
+      }
+      const opening  = Number(state.activeSession.opening_amount || 0);
       const cashSales = Number(state.sessionStats?.cash_sales || 0);
-      return opening + cashSales;
+      const cashExpenses = Number(state.sessionStats?.cash_expenses ?? state.sessionStats?.total_expenses ?? 0);
+      const extra     = Number(state.sessionStats?.cash_extra_income ?? state.sessionStats?.extra_income ?? 0);
+      return opening + cashSales - cashExpenses + extra;
     },
+
+    /**
+     * Monto sugerido para la apertura del próximo turno basado en el
+     * fondo dejado en gaveta al cierre del turno anterior.
+     * Solo visible y editable por admin y super_admin.
+     */
+    suggestedOpeningAmount: (state) => Number(state.suggestedForNext ?? 0),
   },
 
   actions: {
@@ -81,20 +99,25 @@ export const useTurnoStore = defineStore('turno', {
     },
 
     /**
-     * Abre un nuevo turno de caja.
+     * Abre un nuevo turno de caja (hoy o fecha específica).
      */
-    async openSession(openingAmount) {
+    async openSession(openingAmount, date = null) {
       this.loading = true;
       this.error = null;
       try {
+        const body = { opening_amount: Number(openingAmount) };
+        if (date) body.date = date;
         const data = await apiFetch('/cash-sessions', {
           method: 'POST',
-          body: JSON.stringify({ opening_amount: Number(openingAmount) }),
+          body: JSON.stringify(body),
         });
-        this.activeSession = data.session;
-        this.sessionStats = data.stats;
-        this.isOpeningModalOpen = false;
-        // Refrescar ventas del turno
+        if (!date || date === formatLocalDate(new Date())) {
+          this.activeSession = data.session;
+          this.sessionStats = data.stats;
+          this.suggestedForNext = data.suggested_for_next ?? 0;
+          this.isOpeningModalOpen = false;
+        }
+        // Refrescar ventas
         await this.fetchSales(1);
         return data;
       } catch (err) {
@@ -108,18 +131,21 @@ export const useTurnoStore = defineStore('turno', {
     /**
      * Cierra el turno de caja con el arqueo realizado.
      */
-    async closeSession(closeData) {
-      if (!this.activeSession) return;
+    async closeSession(closeData, sessionId = null) {
+      const sId = sessionId || this.activeSession?.id;
+      if (!sId) return;
       this.loading = true;
       this.error = null;
       try {
-        const data = await apiFetch(`/cash-sessions/${this.activeSession.id}/close`, {
+        const data = await apiFetch(`/cash-sessions/${sId}/close`, {
           method: 'POST',
           body: JSON.stringify(closeData),
         });
 
-        this.activeSession = data.session;
-        this.closingReport = data.report;
+        if (this.activeSession && this.activeSession.id === sId) {
+          this.activeSession = data.session;
+          this.closingReport = data.report;
+        }
         // Limpiar progreso guardado de arqueo en localStorage
         localStorage.removeItem('cashClose_inProgress');
         return data;
@@ -144,8 +170,8 @@ export const useTurnoStore = defineStore('turno', {
         params.append('page', page);
         params.append('per_page', this.pagination.perPage);
 
-        if (this.filters.period === 'today' || this.filters.period === 'yesterday') {
-          if (this.filters.date) params.append('date', this.filters.date);
+        if (this.filters.date) {
+          params.append('date', this.filters.date);
         } else if (this.filters.from || this.filters.to) {
           if (this.filters.from) params.append('from', this.filters.from);
           if (this.filters.to) params.append('to', this.filters.to);
@@ -323,7 +349,33 @@ export const useTurnoStore = defineStore('turno', {
     },
 
     /**
-     * Registra una venta retroactiva en fecha pasada (Solo Super Admin).
+     * Registra un egreso o ingreso extraordinario de efectivo en la sesión activa o especificada.
+     * Accesible para cualquier usuario con turno abierto.
+     * Actualiza las stats en tiempo real sin recargar la página.
+     */
+    async recordCashMovement(payload, sessionId = null) {
+      const sId = sessionId || this.activeSession?.id;
+      if (!sId) throw new Error('No hay sesión de caja activa o seleccionada.');
+      this.loading = true;
+      try {
+        const data = await apiFetch(`/cash-sessions/${sId}/movements`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        // Actualizar stats en tiempo real si coincide con la activa
+        if (data.stats && (!sessionId || (this.activeSession && this.activeSession.id === sId))) {
+          this.sessionStats = data.stats;
+        }
+        return data;
+      } catch (err) {
+        throw err;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    /**
+     * Registra una venta retroactiva en fecha pasada (admin y super_admin).
      */
     async adminCreateSale(saleData) {
       this.loading = true;
@@ -359,6 +411,64 @@ export const useTurnoStore = defineStore('turno', {
         throw err;
       } finally {
         this.loading = false;
+      }
+    },
+
+    /**
+     * Consulta los movimientos de una sesión de caja.
+     */
+    async fetchSessionMovements(sessionId) {
+      const sId = sessionId || this.activeSession?.id;
+      if (!sId) return [];
+      try {
+        const data = await apiFetch(`/cash-sessions/${sId}/movements`);
+        return data || [];
+      } catch (err) {
+        console.warn('Error al cargar movimientos de sesión:', err);
+        return [];
+      }
+    },
+
+    /**
+     * Consulta una sesión específica por fecha (para consulta histórica).
+     */
+    async fetchSessionByDate(date) {
+      try {
+        const data = await apiFetch(`/cash-sessions?date=${date}&per_page=1`);
+        if (data && data.data && data.data.length > 0) {
+          return data.data[0];
+        }
+        return null;
+      } catch (err) {
+        console.warn('Error al consultar sesión por fecha:', err);
+        return null;
+      }
+    },
+
+    /**
+     * Obtiene el reporte estructurado de una sesión cerrada.
+     */
+    async fetchSessionReport(sessionId) {
+      try {
+        const report = await apiFetch(`/cash-sessions/${sessionId}/report`);
+        return report;
+      } catch (err) {
+        console.warn('Error al obtener reporte de sesión:', err);
+        return null;
+      }
+    },
+
+    /**
+     * Obtiene el detalle y estadísticas de una sesión específica por su ID.
+     */
+    async fetchSessionShow(sessionId) {
+      if (!sessionId) return null;
+      try {
+        const data = await apiFetch(`/cash-sessions/${sessionId}`);
+        return data;
+      } catch (err) {
+        console.warn('Error al cargar detalle de sesión:', err);
+        return null;
       }
     },
 

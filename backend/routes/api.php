@@ -29,7 +29,7 @@ Route::get('/ping', function () { return response()->json(['status' => 'ok']); }
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
-    
+
     // Catálogo offline-first
     Route::get('/catalog', [CatalogController::class, 'index']);
 
@@ -43,19 +43,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('products', ProductController::class);
     Route::apiResource('ingredients', IngredientController::class);
     Route::apiResource('customers', CustomerController::class);
-    
+
     // Recetas e Inventario
     Route::apiResource('recipes', RecipeController::class)->only(['store', 'destroy']);
     Route::post('/option-recipes', [OptionRecipeController::class, 'store']);
     Route::delete('/option-recipes/{optionRecipe}', [OptionRecipeController::class, 'destroy']);
     Route::post('/inventory/movements', [InventoryMovementController::class, 'store']);
     Route::get('/ingredients/{ingredient}/movements', [InventoryMovementController::class, 'index']);
-    
+
     // Ventas (Sincronización Offline e Historial)
     Route::post('/sales/sync', [SaleController::class, 'sync']);
     Route::post('/sales/{sale}/void', [SaleController::class, 'voidSale']);
     Route::apiResource('sales', SaleController::class)->only(['index', 'show']);
-    
+
     // Cola de Pedidos (KDS Web & Android App)
     Route::get('/order-queue', [\App\Http\Controllers\OrderQueueController::class, 'index']);
     Route::patch('/order-queue/{sale}/status', [\App\Http\Controllers\OrderQueueController::class, 'updateStatus']);
@@ -72,6 +72,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/cash-sessions/active', [CashRegisterSessionController::class, 'active']);
     Route::post('/cash-sessions/{cashSession}/close', [CashRegisterSessionController::class, 'close']);
     Route::get('/cash-sessions/{cashSession}/report', [CashRegisterSessionController::class, 'report']);
+    Route::post('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'recordMovement']);
+    Route::get('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'movements']);
     Route::apiResource('cash-sessions', CashRegisterSessionController::class)->only(['index', 'store', 'show']);
 
     Route::get('/loyalty-config', [LoyaltyConfigController::class, 'show']);
@@ -82,14 +84,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/permissions', [\App\Http\Controllers\RolePermissionController::class, 'index']);
         Route::put('/permissions', [\App\Http\Controllers\RolePermissionController::class, 'update']);
         Route::apiResource('users', \App\Http\Controllers\UserController::class)->except(['show']);
-        // Gestión manual / retroactiva de ventas (Solo Super Admin)
-        Route::post('/admin/sales', [SaleController::class, 'adminCreate']);
-        Route::put('/admin/sales/{sale}', [SaleController::class, 'adminUpdate']);
 
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index']);
         Route::get('/audit-logs/export', [\App\Http\Controllers\AuditLogController::class, 'export']);
         Route::post('/system/backup/download', [\App\Http\Controllers\SystemBackupController::class, 'download'])->middleware('throttle:5,60');
         Route::post('/system/backup/restore', [\App\Http\Controllers\SystemBackupController::class, 'restore'])->middleware('throttle:5,60');
+    });
+
+    // Gestión manual / retroactiva de ventas (admin y super_admin)
+    Route::middleware(['admin'])->group(function () {
+        Route::post('/admin/sales', [SaleController::class, 'adminCreate']);
+        Route::put('/admin/sales/{sale}', [SaleController::class, 'adminUpdate']);
     });
 
     // Gestión de usuarios: reset password (super_admin o admin)

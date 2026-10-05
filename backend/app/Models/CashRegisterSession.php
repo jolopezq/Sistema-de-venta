@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Modelo de sesión de caja (arqueo).
@@ -23,6 +24,9 @@ class CashRegisterSession extends Model
         'expected_closing',
         'actual_closing',
         'difference',
+        'total_expenses',
+        'cash_withdrawn',
+        'cash_left_for_next',
         'bill_breakdown',
         'diff_note',
         'status',
@@ -33,13 +37,16 @@ class CashRegisterSession extends Model
     protected function casts(): array
     {
         return [
-            'opening_amount' => 'decimal:2',
-            'expected_closing' => 'decimal:2',
-            'actual_closing' => 'decimal:2',
-            'difference' => 'decimal:2',
-            'bill_breakdown' => 'array',
-            'opened_at' => 'datetime',
-            'closed_at' => 'datetime',
+            'opening_amount'     => 'decimal:2',
+            'expected_closing'   => 'decimal:2',
+            'actual_closing'     => 'decimal:2',
+            'difference'         => 'decimal:2',
+            'total_expenses'     => 'decimal:2',
+            'cash_withdrawn'     => 'decimal:2',
+            'cash_left_for_next' => 'decimal:2',
+            'bill_breakdown'     => 'array',
+            'opened_at'          => 'datetime',
+            'closed_at'          => 'datetime',
         ];
     }
 
@@ -48,6 +55,14 @@ class CashRegisterSession extends Model
     public function cashier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cashier_id');
+    }
+
+    /**
+     * Movimientos de efectivo (egresos e ingresos extraordinarios) del turno.
+     */
+    public function movements(): HasMany
+    {
+        return $this->hasMany(CashMovement::class);
     }
 
     // --- Helpers ---

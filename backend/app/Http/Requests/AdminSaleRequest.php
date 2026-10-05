@@ -11,7 +11,9 @@ class AdminSaleRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user() && $this->user()->isSuperAdmin();
+        // Permite a admin y super_admin registrar/editar ventas retroactivas.
+        // isAdmin() devuelve true para role === 'admin' OR role === 'super_admin'.
+        return $this->user() && $this->user()->isAdmin();
     }
 
     /**
@@ -26,8 +28,9 @@ class AdminSaleRequest extends FormRequest
             'cashier_id'             => ['nullable', 'exists:users,id'],
             'customer_id'            => ['nullable', 'exists:customers,id'],
             'subtotal'               => ['required', 'numeric', 'min:0'],
-            'discount_amount'        => ['nullable', 'numeric', 'min:0'],
+            'discount_amount'        => ['nullable', 'numeric'],
             'total_amount'           => ['required', 'numeric', 'min:0'],
+            'source'                 => ['nullable', 'in:pos,pedidosya'],
             'is_takeaway'            => ['nullable', 'boolean'],
             'notes'                  => ['nullable', 'string', 'max:500'],
             'edit_reason'            => ['required', 'string', 'min:5', 'max:255'],
@@ -46,7 +49,7 @@ class AdminSaleRequest extends FormRequest
 
             // Payments
             'payments'               => ['required', 'array', 'min:1'],
-            'payments.*.method'      => ['required', 'in:cash,qr,card'],
+            'payments.*.method'      => ['required', 'in:cash,qr,card,delivery_platform'],
             'payments.*.amount'      => ['required', 'numeric', 'min:0.01'],
         ];
     }

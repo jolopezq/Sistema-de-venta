@@ -21,6 +21,8 @@ class SalePayment extends Model
         'sale_id',
         'method',
         'amount',
+        'created_at',
+        'updated_at',
     ];
 
     protected function casts(): array

@@ -8,6 +8,7 @@ import Delivery from '../views/Delivery.vue';
 import AdminUsers from '../views/AdminUsers.vue';
 import AuditLogs from '../views/AuditLogs.vue';
 import InventoryList from '../views/InventoryList.vue';
+import RetroactiveSales from '../views/RetroactiveSales.vue';
 
 const routes = [
   { path: '/', redirect: '/pos' },
@@ -17,6 +18,7 @@ const routes = [
   { path: '/menu', name: 'Menu', component: Menu, meta: { requiresAuth: true } },
   { path: '/delivery', name: 'Delivery', component: Delivery, meta: { requiresAuth: true } },
   { path: '/inventario', name: 'Inventario', component: InventoryList, meta: { requiresAuth: true, adminOnly: true } },
+  { path: '/admin/ventas-retroactivas', name: 'RetroactiveSales', component: RetroactiveSales, meta: { requiresAuth: true, adminOnly: true } },
   { path: '/users', name: 'AdminUsers', component: AdminUsers, meta: { requiresAuth: true, superAdminOnly: true } },
   { path: '/audit-logs', name: 'AuditLogs', component: AuditLogs, meta: { requiresAuth: true, superAdminOnly: true } },
 ];

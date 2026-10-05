@@ -103,6 +103,8 @@ class CashRegisterSessionTest extends TestCase
         $response = $this->actingAs($this->cashier)
             ->postJson("/api/cash-sessions/{$session->id}/close", [
                 'actual_closing' => 210.00,
+                'cash_withdrawn' => 10.00,
+                'cash_left_for_next' => 200.00,
                 'bill_breakdown' => [
                     '100' => 2,
                     '10' => 1,
@@ -120,6 +122,8 @@ class CashRegisterSessionTest extends TestCase
             'status' => 'closed',
             'actual_closing' => 210.00,
             'difference' => 10.00,
+            'cash_withdrawn' => 10.00,
+            'cash_left_for_next' => 200.00,
         ]);
     }
 
@@ -146,5 +150,52 @@ class CashRegisterSessionTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('summary.qr_total', 80)
             ->assertJsonPath('summary.sales_count', 1);
+    }
+
+    public function test_cash_expense_reduces_expected_cash_but_qr_expense_does_not(): void
+    {
+        $session = CashRegisterSession::create([
+            'cashier_id' => $this->cashier->id,
+            'opening_amount' => 100.00,
+            'status' => 'open',
+            'opened_at' => now(),
+        ]);
+
+        // Registrar un gasto en efectivo de 30 Bs
+        $resCash = $this->actingAs($this->cashier)
+            ->postJson("/api/cash-sessions/{$session->id}/movements", [
+                'type' => 'expense',
+                'payment_method' => 'cash',
+                'amount' => 30.00,
+                'description' => 'Compra de bolsas en efectivo',
+            ]);
+
+        $resCash->assertStatus(201)
+            ->assertJsonPath('stats.cash_expenses', 30)
+            ->assertJsonPath('stats.expected_cash', 70); // 100 - 30 = 70
+
+        // Registrar un gasto por QR de 20 Bs
+        $resQr = $this->actingAs($this->cashier)
+            ->postJson("/api/cash-sessions/{$session->id}/movements", [
+                'type' => 'expense',
+                'payment_method' => 'qr',
+                'amount' => 20.00,
+                'description' => 'Pago de insumos por transferencia QR',
+            ]);
+
+        $resQr->assertStatus(201)
+            ->assertJsonPath('stats.total_expenses', 50)
+            ->assertJsonPath('stats.cash_expenses', 30)
+            ->assertJsonPath('stats.non_cash_expenses', 20)
+            ->assertJsonPath('stats.expected_cash', 70); // La gaveta física sigue en 70 Bs
+
+        // Verificar que GET /api/cash-sessions/{id}/movements lista los movimientos
+        $resList = $this->actingAs($this->cashier)
+            ->getJson("/api/cash-sessions/{$session->id}/movements");
+
+        $resList->assertStatus(200)
+            ->assertJsonCount(2)
+            ->assertJsonFragment(['payment_method' => 'cash', 'amount' => '30.00'])
+            ->assertJsonFragment(['payment_method' => 'qr', 'amount' => '20.00']);
     }
 }

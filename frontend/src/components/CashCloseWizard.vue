@@ -8,6 +8,19 @@ const emit = defineEmits(['close', 'closed']);
 const turnoStore = useTurnoStore();
 const authStore = useAuthStore();
 
+/**
+ * Props opcionales para sesión específica (histórica).
+ * Si no se pasan, el wizard opera sobre la sesión activa del store.
+ */
+const props = defineProps({
+  session: { type: Object, default: null },
+  stats:   { type: Object, default: null },
+});
+
+// Resolución de sesión y stats: usar props si existen, sino caer al store
+const resolvedSession = computed(() => props.session || turnoStore.activeSession);
+const resolvedStats   = computed(() => props.stats   || turnoStore.sessionStats);
+
 const step = ref(1); // 1: Conteo, 2: Resumen/Arqueo, 3: Reporte
 const isSubmitting = ref(false);
 const errorMessage = ref('');
@@ -28,6 +41,20 @@ const billCounts = ref({
 const manualTotalOverride = ref(null);
 const useManualTotal = ref(false);
 const diffNote = ref('');
+
+// Distribución del efectivo al cierre
+const cashLeftForNext = ref(0);  // Fondo de cambio para el siguiente turno
+const cashWithdrawn = computed(() => {  // Calculado: counted - left_for_next
+  const withdrawn = countedTotal.value - cashLeftForNext.value;
+  return Math.max(0, Math.round(withdrawn * 100) / 100);
+});
+
+const distributionError = computed(() => {
+  const left = Number(cashLeftForNext.value || 0);
+  if (left < 0) return 'El fondo para mañana no puede ser negativo.';
+  if (left > countedTotal.value) return 'El fondo para mañana no puede ser mayor al efectivo contado.';
+  return '';
+});
 
 const denominations = [
   { label: 'Bs 200', value: 200, type: 'billete', color: '#1B5E20' },
@@ -58,14 +85,17 @@ const countedTotal = computed(() => {
   return calculatedTotal.value;
 });
 
-// Datos de arqueo
-const openingAmount = computed(() => Number(turnoStore.activeSession?.opening_amount || 0));
-const cashSales = computed(() => Number(turnoStore.sessionStats?.cash_sales || 0));
-const expectedCash = computed(() => Number(turnoStore.sessionStats?.expected_cash || (openingAmount.value + cashSales.value)));
-const difference = computed(() => Number((countedTotal.value - expectedCash.value).toFixed(2)));
+// Datos de arqueo — resueltos desde props o store
+const openingAmount  = computed(() => Number(resolvedSession.value?.opening_amount || 0));
+const cashSales      = computed(() => Number(resolvedStats.value?.cash_sales || 0));
+const totalExpenses  = computed(() => Number(resolvedStats.value?.total_expenses || 0));
+const expectedCash   = computed(() => Number(resolvedStats.value?.expected_cash ||
+  (openingAmount.value + cashSales.value - totalExpenses.value)));
+const difference     = computed(() => Number((countedTotal.value - expectedCash.value).toFixed(2)));
 
-// Validación de notas obligatorias si hay faltante
+// Validación de notas obligatorias si hay faltante y distribución válida
 const canProceedToClose = computed(() => {
+  if (distributionError.value) return false;
   if (difference.value < 0) {
     return diffNote.value.trim().length >= 5;
   }
@@ -131,7 +161,8 @@ function prevStep() {
 
 async function handleConfirmClose() {
   if (!canProceedToClose.value) {
-    errorMessage.value = 'Por favor ingresa un motivo explicativo para el faltante.';
+    errorMessage.value = distributionError.value ||
+      'Por favor ingresa un motivo explicativo para el faltante.';
     return;
   }
 
@@ -140,14 +171,18 @@ async function handleConfirmClose() {
 
   try {
     const payload = {
-      actual_closing: countedTotal.value,
-      bill_breakdown: billCounts.value,
-      diff_note: diffNote.value.trim() || null,
+      actual_closing:     countedTotal.value,
+      cash_withdrawn:     cashWithdrawn.value,
+      cash_left_for_next: Number(cashLeftForNext.value || 0),
+      bill_breakdown:     billCounts.value,
+      diff_note:          diffNote.value.trim() || null,
     };
 
-    await turnoStore.closeSession(payload);
+    // Usar el ID de la sesión resuelta (histórica o activa)
+    const sessionId = resolvedSession.value?.id || null;
+    const data = await turnoStore.closeSession(payload, sessionId);
     step.value = 3;
-    emit('closed');
+    emit('closed', data);
   } catch (err) {
     errorMessage.value = err.message || 'Error al cerrar caja.';
   } finally {
@@ -174,8 +209,8 @@ function handleFinish() {
           <div class="wizard-badge">Arqueo de Turno</div>
           <h2>Cierre de Caja</h2>
           <p class="cajero-sub">
-            Cajero: <strong>{{ authStore.user?.name || 'Cajero' }}</strong> · 
-            Iniciado: <strong>{{ turnoStore.activeSession?.opened_at ? new Date(turnoStore.activeSession.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--' }}</strong>
+            Cajero: <strong>{{ authStore.user?.name || resolvedSession?.cashier?.name || 'Cajero' }}</strong> · 
+            Iniciado: <strong>{{ resolvedSession?.opened_at ? new Date(resolvedSession.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--' }}</strong>
           </p>
         </div>
 
@@ -266,7 +301,6 @@ function handleFinish() {
           </div>
 
           <div class="summary-cards-grid">
-            <!-- CAJA TEÓRICA -->
             <div class="card-box">
               <h4>💰 Movimientos del Turno</h4>
               <div class="box-row">
@@ -277,25 +311,33 @@ function handleFinish() {
                 <span>(+) Ventas en efectivo:</span>
                 <strong class="text-lime">Bs {{ cashSales.toFixed(2) }}</strong>
               </div>
+              <div class="box-row" v-if="totalExpenses > 0">
+                <span>(−) Egresos de caja:</span>
+                <strong class="text-danger">Bs {{ totalExpenses.toFixed(2) }}</strong>
+              </div>
               <div class="box-row">
                 <span>Ventas QR / Transferencia:</span>
-                <span>Bs {{ Number(turnoStore.sessionStats?.qr_sales || 0).toFixed(2) }}</span>
+                <span>Bs {{ Number(resolvedStats?.qr_sales || 0).toFixed(2) }}</span>
               </div>
               <div class="box-row">
                 <span>Ventas Tarjeta:</span>
-                <span>Bs {{ Number(turnoStore.sessionStats?.card_sales || 0).toFixed(2) }}</span>
+                <span>Bs {{ Number(resolvedStats?.card_sales || 0).toFixed(2) }}</span>
+              </div>
+              <div class="box-row" v-if="Number(resolvedStats?.other_sales || 0) > 0">
+                <span>Ventas Plataformas:</span>
+                <span>Bs {{ Number(resolvedStats?.other_sales || 0).toFixed(2) }}</span>
               </div>
               <div class="box-row divider">
                 <span>Total ingresos del turno:</span>
-                <strong>Bs {{ Number(turnoStore.sessionStats?.total_sales || 0).toFixed(2) }}</strong>
+                <strong>Bs {{ Number(resolvedStats?.total_sales || 0).toFixed(2) }}</strong>
               </div>
               <div class="box-row">
                 <span>Tickets emitidos:</span>
-                <span>{{ turnoStore.sessionStats?.sales_count || 0 }} ventas</span>
+                <span>{{ resolvedStats?.sales_count || 0 }} ventas</span>
               </div>
-              <div class="box-row" v-if="turnoStore.sessionStats?.voided_count > 0">
+              <div class="box-row" v-if="resolvedStats?.voided_count > 0">
                 <span>Ventas anuladas:</span>
-                <span class="text-danger">{{ turnoStore.sessionStats?.voided_count }} tickets</span>
+                <span class="text-danger">{{ resolvedStats?.voided_count }} tickets</span>
               </div>
             </div>
 
@@ -356,6 +398,38 @@ function handleFinish() {
                   class="diff-input"
                 />
               </div>
+            </div>
+
+            <!-- DISTRIBUCIÓN DEL EFECTIVO AL CIERRE -->
+            <div class="card-box distribution-box">
+              <h4>💼 Distribución del Efectivo Contado</h4>
+              <p class="dist-hint">Indica cuánto dejas en caja para el siguiente turno. El resto se retira.</p>
+              <div class="box-row">
+                <span>Efectivo contado:</span>
+                <strong>Bs {{ countedTotal.toFixed(2) }}</strong>
+              </div>
+              <div class="dist-input-row">
+                <label for="cash-left-input">Dejar en caja para mañana:</label>
+                <div class="dist-input-wrap">
+                  <span class="dist-currency">Bs</span>
+                  <input
+                    id="cash-left-input"
+                    v-model.number="cashLeftForNext"
+                    type="number"
+                    min="0"
+                    step="0.50"
+                    class="dist-input"
+                    :class="{ 'input-error': distributionError }"
+                  />
+                </div>
+              </div>
+              <div class="box-row dist-result">
+                <span>Monto a retirar:</span>
+                <strong :class="cashWithdrawn > 0 ? 'text-lime' : ''">
+                  Bs {{ cashWithdrawn.toFixed(2) }}
+                </strong>
+              </div>
+              <p v-if="distributionError" class="dist-error">⚠️ {{ distributionError }}</p>
             </div>
           </div>
         </div>

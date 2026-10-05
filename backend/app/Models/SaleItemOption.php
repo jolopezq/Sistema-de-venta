@@ -19,6 +19,8 @@ class SaleItemOption extends Model
         'option_name_snapshot',
         'additional_price_snapshot',
         'quantity',
+        'created_at',
+        'updated_at',
     ];
 
     public function saleItem(): BelongsTo

@@ -80,6 +80,14 @@ const selectedOptionGroups = computed(() => {
   return props.optionGroups.filter(og => localProduct.value.option_groups.includes(og.id));
 });
 
+const suggestDeliveryPrice = (percent) => {
+  const base = Number(localProduct.value.price || 0);
+  if (base <= 0) return;
+  const raw = base * (1 + percent / 100);
+  // Redondeo al 0.50 BOB más cercano
+  localProduct.value.delivery_price = Math.round(raw * 2) / 2;
+};
+
 import { resolveImageUrl } from '../../utils/imageUrl.js';
 
 const imagePreview = ref(resolveImageUrl(localProduct.value.image_url));
@@ -316,13 +324,39 @@ onUnmounted(() => {
         </div>
 
         <!-- Si es por Unidad -->
-        <div v-if="!localProduct.is_weight_based" class="input-card" :class="{'has-error': formErrors.price}">
-          <span class="input-label">Precio Unitario *</span>
-          <div class="price-input-row">
-            <input type="number" step="0.5" min="0" v-model="localProduct.price" class="input-field" placeholder="0.00" />
-            <span class="currency-tag">BOB</span>
+        <div v-if="!localProduct.is_weight_based" class="dual-price-grid">
+          <div class="input-card" :class="{'has-error': formErrors.price}">
+            <span class="input-label">🏪 Precio Mostrador *</span>
+            <div class="price-input-row">
+              <input type="number" step="0.5" min="0" v-model="localProduct.price" class="input-field" placeholder="0.00" />
+              <span class="currency-tag">BOB</span>
+            </div>
+            <span v-if="formErrors.price" class="error-msg">{{ formErrors.price[0] }}</span>
           </div>
-          <span v-if="formErrors.price" class="error-msg">{{ formErrors.price[0] }}</span>
+
+          <div class="input-card delivery-price-card" :class="{'has-error': formErrors.delivery_price}">
+            <div class="delivery-header-row">
+              <span class="input-label">🛵 Precio PedidosYa</span>
+              <div class="percent-suggestions" v-if="Number(localProduct.price) > 0">
+                <button type="button" class="btn-suggest-pct" @click="suggestDeliveryPrice(20)" title="Calcular con +20%">+20%</button>
+                <button type="button" class="btn-suggest-pct" @click="suggestDeliveryPrice(25)" title="Calcular con +25%">+25%</button>
+                <button type="button" class="btn-suggest-pct" @click="suggestDeliveryPrice(30)" title="Calcular con +30%">+30%</button>
+              </div>
+            </div>
+            <div class="price-input-row">
+              <input 
+                type="number" 
+                step="0.5" 
+                min="0" 
+                v-model="localProduct.delivery_price" 
+                class="input-field" 
+                placeholder="Opcional (igual a mostrador)" 
+              />
+              <span class="currency-tag">BOB</span>
+            </div>
+            <span v-if="formErrors.delivery_price" class="error-msg">{{ formErrors.delivery_price[0] }}</span>
+            <span class="delivery-hint-text">Opcional. Vacío = usa precio de mostrador.</span>
+          </div>
         </div>
 
         <!-- Si es por Peso -->
@@ -1014,5 +1048,56 @@ onUnmounted(() => {
   padding: 6px 10px;
   border-radius: 6px;
   border: 1px dashed #cbd5e1;
+}
+
+/* DUAL PRICE GRID & PEDIDOSYA STYLES */
+.dual-price-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 12px;
+}
+@media (max-width: 580px) {
+  .dual-price-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.delivery-price-card {
+  border-color: rgba(225, 29, 72, 0.25);
+  background: linear-gradient(180deg, rgba(255, 241, 242, 0.5) 0%, var(--surface) 100%);
+}
+.delivery-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+.percent-suggestions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-suggest-pct {
+  background: var(--surface);
+  border: 1px solid var(--passion-300, #fca5a5);
+  color: var(--passion-500);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-suggest-pct:hover {
+  background: var(--passion-500, #e11d48);
+  color: #ffffff;
+  border-color: var(--passion-500, #e11d48);
+}
+.delivery-hint-text {
+  font-size: 10.5px;
+  color: var(--ink-500);
+  margin-top: 4px;
+  line-height: 1.2;
 }
 </style>
