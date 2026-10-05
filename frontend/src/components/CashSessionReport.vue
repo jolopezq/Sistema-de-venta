@@ -61,7 +61,7 @@ function formatDate(dateStr) {
     <div class="divider">--------------------------------</div>
 
     <!-- RESUMEN DE VENTAS -->
-    <div class="section-title">VENTAS DEL TURNO</div>
+    <div class="section-title">VENTAS DEL LOCAL</div>
     <div class="sales-section">
       <div class="row">
         <span>Tickets completados:</span>
@@ -83,13 +83,25 @@ function formatDate(dateStr) {
         <span>Ventas Tarjeta / POS:</span>
         <span>Bs {{ Number(summary.card_sales || 0).toFixed(2) }}</span>
       </div>
-      <div class="row" v-if="Number(summary.other_sales || 0) > 0">
-        <span>Ventas Plataformas (PedidosYa):</span>
-        <span>Bs {{ Number(summary.other_sales || 0).toFixed(2) }}</span>
-      </div>
       <div class="row total-row">
-        <span>TOTAL FACTURADO:</span>
+        <span>TOTAL DEL LOCAL:</span>
         <strong class="total-amt">Bs {{ Number(summary.total_sales || 0).toFixed(2) }}</strong>
+      </div>
+    </div>
+
+    <div class="divider">--------------------------------</div>
+
+    <!-- PEDIDOSYA: se informa aparte, no forma parte del arqueo -->
+    <div class="section-title">PEDIDOSYA</div>
+    <div class="row mini"><span>(Informativo, no se rinde en caja)</span></div>
+    <div class="sales-section">
+      <div class="row">
+        <span>Pedidos:</span>
+        <strong>{{ summary.pedidosya_count || 0 }}</strong>
+      </div>
+      <div class="row">
+        <span>Total PedidosYa:</span>
+        <strong>Bs {{ Number(summary.pedidosya_total || 0).toFixed(2) }}</strong>
       </div>
     </div>
 

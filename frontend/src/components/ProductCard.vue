@@ -1,9 +1,11 @@
 <script setup>
 import { ref, computed } from 'vue';
+import { productPrice } from '../utils/channelPricing';
 
 const props = defineProps({
   product: Object,
   disabled: Boolean,
+  channel: { type: String, default: 'pos' },
 });
 const emit = defineEmits(['add']);
 
@@ -20,7 +22,7 @@ const displayPrice = computed(() => {
   if (props.product.is_weight_based) {
     return `Bs ${Number(props.product.price_per_gram * 100).toFixed(2)} / 100g`;
   }
-  return `Bs ${Number(props.product.price).toFixed(2)}`;
+  return `Bs ${productPrice(props.product, props.channel).toFixed(2)}`;
 });
 
 import { resolveImageUrl } from '../utils/imageUrl.js';

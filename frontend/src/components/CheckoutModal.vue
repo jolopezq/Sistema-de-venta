@@ -8,8 +8,13 @@ const props = defineProps({
   destinationDefault: { type: String, default: 'dine_in' }, // 'dine_in' | 'takeaway' | 'mixed'
   takeawayCount: { type: Number, default: 0 },
   dineInCount: { type: Number, default: 0 },
-  itemsCount: { type: Number, default: 0 }
+  itemsCount: { type: Number, default: 0 },
+  /** 'pedidosya': lo cobra la plataforma (un solo pago, sin cliente ni cambio) */
+  channel: { type: String, default: 'pos' }
 });
+
+const isPedidosYa = computed(() => props.channel === 'pedidosya');
+const pedidosYaOrderId = ref('');
 
 const emit = defineEmits(['close', 'confirm']);
 
@@ -41,7 +46,10 @@ watch(() => props.show, (newVal) => {
   if (newVal) {
     customerSearch.value = '';
     selectedCustomerId.value = null;
-    orderDestination.value = props.destinationDefault || (props.isTakeawayDefault ? 'takeaway' : 'dine_in');
+    orderDestination.value = isPedidosYa.value
+      ? 'takeaway'
+      : props.destinationDefault || (props.isTakeawayDefault ? 'takeaway' : 'dine_in');
+    pedidosYaOrderId.value = '';
     currentMethod.value = 'cash';
     saleNote.value = '';
     payments.value = [{ method: 'cash', amount: props.total }];
@@ -72,7 +80,7 @@ const change = computed(() => {
   return totalChange;
 });
 
-const isReady = computed(() => totalPaid.value >= props.total);
+const isReady = computed(() => isPedidosYa.value || totalPaid.value >= props.total);
 
 function addPayment() {
   const used = payments.value.map(p => p.method);
@@ -101,6 +109,22 @@ watch(() => props.show, (newVal) => {
 function handleConfirm() {
   if (!isReady.value || isSubmitting.value) return;
   isSubmitting.value = true;
+
+  if (isPedidosYa.value) {
+    // El Nº de pedido de la tablet queda en la nota para ubicarlo en cocina y despacho
+    const orderId = pedidosYaOrderId.value.trim();
+    const note = [orderId ? `PedidosYa #${orderId.replace(/^#/, '')}` : '', saleNote.value.trim()]
+      .filter(Boolean).join(' · ');
+    emit('confirm', {
+      customerId: null,
+      saleNote: note,
+      destination: 'takeaway',
+      isTakeaway: true,
+      payments: [{ method: 'delivery_platform', amount: props.total, received: props.total }],
+      change: 0
+    });
+    return;
+  }
 
   // Si se registró más de lo cobrado, el exceso es cambio: se descuenta del efectivo
   // para que el arqueo no lo cuente como ingreso.
@@ -152,11 +176,32 @@ function setSuggestedCash(amount, isExact = false) {
     <div class="modal-overlay" :class="{ active: show }">
       <div class="modal-card">
         <div class="modal-head">
-          <h2>Cobrar venta</h2>
+          <h2>{{ isPedidosYa ? '🛵 Registrar pedido PedidosYa' : 'Cobrar venta' }}</h2>
           <button class="modal-close" @click="emit('close')">✕</button>
         </div>
 
         <div class="modal-body">
+          <!-- PedidosYa: lo cobra la plataforma, no pasa por la caja -->
+          <template v-if="isPedidosYa">
+            <div class="pya-box">
+              <div class="pya-total">
+                <span>Total PedidosYa</span>
+                <strong>Bs {{ Number(total || 0).toFixed(2) }}</strong>
+              </div>
+              <p class="pya-hint">Cobrado por la plataforma. No entra al efectivo ni al arqueo de caja.</p>
+            </div>
+            <label class="pya-label" for="pya-order-id">Nº de pedido PedidosYa (opcional)</label>
+            <input
+              id="pya-order-id"
+              class="search-input"
+              v-model="pedidosYaOrderId"
+              placeholder="Ej: 4521"
+              inputmode="numeric"
+              autocomplete="off"
+            />
+          </template>
+
+          <template v-else>
           <!-- Cliente -->
           <div class="customer-search">
             <input
@@ -305,6 +350,7 @@ function setSuggestedCash(amount, isExact = false) {
               ✓ Monto cubierto exacto
             </div>
           </div>
+          </template>
 
           <!-- Nota Global -->
           <div style="margin-top:20px;">
@@ -321,7 +367,7 @@ function setSuggestedCash(amount, isExact = false) {
         <div class="modal-foot">
           <button class="btn btn-ghost" :disabled="isSubmitting" @click="emit('close')">Cancelar</button>
           <button class="btn btn-success" :disabled="!isReady || isSubmitting" @click="handleConfirm">
-            {{ isSubmitting ? '⏳ Procesando...' : 'Confirmar venta' }}
+            {{ isSubmitting ? '⏳ Procesando...' : (isPedidosYa ? 'Registrar pedido' : 'Confirmar venta') }}
           </button>
         </div>
       </div>
@@ -554,5 +600,37 @@ html.dark .pay-method-select {
   background: var(--surface, #1e293b);
   border-color: var(--border, rgba(255, 255, 255, 0.15));
   color: #f1f5f9;
+}
+.pya-box {
+  background: var(--surface-alt);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.pya-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 700;
+  color: var(--ink-700);
+}
+.pya-total strong {
+  font-size: 22px;
+  color: var(--ink-900);
+}
+.pya-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--ink-500);
+}
+.pya-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-700);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  display: block;
+  margin-bottom: 8px;
 }
 </style>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { productPrice, optionPrice } from '../utils/channelPricing';
 import { useCatalogStore } from '../stores/catalog';
 import { useTurnoStore } from '../stores/turno';
 import { apiFetch } from '../services/api';
@@ -147,17 +148,11 @@ function getGroupSelectedCount(item, groupId) {
 }
 
 function getActiveBasePrice(product) {
-  if (saleOrigin.value === 'pedidosya' && product?.delivery_price && Number(product.delivery_price) > 0) {
-    return Number(product.delivery_price);
-  }
-  return Number(product?.price || 0);
+  return productPrice(product, saleOrigin.value);
 }
 
 function getActiveOptionPrice(opt) {
-  if (saleOrigin.value === 'pedidosya' && opt?.delivery_price && Number(opt.delivery_price) > 0) {
-    return Number(opt.delivery_price);
-  }
-  return Number(opt?.additional_price || 0);
+  return optionPrice(opt, saleOrigin.value);
 }
 
 function recalcItemPricesAndModifiers(item) {

@@ -94,6 +94,7 @@ function getPaymentBadge(method) {
   if (method === 'cash') return { label: 'Efectivo', class: 'badge-cash', icon: '💵' };
   if (method === 'qr') return { label: 'QR', class: 'badge-qr', icon: '📱' };
   if (method === 'card') return { label: 'Tarjeta', class: 'badge-card', icon: '💳' };
+  if (method === 'delivery_platform') return { label: 'PedidosYa', class: 'badge-other', icon: '🛵' };
   return { label: method || 'Otro', class: 'badge-other', icon: '💰' };
 }
 
@@ -213,7 +214,7 @@ async function handleRefresh() {
       <div class="metric-card">
         <div class="metric-icon">📈</div>
         <div class="metric-content">
-          <div class="metric-label">Total Ventas (Turno)</div>
+          <div class="metric-label">Ventas del Local (Turno)</div>
           <div class="metric-value">Bs {{ Number(turnoStore.sessionStats?.total_sales || 0).toFixed(2) }}</div>
           <div class="metric-hint">{{ turnoStore.sessionStats?.sales_count || 0 }} tickets completados</div>
         </div>
@@ -234,6 +235,16 @@ async function handleRefresh() {
           <div class="metric-label">Ventas con Tarjeta</div>
           <div class="metric-value">Bs {{ Number(turnoStore.sessionStats?.card_sales || 0).toFixed(2) }}</div>
           <div class="metric-hint">Cobro con POS / Datáfono</div>
+        </div>
+      </div>
+
+      <!-- PedidosYa: informativo, no entra al efectivo ni al total del local -->
+      <div class="metric-card">
+        <div class="metric-icon">🛵</div>
+        <div class="metric-content">
+          <div class="metric-label">PedidosYa</div>
+          <div class="metric-value">Bs {{ Number(turnoStore.sessionStats?.pedidosya_total || 0).toFixed(2) }}</div>
+          <div class="metric-hint">{{ turnoStore.sessionStats?.pedidosya_count || 0 }} pedidos · no se rinde en caja</div>
         </div>
       </div>
     </div>

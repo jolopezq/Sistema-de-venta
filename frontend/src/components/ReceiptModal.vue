@@ -32,6 +32,7 @@ function getPaymentLabel(method) {
     cash: '💵 Efectivo',
     qr: '📱 QR',
     card: '💳 Tarjeta',
+    delivery_platform: '🛵 PedidosYa',
   };
   return map[method] || method;
 }

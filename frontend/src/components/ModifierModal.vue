@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { useCatalogStore } from '../stores/catalog';
+import { productPrice, optionPrice, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
 
 const catalog = useCatalogStore();
 
@@ -11,8 +12,14 @@ const props = defineProps({
    * Cuando se abre en modo edición, contiene la configuración actual del
    * ítem del carrito: { cartKey, modifiers, itemNote, allergenFlags, isTakeaway }
    */
-  initialData: { type: Object, default: null }
+  initialData: { type: Object, default: null },
+  /** Canal de venta ('pos' | 'pedidosya'): define qué precios se aplican */
+  channel: { type: String, default: 'pos' }
 });
+
+const isPedidosYa = computed(() => props.channel === CHANNEL_PEDIDOSYA);
+const basePrice = computed(() => productPrice(props.product, props.channel));
+const priceOf = (opt) => optionPrice(opt, props.channel);
 
 /** true cuando se está editando un ítem ya existente en el carrito */
 const isEditMode = computed(() => !!props.initialData?.cartKey);
@@ -215,7 +222,7 @@ const extrasPrice = computed(() => {
       selectedIds.forEach(optId => {
         const opt = og.options.find(o => o.id === optId);
         if (opt) {
-          extras += Number(opt.additional_price) || 0;
+          extras += priceOf(opt);
         }
       });
     });
@@ -229,7 +236,7 @@ const totalPrice = computed(() => {
     const weightCost = (Number(weightGrams.value) || 0) * (Number(props.product.price_per_gram) || 0.08);
     return Math.round(weightCost + extrasPrice.value);
   }
-  return (Number(props.product.price) || 0) + extrasPrice.value;
+  return basePrice.value + extrasPrice.value;
 });
 
 const handleConfirm = () => {
@@ -249,7 +256,7 @@ const handleConfirm = () => {
             group_name: og.name,
             option_id: opt.id,
             option_name: opt.name,
-            price: Number(opt.additional_price) || 0,
+            price: priceOf(opt),
             quantity: 1
           });
         }
@@ -308,7 +315,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
           <h3>
             <span v-if="isEditMode" class="edit-mode-prefix">✏️ Editando: </span>{{ product?.name }}
           </h3>
-          <span class="base-price-badge">Base: Bs {{ Number(product?.price || 0).toFixed(2) }}</span>
+          <span class="base-price-badge">{{ isPedidosYa ? '🛵 PedidosYa' : 'Base' }}: Bs {{ basePrice.toFixed(2) }}</span>
           <span v-if="extrasPrice > 0" class="extras-badge">+Extras: Bs {{ extrasPrice.toFixed(2) }}</span>
           <span v-if="isEditMode" class="edit-badge">Modo Edición</span>
         </div>
@@ -385,7 +392,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
                 </div>
                 <span class="size-name">{{ opt.name }}</span>
               </div>
-              <span class="size-price-badge" v-if="opt.additional_price > 0">+Bs {{ Number(opt.additional_price).toFixed(2) }}</span>
+              <span class="size-price-badge" v-if="priceOf(opt) > 0">+Bs {{ priceOf(opt).toFixed(2) }}</span>
               <span class="size-included-badge" v-else>Incluido</span>
               <span class="size-agotado-badge" v-if="!isOptionInStock(opt)">Agotado</span>
             </button>
@@ -458,9 +465,9 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
               <!-- Precio adicional si tiene -->
               <span
                 class="chip-price"
-                v-if="opt.additional_price > 0"
+                v-if="priceOf(opt) > 0"
               >
-                +Bs {{ Number(opt.additional_price).toFixed(2) }}
+                +Bs {{ priceOf(opt).toFixed(2) }}
               </span>
             </button>
           </div>

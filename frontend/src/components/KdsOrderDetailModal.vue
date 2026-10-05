@@ -422,7 +422,7 @@ function printOrder() {
 }
 
 .src-pedidosya {
-  background: #EA1D2C;
+  background: #DC1A29;
   color: #FFFFFF;
 }
 

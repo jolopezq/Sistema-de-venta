@@ -81,9 +81,9 @@ const cardSales = computed(() => {
   return 0;
 });
 
-const otherSales = computed(() => {
-  return Number(currentStats.value?.other_sales || 0);
-});
+// PedidosYa se informa aparte: no entra al arqueo ni al total del local
+const pedidosYaCount = computed(() => Number(currentStats.value?.pedidosya_count || 0));
+const pedidosYaTotal = computed(() => Number(currentStats.value?.pedidosya_total || 0));
 
 // Gastos en efectivo vs electrónicos
 const cashExpenses = computed(() => {
@@ -542,11 +542,6 @@ watch(selectedDate, (newDate) => {
               <span class="row-val">Bs {{ formatCurrency(cardSales) }}</span>
             </div>
 
-            <div class="breakdown-row" v-if="otherSales > 0">
-              <span class="row-label">🛵 Ventas PedidosYa / Otro:</span>
-              <span class="row-val">Bs {{ formatCurrency(otherSales) }}</span>
-            </div>
-
             <div class="breakdown-divider"></div>
 
             <!-- GASTOS -->
@@ -568,8 +563,15 @@ watch(selectedDate, (newDate) => {
             <div class="breakdown-divider"></div>
 
             <div class="breakdown-row total-row">
-              <span class="row-label">Total Ventas del Día:</span>
+              <span class="row-label">Total Ventas del Local:</span>
               <strong class="row-val total-sales">Bs {{ formatCurrency(dayTotalSales) }}</strong>
+            </div>
+
+            <div class="breakdown-divider"></div>
+
+            <div class="breakdown-row">
+              <span class="row-label">🛵 PedidosYa <span class="pedidosya-note">(informativo, no se rinde en caja)</span>:</span>
+              <span class="row-val">{{ pedidosYaCount }} pedidos · Bs {{ formatCurrency(pedidosYaTotal) }}</span>
             </div>
           </div>
 
@@ -1787,5 +1789,10 @@ watch(selectedDate, (newDate) => {
   justify-content: flex-end;
   gap: 0.75rem;
   background: var(--tw-bg-f8fafc);
+}
+.pedidosya-note {
+  color: var(--ink-500);
+  font-weight: 500;
+  font-size: 0.85em;
 }
 </style>

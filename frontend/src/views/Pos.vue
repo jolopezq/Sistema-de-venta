@@ -8,6 +8,7 @@ import CartItem from '../components/CartItem.vue';
 import CheckoutModal from '../components/CheckoutModal.vue';
 import ReceiptModal from '../components/ReceiptModal.vue';
 import ModifierModal from '../components/ModifierModal.vue';
+import { productPrice, missingDeliveryPrice, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
 
 const catalog = useCatalogStore();
 const cart = useCartStore();
@@ -44,7 +45,7 @@ function handleAddToCart(product) {
     cart.addItem({
       id: product.id,
       name: product.name,
-      price: product.price,
+      price: productPrice(product, cart.channel),
       modifiers: [],
       is_weight_based: false
     }, 1);
@@ -106,7 +107,7 @@ function handleConfirmModifiers({ product, modifiers, finalPrice, itemNote, alle
     name:            product.name,
     price:           finalPrice,
     modifiers:       modifiers,
-    base_price:      product.price,
+    base_price:      productPrice(product, cart.channel),
     is_takeaway:     isTakeaway || false,
     is_weight_based: isWeight,
     weight_grams:    weightGrams,
@@ -210,6 +211,48 @@ function handleCloseReceipt() {
   }
 }
 
+// ── Canal de venta (Local / PedidosYa) ──
+const isPedidosYa = computed(() => cart.channel === CHANNEL_PEDIDOSYA);
+const pendingChannel = ref(null);
+
+function requestChannel(channel) {
+  if (channel === cart.channel) return;
+  if (cart.items.length > 0) {
+    // No se mezclan precios de mostrador y de PedidosYa en un mismo pedido
+    pendingChannel.value = channel;
+    return;
+  }
+  cart.setChannel(channel);
+}
+
+function confirmChannelChange() {
+  cart.clearCart();
+  cart.setChannel(pendingChannel.value);
+  pendingChannel.value = null;
+}
+
+/** Ítems del carrito que se cobran a precio local por no tener tarifa PedidosYa */
+const itemsWithoutDeliveryPrice = computed(() => {
+  if (!isPedidosYa.value) return [];
+  const names = new Set();
+  for (const item of cart.items) {
+    const product = catalog.products.find(p => p.id === item.product_id);
+    if (!product) continue;
+    if (product.is_weight_based || missingDeliveryPrice(product)) {
+      names.add(product.name);
+    }
+    for (const mod of item.modifiers || []) {
+      const opt = (product.option_groups || [])
+        .flatMap(og => og.options || [])
+        .find(o => o.id === mod.option_id);
+      if (opt && Number(opt.additional_price) > 0 && missingDeliveryPrice(opt)) {
+        names.add(`${product.name} · ${opt.name}`);
+      }
+    }
+  }
+  return [...names];
+});
+
 const showClearConfirmModal = ref(false);
 
 function handleClearCart() {
@@ -250,6 +293,7 @@ function confirmClearCart() {
             :key="p.id" 
             :product="p"
             :disabled="!isProductInStock(p)"
+            :channel="cart.channel"
             @add="handleAddToCart(p)" 
           />
           <div v-if="filteredProducts.length === 0" style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--ink-500);font-weight:600;">
@@ -259,10 +303,36 @@ function confirmClearCart() {
       </div>
 
       <!-- Ticket -->
-      <div class="pos-ticket">
+      <div class="pos-ticket" :class="{ 'pos-ticket--pedidosya': isPedidosYa }">
         <div v-if="posErrorMessage" style="background:#fee2e2;color:#991b1b;padding:12px;margin:10px;border-radius:6px;font-family:monospace;white-space:pre-wrap;font-size:12px;user-select:text;border:1px solid #ef4444;">
           <strong>Error de Sistema:</strong><br/>
           {{ posErrorMessage }}
+        </div>
+
+        <!-- Selector de canal -->
+        <div class="channel-switch" role="radiogroup" aria-label="Canal de venta">
+          <button
+            type="button"
+            role="radio"
+            class="channel-btn"
+            :class="{ active: !isPedidosYa }"
+            :aria-checked="!isPedidosYa"
+            @click="requestChannel('pos')"
+          >🏪 Local</button>
+          <button
+            type="button"
+            role="radio"
+            class="channel-btn channel-btn--pya"
+            :class="{ active: isPedidosYa }"
+            :aria-checked="isPedidosYa"
+            @click="requestChannel('pedidosya')"
+          >🛵 PedidosYa</button>
+        </div>
+        <div v-if="isPedidosYa" class="pya-banner" role="status">
+          <strong>Pedido PedidosYa</strong>: precios de plataforma. No entra al arqueo de caja.
+          <div v-if="itemsWithoutDeliveryPrice.length" class="pya-banner-warn">
+            ⚠️ Sin precio PedidosYa (se cobra el precio local): {{ itemsWithoutDeliveryPrice.join(', ') }}
+          </div>
         </div>
 
         <div class="ticket-header">
@@ -302,7 +372,7 @@ function confirmClearCart() {
             <span>Subtotal</span>
             <span>Bs {{ Number(cart.subtotal).toFixed(2) }}</span>
           </div>
-          <div class="sum-row">
+          <div class="sum-row" v-if="!isPedidosYa">
             <span>Descuento VIP</span>
             <span>− Bs 0.00</span>
           </div>
@@ -318,7 +388,7 @@ function confirmClearCart() {
             :disabled="cart.items.length === 0"
             @click="handleCheckout"
           >
-            Cobrar venta
+            {{ isPedidosYa ? 'Registrar pedido PedidosYa' : 'Cobrar venta' }}
           </button>
         </div>
       </div>
@@ -332,6 +402,7 @@ function confirmClearCart() {
       :takeawayCount="cart.takeawayItemsCount"
       :dineInCount="cart.dineInItemsCount"
       :itemsCount="cart.items.length"
+      :channel="cart.channel"
       @close="showCheckout = false"
       @confirm="handleConfirmCheckout"
     />
@@ -344,9 +415,30 @@ function confirmClearCart() {
       :show="showModifierModal"
       :product="selectedProduct"
       :initialData="editingCartItem"
+      :channel="cart.channel"
       @close="showModifierModal = false; editingCartItem = null"
       @confirm="handleConfirmModifiers"
     />
+
+    <!-- Confirmación para cambiar de canal con productos en el ticket -->
+    <div
+      v-if="pendingChannel"
+      class="clear-modal-backdrop"
+      @click.self="pendingChannel = null"
+    >
+      <div class="clear-modal-card">
+        <div class="clear-modal-icon">{{ pendingChannel === 'pedidosya' ? '🛵' : '🏪' }}</div>
+        <h3 class="clear-modal-title">¿Cambiar a {{ pendingChannel === 'pedidosya' ? 'PedidosYa' : 'venta Local' }}?</h3>
+        <p class="clear-modal-desc">
+          Los precios cambian según el canal. Se vaciará el ticket actual
+          (<strong>{{ cart.items.length }} {{ cart.items.length === 1 ? 'producto' : 'productos' }}</strong>) para no mezclar precios.
+        </p>
+        <div class="clear-modal-actions">
+          <button type="button" class="btn-modal-cancel" @click="pendingChannel = null">No, mantener</button>
+          <button type="button" class="btn-modal-delete" @click="confirmChannelChange">Vaciar y cambiar</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal de Confirmación Estilizado para Vaciar Ticket -->
     <div
@@ -398,6 +490,58 @@ function confirmClearCart() {
   flex: 1;
   overflow: hidden;
   background: var(--cream-100);
+}
+
+.channel-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 12px 18px 0;
+}
+.channel-btn {
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-700);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.channel-btn.active {
+  border-color: var(--acai-700);
+  background: var(--acai-700);
+  color: #fff;
+}
+.channel-btn--pya.active {
+  border-color: #C2003F;
+  background: #C2003F;
+  color: #fff;
+}
+.channel-btn:focus-visible {
+  outline: 2px solid var(--acai-700);
+  outline-offset: 2px;
+}
+.pya-banner {
+  margin: 10px 18px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #FFE4EC;
+  color: #8A0030;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pya-banner-warn {
+  margin-top: 6px;
+  font-weight: 600;
+}
+html.dark .pya-banner {
+  background: #3D1424;
+  color: #FFB3C9;
+}
+.pos-ticket--pedidosya {
+  box-shadow: inset 0 4px 0 #C2003F;
 }
 
 .ticket-header {

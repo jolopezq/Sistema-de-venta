@@ -17,6 +17,12 @@ se renombra con la fecha de la actualización de producción.
 - `frontend/scripts/audit-contrast.cjs`: auditoría de contraste WCAG por pantalla. (`2802a36`)
 - `AGENTS.md`, `CLAUDE.md`, `docs/BITACORA.md` y este archivo para la gestión de cambios.
 - Arqueo con PedidosYa aparte: `pedidosya_count` y `pedidosya_total` en las estadísticas de la caja.
+- POS: selector de canal **Local / PedidosYa**. En PedidosYa se aplican los precios de plataforma de
+  producto, tamaño y toppings, se avisa qué ítems no tienen precio PedidosYa, el cobro es un único pago de
+  plataforma (sin efectivo, cambio, cliente ni puntos), se puede anotar el Nº de pedido de la tablet y,
+  tras la venta, el POS vuelve a Local. Cambiar de canal con productos en el ticket pide vaciarlo.
+- Reporte de cierre, asistente de cierre, Turno y Control Diario muestran "Ventas del local" y un bloque
+  PedidosYa aparte (informativo, no se rinde en caja).
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)
@@ -34,6 +40,8 @@ se renombra con la fecha de la actualización de producción.
   modificadores. (`852ae61`)
 - Las ventas del POS se guardaban en UTC (+4 h) en lugar de la hora de La Paz. (`35ba606`)
 - Al recargar la página, los administradores perdían su rol y su menú. (`2ecb266`)
+- El chip PedidosYa de Delivery y cocina no alcanzaba el contraste AA (4,46); el método `delivery_platform`
+  se muestra como "PedidosYa" en el recibo y en el historial de Turno.
 - Una caja abierta con fecha pasada empezaba a las 08:00 y dejaba fuera del arqueo las ventas de madrugada
   de ese día; ahora empieza a las 00:00.
 - Las reglas de modo oscuro de los componentes nunca se aplicaban (`:global(html.dark)` en estilos scoped);

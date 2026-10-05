@@ -63,6 +63,8 @@ export const useCartStore = defineStore('cart', {
   state: () => ({
     items: [],
     customerId: null,
+    // Canal de la venta en curso: 'pos' (mostrador) o 'pedidosya' (precios de plataforma)
+    channel: 'pos',
   }),
   getters: {
     subtotal: (state) => state.items.reduce((acc, item) => acc + item.subtotal, 0),
@@ -173,6 +175,17 @@ export const useCartStore = defineStore('cart', {
       });
     },
 
+    /**
+     * Cambia el canal de venta. Solo con el carrito vacío, para no mezclar precios
+     * de mostrador y de PedidosYa en un mismo pedido (la vista pide confirmación y vacía antes).
+     */
+    setChannel(channel) {
+      if (this.items.length > 0) return false;
+      this.channel = channel === 'pedidosya' ? 'pedidosya' : 'pos';
+      if (this.channel === 'pedidosya') this.customerId = null;
+      return true;
+    },
+
     removeItem(cartKey) {
       this.items = this.items.filter(i => i.cart_key !== cartKey);
     },
@@ -221,7 +234,7 @@ export const useCartStore = defineStore('cart', {
         total_amount: this.total - discountAmount,
         status: 'completed',
         preparation_status: 'received',
-        source: 'pos',
+        source: this.channel,
         is_takeaway: isOrderTakeaway,
         notes: saleNote,
         sync_status: 'pending',
@@ -299,8 +312,10 @@ export const useCartStore = defineStore('cart', {
         console.error("Error actualizando stock local:", err);
       }
 
-      // Limpia el carrito inmediatamente al procesar la venta exitosamente
+      // Limpia el carrito inmediatamente al procesar la venta exitosamente.
+      // El canal vuelve a mostrador para que la siguiente venta no salga con precios PedidosYa.
       this.clearCart();
+      this.channel = 'pos';
 
       return sale; // Devolvemos la venta para mostrar el recibo
     },
@@ -401,6 +416,7 @@ export const useCartStore = defineStore('cart', {
           is_takeaway: i.is_takeaway || false
         }));
         this.customerId = sale.customer_id || null;
+        this.channel = sale.source === 'pedidosya' ? 'pedidosya' : 'pos';
       }
     }
   }

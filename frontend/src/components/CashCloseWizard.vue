@@ -323,12 +323,8 @@ function handleFinish() {
                 <span>Ventas Tarjeta:</span>
                 <span>Bs {{ Number(resolvedStats?.card_sales || 0).toFixed(2) }}</span>
               </div>
-              <div class="box-row" v-if="Number(resolvedStats?.other_sales || 0) > 0">
-                <span>Ventas Plataformas:</span>
-                <span>Bs {{ Number(resolvedStats?.other_sales || 0).toFixed(2) }}</span>
-              </div>
               <div class="box-row divider">
-                <span>Total ingresos del turno:</span>
+                <span>Total ventas del local:</span>
                 <strong>Bs {{ Number(resolvedStats?.total_sales || 0).toFixed(2) }}</strong>
               </div>
               <div class="box-row">
@@ -338,6 +334,11 @@ function handleFinish() {
               <div class="box-row" v-if="resolvedStats?.voided_count > 0">
                 <span>Ventas anuladas:</span>
                 <span class="text-danger">{{ resolvedStats?.voided_count }} tickets</span>
+              </div>
+              <!-- PedidosYa: informativo, no entra al arqueo -->
+              <div class="box-row divider">
+                <span>🛵 PedidosYa <small class="pedidosya-note">(no se rinde en caja)</small>:</span>
+                <span>{{ resolvedStats?.pedidosya_count || 0 }} pedidos · Bs {{ Number(resolvedStats?.pedidosya_total || 0).toFixed(2) }}</span>
               </div>
             </div>
 
@@ -915,5 +916,10 @@ function handleFinish() {
   .steps-nav label {
     display: none;
   }
+}
+.pedidosya-note {
+  color: var(--ink-500);
+  font-weight: 500;
+  font-size: 0.85em;
 }
 </style>

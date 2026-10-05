@@ -806,7 +806,7 @@ function getOrderTicketText(order) {
 }
 
 .chip-pedidosya {
-  background: #EA1D2C !important;
+  background: #DC1A29 !important;
   color: #FFFFFF !important;
   box-shadow: 0 1px 4px rgba(234, 29, 44, 0.25);
 }
