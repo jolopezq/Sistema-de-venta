@@ -44,6 +44,7 @@ class SyncSalesRequest extends FormRequest
             'sales.*.items.*.unit_price'             => ['required', 'numeric', 'min:0'],
             'sales.*.items.*.subtotal'               => ['required', 'numeric', 'min:0'],
             'sales.*.items.*.is_takeaway'            => ['nullable', 'boolean'],
+            'sales.*.items.*.weight_grams'           => ['nullable', 'numeric', 'min:0'],
             'sales.*.items.*.item_note'              => ['nullable', 'string', 'max:255'],
             'sales.*.items.*.allergen_flags'         => ['nullable', 'array'],
             'sales.*.items.*.allergen_flags.*'       => ['string', 'max:50'],
@@ -57,7 +58,7 @@ class SyncSalesRequest extends FormRequest
 
             // Payments
             'sales.*.payments' => ['required', 'array', 'min:1'],
-            'sales.*.payments.*.method' => ['required', 'string'],
+            'sales.*.payments.*.method' => ['required', 'in:cash,qr,card,delivery_platform'],
             'sales.*.payments.*.amount' => ['required', 'numeric', 'min:0'],
         ];
     }

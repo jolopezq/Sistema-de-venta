@@ -101,16 +101,30 @@ watch(() => props.show, (newVal) => {
 function handleConfirm() {
   if (!isReady.value || isSubmitting.value) return;
   isSubmitting.value = true;
+
+  // Si se registró más de lo cobrado, el exceso es cambio: se descuenta del efectivo
+  // para que el arqueo no lo cuente como ingreso.
+  let excess = Math.max(0, totalPaid.value - props.total);
+  const finalPayments = payments.value.map(p => {
+    let amount = Number(p.amount);
+    if (p.method === 'cash' && excess > 0) {
+      const deduction = Math.min(excess, amount);
+      amount = Number((amount - deduction).toFixed(2));
+      excess -= deduction;
+    }
+    return {
+      method: p.method,
+      amount,
+      received: p.method === 'cash' ? Math.max(Number(cashReceived.value), Number(p.amount)) : amount
+    };
+  }).filter(p => p.amount > 0);
+
   emit('confirm', {
     customerId: selectedCustomerId.value,
     saleNote: saleNote.value,
     destination: orderDestination.value,
     isTakeaway: orderDestination.value === 'takeaway',
-    payments: payments.value.map(p => ({
-      method: p.method,
-      amount: Number(p.amount),
-      received: p.method === 'cash' ? Number(cashReceived.value) : Number(p.amount)
-    })),
+    payments: finalPayments,
     change: change.value
   });
 }
@@ -391,7 +405,7 @@ function setSuggestedCash(amount, isExact = false) {
 }
 
 .dest-btn.active {
-  border-color: var(--passion-600, #EA580C);
+  border-color: var(--passion-text);
   background: #FFF7ED;
   box-shadow: 0 2px 8px rgba(234, 88, 12, 0.15);
 }

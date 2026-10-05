@@ -236,7 +236,8 @@ export const useCartStore = defineStore('cart', {
           base_price: i.base_price || i.unit_price,
           item_note: i.item_note || null,
           allergen_flags: i.allergen_flags || [],
-          is_takeaway: resolveItemTakeaway(i)
+          is_takeaway: resolveItemTakeaway(i),
+          weight_grams: i.is_weight_based ? i.weight_grams : null
         })),
         payments: payments
       };

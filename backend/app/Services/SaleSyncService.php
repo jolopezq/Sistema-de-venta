@@ -27,6 +27,7 @@ class SaleSyncService
         private readonly SaleRepository      $saleRepository,
         private readonly ProductRepository   $productRepository,
         private readonly CustomerRepository  $customerRepository,
+        private readonly SalePricingService  $pricingService,
     ) {}
 
     /**
@@ -72,6 +73,11 @@ class SaleSyncService
      */
     public function processSale(array $data, int $cashierId): void
     {
+        // El servidor recalcula subtotales, total y pagos (ver SalePricingService)
+        [$data, $discrepancies] = $this->pricingService->normalizeTotals($data);
+        [$data['payments'], $paymentIssues] = $this->pricingService->normalizePayments($data['payments'] ?? [], (float) $data['total_amount']);
+        $discrepancies = array_merge($discrepancies, $paymentIssues);
+
         $createdAt = isset($data['created_at']) ? Carbon::parse($data['created_at']) : now();
 
         // Se respeta el número impreso en el ticket del POS; solo se genera uno nuevo
@@ -108,7 +114,8 @@ class SaleSyncService
         ]);
 
         // 2. Insertar Items y Descontar Stock
-        $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway);
+        $priceMismatches = $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway, true);
+        $discrepancies = array_merge($discrepancies, $priceMismatches);
 
         // 3. Insertar Pagos
         if (!empty($data['payments'])) {
@@ -125,13 +132,28 @@ class SaleSyncService
         if ($sale->customer_id && $sale->status === 'completed') {
             $this->updateLoyaltyPoints($sale);
         }
+
+        // 5. Dejar constancia de cualquier diferencia entre el POS y el servidor
+        if (!empty($discrepancies)) {
+            AuditLog::create([
+                'user_id'     => $cashierId,
+                'action'      => 'sale_sync_discrepancy',
+                'module'      => 'Sales',
+                'description' => "Venta Ticket #{$orderNumber} sincronizada con diferencias: " . implode('; ', $discrepancies),
+            ]);
+        }
     }
 
     /**
      * Inserta los ítems de una venta y descuenta el stock de recetas e insumos.
+     *
+     * @param bool $checkCatalogPrices Compara cada precio cobrado con el catálogo vigente.
+     * @return string[] Diferencias de precio encontradas (vacío si no se verifican).
      */
-    public function insertSaleItems(Sale $sale, array $itemsData, int $cashierId, bool $orderIsTakeaway): void
+    public function insertSaleItems(Sale $sale, array $itemsData, int $cashierId, bool $orderIsTakeaway, bool $checkCatalogPrices = false): array
     {
+        $priceMismatches = [];
+
         foreach ($itemsData as $itemData) {
             $product = $this->productRepository->findWithRecipes($itemData['product_id']);
             $modifiers = $itemData['modifiers'] ?? $itemData['topping_modifications'] ?? [];
@@ -156,6 +178,13 @@ class SaleSyncService
                 }
                 if ($group->max_selections !== null && $count > $group->max_selections) {
                     throw new Exception("El producto {$product->name} excede el máximo de {$group->max_selections} opciones en el grupo '{$group->name}'");
+                }
+            }
+
+            if ($checkCatalogPrices) {
+                $mismatch = $this->pricingService->catalogPriceMismatch($product, $itemData, $selectedOptions);
+                if ($mismatch) {
+                    $priceMismatches[] = $mismatch;
                 }
             }
 
@@ -210,6 +239,8 @@ class SaleSyncService
                 }
             }
         }
+
+        return $priceMismatches;
     }
 
     /**
