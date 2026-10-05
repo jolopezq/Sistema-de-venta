@@ -292,7 +292,7 @@ const getInitials = (name) => {
 
 const getActionStyle = (action) => {
   if (action === 'created') return 'background:var(--lime-100);color:var(--lime-700)';
-  if (action === 'updated') return 'background:var(--gold-100);color:var(--gold-500)';
+  if (action === 'updated') return 'background:var(--gold-100);color:var(--gold-text)';
   if (action === 'deleted') return 'background:var(--danger-100);color:var(--danger-600)';
   return 'background:var(--acai-50);color:var(--acai-text)';
 };

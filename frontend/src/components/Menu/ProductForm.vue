@@ -600,7 +600,7 @@ onUnmounted(() => {
   width: 100%;
   background: var(--surface);
   border: 1px solid var(--passion-500);
-  color: var(--passion-500);
+  color: var(--passion-text);
   border-radius: 12px;
   padding: 10px;
   font-size: 14px;
@@ -723,7 +723,7 @@ onUnmounted(() => {
   margin-top: 12px;
   background: var(--surface);
   border: 1px solid var(--passion-500);
-  color: var(--passion-500);
+  color: var(--passion-text);
   border-radius: 12px;
   padding: 10px 16px;
   font-size: 14px;
@@ -908,7 +908,7 @@ onUnmounted(() => {
 
 .custom-option.selected {
   background: var(--passion-100);
-  color: var(--passion-500);
+  color: var(--passion-text);
   font-weight: 600;
 }
 .section-header-row {
@@ -923,7 +923,7 @@ onUnmounted(() => {
 .btn-text-red {
   background: none;
   border: none;
-  color: var(--passion-500);
+  color: var(--passion-text);
   font-weight: 600;
   cursor: pointer;
   padding: 0;
@@ -1032,7 +1032,7 @@ onUnmounted(() => {
 }
 .sale-mode-btn.active {
   background: var(--surface, #ffffff);
-  color: var(--passion-600, #e11d48);
+  color: var(--passion-text);
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 .weight-pricing-grid {
@@ -1081,7 +1081,7 @@ onUnmounted(() => {
 .btn-suggest-pct {
   background: var(--surface);
   border: 1px solid var(--passion-300, #fca5a5);
-  color: var(--passion-500);
+  color: var(--passion-text);
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;

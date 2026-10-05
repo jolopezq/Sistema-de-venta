@@ -822,7 +822,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   padding: 2px 8px;
   border-radius: 999px;
   background: rgba(251, 120, 16, 0.12);
-  color: var(--passion-600);
+  color: var(--passion-text);
   white-space: nowrap;
   transition: all 0.15s ease;
 }
@@ -987,7 +987,7 @@ html.dark .size-included-badge {
 .chip-price {
   font-size: 10.5px;
   font-weight: 800;
-  color: var(--passion-600);
+  color: var(--passion-text);
   background: rgba(251, 120, 16, 0.1);
   padding: 2px 5px;
   border-radius: 6px;
@@ -1007,7 +1007,7 @@ html.dark .size-included-badge {
   color: var(--ink-900);
 }
 .option-chip:hover:not(:disabled):not(.selected) .chip-price {
-  color: var(--passion-600, #E56506);
+  color: var(--passion-text);
   background: rgba(251, 120, 16, 0.12);
 }
 
@@ -1177,7 +1177,7 @@ html.dark .chip-indicator {
   font-family: inherit;
   font-size: 12px;
   font-weight: 700;
-  color: var(--ink-600, #64748b);
+  color: var(--ink-500);
   white-space: nowrap;
   transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;

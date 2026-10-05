@@ -152,7 +152,7 @@ const selectedGroup = ref(null);
 }
 
 .red-subtitle {
-  color: var(--passion-500);
+  color: var(--passion-text);
   font-weight: 700;
   font-size: 14px;
 }

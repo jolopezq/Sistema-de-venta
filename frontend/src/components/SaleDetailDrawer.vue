@@ -408,7 +408,7 @@ async function handleConfirmVoid() {
 
 .item-qty {
   font-weight: 800;
-  color: var(--passion-600);
+  color: var(--passion-text);
   font-size: 13px;
 }
 

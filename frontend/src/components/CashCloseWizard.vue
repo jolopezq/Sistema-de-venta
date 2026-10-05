@@ -584,7 +584,7 @@ function handleFinish() {
 }
 
 .step-dot.active label {
-  color: var(--passion-600);
+  color: var(--passion-text);
 }
 
 .step-dot.done span {
@@ -799,7 +799,7 @@ function handleFinish() {
 
 .text-lime { color: var(--lime-700); }
 .text-danger { color: var(--danger-600); }
-.text-primary { color: var(--passion-600); }
+.text-primary { color: var(--passion-text); }
 
 .diff-banner {
   border-radius: 12px;

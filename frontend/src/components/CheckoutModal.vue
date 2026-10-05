@@ -455,7 +455,7 @@ function setSuggestedCash(amount, isExact = false) {
 .dest-badge {
   font-size: 14px;
   font-weight: 900;
-  color: var(--passion-600, #EA580C);
+  color: var(--passion-text);
 }
 
 html.dark .dest-btn {

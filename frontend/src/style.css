@@ -46,9 +46,9 @@
   --tw-bg-fff1f2: #FFF1F2;
   --tw-bg-fff7ed: #FFF7ED;
   --tw-bg-fffbeb: #FFFBEB;
-  --tw-fg-059669: #059669;
+  --tw-fg-059669: #047857;
   --tw-fg-0f172a: #0F172A;
-  --tw-fg-16a34a: #16A34A;
+  --tw-fg-16a34a: #15803D;
   --tw-fg-1e293b: #1E293B;
   --tw-fg-334155: #334155;
   --tw-fg-475569: #475569;
@@ -61,11 +61,14 @@
   --tw-fg-9a3412: #9A3412;
   --tw-fg-b45309: #B45309;
   --tw-fg-c2410c: #C2410C;
-  --tw-fg-dc2626: #DC2626;
+  --tw-fg-dc2626: #B91C1C;
   --tw-fg-ea580c: #EA580C;
 
   /* Texto sobre fondos de acento (naranja, verde, morado) */
-  --on-accent: #FFFFFF;
+  --on-accent: #1A1020;
+  /* Naranja y dorado para TEXTO (los tonos -500 son para fondos) */
+  --passion-text: #B34700;
+  --gold-text: #7A5C00;
   /* Morado para texto sobre fondos suaves (--acai-50) */
   --acai-text: #522B80;
 
@@ -111,7 +114,7 @@
   /* Tinta / Texto (Tema Claro) */
   --ink-900: #241A2E;
   --ink-700: #463A52;
-  --ink-500: #847C8C;
+  --ink-500: #6B6373;
   --ink-300: #BDB6C4;
 
   /* Danger */
@@ -511,7 +514,7 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
 .pay-amount-input:focus{outline:none;border-color:var(--acai-500);box-shadow:0 0 0 3px rgba(116,72,166,0.2);}
 .pay-remove-btn{background:none;border:none;color:var(--danger-500);cursor:pointer;font-size:16px;padding:4px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;transition:background 0.15s, color 0.15s;}
 .pay-remove-btn:hover{background:var(--danger-100);color:var(--danger-600);}
-.add-payment-link{font-size:13px;font-weight:700;color:var(--passion-600);background:none;border:none;cursor:pointer;padding:6px 0;transition:color 0.15s;}
+.add-payment-link{font-size:13px;font-weight:700;color:var(--passion-text);background:none;border:none;cursor:pointer;padding:6px 0;transition:color 0.15s;}
 .add-payment-link:hover{color:var(--passion-700);}
 
 .received-box{margin:14px 0;}
@@ -612,6 +615,8 @@ html.dark {
   --ink-300: #6B6B6B;
   --on-accent: #1A1020;
   --acai-text: #C9A7FF;
+  --passion-text: #FFB06B;
+  --gold-text: #FAD15C;
 
   /* Puente de paleta Tailwind: equivalentes oscuros */
   --tw-bg-a7f3d0: #1F5A35;
@@ -749,7 +754,7 @@ html.dark .btn-primary:hover {
   box-shadow: 0 0 12px rgba(255, 150, 64, 0.35);
 }
 html.dark .offline-banner {
-  color: var(--gold-500);
+  color: var(--gold-text);
   border-color: rgba(250, 209, 92, 0.2);
 }
 html.dark .field input:focus {
@@ -882,10 +887,10 @@ html.dark .customer-found {
   border-color: rgba(255, 255, 255, 0.12);
 }
 html.dark .customer-found .pts {
-  color: var(--gold-500);
+  color: var(--gold-text);
 }
 html.dark .add-payment-link {
-  color: var(--passion-400);
+  color: var(--passion-text);
 }
 html.dark .add-payment-link:hover {
   color: var(--passion-300);

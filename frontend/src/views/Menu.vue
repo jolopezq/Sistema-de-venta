@@ -792,7 +792,7 @@ const handleUpdateSuccess = async (groupId) => {
 }
 .tab-item:hover { color: var(--ink-700); }
 .tab-item.active {
-  color: var(--passion-600);
+  color: var(--passion-text);
   border-bottom-color: var(--passion-600);
 }
 
@@ -831,7 +831,7 @@ const handleUpdateSuccess = async (groupId) => {
   padding: 12px 16px;
   font-weight: 700;
   font-size: 14px;
-  color: var(--passion-500);
+  color: var(--passion-text);
   background: transparent;
   border: 1.5px solid var(--passion-500);
   border-radius: 999px;
@@ -1101,7 +1101,7 @@ const handleUpdateSuccess = async (groupId) => {
 /* ADD PRODUCT BUTTON */
 .btn-add-product {
   background: transparent;
-  color: var(--passion-500);
+  color: var(--passion-text);
   border: 1.5px solid var(--passion-500);
   border-radius: 999px;
   padding: 8px 16px;
@@ -1124,7 +1124,7 @@ const handleUpdateSuccess = async (groupId) => {
   padding: 12px 16px;
   background: transparent;
   border: 1.5px solid var(--passion-500);
-  color: var(--passion-500);
+  color: var(--passion-text);
   border-radius: 999px;
   font-weight: 700;
   font-size: 14px;
@@ -1173,7 +1173,7 @@ const handleUpdateSuccess = async (groupId) => {
   font-weight: 500;
 }
 .option-group-sidebar-card.active .og-card-subtitle {
-  color: var(--passion-600);
+  color: var(--passion-text);
 }
 
 .og-card-right {
@@ -1197,6 +1197,6 @@ const handleUpdateSuccess = async (groupId) => {
   color: var(--ink-400);
 }
 .option-group-sidebar-card.active .chevron-icon {
-  color: var(--passion-500);
+  color: var(--passion-text);
 }
 </style>

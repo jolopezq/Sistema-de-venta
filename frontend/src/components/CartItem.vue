@@ -196,6 +196,6 @@ html.dark .item-dest-chip--dinein {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-.ticket-item-note    { color: var(--passion-600); font-weight: 600; }
+.ticket-item-note    { color: var(--passion-text); font-weight: 600; }
 .ticket-item-allergen { color: var(--warning-600, #b45309); font-weight: 600; }
 </style>

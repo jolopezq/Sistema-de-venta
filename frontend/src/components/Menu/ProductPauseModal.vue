@@ -277,7 +277,7 @@ const resetState = () => {
 .option-item.selected {
   border-color: var(--passion-500);
   background: var(--passion-50);
-  color: var(--passion-600);
+  color: var(--passion-text);
 }
 
 .date-list {
@@ -376,7 +376,7 @@ const resetState = () => {
 .btn-outline-danger {
   background: var(--surface);
   border: 1px solid var(--passion-500);
-  color: var(--passion-500);
+  color: var(--passion-text);
 }
 .btn-outline-danger:hover {
   background: var(--surface-hover);

@@ -936,7 +936,7 @@ html.dark .chip-mixed {
 }
 
 .prep-bullet {
-  color: var(--passion-500, #F97316);
+  color: var(--passion-text);
   font-size: 13px;
   line-height: 1;
 }

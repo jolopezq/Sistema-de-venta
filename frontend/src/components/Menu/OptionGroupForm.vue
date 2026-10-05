@@ -347,7 +347,7 @@ const deleteGroup = () => emit('delete', localGroup.value.id);
   color: var(--ink-400);
 }
 .text-danger {
-  color: var(--passion-500);
+  color: var(--passion-text);
 }
 
 /* Rules Card */
@@ -365,7 +365,7 @@ const deleteGroup = () => emit('delete', localGroup.value.id);
 .btn-link-action {
   background: transparent;
   border: none;
-  color: var(--passion-500);
+  color: var(--passion-text);
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
@@ -461,14 +461,14 @@ input:checked + .slider:before { transform: translateX(20px); }
 /* Buttons */
 .btn-outline-primary {
   display: flex; align-items: center; justify-content: center; width: 100%; padding: 12px;
-  border: 1px solid var(--passion-500); background: transparent; color: var(--passion-500);
+  border: 1px solid var(--passion-500); background: transparent; color: var(--passion-text);
   font-weight: 700; font-size: 15px; border-radius: 8px; cursor: pointer; transition: 0.2s;
 }
 .btn-outline-primary:hover { background: var(--surface-hover); }
 
 .btn-delete-group {
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid var(--border); color: var(--passion-500);
+  background: transparent; border: 1px solid var(--border); color: var(--passion-text);
   padding: 10px 20px; border-radius: 24px; font-weight: 700; font-size: 14px; cursor: pointer;
 }
 .btn-delete-group:hover { background: var(--surface-hover); }

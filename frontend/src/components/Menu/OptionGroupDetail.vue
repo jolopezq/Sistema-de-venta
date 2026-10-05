@@ -468,7 +468,7 @@ const deleteOption = async () => {
 .saving-order-indicator {
   font-size: 12px;
   font-weight: 700;
-  color: var(--passion-600);
+  color: var(--passion-text);
   background: #fff3e0;
   padding: 4px 10px;
   border-radius: 20px;
@@ -483,7 +483,7 @@ const deleteOption = async () => {
 .btn-add-option-pya {
   background: var(--surface);
   border: 1.5px solid var(--passion-500);
-  color: var(--passion-500);
+  color: var(--passion-text);
   font-size: 14px;
   font-weight: 700;
   padding: 8px 18px;
@@ -538,7 +538,7 @@ const deleteOption = async () => {
 .btn-link-products {
   background: transparent;
   border: none;
-  color: var(--passion-500);
+  color: var(--passion-text);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -591,7 +591,7 @@ const deleteOption = async () => {
 }
 
 .drag-handle:hover {
-  color: var(--passion-500);
+  color: var(--passion-text);
   transform: scale(1.1);
 }
 

@@ -211,7 +211,7 @@ function getPaymentLabel(method) {
   font-family: 'Baloo 2', sans-serif;
   font-size: 24px;
   font-weight: 900;
-  color: var(--passion-600, #EA580C);
+  color: var(--passion-text);
   line-height: 1;
 }
 

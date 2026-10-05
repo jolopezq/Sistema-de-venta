@@ -1008,7 +1008,7 @@ async function handleRefresh() {
 }
 
 .strip-value.primary {
-  color: var(--passion-600);
+  color: var(--passion-text);
   font-size: 18px;
   font-weight: 800;
 }
@@ -1127,7 +1127,7 @@ async function handleRefresh() {
 .multi-payment-tag {
   font-size: 11.5px;
   font-weight: 700;
-  color: var(--passion-600);
+  color: var(--passion-text);
 }
 
 .price-cell {
@@ -1340,7 +1340,7 @@ async function handleRefresh() {
 
 .btn-retroactive {
   background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: #ffffff;
+  color: var(--on-accent);
   border: none;
   padding: 6px 14px;
   border-radius: 9999px;

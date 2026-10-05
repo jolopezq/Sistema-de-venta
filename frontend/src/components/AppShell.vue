@@ -413,7 +413,7 @@ async function handleLogout() {
 }
 .oh-perf-btn-top.active {
   background: var(--passion-100);
-  color: var(--passion-700);
+  color: var(--passion-text);
   border: 1px solid rgba(251, 120, 16, 0.3);
 }
 .oh-perf-btn-top svg { width: 15px; height: 15px; }

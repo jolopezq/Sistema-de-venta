@@ -462,7 +462,7 @@ function printOrder() {
 }
 
 .wait-time {
-  color: var(--passion-600, #ea580c);
+  color: var(--passion-text);
 }
 
 /* STATUS TABS */
@@ -672,7 +672,7 @@ html.dark .item-dinein-badge {
 
 .opt-bullet {
   font-size: 9px;
-  color: var(--passion-500, #F97316);
+  color: var(--passion-text);
 }
 
 .opt-group {

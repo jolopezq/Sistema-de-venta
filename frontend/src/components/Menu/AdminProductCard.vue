@@ -343,7 +343,7 @@ const tagLabel = computed(() => {
 .btn-pill-outline {
   background: var(--surface);
   border: 1px solid var(--passion-500);
-  color: var(--passion-500);
+  color: var(--passion-text);
   border-radius: 999px;
   padding: 4px 14px;
   font-size: 13px;
@@ -401,7 +401,7 @@ const tagLabel = computed(() => {
 .pya-price {
   font-size: 11px;
   font-weight: 700;
-  color: var(--passion-500);
+  color: var(--passion-text);
   white-space: nowrap;
 }
 </style>

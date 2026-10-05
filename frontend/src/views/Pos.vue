@@ -420,7 +420,7 @@ function confirmClearCart() {
 }
 .ticket-count-badge {
   background: #fee2e2;
-  color: #dc2626;
+  color: #B91C1C;
   font-size: 11px;
   font-weight: 800;
   padding: 2px 7px;
@@ -431,7 +431,7 @@ function confirmClearCart() {
   align-items: center;
   gap: 5px;
   background: #fef2f2;
-  color: #dc2626;
+  color: #B91C1C;
   border: 1px solid #fecaca;
   padding: 5px 10px;
   border-radius: 8px;

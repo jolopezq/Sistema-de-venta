@@ -1042,7 +1042,7 @@ watch(selectedDate, (newDate) => {
 
 .btn-open-session {
   background: #10b981;
-  color: white;
+  color: var(--on-accent);
   border: none;
   padding: 0.65rem 1.25rem;
   border-radius: 8px;
