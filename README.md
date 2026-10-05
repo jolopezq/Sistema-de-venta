@@ -2,6 +2,9 @@
 
 Sistema de Punto de Venta (POS) y gestión diseñado con un enfoque principal en **Offline-First**. Garantiza alta disponibilidad y rapidez en el punto de venta, permitiendo cobrar y operar aunque se pierda la conexión a internet temporalmente.
 
+> **Estado del trabajo y reglas para agentes:** [AGENTS.md](AGENTS.md) · [docs/BITACORA.md](docs/BITACORA.md) · [CHANGELOG.md](CHANGELOG.md).
+> Parte de este README está desactualizada: la base de datos en uso es **SQLite** y la sincronización offline no usa colas.
+
 ## 🚀 Arquitectura y Tecnologías
 
 El sistema está dividido en dos capas principales que interactúan mediante una API RESTful, diseñadas bajo estrictos estándares de *PHP The Right Way* en el backend y PWA/SPA en el frontend.
