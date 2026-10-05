@@ -56,7 +56,7 @@ class ProductRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'image_url' => ['nullable', 'string', 'max:255'],
-            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,svg,webp', 'max:20480'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:20480'],
             'price' => ['required', 'numeric', 'min:0'],
             'vip_price' => ['nullable', 'numeric', 'min:0'],
             'is_weight_based' => ['boolean'],
@@ -96,7 +96,7 @@ class ProductRequest extends FormRequest
             'is_active.boolean' => 'El estado del producto debe ser verdadero o falso.',
             'image.uploaded' => 'La imagen no pudo subirse. Por favor intenta con una imagen JPG, PNG o WEBP.',
             'image.image' => 'El archivo adjunto debe ser una imagen válida.',
-            'image.mimes' => 'La imagen debe ser de tipo JPG, JPEG, PNG, WEBP o SVG.',
+            'image.mimes' => 'La imagen debe ser de tipo JPG, JPEG, PNG, GIF o WEBP.',
             'image.max' => 'La imagen no puede exceder los 20MB de tamaño.',
         ];
     }

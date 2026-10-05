@@ -71,6 +71,10 @@ class CashRegisterSessionController extends Controller
         $userId = $request->user()->id;
         $targetDate = $validated['date'] ?? now()->format('Y-m-d');
 
+        if (!empty($validated['date']) && !$request->user()->isAdmin()) {
+            abort(403, 'Solo un administrador puede abrir una caja con fecha específica.');
+        }
+
         // Si se especifica una fecha, verificar si ya existe sesión para ese día
         if (!empty($validated['date'])) {
             $existing = CashRegisterSession::whereDate('opened_at', $targetDate)->first();
@@ -129,6 +133,8 @@ class CashRegisterSessionController extends Controller
      */
     public function close(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
+        $this->ensureCanAccess($request, $cashSession);
+
         if ($cashSession->status === 'closed') {
             return response()->json([
                 'message' => 'Esta sesión de caja ya fue cerrada previamente.',
@@ -189,8 +195,9 @@ class CashRegisterSessionController extends Controller
     /**
      * Genera el reporte estructurado de la sesión para impresión o consulta.
      */
-    public function report(CashRegisterSession $cashSession): JsonResponse
+    public function report(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
+        $this->ensureCanAccess($request, $cashSession);
         $cashSession->load('cashier');
         $stats  = $this->calculateSessionStats($cashSession);
         $report = $this->buildReportPayload($cashSession, $stats);
@@ -205,6 +212,8 @@ class CashRegisterSessionController extends Controller
      */
     public function recordMovement(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
+        $this->ensureCanAccess($request, $cashSession);
+
         if ($cashSession->status !== 'open') {
             return response()->json([
                 'message' => 'Solo se pueden registrar movimientos en sesiones de caja abiertas.',
@@ -244,8 +253,10 @@ class CashRegisterSessionController extends Controller
     /**
      * Listado de movimientos de una sesión de caja.
      */
-    public function movements(CashRegisterSession $cashSession): JsonResponse
+    public function movements(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
+        $this->ensureCanAccess($request, $cashSession);
+
         $movements = $cashSession->movements()
             ->with('user:id,name')
             ->latest('created_at')
@@ -257,8 +268,9 @@ class CashRegisterSessionController extends Controller
     /**
      * Detalle y estadísticas en tiempo real de una sesión de caja específica.
      */
-    public function show(CashRegisterSession $cashSession): JsonResponse
+    public function show(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
+        $this->ensureCanAccess($request, $cashSession);
         $cashSession->load('cashier');
         return response()->json([
             'session' => $cashSession,
@@ -289,6 +301,11 @@ class CashRegisterSessionController extends Controller
             $query->where('cashier_id', $cashierId);
         }
 
+        // Un cajero solo puede consultar sus propias sesiones
+        if (!$request->user()->isAdmin()) {
+            $query->where('cashier_id', $request->user()->id);
+        }
+
         if ($status = $request->status) {
             $query->where('status', $status);
         }
@@ -301,6 +318,18 @@ class CashRegisterSessionController extends Controller
         });
 
         return response()->json($sessions);
+    }
+
+    /**
+     * Solo el cajero dueño de la sesión o un administrador pueden operar sobre ella.
+     */
+    private function ensureCanAccess(Request $request, CashRegisterSession $session): void
+    {
+        $user = $request->user();
+
+        if (!$user->isAdmin() && (int) $session->cashier_id !== (int) $user->id) {
+            abort(403, 'No tienes permiso para operar sobre la caja de otro usuario.');
+        }
     }
 
     /**

@@ -109,12 +109,16 @@ class BackupService
 
     /**
      * Restaura la base de datos a partir de un archivo SQLite comprimido en GZIP.
-     * Sobrescribe directamente la base de datos actual.
+     *
+     * Pasos: descomprime a un temporal, verifica que sea una BD SQLite íntegra de
+     * este sistema, guarda una copia de la BD actual en storage/app/backups y
+     * finalmente reemplaza el archivo de forma atómica (rename).
      *
      * @param string $gzSourcePath Ruta del archivo .gz a restaurar.
+     * @return string Ruta de la copia de seguridad previa a la restauración.
      * @throws RuntimeException
      */
-    public function restoreCompressedSqliteBackup(string $gzSourcePath): void
+    public function restoreCompressedSqliteBackup(string $gzSourcePath): string
     {
         $dbConnection = config('database.default');
         if ($dbConnection !== 'sqlite') {
@@ -131,18 +135,58 @@ class BackupService
             throw new RuntimeException("El archivo de respaldo no existe.");
         }
 
+        // El temporal vive junto a la BD para que el rename final sea atómico (mismo disco)
+        $timestamp = date('Y-m-d_His');
+        $tempRestorePath = dirname($dbPath) . "/restore_{$timestamp}.sqlite";
+
+        try {
+            $this->gunzipFile($gzSourcePath, $tempRestorePath);
+            $this->assertValidSqliteBackup($tempRestorePath);
+
+            // Copia de la BD actual antes de sobrescribirla
+            $backupDir = storage_path('app/backups');
+            if (!File::exists($backupDir)) {
+                File::makeDirectory($backupDir, 0755, true);
+            }
+            $preRestorePath = "{$backupDir}/pre_restore_{$timestamp}.sqlite";
+            DB::statement("VACUUM INTO '" . str_replace("'", "''", $preRestorePath) . "'");
+
+            DB::disconnect();
+
+            // Los archivos WAL/SHM de la BD anterior no deben aplicarse sobre la nueva
+            foreach (["{$dbPath}-wal", "{$dbPath}-shm"] as $sidecar) {
+                if (File::exists($sidecar)) {
+                    File::delete($sidecar);
+                }
+            }
+
+            if (!rename($tempRestorePath, $dbPath)) {
+                throw new RuntimeException("No se pudo reemplazar la base de datos actual.");
+            }
+        } finally {
+            if (File::exists($tempRestorePath)) {
+                File::delete($tempRestorePath);
+            }
+            DB::reconnect();
+        }
+
+        return $preRestorePath;
+    }
+
+    /**
+     * Descomprime un archivo GZIP en bloques de 1MB.
+     */
+    private function gunzipFile(string $gzSourcePath, string $destPath): void
+    {
         $gzHandle = gzopen($gzSourcePath, 'rb');
         if ($gzHandle === false) {
             throw new RuntimeException("No se pudo abrir el archivo de respaldo para su lectura.");
         }
 
-        // Antes de sobrescribir, cerramos cualquier conexión activa de PDO si es posible
-        DB::disconnect();
-
-        $destHandle = fopen($dbPath, 'wb');
+        $destHandle = fopen($destPath, 'wb');
         if ($destHandle === false) {
             gzclose($gzHandle);
-            throw new RuntimeException("No se pudo abrir la base de datos de destino para su escritura.");
+            throw new RuntimeException("No se pudo crear el archivo temporal de restauración.");
         }
 
         while (!gzeof($gzHandle)) {
@@ -151,8 +195,43 @@ class BackupService
 
         fclose($destHandle);
         gzclose($gzHandle);
-        
-        // Reconectar la base de datos para futuras consultas
-        DB::reconnect();
+    }
+
+    /**
+     * Verifica que el archivo sea una BD SQLite íntegra que contenga las tablas del sistema.
+     *
+     * @throws RuntimeException
+     */
+    private function assertValidSqliteBackup(string $path): void
+    {
+        $handle = fopen($path, 'rb');
+        $header = $handle ? fread($handle, 16) : '';
+        if ($handle) {
+            fclose($handle);
+        }
+
+        if ($header !== "SQLite format 3\0") {
+            throw new RuntimeException("El archivo no es una copia de seguridad SQLite válida.");
+        }
+
+        try {
+            $pdo = new \PDO('sqlite:' . $path);
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+            $integrity = $pdo->query('PRAGMA integrity_check')->fetchColumn();
+            if ($integrity !== 'ok') {
+                throw new RuntimeException("La copia de seguridad está dañada ({$integrity}).");
+            }
+
+            $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type = 'table'")->fetchAll(\PDO::FETCH_COLUMN);
+            $missing = array_diff(['users', 'sales', 'products', 'migrations'], $tables);
+            if (!empty($missing)) {
+                throw new RuntimeException("La copia de seguridad no pertenece a este sistema (faltan tablas: " . implode(', ', $missing) . ").");
+            }
+        } catch (\PDOException $e) {
+            throw new RuntimeException("No se pudo leer la copia de seguridad: " . $e->getMessage());
+        } finally {
+            $pdo = null;
+        }
     }
 }

@@ -28,13 +28,14 @@ const navItems = computed(() => {
   const role = auth.user?.role;
   const isSuperAdmin = role === 'super_admin';
   const isAdmin = role === 'admin' || isSuperAdmin;
+  const isKitchen = role === 'kitchen';
 
   return [
     {
       label: 'Operación',
       items: [
-        { name: 'POS · Ventas', route: '/pos', always: true, icon: 'cart' },
-        { name: 'Caja / Turno', route: '/turno', always: true, icon: 'cash' },
+        { name: 'POS · Ventas', route: '/pos', show: !isKitchen, icon: 'cart' },
+        { name: 'Caja / Turno', route: '/turno', show: !isKitchen, icon: 'cash' },
         { name: 'Delivery', route: '/delivery', always: true, icon: 'delivery' },
         { name: 'Menú', route: '/menu', show: isAdmin, icon: 'catalog' },
         { name: 'Inventario', route: '/inventario', show: isAdmin, icon: 'inventory' },

@@ -98,14 +98,14 @@ class SystemBackupController extends Controller
         $file = $request->file('backup_file');
         
         try {
-            $this->backupService->restoreCompressedSqliteBackup($file->getRealPath());
+            $preRestorePath = $this->backupService->restoreCompressedSqliteBackup($file->getRealPath());
 
             // Registrar auditoría de acción sensible
             AuditLog::create([
                 'user_id' => $user->id,
                 'action' => 'restore_backup',
                 'module' => 'System',
-                'description' => "Restauración de base de datos desde copia de seguridad ({$file->getClientOriginalName()}) por IP: " . $request->ip(),
+                'description' => "Restauración de base de datos desde copia de seguridad ({$file->getClientOriginalName()}) por IP: " . $request->ip() . ". Copia previa: " . basename($preRestorePath),
             ]);
 
             return response()->json([

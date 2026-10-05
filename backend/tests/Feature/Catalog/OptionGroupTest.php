@@ -20,7 +20,7 @@ class OptionGroupTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
+        $this->user = User::factory()->create(['role' => 'admin']);
     }
 
     public function test_can_create_option_group_with_nested_options()

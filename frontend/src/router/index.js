@@ -13,9 +13,9 @@ import RetroactiveSales from '../views/RetroactiveSales.vue';
 const routes = [
   { path: '/', redirect: '/pos' },
   { path: '/login', name: 'Login', component: Login },
-  { path: '/pos', name: 'Pos', component: Pos, meta: { requiresAuth: true } },
-  { path: '/turno', name: 'Turno', component: Turno, meta: { requiresAuth: true } },
-  { path: '/menu', name: 'Menu', component: Menu, meta: { requiresAuth: true } },
+  { path: '/pos', name: 'Pos', component: Pos, meta: { requiresAuth: true, noKitchen: true } },
+  { path: '/turno', name: 'Turno', component: Turno, meta: { requiresAuth: true, noKitchen: true } },
+  { path: '/menu', name: 'Menu', component: Menu, meta: { requiresAuth: true, adminOnly: true } },
   { path: '/delivery', name: 'Delivery', component: Delivery, meta: { requiresAuth: true } },
   { path: '/inventario', name: 'Inventario', component: InventoryList, meta: { requiresAuth: true, adminOnly: true } },
   { path: '/admin/ventas-retroactivas', name: 'RetroactiveSales', component: RetroactiveSales, meta: { requiresAuth: true, adminOnly: true } },
@@ -40,6 +40,9 @@ router.beforeEach(async (to, from, next) => {
     next('/login');
   } else if (to.path === '/login' && authStore.isAuthenticated) {
     next('/pos');
+  } else if (to.meta.noKitchen && authStore.user?.role === 'kitchen') {
+    // Cocina no opera ventas ni caja: su pantalla es la cola de pedidos
+    next('/delivery');
   } else if (to.meta.superAdminOnly && authStore.user?.role !== 'super_admin') {
     next('/pos');
   } else if (to.meta.adminOnly && !['admin', 'super_admin'].includes(authStore.user?.role)) {

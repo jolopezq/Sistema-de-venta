@@ -22,40 +22,63 @@ use App\Http\Controllers\OptionRecipeController;
 */
 
 // --- Rutas Públicas ---
-Route::post('/login', [AuthController::class, 'login'])->name('login');
+Route::post('/login', [AuthController::class, 'login'])->name('login')->middleware('throttle:login');
 Route::get('/ping', function () { return response()->json(['status' => 'ok']); });
 
 // --- Rutas Protegidas ---
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
-
+    
     // Catálogo offline-first
     Route::get('/catalog', [CatalogController::class, 'index']);
 
-    // Recursos
-    Route::apiResource('categories', CategoryController::class);
-    Route::apiResource('ingredient-categories', \App\Http\Controllers\IngredientCategoryController::class);
-    Route::post('option-groups/{option_group}/attach-products', [\App\Http\Controllers\OptionGroupController::class, 'attachProducts']);
-    Route::post('option-groups/{option_group}/reorder-options', [\App\Http\Controllers\OptionGroupController::class, 'reorderOptions']);
-    Route::apiResource('option-groups', \App\Http\Controllers\OptionGroupController::class);
-    Route::apiResource('options', \App\Http\Controllers\OptionController::class);
-    Route::apiResource('products', ProductController::class);
-    Route::apiResource('ingredients', IngredientController::class);
-    Route::apiResource('customers', CustomerController::class);
-
-    // Recetas e Inventario
-    Route::apiResource('recipes', RecipeController::class)->only(['store', 'destroy']);
-    Route::post('/option-recipes', [OptionRecipeController::class, 'store']);
-    Route::delete('/option-recipes/{optionRecipe}', [OptionRecipeController::class, 'destroy']);
-    Route::post('/inventory/movements', [InventoryMovementController::class, 'store']);
+    // Recursos — lectura para cualquier usuario autenticado
+    Route::apiResource('categories', CategoryController::class)->only(['index', 'show']);
+    Route::apiResource('ingredient-categories', \App\Http\Controllers\IngredientCategoryController::class)->only(['index', 'show']);
+    Route::apiResource('option-groups', \App\Http\Controllers\OptionGroupController::class)->only(['index', 'show']);
+    Route::apiResource('options', \App\Http\Controllers\OptionController::class)->only(['index', 'show']);
+    Route::apiResource('products', ProductController::class)->only(['index', 'show']);
+    Route::apiResource('ingredients', IngredientController::class)->only(['index', 'show']);
+    Route::apiResource('customers', CustomerController::class)->only(['index', 'show']);
     Route::get('/ingredients/{ingredient}/movements', [InventoryMovementController::class, 'index']);
+    Route::get('/loyalty-config', [LoyaltyConfigController::class, 'show']);
 
-    // Ventas (Sincronización Offline e Historial)
-    Route::post('/sales/sync', [SaleController::class, 'sync']);
-    Route::post('/sales/{sale}/void', [SaleController::class, 'voidSale']);
-    Route::apiResource('sales', SaleController::class)->only(['index', 'show']);
+    // Recursos — escritura de catálogo, recetas e inventario (admin y super_admin)
+    Route::middleware(['admin'])->group(function () {
+        Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
+        Route::apiResource('ingredient-categories', \App\Http\Controllers\IngredientCategoryController::class)->except(['index', 'show']);
+        Route::post('option-groups/{option_group}/attach-products', [\App\Http\Controllers\OptionGroupController::class, 'attachProducts']);
+        Route::post('option-groups/{option_group}/reorder-options', [\App\Http\Controllers\OptionGroupController::class, 'reorderOptions']);
+        Route::apiResource('option-groups', \App\Http\Controllers\OptionGroupController::class)->except(['index', 'show']);
+        Route::apiResource('options', \App\Http\Controllers\OptionController::class)->except(['index', 'show']);
+        Route::apiResource('products', ProductController::class)->except(['index', 'show']);
+        Route::apiResource('ingredients', IngredientController::class)->except(['index', 'show']);
+        Route::apiResource('customers', CustomerController::class)->except(['index', 'show']);
 
+        Route::apiResource('recipes', RecipeController::class)->only(['store', 'destroy']);
+        Route::post('/option-recipes', [OptionRecipeController::class, 'store']);
+        Route::delete('/option-recipes/{optionRecipe}', [OptionRecipeController::class, 'destroy']);
+        Route::post('/inventory/movements', [InventoryMovementController::class, 'store']);
+
+        Route::put('/loyalty-config', [LoyaltyConfigController::class, 'update']);
+        Route::post('/sales/{sale}/void', [SaleController::class, 'voidSale']);
+    });
+
+    // Ventas y caja (cocina no tiene acceso)
+    Route::middleware(['role:super_admin,admin,cashier'])->group(function () {
+        Route::post('/sales/sync', [SaleController::class, 'sync']);
+        Route::apiResource('sales', SaleController::class)->only(['index', 'show']);
+
+        // Sesiones de Caja / Turno y Arqueo (la propiedad de la sesión se valida en el controlador)
+        Route::get('/cash-sessions/active', [CashRegisterSessionController::class, 'active']);
+        Route::post('/cash-sessions/{cashSession}/close', [CashRegisterSessionController::class, 'close']);
+        Route::get('/cash-sessions/{cashSession}/report', [CashRegisterSessionController::class, 'report']);
+        Route::post('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'recordMovement']);
+        Route::get('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'movements']);
+        Route::apiResource('cash-sessions', CashRegisterSessionController::class)->only(['index', 'store', 'show']);
+    });
+    
     // Cola de Pedidos (KDS Web & Android App)
     Route::get('/order-queue', [\App\Http\Controllers\OrderQueueController::class, 'index']);
     Route::patch('/order-queue/{sale}/status', [\App\Http\Controllers\OrderQueueController::class, 'updateStatus']);
@@ -67,17 +90,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stats', [\App\Http\Controllers\KdsController::class, 'stats']);
         Route::get('/stream', [\App\Http\Controllers\KdsController::class, 'stream']);
     });
-
-    // Sesiones de Caja / Turno y Arqueo
-    Route::get('/cash-sessions/active', [CashRegisterSessionController::class, 'active']);
-    Route::post('/cash-sessions/{cashSession}/close', [CashRegisterSessionController::class, 'close']);
-    Route::get('/cash-sessions/{cashSession}/report', [CashRegisterSessionController::class, 'report']);
-    Route::post('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'recordMovement']);
-    Route::get('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'movements']);
-    Route::apiResource('cash-sessions', CashRegisterSessionController::class)->only(['index', 'store', 'show']);
-
-    Route::get('/loyalty-config', [LoyaltyConfigController::class, 'show']);
-    Route::put('/loyalty-config', [LoyaltyConfigController::class, 'update']);
 
     // Gestión de permisos de roles y logs (Solo Super Admin)
     Route::middleware(['super_admin'])->group(function () {

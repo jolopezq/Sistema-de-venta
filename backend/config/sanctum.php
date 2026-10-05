@@ -50,7 +50,8 @@ return [
     |
     */
 
-    'expiration' => null,
+    // 7 días por defecto: obliga a reautenticarse periódicamente sin interrumpir turnos.
+    'expiration' => env('SANCTUM_EXPIRATION', 10080),
 
     /*
     |--------------------------------------------------------------------------
