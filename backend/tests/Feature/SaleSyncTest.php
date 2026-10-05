@@ -110,4 +110,87 @@ class SaleSyncTest extends TestCase
             'current_stock' => 9.8,
         ]);
     }
+
+    /**
+     * Prueba que notas, alérgenos, estado de preparación y número de ticket del POS se persisten.
+     */
+    public function test_it_persists_notes_allergens_and_pos_order_number(): void
+    {
+        $cashier = User::factory()->create();
+        $product = $this->createProduct();
+        $uuid = (string) Str::uuid();
+
+        $sale = $this->salePayload($uuid, $product->id, '041026-0007', 7);
+        $sale['notes'] = 'Mesa 4';
+        $sale['preparation_status'] = 'preparing';
+        $sale['items'][0]['item_note'] = 'Sin azúcar';
+        $sale['items'][0]['allergen_flags'] = ['gluten', 'lactosa'];
+
+        $this->actingAs($cashier)
+            ->postJson('/api/sales/sync', ['sales' => [$sale]])
+            ->assertStatus(200)
+            ->assertJsonPath('data.synced.0', $uuid);
+
+        $this->assertDatabaseHas('sales', [
+            'id' => $uuid,
+            'order_number' => '041026-0007',
+            'daily_sequence' => 7,
+            'notes' => 'Mesa 4',
+            'preparation_status' => 'preparing',
+        ]);
+
+        $item = \App\Models\SaleItem::where('sale_id', $uuid)->first();
+        $this->assertSame('Sin azúcar', $item->item_note);
+        $this->assertSame(['gluten', 'lactosa'], $item->allergen_flags);
+    }
+
+    /**
+     * Prueba que si dos dispositivos envían el mismo número de ticket, el segundo recibe uno nuevo.
+     */
+    public function test_it_reassigns_order_number_on_collision(): void
+    {
+        $cashier = User::factory()->create();
+        $product = $this->createProduct();
+        $first = (string) Str::uuid();
+        $second = (string) Str::uuid();
+
+        $this->actingAs($cashier)->postJson('/api/sales/sync', ['sales' => [
+            $this->salePayload($first, $product->id, '041026-0001', 1),
+            $this->salePayload($second, $product->id, '041026-0001', 1),
+        ]])->assertStatus(200);
+
+        $this->assertDatabaseHas('sales', ['id' => $first, 'order_number' => '041026-0001']);
+        $this->assertDatabaseHas('sales', ['id' => $second, 'order_number' => '041026-0002', 'daily_sequence' => 2]);
+    }
+
+    private function createProduct(): Product
+    {
+        $category = Category::create(['name' => 'Bowls', 'sort_order' => 1]);
+
+        return Product::create([
+            'name' => 'Bowl Grande',
+            'price' => 35,
+            'category_id' => $category->id,
+            'printer_target' => 'kitchen',
+        ]);
+    }
+
+    private function salePayload(string $uuid, int $productId, string $orderNumber, int $dailySequence): array
+    {
+        return [
+            'id' => $uuid,
+            'order_number' => $orderNumber,
+            'daily_sequence' => $dailySequence,
+            'subtotal' => 35,
+            'total_amount' => 35,
+            'created_at' => '2026-10-04T15:00:00Z',
+            'items' => [[
+                'product_id' => $productId,
+                'quantity' => 1,
+                'unit_price' => 35,
+                'subtotal' => 35,
+            ]],
+            'payments' => [['method' => 'cash', 'amount' => 35]],
+        ];
+    }
 }

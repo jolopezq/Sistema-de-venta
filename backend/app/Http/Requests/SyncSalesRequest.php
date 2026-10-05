@@ -32,7 +32,11 @@ class SyncSalesRequest extends FormRequest
             'sales.*.source' => ['nullable', 'in:pos,pedidosya'],
             'sales.*.is_takeaway' => ['nullable', 'boolean'],
             'sales.*.created_at' => ['nullable', 'date'],
-            
+            'sales.*.order_number' => ['nullable', 'string', 'max:30'],
+            'sales.*.daily_sequence' => ['nullable', 'integer', 'min:1'],
+            'sales.*.notes' => ['nullable', 'string', 'max:500'],
+            'sales.*.preparation_status' => ['nullable', 'in:received,preparing,ready,delivered'],
+
             // Items
             'sales.*.items'                          => ['required', 'array', 'min:1'],
             'sales.*.items.*.product_id'             => ['required', 'exists:products,id'],
@@ -40,11 +44,15 @@ class SyncSalesRequest extends FormRequest
             'sales.*.items.*.unit_price'             => ['required', 'numeric', 'min:0'],
             'sales.*.items.*.subtotal'               => ['required', 'numeric', 'min:0'],
             'sales.*.items.*.is_takeaway'            => ['nullable', 'boolean'],
+            'sales.*.items.*.item_note'              => ['nullable', 'string', 'max:255'],
+            'sales.*.items.*.allergen_flags'         => ['nullable', 'array'],
+            'sales.*.items.*.allergen_flags.*'       => ['string', 'max:50'],
             // El frontend envía 'modifiers'; el legado usa 'topping_modifications'. Ambos son aceptados.
             'sales.*.items.*.modifiers'              => ['nullable', 'array'],
             'sales.*.items.*.modifiers.*.option_id'  => ['required_with:sales.*.items.*.modifiers', 'integer'],
             'sales.*.items.*.modifiers.*.option_name'=> ['required_with:sales.*.items.*.modifiers', 'string'],
             'sales.*.items.*.modifiers.*.price'      => ['nullable', 'numeric', 'min:0'],
+            'sales.*.items.*.modifiers.*.quantity'   => ['nullable', 'numeric', 'min:0.01'],
             'sales.*.items.*.topping_modifications'  => ['nullable', 'array'],
 
             // Payments

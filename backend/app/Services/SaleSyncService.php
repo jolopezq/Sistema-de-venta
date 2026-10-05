@@ -73,15 +73,14 @@ class SaleSyncService
     public function processSale(array $data, int $cashierId): void
     {
         $createdAt = isset($data['created_at']) ? Carbon::parse($data['created_at']) : now();
-        $datePrefix = $createdAt->format('dmy');
-        
+
+        // Se respeta el número impreso en el ticket del POS; solo se genera uno nuevo
+        // si no viene o si ya lo usó otra venta (p. ej. otro dispositivo offline).
         $dailySeq = $data['daily_sequence'] ?? null;
         $orderNumber = $data['order_number'] ?? null;
 
-        if (!$orderNumber) {
-            $todayCount = Sale::whereDate('created_at', $createdAt->toDateString())->count();
-            $dailySeq = $todayCount + 1;
-            $orderNumber = sprintf('%s-%04d', $datePrefix, $dailySeq);
+        if (!$orderNumber || Sale::withTrashed()->where('order_number', $orderNumber)->exists()) {
+            [$orderNumber, $dailySeq] = $this->nextOrderNumber($createdAt);
         }
 
         $itemsCollection = collect($data['items'] ?? []);
@@ -222,11 +221,7 @@ class SaleSyncService
             $createdAt = isset($data['created_at']) 
                 ? Carbon::parse($data['created_at'])->setTimezone(config('app.timezone', 'America/La_Paz')) 
                 : now();
-            $datePrefix = $createdAt->format('dmy');
-
-            $todayCount = Sale::whereDate('created_at', $createdAt->toDateString())->count();
-            $dailySeq = $todayCount + 1;
-            $orderNumber = sprintf('%s-%04d', $datePrefix, $dailySeq);
+            [$orderNumber, $dailySeq] = $this->nextOrderNumber($createdAt);
 
             $itemsCollection = collect($data['items'] ?? []);
             $totalItemsCount = $itemsCollection->count();
@@ -410,6 +405,25 @@ class SaleSyncService
 
             return $sale->fresh(['cashier:id,name', 'customer:id,name,ci_or_phone', 'items.product:id,name', 'items.saleItemOptions.option:id,name', 'payments', 'editedByUser:id,name']);
         });
+    }
+
+    /**
+     * Calcula el siguiente número de orden libre del día (formato DDMMAA-NNNN).
+     * Usa la secuencia máxima registrada en lugar del conteo, para no chocar
+     * con números ya asignados por el POS.
+     *
+     * @return array{0: string, 1: int}
+     */
+    protected function nextOrderNumber(Carbon $createdAt): array
+    {
+        $dayQuery = Sale::withTrashed()->whereDate('created_at', $createdAt->toDateString());
+        $dailySeq = max((int) (clone $dayQuery)->max('daily_sequence'), (clone $dayQuery)->count()) + 1;
+
+        do {
+            $orderNumber = sprintf('%s-%04d', $createdAt->format('dmy'), $dailySeq++);
+        } while (Sale::withTrashed()->where('order_number', $orderNumber)->exists());
+
+        return [$orderNumber, $dailySeq - 1];
     }
 
     /**
