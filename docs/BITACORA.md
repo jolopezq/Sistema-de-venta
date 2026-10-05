@@ -7,7 +7,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 - **Rama de trabajo:** `mejoras/analisis-integral` (10 commits sobre `main` + este registro). Sin push.
   **No fusionada en `main`**: al fusionar, el vigilante actualiza producción y ejecuta la migración
   `2026_10_04_000001_add_cash_register_session_id_to_sales_table` automáticamente.
-- **Tests:** 67 en verde (`php artisan test`). Build del frontend correcto.
+- **Tests:** 73 en verde (`php artisan test`). Build del frontend correcto.
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -23,10 +23,14 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | 5. Stock atómico, puntos de fidelización y sincronización robusta | ⏸️ Aparcada por el usuario | — |
 | 6. Refactor y rendimiento | Pendiente | — |
 | UI. Modo oscuro, modo claro (WCAG AA) y fuentes locales | ✅ | `2802a36`, `b7b6aa4`, `624702e` |
+| Canal PedidosYa: arqueo aparte, precios por canal, registro desde el POS ([plan](PLAN_PEDIDOSYA.md)) | ✅ en rama `feat/canal-pedidosya` | `a15b50b`, `a2e3f96` |
 
 ## Pendientes
 
 ### Decisiones del usuario
+- [ ] Fusionar `feat/canal-pedidosya` en `mejoras/analisis-integral` (sale de esa rama).
+- [ ] Cargar los precios PedidosYa de los **productos** en Menú: hoy ninguno tiene `delivery_price` (solo
+      13 opciones), así que el POS cobra el precio local y lo avisa en el banner.
 - [ ] Fusionar `mejoras/analisis-integral` en `main` (dispara la actualización de producción).
 - [ ] `graphify-out/`: regenerar el grafo (está desactualizado respecto al código) y commitearlo, o
       ignorar `cache/` y `obsidian/` en git.
@@ -36,6 +40,12 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       prefiere texto blanco: oscurecer el naranja a `#C2410C`.
 
 ### Correcciones de datos (requieren confirmación explícita, no aplicar sin ella)
+- [ ] **Datos de prueba en la base local real** (2026-10-04 22:24): una prueba E2E usó
+      `DB_DATABASE=… php artisan serve`, que ignora la variable, y escribió en `database.sqlite`:
+      caja #7 (Cajero Test, Bs 100, abierta), venta PedidosYa `041026-0001` (id `b4200de7-…`, Bs 72) con
+      `sale_items` 131, `sale_item_options` 132–134, `sale_payments` 87, `audit_logs` 892–898 y tokens
+      186–189. Sin movimientos de inventario. Hay que borrarlos (la venta aparece en cocina/Delivery).
+      El método correcto quedó documentado en AGENTS.md.
 - [ ] Venta `16e52f9b-17d9-40ac-b6d3-a585b2882716`: registrada como efectivo 200 + QR 43 con total 143
       (bug de sobrepago ya corregido). El efectivo debería ser 100; infla en 100 Bs el arqueo de ese día.
 - [ ] Caja #6 (16/09/2026, abierta con fecha pasada a las 08:00): la venta PedidosYa `160926-0008`
@@ -65,6 +75,8 @@ transacción y cuarentena en servidor (`sale_sync_failures`) con pantalla de adm
 número de orden solo para ventas nuevas.
 
 ### Fase 6 (sin empezar)
+- `Turno.vue` monta `AdminSaleEditor` también para el cajero y este pide `/users` (403 en consola, sin efecto).
+- Botón `btn-primary` de `AdminSaleEditor` (blanco sobre `#8B5CF6`, 4,23) bajo AA en modo claro.
 - N+1 en `CashRegisterSessionController::index` (≈8 consultas por sesión) y sumas de `CashMovement` repetidas.
 - KDS SSE: `$lastCheck = now()` se asigna después de la consulta (puede perder cambios) y cada conexión
   ocupa un worker de `artisan serve` 60 s.
@@ -94,6 +106,11 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-04 (3)** — Plan PedidosYa ejecutado en `feat/canal-pedidosya`: arqueo separado por `source`,
+  pagos de plataforma normalizados, verificación de precios por canal, selector de canal en el POS y bloque
+  PedidosYa en reportes. 73 tests, build y E2E contra copia correctos. Incidente: la primera E2E escribió en
+  la base real (ver Correcciones de datos). — `a15b50b`, `a2e3f96`.
 
 - **2026-10-04 (2)** — Ventas del 16/09 "desaparecidas": estaban todas (8) en la pestaña Ventas del Día,
   debajo del formulario. Diferencia real: el arqueo excluía una venta de madrugada porque las cajas

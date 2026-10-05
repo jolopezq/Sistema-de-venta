@@ -30,7 +30,17 @@ Léela completa antes de tocar código. El estado vivo del trabajo está en
 | Backend | `cd backend && php artisan test` (todo en verde) |
 | Frontend | `cd frontend && npx vite build` |
 | Estilos / colores | Con backend y frontend levantados: `node scripts/audit-contrast.cjs <carpeta> dark` y `... light` desde `frontend/` (objetivo: 0 textos bajo WCAG AA; los marcados `img=true` van sobre degradados y se revisan a ojo) |
-| Flujo de venta completo | Login → abrir caja → vender → cocina → anular (admin) → cerrar caja, contra una **copia** de la base (`DB_DATABASE=<copia> php artisan serve --port=8001`) |
+| Flujo de venta completo | Login → abrir caja → vender → cocina → anular (admin) → cerrar caja, contra una **copia** de la base (ver abajo cómo levantarla) |
+
+**Servidor contra una copia de la base** (nunca `DB_DATABASE=… php artisan serve`: `serve` no pasa esa
+variable a sus procesos y **escribe en la base real**):
+```bash
+cp backend/database/database.sqlite <scratch>/copia.sqlite
+cd backend/public && DB_DATABASE=<scratch>/copia.sqlite php -S 127.0.0.1:8001 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php
+cd frontend && VITE_API_URL=http://127.0.0.1:8001/api npx vite --port 5174 --strictPort
+```
+Comprueba que responde la copia (p. ej. cambia un precio en ella y míralo en `/api/catalog`) antes de
+vender. `scripts/audit-contrast.cjs` usa `AUDIT_URL` (por defecto 5173, la base real; solo lee).
 
 ## Datos del sistema que no son obvios
 - **Base de datos: SQLite** (`backend/database/database.sqlite`), no MySQL como dice el README.
@@ -48,6 +58,9 @@ Léela completa antes de tocar código. El estado vivo del trabajo está en
   regla se descarta en `validated()`. Si agregas un campo al payload del POS, agrega su regla.
 - **Precios**: `SalePricingService` recalcula importes; las diferencias con el catálogo se aceptan y se
   registran en `audit_logs` (`sale_sync_discrepancy`).
+- **Canal PedidosYa** (`sales.source = 'pedidosya'`): no entra al arqueo (se separa por `source`, no por
+  método de pago) y se guarda siempre con un único pago `delivery_platform`. El arqueo lo informa en
+  `pedidosya_count` / `pedidosya_total`.
 
 ## Trampas conocidas
 - En componentes Vue `scoped`, **no uses `:global(html.dark) .x`**: compila a `html.dark{}` y no aplica.
@@ -58,6 +71,9 @@ Léela completa antes de tocar código. El estado vivo del trabajo está en
 - En un `git worktree`, **no enlaces `backend/vendor` con symlink**: el autoloader resuelve la ruta real
   y ejecuta el código (y los tests) del repositorio principal. Copia `vendor/` y corre `composer dump-autoload`.
 - `vite build --outDir` fuera del proyecto no vacía la carpeta: usa `--emptyOutDir`.
+- **El catálogo y los precios por canal**: la regla PedidosYa (`delivery_price > 0`, si no precio local) está
+  en `frontend/src/utils/channelPricing.js` y en `SalePricingService::productPrice/optionPrice`. Cámbiala en
+  los dos lados a la vez.
 
 ## Mapa rápido
 - Backend: `backend/app/Services/` (SaleSyncService, SalePricingService, CashSessionResolver,
