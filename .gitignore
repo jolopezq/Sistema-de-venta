@@ -41,3 +41,9 @@ screenshot_device.png
 backups/
 *.lock
 *.apk
+
+# Logs y temporales locales
+.backend.log
+.frontend.log
+.graphify_cached.json
+.graphify_uncached.txt
