@@ -52,9 +52,23 @@ class Sale extends Model
         'is_takeaway',
         'notes',
         'sync_status',
+        'cash_register_session_id',
         'created_at',
         'updated_at',
     ];
+
+    protected static function booted(): void
+    {
+        // Toda venta queda vinculada a la sesión de caja en la que se cobró.
+        // Se recalcula si cambia la fecha o el cajero (ediciones retroactivas).
+        static::saving(function (Sale $sale) {
+            if (!$sale->exists || $sale->isDirty(['created_at', 'cashier_id'])) {
+                $session = app(\App\Services\CashSessionResolver::class)
+                    ->resolve($sale->cashier_id, $sale->created_at ?? now());
+                $sale->cash_register_session_id = $session?->id;
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -78,6 +92,14 @@ class Sale extends Model
     public function cashier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cashier_id');
+    }
+
+    /**
+     * Sesión de caja en la que se cobró la venta.
+     */
+    public function cashRegisterSession(): BelongsTo
+    {
+        return $this->belongsTo(CashRegisterSession::class);
     }
 
     /**

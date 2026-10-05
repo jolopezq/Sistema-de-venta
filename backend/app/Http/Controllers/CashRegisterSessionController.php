@@ -103,12 +103,25 @@ class CashRegisterSessionController extends Controller
             $openedAt = now();
         }
 
-        $session = CashRegisterSession::create([
-            'cashier_id'     => $userId,
-            'opening_amount' => $validated['opening_amount'],
-            'status'         => 'open',
-            'opened_at'      => $openedAt,
-        ]);
+        $session = DB::transaction(function () use ($userId, $validated, $openedAt) {
+            $session = CashRegisterSession::create([
+                'cashier_id'     => $userId,
+                'opening_amount' => $validated['opening_amount'],
+                'status'         => 'open',
+                'opened_at'      => $openedAt,
+            ]);
+
+            // Caja abierta con fecha pasada: vincular las ventas de ese día que no tenían sesión
+            $orphanSales = Sale::whereNull('cash_register_session_id')
+                ->whereBetween('created_at', [$openedAt, $openedAt->copy()->endOfDay()]);
+            if (!$session->cashier->isAdmin()) {
+                $orphanSales->where('cashier_id', $userId);
+            }
+            // toBase(): sin tocar updated_at, para que el KDS no vuelva a mostrar pedidos viejos
+            $orphanSales->toBase()->update(['cash_register_session_id' => $session->id]);
+
+            return $session;
+        });
 
         $session->load('cashier');
 
@@ -334,33 +347,14 @@ class CashRegisterSessionController extends Controller
 
     /**
      * Helper para calcular estadísticas en tiempo real de una sesión.
-     * Ecuación: expected_cash = opening_amount + cash_sales - total_expenses
+     * Ecuación: expected_cash = opening_amount + cash_sales - cash_expenses + cash_extra_income
      *
-     * IMPORTANTE: El rango de ventas siempre está acotado al mismo día de la sesión
-     * (desde opened_at hasta endOfDay(opened_at)). Esto garantiza que sesiones
-     * que quedaron abiertas varios días no acumulen ventas de fechas incorrectas.
+     * Las ventas se toman por su vínculo con la sesión (cash_register_session_id),
+     * asignado al registrarse cada venta (ver CashSessionResolver).
      */
     private function calculateSessionStats(CashRegisterSession $session): array
     {
-        $openedAt = $session->opened_at;
-
-        // El límite superior siempre es el fin del día en que se abrió la sesión.
-        // Para sesiones abiertas: min(now(), endOfDay(opened_at)) para no incluir
-        // ventas "futuras" si la consulta se hace antes de la medianoche del mismo día.
-        // Para sesiones cerradas: se usa closed_at como límite real de actividad.
-        if ($session->status === 'open') {
-            $endOfOpenedDay = $session->opened_at->copy()->endOfDay();
-            $closedAt = now()->lt($endOfOpenedDay) ? now() : $endOfOpenedDay;
-        } else {
-            // Sesión cerrada: usar closed_at (que es la hora real del arqueo)
-            $closedAt = $session->closed_at ?? $session->opened_at->copy()->endOfDay();
-        }
-
-        $salesQuery = Sale::whereBetween('created_at', [$openedAt, $closedAt]);
-
-        if ($session->cashier && !in_array($session->cashier->role, ['admin', 'super_admin'])) {
-            $salesQuery->where('cashier_id', $session->cashier_id);
-        }
+        $salesQuery = Sale::where('cash_register_session_id', $session->id);
 
         $completedSales = (clone $salesQuery)->where('status', 'completed')->get();
         $voidedSales    = (clone $salesQuery)->where('status', 'voided')->get();

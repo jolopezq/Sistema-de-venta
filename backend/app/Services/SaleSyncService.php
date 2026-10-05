@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Sale;
+use App\Models\CashRegisterSession;
 use App\Models\SaleItem;
 use App\Models\SalePayment;
 use App\Models\SaleItemOption;
@@ -78,7 +79,11 @@ class SaleSyncService
         [$data['payments'], $paymentIssues] = $this->pricingService->normalizePayments($data['payments'] ?? [], (float) $data['total_amount']);
         $discrepancies = array_merge($discrepancies, $paymentIssues);
 
-        $createdAt = isset($data['created_at']) ? Carbon::parse($data['created_at']) : now();
+        // El POS envía la hora en UTC (ISO 8601); se guarda en la zona horaria de la app,
+        // igual que opened_at/closed_at de las sesiones de caja.
+        $createdAt = isset($data['created_at'])
+            ? Carbon::parse($data['created_at'])->setTimezone(config('app.timezone'))
+            : now();
 
         // Se respeta el número impreso en el ticket del POS; solo se genera uno nuevo
         // si no viene o si ya lo usó otra venta (p. ej. otro dispositivo offline).
@@ -132,6 +137,8 @@ class SaleSyncService
         if ($sale->customer_id && $sale->status === 'completed') {
             $this->updateLoyaltyPoints($sale);
         }
+
+        $this->auditClosedSessionChange($sale, $sale->cash_register_session_id, $cashierId, 'Venta sincronizada tarde');
 
         // 5. Dejar constancia de cualquier diferencia entre el POS y el servidor
         if (!empty($discrepancies)) {
@@ -312,6 +319,8 @@ class SaleSyncService
                 'description' => "Registro manual/retroactivo de venta Ticket #{$orderNumber} (Total: Bs {$sale->total_amount}, Fecha: {$createdAt->format('Y-m-d H:i')}). Motivo: {$data['edit_reason']}",
             ]);
 
+            $this->auditClosedSessionChange($sale, $sale->cash_register_session_id, $superAdminId, 'Venta retroactiva');
+
             return $sale->fresh(['cashier:id,name', 'customer:id,name,ci_or_phone', 'items.product:id,name', 'items.saleItemOptions.option:id,name', 'payments', 'editedByUser:id,name']);
         });
     }
@@ -327,6 +336,7 @@ class SaleSyncService
 
         return DB::transaction(function () use ($sale, $data, $superAdminId) {
             $previousTotal = (float) $sale->total_amount;
+            $previousSessionId = $sale->cash_register_session_id;
             $previousCustomer = $sale->customer_id ? $this->customerRepository->find($sale->customer_id) : null;
 
             // 1. Revertir inventario de los items existentes
@@ -434,6 +444,11 @@ class SaleSyncService
                 'description' => "Edición manual de venta Ticket #{$sale->order_number} por Super Admin. Total anterior: Bs {$previousTotal}, Nuevo total: Bs {$sale->total_amount}. Motivo: {$data['edit_reason']}",
             ]);
 
+            $this->auditClosedSessionChange($sale, $previousSessionId, $superAdminId, 'Edición de venta');
+            if ($sale->cash_register_session_id !== $previousSessionId) {
+                $this->auditClosedSessionChange($sale, $sale->cash_register_session_id, $superAdminId, 'Edición de venta');
+            }
+
             return $sale->fresh(['cashier:id,name', 'customer:id,name,ci_or_phone', 'items.product:id,name', 'items.saleItemOptions.option:id,name', 'payments', 'editedByUser:id,name']);
         });
     }
@@ -534,6 +549,27 @@ class SaleSyncService
                     $this->customerRepository->incrementPoints($customer, -$pointsToDeduct);
                 }
             }
+
+            $this->auditClosedSessionChange($sale, $sale->cash_register_session_id, $userId, 'Anulación de venta');
         });
+    }
+
+    /**
+     * Deja constancia cuando una venta entra, cambia o se anula en una caja ya cerrada.
+     * El arqueo guardado al cierre no se modifica; el reporte de la sesión sí refleja el cambio.
+     */
+    protected function auditClosedSessionChange(Sale $sale, ?int $sessionId, int $userId, string $context): void
+    {
+        $session = $sessionId ? CashRegisterSession::find($sessionId) : null;
+        if (!$session || $session->status !== 'closed') {
+            return;
+        }
+
+        AuditLog::create([
+            'user_id'     => $userId,
+            'action'      => 'closed_session_sale_change',
+            'module'      => 'Sales',
+            'description' => "{$context} Ticket #{$sale->order_number} (Bs {$sale->total_amount}) afecta la caja #{$session->id}, cerrada el {$session->closed_at}. El arqueo guardado no cambia; revisa el reporte de esa sesión.",
+        ]);
     }
 }

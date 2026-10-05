@@ -65,6 +65,14 @@ class CashRegisterSession extends Model
         return $this->hasMany(CashMovement::class);
     }
 
+    /**
+     * Ventas cobradas en este turno.
+     */
+    public function sales(): HasMany
+    {
+        return $this->hasMany(Sale::class);
+    }
+
     // --- Helpers ---
 
     public function isOpen(): bool
