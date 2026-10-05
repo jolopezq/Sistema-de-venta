@@ -38,6 +38,11 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 ### Correcciones de datos (requieren confirmación explícita, no aplicar sin ella)
 - [ ] Venta `16e52f9b-17d9-40ac-b6d3-a585b2882716`: registrada como efectivo 200 + QR 43 con total 143
       (bug de sobrepago ya corregido). El efectivo debería ser 100; infla en 100 Bs el arqueo de ese día.
+- [ ] Caja #6 (16/09/2026, abierta con fecha pasada a las 08:00): la venta PedidosYa `160926-0008`
+      (04:12, Bs 38, id `39071145-…`) quedó sin caja y el arqueo muestra Bs 290 en vez de 328. Corrección
+      propuesta: pasar `opened_at` de la caja #6 a 00:00 y vincular la venta, con respaldo y registro en
+      auditoría. El usuario la pidió, pero el permiso de escritura en la base fue denegado; falta aplicarla.
+      Respaldo ya hecho: `pre_fix_sep16_20261004_213451.sqlite`.
 - [ ] Producción: las ventas del POS sincronizadas antes de `35ba606` se guardaron en UTC (+4 h).
       Corregirlas requiere un comando con modo de prueba y reasignar su sesión de caja.
 
@@ -89,6 +94,10 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-04 (2)** — Ventas del 16/09 "desaparecidas": estaban todas (8) en la pestaña Ventas del Día,
+  debajo del formulario. Diferencia real: el arqueo excluía una venta de madrugada porque las cajas
+  retroactivas empezaban a las 08:00; corregido en código (inicio 00:00). Corrección del dato pendiente.
 
 - **2026-10-04** — Análisis integral del sistema; fases 1–4 implementadas con tests; fase 5 diseñada y
   aparcada; auditoría y corrección de contraste en modo oscuro y claro (se descubrió que las reglas

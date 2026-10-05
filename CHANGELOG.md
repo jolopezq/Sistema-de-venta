@@ -28,6 +28,8 @@ se renombra con la fecha de la actualización de producción.
   modificadores. (`852ae61`)
 - Las ventas del POS se guardaban en UTC (+4 h) en lugar de la hora de La Paz. (`35ba606`)
 - Al recargar la página, los administradores perdían su rol y su menú. (`2ecb266`)
+- Una caja abierta con fecha pasada empezaba a las 08:00 y dejaba fuera del arqueo las ventas de madrugada
+  de ese día; ahora empieza a las 00:00.
 - Las reglas de modo oscuro de los componentes nunca se aplicaban (`:global(html.dark)` en estilos scoped);
   pantallas de cocina, cobro y Control Diario con texto ilegible. (`2802a36`)
 

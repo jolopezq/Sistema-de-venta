@@ -107,6 +107,7 @@ class CashSessionLinkTest extends TestCase
     public function test_opening_backdated_session_attaches_orphan_sales_of_that_day(): void
     {
         $id = $this->syncSale(now()->subDays(2)->setTime(12, 0));
+        $early = $this->syncSale(now()->subDays(2)->setTime(4, 12));
         $this->assertNull(Sale::find($id)->cash_register_session_id);
 
         $response = $this->actingAs($this->admin)->postJson('/api/cash-sessions', [
@@ -115,7 +116,9 @@ class CashSessionLinkTest extends TestCase
         ])->assertCreated();
 
         $this->assertSame($response->json('session.id'), Sale::find($id)->cash_register_session_id);
-        $response->assertJsonPath('stats.cash_sales', 30);
+        // La caja retroactiva cubre el día completo: incluye ventas de madrugada
+        $this->assertSame($response->json('session.id'), Sale::find($early)->cash_register_session_id);
+        $response->assertJsonPath('stats.cash_sales', 60);
     }
 
     private function openSession(User $user, Carbon $openedAt): CashRegisterSession

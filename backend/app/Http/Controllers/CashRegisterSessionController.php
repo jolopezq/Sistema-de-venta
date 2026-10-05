@@ -85,7 +85,8 @@ class CashRegisterSessionController extends Controller
                     'stats'   => $this->calculateSessionStats($existing),
                 ], 409);
             }
-            $openedAt = Carbon::parse($targetDate)->setTime(8, 0, 0);
+            // Desde el inicio del día: la caja retroactiva abarca todas las ventas de esa fecha
+            $openedAt = Carbon::parse($targetDate)->startOfDay();
         } else {
             // Validar si ya tiene una sesión abierta hoy
             $existing = CashRegisterSession::where('cashier_id', $userId)
