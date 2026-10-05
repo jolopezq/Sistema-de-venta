@@ -883,22 +883,22 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   box-shadow: none !important;
 }
 
-:global(html.dark) .size-btn {
+html.dark .size-btn {
   background: #251c33;
   border-color: rgba(255, 255, 255, 0.12);
 }
-:global(html.dark) .size-btn:hover:not(:disabled):not(.selected) {
+html.dark .size-btn:hover:not(:disabled):not(.selected) {
   background: #322545;
   border-color: var(--passion-400);
 }
-:global(html.dark) .size-btn.selected {
+html.dark .size-btn.selected {
   background: rgba(255, 150, 64, 0.15);
   border-color: var(--passion-500);
 }
-:global(html.dark) .size-btn.selected .size-name {
+html.dark .size-btn.selected .size-name {
   color: #ffffff;
 }
-:global(html.dark) .size-included-badge {
+html.dark .size-included-badge {
   background: rgba(255, 255, 255, 0.08);
   color: var(--ink-500);
 }
@@ -1061,31 +1061,31 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   border-style: dashed;
 }
 
-:global(html.dark) .option-chip {
+html.dark .option-chip {
   background: #251c33;
   border-color: rgba(255, 255, 255, 0.12);
   color: var(--ink-900);
 }
-:global(html.dark) .option-chip:hover:not(:disabled):not(.selected) {
+html.dark .option-chip:hover:not(:disabled):not(.selected) {
   background: #322545;
   border-color: var(--acai-300, #A886C6);
 }
-:global(html.dark) .option-chip.selected {
+html.dark .option-chip.selected {
   background: var(--acai-700, #522B80);
   border-color: var(--acai-500, #7448A6);
 }
-:global(html.dark) .option-chip.selected .chip-indicator {
+html.dark .option-chip.selected .chip-indicator {
   background: #ffffff;
   color: var(--acai-900, #20112F);
 }
-:global(html.dark) .option-chip.selected:hover:not(:disabled) {
+html.dark .option-chip.selected:hover:not(:disabled) {
   background: var(--acai-800, #2C1841) !important;
   border-color: var(--acai-500, #7448A6);
 }
-:global(html.dark) .option-chip-content .chip-name {
+html.dark .option-chip-content .chip-name {
   color: #ffffff;
 }
-:global(html.dark) .chip-indicator {
+html.dark .chip-indicator {
   background: rgba(255, 255, 255, 0.08);
   color: #cbd5e1;
 }
@@ -1232,7 +1232,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   align-items: center;
   justify-content: center;
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   border: none;
   border-radius: 12px;
   font-weight: 800;
@@ -1245,35 +1245,35 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   flex-shrink: 0;
 }
 
-:global(html.dark) .footer-note-box {
+html.dark .footer-note-box {
   background: #251c33;
   border-color: rgba(255, 255, 255, 0.12);
 }
-:global(html.dark) .footer-note-box:focus-within {
+html.dark .footer-note-box:focus-within {
   background: #2d223d;
   border-color: var(--passion-500);
 }
-:global(html.dark) .footer-note-input {
+html.dark .footer-note-input {
   color: #ffffff;
 }
-:global(html.dark) .destination-segmented-control {
+html.dark .destination-segmented-control {
   background: #1f172b;
   border-color: rgba(255, 255, 255, 0.12);
 }
-:global(html.dark) .dest-segment-btn {
+html.dark .dest-segment-btn {
   color: #94a3b8;
 }
-:global(html.dark) .dest-segment-btn:hover:not(.active) {
+html.dark .dest-segment-btn:hover:not(.active) {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.06);
 }
-:global(html.dark) .dest-segment-btn.active {
+html.dark .dest-segment-btn.active {
   background: #2f2342;
   border-color: rgba(255, 255, 255, 0.18);
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
-:global(html.dark) .dest-segment-btn--takeaway.active {
+html.dark .dest-segment-btn--takeaway.active {
   background: rgba(234, 88, 12, 0.22);
   border-color: rgba(249, 115, 22, 0.4);
   color: #fb923c;

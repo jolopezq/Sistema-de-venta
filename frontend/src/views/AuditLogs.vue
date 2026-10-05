@@ -85,7 +85,7 @@
               <td class="oh-mono" style="font-size:11.5px">{{ formatDate(log.created_at) }}</td>
               <td>
                 <div class="oh-user-cell" v-if="log.user">
-                  <div class="oh-avatar" style="background:var(--acai-300)">{{ getInitials(log.user.name) }}</div>
+                  <div class="oh-avatar" style="background:var(--acai-700)">{{ getInitials(log.user.name) }}</div>
                   <div>
                     <div class="oh-user-name">{{ log.user.name }}</div>
                   </div>
@@ -294,7 +294,7 @@ const getActionStyle = (action) => {
   if (action === 'created') return 'background:var(--lime-100);color:var(--lime-700)';
   if (action === 'updated') return 'background:var(--gold-100);color:var(--gold-500)';
   if (action === 'deleted') return 'background:var(--danger-100);color:var(--danger-600)';
-  return 'background:var(--acai-50);color:var(--acai-500)';
+  return 'background:var(--acai-50);color:var(--acai-text)';
 };
 
 const getShortDescription = (desc) => {
@@ -365,7 +365,7 @@ table.oh-table tbody tr:hover { background: var(--cream-100); }
 .oh-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; color: #fff; flex-shrink: 0; }
 .oh-user-name { font-weight: 600; font-size: 13px; color: var(--ink-900); }
 .oh-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 100px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
-.oh-title h1 { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 600; margin: 0 0 4px 0; color: var(--ink-900); }
+.oh-title h1 { font-family: 'Baloo 2', sans-serif; font-size: 24px; font-weight: 600; margin: 0 0 4px 0; color: var(--ink-900); }
 .oh-title p { margin: 0; font-size: 13px; color: var(--ink-500); }
 .oh-btn {
   display: inline-flex; align-items: center; gap: 7px; border: none; border-radius: 9px;
@@ -381,7 +381,7 @@ table.oh-table tbody tr:hover { background: var(--cream-100); }
 .oh-btn-secondary { background: var(--cream-200); color: var(--ink-700); }
 .oh-btn-secondary:hover { background: var(--cream-300); }
 .oh-btn-ghost { background: transparent; color: var(--ink-500); border: 1px solid var(--border); }
-.oh-btn-ghost:hover { background: var(--acai-50); color: var(--acai-500); }
+.oh-btn-ghost:hover { background: var(--acai-50); color: var(--acai-text); }
 .oh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .oh-btn-sm {
   background: var(--cream-200); border: none; border-radius: 6px; color: var(--ink-700);

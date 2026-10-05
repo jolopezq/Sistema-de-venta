@@ -864,7 +864,7 @@ async function handleRefresh() {
 
 .pill.active {
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   box-shadow: 0 2px 6px rgba(229, 72, 77, 0.3);
 }
 
@@ -1167,7 +1167,7 @@ async function handleRefresh() {
 
 .btn-icon-view:hover {
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   border-color: var(--passion-500);
 }
 
@@ -1300,7 +1300,7 @@ async function handleRefresh() {
 
 .amount-chip:hover {
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   border-color: var(--passion-500);
 }
 

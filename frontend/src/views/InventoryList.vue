@@ -594,6 +594,8 @@ async function saveMovement() {
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
+  background: var(--surface-alt);
+  color: var(--ink-900);
 }
 .filter-group select {
   padding: 10px 16px;
@@ -685,7 +687,7 @@ async function saveMovement() {
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 
-.btn-primary { background: var(--passion-500); color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+.btn-primary { background: var(--passion-500); color: var(--on-accent); border: none; padding: 10px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
 .btn-ghost { background: transparent; color: var(--ink-700); border: 1px solid transparent; padding: 10px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
 .btn-ghost:hover { background: var(--cream-100); }
 

@@ -624,7 +624,7 @@ function getOrderTicketText(order) {
 
 .pill.active {
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   box-shadow: 0 2px 6px rgba(229, 72, 77, 0.25);
 }
 
@@ -725,7 +725,7 @@ function getOrderTicketText(order) {
 
 .kcol-count.count-alert {
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   border-color: var(--passion-600);
   box-shadow: 0 2px 6px rgba(251, 120, 16, 0.35);
 }
@@ -823,7 +823,7 @@ function getOrderTicketText(order) {
   border: 1px solid #DDD6FE !important;
 }
 
-:global(html.dark) .chip-mixed {
+html.dark .chip-mixed {
   background: rgba(139, 92, 246, 0.25) !important;
   color: #C4B5FD !important;
   border-color: rgba(139, 92, 246, 0.45) !important;
@@ -955,7 +955,7 @@ function getOrderTicketText(order) {
   line-height: 1.2;
 }
 
-:global(html.dark) .item-prep-takeaway-tag {
+html.dark .item-prep-takeaway-tag {
   background: rgba(234, 88, 12, 0.2);
   border-color: rgba(234, 88, 12, 0.4);
   color: #FB923C;
@@ -975,7 +975,7 @@ function getOrderTicketText(order) {
   line-height: 1.2;
 }
 
-:global(html.dark) .item-prep-dinein-tag {
+html.dark .item-prep-dinein-tag {
   background: #251c33;
   border-color: rgba(255, 255, 255, 0.15);
   color: #CBD5E1;
@@ -1128,22 +1128,22 @@ function getOrderTicketText(order) {
   white-space: pre;
 }
 
-:global(html.dark) .inline-comanda-pane {
+html.dark .inline-comanda-pane {
   background: #1E1B2E;
   border-color: #4C1D95;
 }
 
-:global(html.dark) .inline-comanda-header {
+html.dark .inline-comanda-header {
   background: #2A1B3D;
   border-color: #3B2054;
 }
 
-:global(html.dark) .inline-ascii-ticket {
+html.dark .inline-ascii-ticket {
   background: #0F0A17;
   color: #E9D5FF;
 }
 
-:global(html.dark) .btn-view-detail.btn-active {
+html.dark .btn-view-detail.btn-active {
   background: #78350F;
   border-color: #B45309;
   color: #FEF3C7;

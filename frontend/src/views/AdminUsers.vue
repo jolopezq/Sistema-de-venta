@@ -542,7 +542,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 .oh-root{
   --acai:#4B2E52;
@@ -563,7 +562,7 @@ onMounted(async () => {
   --danger-pale:#F8E7E5;
   --danger-600:#D32F2F;
 
-  font-family:'Manrope',sans-serif;
+  font-family:'Inter',sans-serif;
   background:var(--cream);
   color:var(--ink);
   min-height:100vh;
@@ -585,7 +584,7 @@ html.dark .oh-root {
 }
 
 .oh-mono{font-family:'JetBrains Mono',monospace;}
-.oh-display{font-family:'Fraunces',serif;}
+.oh-display{font-family:'Baloo 2',sans-serif;}
 
 /* ---------- SIDEBAR ---------- */
 .oh-sidebar{
@@ -610,7 +609,7 @@ html.dark .oh-root {
   background:#F4EEF5;border-radius:3px;transform:rotate(20deg);opacity:.85;
 }
 .oh-brand-text{line-height:1.1;}
-.oh-brand-text .t1{font-family:'Fraunces',serif;font-size:16px;font-weight:600;letter-spacing:.2px;}
+.oh-brand-text .t1{font-family:'Baloo 2',sans-serif;font-size:16px;font-weight:600;letter-spacing:.2px;}
 .oh-brand-text .t2{font-size:10.5px;color:#C8AECC;text-transform:uppercase;letter-spacing:1.2px;}
 
 .oh-nav{display:flex;flex-direction:column;gap:2px;}
@@ -646,7 +645,7 @@ html.dark .oh-root {
 .oh-topbar{
   padding:24px 30px 0 30px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;
 }
-.oh-title h1{font-family:'Fraunces',serif;font-size:24px;font-weight:600;margin:0 0 4px 0;letter-spacing:.1px;}
+.oh-title h1{font-family:'Baloo 2',sans-serif;font-size:24px;font-weight:600;margin:0 0 4px 0;letter-spacing:.1px;}
 .oh-title p{margin:0;font-size:13px;color:var(--ink-soft);}
 .oh-topbar-actions{display:flex;gap:10px;align-items:center;}
 .oh-search{
@@ -664,6 +663,8 @@ html.dark .oh-root {
 .oh-btn svg{width:15px;height:15px;}
 .oh-btn-primary{background:var(--acai);color:#fff;box-shadow:0 8px 18px -8px rgba(75,46,82,0.55);}
 .oh-btn-primary:hover{background:var(--acai-light);}
+html.dark .oh-btn-primary{background:var(--acai-700);}
+html.dark .oh-btn-primary:hover{background:#8A63C4;}
 .oh-btn-ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--border);}
 .oh-btn-ghost:hover{background:var(--acai-pale);color:var(--acai);}
 
@@ -705,6 +706,12 @@ table.oh-table tbody tr:hover{background:var(--cream-100);}
 .oh-badge.role-admin{background:var(--coffee-pale);color:var(--coffee);}
 .oh-badge.role-super{background:var(--acai-pale);color:var(--acai);}
 .oh-badge.role-kitchen{background:var(--amber-pale);color:var(--amber);}
+html.dark .oh-badge.role-super{background:#3A2560;color:#D9C6F5;}
+html.dark .oh-badge.role-kitchen{color:#F2C27B;}
+html.dark .oh-badge.role-admin{color:#E0B48E;}
+html.dark .oh-badge.role-cashier{color:#A9D18A;}
+html.dark .oh-btn-ghost:hover,
+html.dark .oh-icon-btn:hover{color:#D9C6F5;}
 
 .oh-status{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;}
 .oh-status .dot{width:7px;height:7px;border-radius:50%;}
@@ -785,7 +792,7 @@ table.oh-perm-table tbody tr:last-child td{border-bottom:none;}
   background:var(--surface);border-radius:14px;width:100%;max-width:480px;padding:26px 26px 22px 26px;
   box-shadow:0 30px 60px -20px rgba(36,28,41,0.4);
 }
-.oh-modal h2{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 4px 0;}
+.oh-modal h2{font-family:'Baloo 2',sans-serif;font-size:19px;font-weight:600;margin:0 0 4px 0;}
 .oh-modal .sub{font-size:12.5px;color:var(--ink-soft);margin:0 0 18px 0;}
 .oh-form-row{display:flex;gap:12px;margin-bottom:12px;}
 .oh-form-group{flex:1;display:flex;flex-direction:column;gap:5px;}

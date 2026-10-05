@@ -229,7 +229,7 @@ async function handleRestore() {
   color: #dc2626;
 }
 
-:global(html.dark) .warning-icon {
+html.dark .warning-icon {
   background: rgba(220, 38, 38, 0.2);
   color: #f87171;
 }
@@ -280,7 +280,7 @@ async function handleRestore() {
   margin-bottom: 20px;
 }
 
-:global(html.dark) .security-notice {
+html.dark .security-notice {
   background: rgba(220, 38, 38, 0.12);
   border-color: rgba(220, 38, 38, 0.3);
 }
@@ -296,7 +296,7 @@ async function handleRestore() {
   margin-bottom: 2px;
 }
 
-:global(html.dark) .notice-text strong {
+html.dark .notice-text strong {
   color: #f87171;
 }
 
@@ -307,7 +307,7 @@ async function handleRestore() {
   color: #7f1d1d;
 }
 
-:global(html.dark) .notice-text p {
+html.dark .notice-text p {
   color: #fecaca;
 }
 
@@ -362,7 +362,7 @@ async function handleRestore() {
   font-size: 12.5px;
 }
 
-:global(html.dark) .success-alert {
+html.dark .success-alert {
   background: rgba(22, 163, 74, 0.15);
   border-color: rgba(22, 163, 74, 0.3);
   color: #86efac;

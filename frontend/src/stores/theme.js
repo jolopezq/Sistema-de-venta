@@ -3,7 +3,9 @@ import { ref, watch } from 'vue';
 import { detectHardwareProfile, applyHardwareOptimizations } from '../utils/hardwareDetector';
 
 export const useThemeStore = defineStore('theme', () => {
-  const isDark = ref(localStorage.getItem('theme') === 'dark');
+  // Sin preferencia guardada se usa la del sistema operativo (igual que index.html)
+  const savedTheme = localStorage.getItem('theme');
+  const isDark = ref(savedTheme ? savedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches);
   
   const initialProfile = detectHardwareProfile();
   const isPerfLite = ref(initialProfile.isLowSpec);

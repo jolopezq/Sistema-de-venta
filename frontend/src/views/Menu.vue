@@ -975,7 +975,7 @@ const handleUpdateSuccess = async (groupId) => {
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
 .btn-ghost { cursor: pointer; background: transparent; border: none; font-weight: 700; color: var(--ink-700); padding: 8px 16px; border-radius: 8px; }
 .btn-ghost:hover { background: var(--cream-100); }
-.btn-primary { background: var(--passion-500); color: white; border: none; border-radius: var(--radius-md); padding: 10px 20px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.btn-primary { background: var(--passion-500); color: var(--on-accent); border: none; border-radius: var(--radius-md); padding: 10px 20px; font-weight: 700; font-size: 14px; cursor: pointer; }
 .btn-primary:hover { background: var(--passion-600); }
 .text-muted { color: var(--ink-500); font-size: 14px; line-height: 1.5; }
 
@@ -1036,7 +1036,7 @@ const handleUpdateSuccess = async (groupId) => {
 .btn-confirmar-full {
   width: 100%;
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   border: none;
   border-radius: 12px;
   padding: 14px;

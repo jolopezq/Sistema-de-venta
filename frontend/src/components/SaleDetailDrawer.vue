@@ -435,7 +435,7 @@ async function handleConfirmVoid() {
   border-radius: 6px;
 }
 
-:global(html.dark) .dinein-tag {
+html.dark .dinein-tag {
   background: #251c33;
   color: #CBD5E1;
 }

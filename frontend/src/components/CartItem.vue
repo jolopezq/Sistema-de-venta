@@ -184,13 +184,13 @@ function getModPillClass(groupName = '') {
   line-height: 1;
 }
 
-:global(html.dark) .item-dest-chip--takeaway {
+html.dark .item-dest-chip--takeaway {
   background: rgba(234, 88, 12, 0.2);
   color: #fb923c;
   border-color: rgba(249, 115, 22, 0.35);
 }
 
-:global(html.dark) .item-dest-chip--dinein {
+html.dark .item-dest-chip--dinein {
   background: #231b30;
   color: #cbd5e1;
   border-color: rgba(255, 255, 255, 0.12);

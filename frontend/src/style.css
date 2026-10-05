@@ -2,8 +2,6 @@
 /* === OHANA AÇAÍ POS - GLOBAL STYLES === */
 /* Source: ohana-acai-pos-prototipo.html */
 
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
 
 /* ================================================================
    DESIGN TOKENS — Tema Claro (base)
@@ -13,6 +11,63 @@
   --surface: #FFFFFF;
   --surface-alt: #FFFFFF;
   --surface-elevated: #FFFFFF;
+  --surface-hover: #F1EFEC;
+  --bg: #FAF9F7;
+  --ink: #241A2E;
+  /* Puente de paleta Tailwind usada en Control Diario (mismo valor en claro) */
+  --tw-bg-a7f3d0: #A7F3D0;
+  --tw-bg-bbf7d0: #BBF7D0;
+  --tw-bg-cbd5e1: #CBD5E1;
+  --tw-bg-e2e8f0: #E2E8F0;
+  --tw-bg-ecfdf5: #ECFDF5;
+  --tw-bg-eff6ff: #EFF6FF;
+  --tw-bg-bfdbfe: #BFDBFE;
+  --tw-fg-2563eb: #2563EB;
+  --tw-fg-1e40af: #1E40AF;
+  --tw-bg-f0fdf4: #F0FDF4;
+  --tw-bg-f1f5f9: #F1F5F9;
+  --tw-bg-f5f3ff: #F5F3FF;
+  --tw-bg-f8fafc: #F8FAFC;
+  --tw-bg-faf5f0: #FAF5F0;
+  --tw-bg-fca5a5: #FCA5A5;
+  --tw-bg-fcd34d: #FCD34D;
+  --tw-bg-fdba74: #FDBA74;
+  --tw-bg-fde047: #FDE047;
+  --tw-bg-fde68a: #FDE68A;
+  --tw-bg-fecaca: #FECACA;
+  --tw-bg-fee2e2: #FEE2E2;
+  --tw-bg-fef08a: #FEF08A;
+  --tw-bg-fef2f2: #FEF2F2;
+  --tw-bg-fef3c7: #FEF3C7;
+  --tw-bg-fef9c3: #FEF9C3;
+  --tw-bg-fefce8: #FEFCE8;
+  --tw-bg-ffedd5: #FFEDD5;
+  --tw-bg-fff: #FFFFFF;
+  --tw-bg-fff1f2: #FFF1F2;
+  --tw-bg-fff7ed: #FFF7ED;
+  --tw-bg-fffbeb: #FFFBEB;
+  --tw-fg-059669: #059669;
+  --tw-fg-0f172a: #0F172A;
+  --tw-fg-16a34a: #16A34A;
+  --tw-fg-1e293b: #1E293B;
+  --tw-fg-334155: #334155;
+  --tw-fg-475569: #475569;
+  --tw-fg-4f46e5: #4F46E5;
+  --tw-fg-64748b: #64748B;
+  --tw-fg-6d28d9: #6D28D9;
+  --tw-fg-8b5cf6: #8B5CF6;
+  --tw-fg-94a3b8: #94A3B8;
+  --tw-fg-991b1b: #991B1B;
+  --tw-fg-9a3412: #9A3412;
+  --tw-fg-b45309: #B45309;
+  --tw-fg-c2410c: #C2410C;
+  --tw-fg-dc2626: #DC2626;
+  --tw-fg-ea580c: #EA580C;
+
+  /* Texto sobre fondos de acento (naranja, verde, morado) */
+  --on-accent: #FFFFFF;
+  /* Morado para texto sobre fondos suaves (--acai-50) */
+  --acai-text: #522B80;
 
   /* Morado del isotipo Ohana */
   --acai-900: #20112F;
@@ -33,6 +88,7 @@
   --passion-600: #E56506;
   --passion-500: #FB7810;
   --passion-400: #FF9640;
+  --passion-300: #FFB677;
   --passion-100: #FFF0E6;
   --passion-50:  #FFF7F0;
 
@@ -106,46 +162,6 @@
 }
 
 
-[data-theme="dark"] {
-  --bg: #121212;
-  --surface: #1e1e1e;
-  --surface-hover: #2c2c2c;
-  --border: #333333;
-  --ink: #e0e0e0;
-  --ink-900: #ffffff;
-  --ink-700: #b3b3b3;
-  --ink-500: #808080;
-  --ink-300: #4d4d4d;
-  --cream-50: #1a1a1a;
-  --cream-200: #2a2a2a;
-  --shadow-card: 0 2px 10px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3);
-  --shadow-pop: 0 20px 60px rgba(0,0,0,0.7);
-
-  /* === ESTADO DE PIPELINE KDS - DARK MODE === */
-  --state-received-bg:     #131c31;
-  --state-received-border: #3B82F6;
-  --state-received-btn:    #2563EB;
-  --state-received-btn-h:  #3B82F6;
-
-  --state-preparing-bg:    #2a1804;
-  --state-preparing-border:#F59E0B;
-  --state-preparing-btn:   #D97706;
-  --state-preparing-btn-h: #F59E0B;
-
-  --state-ready-bg:        #082414;
-  --state-ready-border:    #22C55E;
-  --state-ready-btn:       #16A34A;
-  --state-ready-btn-h:     #22C55E;
-
-  --state-delivered-bg:    #181e28;
-  --state-delivered-border:#475569;
-
-  --time-warn-bg:          #592b08;
-  --time-warn-text:        #FEF3C7;
-  --time-urgent-bg:        #5f1414;
-  --time-urgent-text:      #FEE2E2;
-}
-
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;height:100%;}
 body{
@@ -181,9 +197,9 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
   transition:transform .1s ease, filter .15s ease;
 }
 .btn:active{transform:scale(0.97);}
-.btn-primary{background:var(--passion-500);color:white;}
+.btn-primary{background:var(--passion-500);color: var(--on-accent);}
 .btn-primary:hover{filter:brightness(1.05);}
-.btn-success{background:var(--lime-500);color:white;}
+.btn-success{background:var(--lime-500);color: var(--on-accent);}
 .btn-success:hover{filter:brightness(1.05);}
 .btn-success:disabled{background:var(--ink-300);cursor:not-allowed;}
 .btn-state-received{background:var(--state-received-btn);color:white;}
@@ -328,7 +344,7 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
 .product-price{font-weight:700;font-size:13.5px;color:var(--ink-700);}
 .product-price.weight{color:var(--ink-soft);font-size:11.5px;font-weight:700;text-transform:uppercase;}
 .add-btn{
-  width:32px;height:32px;border-radius:9px;background:var(--passion-500);color:white;border:none;
+  width:32px;height:32px;border-radius:9px;background:var(--passion-500);color: var(--on-accent);border:none;
   font-size:18px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;
   transition:background .15s ease, transform .1s ease;
 }
@@ -577,51 +593,144 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px;}
 
 html.dark {
+  /* Superficies: de más oscura (fondo) a más clara (elevación) */
+  --bg: #121212;
   --cream-50: #121212;
   --cream-100: #1E1E1E;
   --cream-200: #2C2C2C;
-  --border: #4A4A4A;
-  --ink-900: #E0E0E0;
-  --ink-700: #B0B0B0;
-  --ink-500: #888888;
-  --ink-300: #555555;
   --surface: #1E1E1E;
   --surface-alt: #2A2A2A;
+  --surface-elevated: #2A2A2A;
+  --surface-hover: #2C2C2C;
+  --border: #4A4A4A;
 
-  /* Inverted Acai for contrast in dark mode */
-  --acai-50: #2C1841;
-  --acai-700: #D4B3FF;
-  --acai-900: #EAD9FF;
-  --acai-500: #9B72D4;
-  --acai-800: #462A6B;
-  
-  /* Inverted Teal */
+  /* Texto (todos ≥ 4.5:1 sobre las superficies) */
+  --ink: #E0E0E0;
+  --ink-900: #E0E0E0;
+  --ink-700: #B0B0B0;
+  --ink-500: #A3A3A3;
+  --ink-300: #6B6B6B;
+  --on-accent: #1A1020;
+  --acai-text: #C9A7FF;
+
+  /* Puente de paleta Tailwind: equivalentes oscuros */
+  --tw-bg-a7f3d0: #1F5A35;
+  --tw-bg-bbf7d0: #1F5A35;
+  --tw-bg-cbd5e1: #4A4A4A;
+  --tw-bg-e2e8f0: #3A3A3A;
+  --tw-bg-ecfdf5: #12301C;
+  --tw-bg-eff6ff: #14213D;
+  --tw-bg-bfdbfe: #1E3A8A;
+  --tw-fg-2563eb: #93C5FD;
+  --tw-fg-1e40af: #BFDBFE;
+  --tw-bg-f0fdf4: #12301C;
+  --tw-bg-f1f5f9: #2A2A2A;
+  --tw-bg-f5f3ff: #2A1F45;
+  --tw-bg-f8fafc: #232323;
+  --tw-bg-faf5f0: #3A2412;
+  --tw-bg-fca5a5: #6B2A2A;
+  --tw-bg-fcd34d: #6B5413;
+  --tw-bg-fdba74: #7A4316;
+  --tw-bg-fde047: #6B5413;
+  --tw-bg-fde68a: #6B5413;
+  --tw-bg-fecaca: #6B2A2A;
+  --tw-bg-fee2e2: #3A1616;
+  --tw-bg-fef08a: #6B5413;
+  --tw-bg-fef2f2: #3A1616;
+  --tw-bg-fef3c7: #3A2E0E;
+  --tw-bg-fef9c3: #3A2E0E;
+  --tw-bg-fefce8: #3A2E0E;
+  --tw-bg-ffedd5: #3A2412;
+  --tw-bg-fff: #1E1E1E;
+  --tw-bg-fff1f2: #3A1616;
+  --tw-bg-fff7ed: #3A2412;
+  --tw-bg-fffbeb: #3A2E0E;
+  --tw-fg-059669: #4ADE80;
+  --tw-fg-0f172a: #E0E0E0;
+  --tw-fg-16a34a: #4ADE80;
+  --tw-fg-1e293b: #E0E0E0;
+  --tw-fg-334155: #CFCFCF;
+  --tw-fg-475569: #B0B0B0;
+  --tw-fg-4f46e5: #A5B4FC;
+  --tw-fg-64748b: #A3A3A3;
+  --tw-fg-6d28d9: #C4B5FD;
+  --tw-fg-8b5cf6: #C4B5FD;
+  --tw-fg-94a3b8: #9A9A9A;
+  --tw-fg-991b1b: #FF8A8A;
+  --tw-fg-9a3412: #FDBA74;
+  --tw-fg-b45309: #FDBA74;
+  --tw-fg-c2410c: #FDBA74;
+  --tw-fg-dc2626: #FF8A8A;
+  --tw-fg-ea580c: #FDBA74;
+
+  /* Açaí: los tonos usados como fondo siguen siendo oscuros/medios
+     (texto blanco ≥ 5.7:1); los tonos claros quedan para texto y bordes */
+  --acai-900: #140B1F;
+  --acai-800: #2A1840;
+  --acai-700: #7A52B3;
+  --acai-500: #7A52B3;
+  --acai-300: #B79AE0;
+  --acai-50:  #2C1841;
+
+  /* Teal */
   --teal-100: #003D4A;
   --teal-700: #88D3DE;
 
-  /* Inverted Danger */
+  /* Danger */
   --danger-100: #4A1515;
   --danger-600: #FFA1A1;
   --danger-500: #FF6B6B;
-  
-  /* Inverted Lime */
+
+  /* Lime */
   --lime-100: #1B4522;
   --lime-700: #83D98E;
-  
-  /* Inverted Gold */
+
+  /* Gold */
   --gold-100: #574100;
   --gold-500: #FAD15C;
-  
-  /* Passion */
+
+  /* Passion (naranja): sobre él va texto oscuro (--on-accent) */
   --passion-700: #FFC896;
   --passion-600: #FFB06B;
   --passion-500: #FF9640;
   --passion-400: #FF9640;
+  --passion-300: #FFB677;
   --passion-100: #572500;
   --passion-50:  rgba(255, 150, 64, 0.1);
+
+  --shadow-card: 0 2px 10px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-pop: 0 20px 60px rgba(0,0,0,0.7);
+
+  /* === ESTADO DE PIPELINE KDS - DARK MODE === */
+  --state-received-bg:     #131c31;
+  --state-received-border: #3B82F6;
+  --state-received-btn:    #2563EB;
+  --state-received-btn-h:  #3B82F6;
+
+  --state-preparing-bg:    #2a1804;
+  --state-preparing-border:#F59E0B;
+  --state-preparing-btn:   #D97706;
+  --state-preparing-btn-h: #F59E0B;
+
+  --state-ready-bg:        #082414;
+  --state-ready-border:    #22C55E;
+  --state-ready-btn:       #16A34A;
+  --state-ready-btn-h:     #22C55E;
+
+  --state-delivered-bg:    #181e28;
+  --state-delivered-border:#475569;
+
+  --time-warn-bg:          #592b08;
+  --time-warn-text:        #FEF3C7;
+  --time-urgent-bg:        #5f1414;
+  --time-urgent-text:      #FEE2E2;
 }
 
 /* Dark Mode overrides for specific components */
+html.dark .btn-success:disabled {
+  background: #3A3A3A;
+  color: var(--ink-500);
+}
 html.dark .login-screen {
   background:
     radial-gradient(circle at 15% 20%, rgba(116,72,166,0.18) 0, transparent 50%),

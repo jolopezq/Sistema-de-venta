@@ -647,7 +647,7 @@ function printOrder() {
   border: 1px solid #E2E8F0;
 }
 
-:global(html.dark) .item-dinein-badge {
+html.dark .item-dinein-badge {
   background: #251c33;
   border-color: rgba(255, 255, 255, 0.12);
   color: #CBD5E1;

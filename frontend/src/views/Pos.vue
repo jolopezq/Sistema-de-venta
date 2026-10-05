@@ -459,6 +459,20 @@ function confirmClearCart() {
 .clear-label {
   font-size: 12px;
 }
+html.dark .ticket-count-badge {
+  background: var(--danger-100);
+  color: var(--danger-600);
+}
+html.dark .btn-clear-ticket {
+  background: var(--danger-100);
+  color: var(--danger-600);
+  border-color: rgba(255, 107, 107, 0.35);
+}
+html.dark .btn-clear-ticket:hover {
+  background: #5c1c1c;
+  border-color: var(--danger-500);
+  color: #FFC4C4;
+}
 
 /* ── MODAL DE CONFIRMACIÓN CUSTOM (VACIAR TICKET) ── */
 .clear-modal-backdrop {

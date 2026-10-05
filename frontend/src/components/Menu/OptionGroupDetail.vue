@@ -860,7 +860,7 @@ input:checked + .slider:before {
   padding: 10px 20px;
   border-radius: 10px;
   font-weight: 700;
-  color: #fff;
+  color: var(--on-accent);
   cursor: pointer;
 }
 

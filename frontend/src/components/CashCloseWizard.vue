@@ -579,7 +579,7 @@ function handleFinish() {
 
 .step-dot.active span {
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.25);
 }
 
@@ -589,7 +589,7 @@ function handleFinish() {
 
 .step-dot.done span {
   background: var(--lime-500);
-  color: white;
+  color: var(--on-accent);
 }
 
 .step-line {

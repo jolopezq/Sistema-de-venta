@@ -777,7 +777,7 @@ onUnmounted(() => {
 .btn-confirmar-pya {
   width: 100%;
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   border: none;
   border-radius: 12px;
   padding: 14px;
@@ -977,7 +977,7 @@ onUnmounted(() => {
 .custom-checkbox.checked {
   background: var(--passion-500);
   border-color: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
 }
 .check-icon {
   color: white;

@@ -881,11 +881,11 @@ watch(selectedDate, (newDate) => {
   align-items: center;
   flex-wrap: wrap;
   gap: 1rem;
-  background: var(--color-surface-2, #ffffff);
+  background: var(--color-surface-2, var(--tw-bg-fff));
   padding: 1.25rem 1.75rem;
   border-radius: 14px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid var(--color-border, var(--tw-bg-e2e8f0));
 }
 
 .topbar-title-row {
@@ -898,23 +898,23 @@ watch(selectedDate, (newDate) => {
   margin: 0;
   font-size: 1.45rem;
   font-weight: 700;
-  color: var(--color-text-primary, #0f172a);
+  color: var(--color-text-primary, var(--tw-fg-0f172a));
 }
 
 .badge-role {
-  background: #fef2f2;
-  color: #dc2626;
+  background: var(--tw-bg-fef2f2);
+  color: var(--tw-fg-dc2626);
   font-size: 0.75rem;
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 6px;
-  border: 1px solid #fecaca;
+  border: 1px solid var(--tw-bg-fecaca);
 }
 
 .topbar-desc {
   margin: 0.25rem 0 0 0;
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #64748b);
+  color: var(--color-text-secondary, var(--tw-fg-64748b));
 }
 
 .topbar-right {
@@ -927,16 +927,16 @@ watch(selectedDate, (newDate) => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--color-surface-3, #f8fafc);
+  background: var(--color-surface-3, var(--tw-bg-f8fafc));
   padding: 0.4rem 0.75rem;
   border-radius: 10px;
-  border: 1.5px solid var(--color-border, #cbd5e1);
+  border: 1.5px solid var(--color-border, var(--tw-bg-cbd5e1));
 }
 
 .date-label {
   font-size: 0.82rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--tw-fg-334155);
 }
 
 .date-input {
@@ -944,7 +944,7 @@ watch(selectedDate, (newDate) => {
   background: transparent;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--tw-fg-0f172a);
   outline: none;
   cursor: pointer;
 }
@@ -1064,14 +1064,14 @@ watch(selectedDate, (newDate) => {
 }
 
 .cd-empty-banner {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
+  background: var(--tw-bg-f8fafc);
+  border: 1px solid var(--tw-bg-cbd5e1);
   padding: 1rem 1.25rem;
   border-radius: 12px;
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
-  color: #334155;
+  color: var(--tw-fg-334155);
   font-size: 0.88rem;
 }
 
@@ -1112,9 +1112,9 @@ watch(selectedDate, (newDate) => {
 }
 
 .editor-wrapper {
-  background: var(--color-surface-2, #ffffff);
+  background: var(--color-surface-2, var(--tw-bg-fff));
   border-radius: 14px;
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid var(--color-border, var(--tw-bg-e2e8f0));
   box-shadow: 0 2px 10px rgba(0,0,0,0.04);
   overflow: hidden;
 }
@@ -1123,9 +1123,9 @@ watch(selectedDate, (newDate) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #f8fafc;
+  background: var(--tw-bg-f8fafc);
   padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--tw-bg-e2e8f0);
 }
 
 .editor-bar-title {
@@ -1134,13 +1134,13 @@ watch(selectedDate, (newDate) => {
   gap: 0.5rem;
   font-weight: 700;
   font-size: 0.95rem;
-  color: #1e293b;
+  color: var(--tw-fg-1e293b);
 }
 
 .editor-date-badge {
   font-size: 0.8rem;
-  color: #475569;
-  background: #e2e8f0;
+  color: var(--tw-fg-475569);
+  background: var(--tw-bg-e2e8f0);
   padding: 2px 8px;
   border-radius: 6px;
 }
@@ -1152,8 +1152,8 @@ watch(selectedDate, (newDate) => {
 }
 
 .arqueo-card {
-  background: var(--color-surface-2, #ffffff);
-  border: 1.5px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface-2, var(--tw-bg-fff));
+  border: 1.5px solid var(--color-border, var(--tw-bg-e2e8f0));
   border-radius: 14px;
   padding: 1.5rem;
   box-shadow: 0 4px 16px rgba(0,0,0,0.05);
@@ -1176,7 +1176,7 @@ watch(selectedDate, (newDate) => {
 .arqueo-label {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #64748b;
+  color: var(--tw-fg-64748b);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -1185,7 +1185,7 @@ watch(selectedDate, (newDate) => {
   margin: 0.1rem 0 0 0;
   font-size: 1.25rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--tw-fg-0f172a);
 }
 
 .session-status-badge .badge-status {
@@ -1199,21 +1199,21 @@ watch(selectedDate, (newDate) => {
 }
 
 .badge-status.open {
-  background: #ecfdf5;
-  color: #059669;
-  border: 1px solid #a7f3d0;
+  background: var(--tw-bg-ecfdf5);
+  color: var(--tw-fg-059669);
+  border: 1px solid var(--tw-bg-a7f3d0);
 }
 
 .badge-status.closed {
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #cbd5e1;
+  background: var(--tw-bg-f1f5f9);
+  color: var(--tw-fg-475569);
+  border: 1px solid var(--tw-bg-cbd5e1);
 }
 
 .badge-status.unrecorded {
-  background: #fffbeb;
-  color: #b45309;
-  border: 1px solid #fde68a;
+  background: var(--tw-bg-fffbeb);
+  color: var(--tw-fg-b45309);
+  border: 1px solid var(--tw-bg-fde68a);
 }
 
 .dot {
@@ -1290,33 +1290,33 @@ watch(selectedDate, (newDate) => {
   justify-content: space-between;
   align-items: center;
   font-size: 0.86rem;
-  color: #334155;
+  color: var(--tw-fg-334155);
 }
 
 .breakdown-divider {
   height: 1px;
-  background: #f1f5f9;
+  background: var(--tw-bg-f1f5f9);
   margin: 0.25rem 0;
 }
 
 .breakdown-row.highlight-income {
-  background: #f0fdf4;
+  background: var(--tw-bg-f0fdf4);
   padding: 4px 8px;
   border-radius: 6px;
 }
 
 .breakdown-row.highlight-expense {
-  background: #fef2f2;
+  background: var(--tw-bg-fef2f2);
   padding: 4px 8px;
   border-radius: 6px;
 }
 
 .row-val.income {
-  color: #16a34a;
+  color: var(--tw-fg-16a34a);
 }
 
 .row-val.expense {
-  color: #dc2626;
+  color: var(--tw-fg-dc2626);
 }
 
 .breakdown-row.total-row {
@@ -1326,14 +1326,14 @@ watch(selectedDate, (newDate) => {
 }
 
 .total-sales {
-  color: #4f46e5;
+  color: var(--tw-fg-4f46e5);
   font-size: 1.05rem;
 }
 
 /* CAJA DE CIERRE REGISTRADO */
 .closed-summary-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--tw-bg-f8fafc);
+  border: 1px solid var(--tw-bg-e2e8f0);
   border-radius: 10px;
   padding: 1rem;
   display: flex;
@@ -1345,7 +1345,7 @@ watch(selectedDate, (newDate) => {
   margin: 0;
   font-size: 0.88rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--tw-fg-1e293b);
 }
 
 .closed-box-grid {
@@ -1358,17 +1358,17 @@ watch(selectedDate, (newDate) => {
 .c-label {
   display: block;
   font-size: 0.7rem;
-  color: #64748b;
+  color: var(--tw-fg-64748b);
 }
 
 .diff-note {
   margin: 0;
   font-size: 0.75rem;
-  color: #64748b;
-  background: #ffffff;
+  color: var(--tw-fg-64748b);
+  background: var(--tw-bg-fff);
   padding: 4px 8px;
   border-radius: 4px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--tw-bg-cbd5e1);
 }
 
 /* BOTONES DE ACCIÓN */
@@ -1389,15 +1389,15 @@ watch(selectedDate, (newDate) => {
 }
 
 .btn-expense {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1.5px solid #fecaca;
+  background: var(--tw-bg-fef2f2);
+  color: var(--tw-fg-dc2626);
+  border: 1.5px solid var(--tw-bg-fecaca);
   font-size: 0.88rem;
   padding: 0.75rem 1rem;
 }
 
 .btn-expense:hover {
-  background: #fee2e2;
+  background: var(--tw-bg-fee2e2);
   border-color: #f87171;
 }
 
@@ -1417,23 +1417,23 @@ watch(selectedDate, (newDate) => {
 
 .btn-outline {
   background: transparent;
-  border: 1px solid #cbd5e1;
-  color: #475569;
+  border: 1px solid var(--tw-bg-cbd5e1);
+  color: var(--tw-fg-475569);
 }
 
 .btn-outline:hover {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--tw-bg-f8fafc);
+  color: var(--tw-fg-0f172a);
 }
 
 .btn-secondary {
-  background: #f1f5f9;
-  color: #334155;
-  border: 1px solid #cbd5e1;
+  background: var(--tw-bg-f1f5f9);
+  color: var(--tw-fg-334155);
+  border: 1px solid var(--tw-bg-cbd5e1);
 }
 
 .btn-secondary:hover {
-  background: #e2e8f0;
+  background: var(--tw-bg-e2e8f0);
 }
 
 .btn-full {
@@ -1442,22 +1442,22 @@ watch(selectedDate, (newDate) => {
 
 .historical-notice {
   text-align: center;
-  color: #64748b;
+  color: var(--tw-fg-64748b);
 }
 
 /* SECCIÓN INFERIOR: REGISTROS */
 .cd-bottom-records {
-  background: var(--color-surface-2, #ffffff);
+  background: var(--color-surface-2, var(--tw-bg-fff));
   border-radius: 14px;
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid var(--color-border, var(--tw-bg-e2e8f0));
   box-shadow: 0 2px 10px rgba(0,0,0,0.04);
   overflow: hidden;
 }
 
 .records-tabs {
   display: flex;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--tw-bg-f8fafc);
+  border-bottom: 1px solid var(--tw-bg-e2e8f0);
 }
 
 .tab-btn {
@@ -1466,20 +1466,20 @@ watch(selectedDate, (newDate) => {
   background: transparent;
   font-size: 0.92rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--tw-fg-64748b);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 0.15s;
 }
 
 .tab-btn:hover {
-  color: #0f172a;
+  color: var(--tw-fg-0f172a);
 }
 
 .tab-btn.active {
-  color: #4f46e5;
+  color: var(--tw-fg-4f46e5);
   border-bottom-color: #4f46e5;
-  background: #ffffff;
+  background: var(--tw-bg-fff);
 }
 
 .records-content {
@@ -1489,7 +1489,7 @@ watch(selectedDate, (newDate) => {
 .empty-table-state {
   text-align: center;
   padding: 3rem 1rem;
-  color: #64748b;
+  color: var(--tw-fg-64748b);
 }
 
 .empty-table-icon {
@@ -1510,25 +1510,25 @@ watch(selectedDate, (newDate) => {
 }
 
 .cd-table th {
-  background: #f8fafc;
-  color: #475569;
+  background: var(--tw-bg-f8fafc);
+  color: var(--tw-fg-475569);
   font-weight: 700;
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 0.75rem 1rem;
-  border-bottom: 1.5px solid #e2e8f0;
+  border-bottom: 1.5px solid var(--tw-bg-e2e8f0);
 }
 
 .cd-table td {
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
-  color: #1e293b;
+  border-bottom: 1px solid var(--tw-bg-f1f5f9);
+  color: var(--tw-fg-1e293b);
   vertical-align: middle;
 }
 
 .cd-table tr:hover td {
-  background: #f8fafc;
+  background: var(--tw-bg-f8fafc);
 }
 
 .clickable-row {
@@ -1537,7 +1537,7 @@ watch(selectedDate, (newDate) => {
 }
 
 .clickable-row:hover td {
-  background-color: #f1f5f9;
+  background-color: var(--tw-bg-f1f5f9);
 }
 
 .col-actions {
@@ -1565,9 +1565,9 @@ watch(selectedDate, (newDate) => {
 }
 
 .btn-table-view {
-  background: #f0fdf4;
+  background: var(--tw-bg-f0fdf4);
   color: #166534;
-  border-color: #bbf7d0;
+  border-color: var(--tw-bg-bbf7d0);
 }
 
 .btn-table-view:hover {
@@ -1576,14 +1576,14 @@ watch(selectedDate, (newDate) => {
 }
 
 .btn-table-edit {
-  background: #fefce8;
+  background: var(--tw-bg-fefce8);
   color: #854d0e;
-  border-color: #fef08a;
+  border-color: var(--tw-bg-fef08a);
 }
 
 .btn-table-edit:hover {
-  background: #fef9c3;
-  border-color: #fde047;
+  background: var(--tw-bg-fef9c3);
+  border-color: var(--tw-bg-fde047);
 }
 
 .row-voided td {
@@ -1593,7 +1593,7 @@ watch(selectedDate, (newDate) => {
 
 .col-time {
   font-weight: 600;
-  color: #64748b;
+  color: var(--tw-fg-64748b);
   white-space: nowrap;
 }
 
@@ -1604,8 +1604,8 @@ watch(selectedDate, (newDate) => {
 }
 
 .item-summary-pill {
-  background: #f1f5f9;
-  color: #334155;
+  background: var(--tw-bg-f1f5f9);
+  color: var(--tw-fg-334155);
   padding: 2px 7px;
   border-radius: 4px;
   font-size: 0.78rem;
@@ -1614,7 +1614,7 @@ watch(selectedDate, (newDate) => {
 
 .sale-note-sub {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--tw-fg-64748b);
   margin-top: 3px;
 }
 
@@ -1628,21 +1628,21 @@ watch(selectedDate, (newDate) => {
 }
 
 .origin-pedidosya {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
+  background: var(--tw-bg-fef2f2);
+  color: var(--tw-fg-dc2626);
+  border: 1px solid var(--tw-bg-fecaca);
 }
 
 .origin-takeaway {
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
+  background: var(--tw-bg-eff6ff);
+  color: var(--tw-fg-2563eb);
+  border: 1px solid var(--tw-bg-bfdbfe);
 }
 
 .origin-store {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
+  background: var(--tw-bg-f0fdf4);
+  color: var(--tw-fg-16a34a);
+  border: 1px solid var(--tw-bg-bbf7d0);
 }
 
 .payment-badge {
@@ -1654,13 +1654,13 @@ watch(selectedDate, (newDate) => {
 }
 
 .badge-cash {
-  background: #ecfdf5;
-  color: #059669;
+  background: var(--tw-bg-ecfdf5);
+  color: var(--tw-fg-059669);
 }
 
 .badge-qr {
   background: #eef2ff;
-  color: #4f46e5;
+  color: var(--tw-fg-4f46e5);
 }
 
 .badge-card {
@@ -1669,13 +1669,13 @@ watch(selectedDate, (newDate) => {
 }
 
 .badge-pedidosya {
-  background: #fff1f2;
+  background: var(--tw-bg-fff1f2);
   color: #e11d48;
 }
 
 .badge-gray {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--tw-bg-f1f5f9);
+  color: var(--tw-fg-64748b);
 }
 
 .status-pill {
@@ -1687,23 +1687,23 @@ watch(selectedDate, (newDate) => {
 }
 
 .status-completed {
-  background: #ecfdf5;
-  color: #059669;
+  background: var(--tw-bg-ecfdf5);
+  color: var(--tw-fg-059669);
 }
 
 .status-voided {
-  background: #fef2f2;
-  color: #dc2626;
+  background: var(--tw-bg-fef2f2);
+  color: var(--tw-fg-dc2626);
 }
 
 .status-pending {
-  background: #fffbeb;
+  background: var(--tw-bg-fffbeb);
   color: #d97706;
 }
 
 .pill-expense {
-  background: #fef2f2;
-  color: #dc2626;
+  background: var(--tw-bg-fef2f2);
+  color: var(--tw-fg-dc2626);
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -1711,16 +1711,16 @@ watch(selectedDate, (newDate) => {
 }
 
 .pill-income {
-  background: #f0fdf4;
-  color: #16a34a;
+  background: var(--tw-bg-f0fdf4);
+  color: var(--tw-fg-16a34a);
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 700;
 }
 
-.text-expense { color: #dc2626; }
-.text-income { color: #16a34a; }
+.text-expense { color: var(--tw-fg-dc2626); }
+.text-income { color: var(--tw-fg-16a34a); }
 .text-right { text-align: right; }
 .text-center { text-align: center; }
 
@@ -1743,7 +1743,7 @@ watch(selectedDate, (newDate) => {
 }
 
 .report-modal-card {
-  background: #ffffff;
+  background: var(--tw-bg-fff);
   border-radius: 16px;
   width: 100%;
   max-width: 480px;
@@ -1759,7 +1759,7 @@ watch(selectedDate, (newDate) => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--tw-bg-e2e8f0);
 }
 
 .report-modal-header h3 {
@@ -1772,7 +1772,7 @@ watch(selectedDate, (newDate) => {
   background: transparent;
   font-size: 1.25rem;
   cursor: pointer;
-  color: #64748b;
+  color: var(--tw-fg-64748b);
 }
 
 .report-modal-body {
@@ -1782,10 +1782,10 @@ watch(selectedDate, (newDate) => {
 
 .report-modal-footer {
   padding: 1rem 1.5rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--tw-bg-e2e8f0);
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  background: #f8fafc;
+  background: var(--tw-bg-f8fafc);
 }
 </style>

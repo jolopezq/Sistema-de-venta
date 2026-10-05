@@ -384,7 +384,7 @@ const resetState = () => {
 .btn-fill-danger {
   background: var(--passion-500);
   border: 1px solid var(--passion-500);
-  color: white;
+  color: var(--on-accent);
 }
 .btn-fill-danger:hover {
   background: var(--passion-600);

@@ -458,35 +458,35 @@ function setSuggestedCash(amount, isExact = false) {
   color: var(--passion-600, #EA580C);
 }
 
-:global(html.dark) .dest-btn {
+html.dark .dest-btn {
   background: rgba(30, 41, 59, 0.6);
   border-color: rgba(255, 255, 255, 0.1);
 }
-:global(html.dark) .dest-btn:hover {
+html.dark .dest-btn:hover {
   background: rgba(234, 88, 12, 0.15);
   border-color: rgba(234, 88, 12, 0.4);
 }
-:global(html.dark) .dest-btn.active {
+html.dark .dest-btn.active {
   background: rgba(234, 88, 12, 0.25);
   border-color: #F97316;
 }
-:global(html.dark) .dest-btn--mixed:hover {
+html.dark .dest-btn--mixed:hover {
   background: rgba(139, 92, 246, 0.18);
   border-color: rgba(139, 92, 246, 0.45);
 }
-:global(html.dark) .dest-btn--mixed.active {
+html.dark .dest-btn--mixed.active {
   background: rgba(139, 92, 246, 0.3);
   border-color: #a78bfa;
 }
-:global(html.dark) .dest-badge-status {
+html.dark .dest-badge-status {
   background: rgba(139, 92, 246, 0.2);
   color: #c4b5fd;
   border-color: rgba(139, 92, 246, 0.4);
 }
-:global(html.dark) .dest-title {
+html.dark .dest-title {
   color: #F1F5F9;
 }
-:global(html.dark) .dest-desc {
+html.dark .dest-desc {
   color: #94A3B8;
 }
 
@@ -516,17 +516,17 @@ function setSuggestedCash(amount, isExact = false) {
   border-radius: 8px;
   border: 1px solid var(--success-200);
 }
-:global(html.dark) .status-missing {
+html.dark .status-missing {
   background: rgba(220, 38, 38, 0.2);
   border-color: rgba(220, 38, 38, 0.4);
   color: #fca5a5;
 }
-:global(html.dark) .status-change {
+html.dark .status-change {
   background: rgba(234, 179, 8, 0.2);
   border-color: rgba(234, 179, 8, 0.4);
   color: #fde047;
 }
-:global(html.dark) .status-covered {
+html.dark .status-covered {
   background: rgba(22, 163, 74, 0.2);
   border-color: rgba(22, 163, 74, 0.4);
   color: #86efac;
@@ -550,7 +550,7 @@ function setSuggestedCash(amount, isExact = false) {
   box-shadow: 0 0 0 3px rgba(116, 72, 166, 0.2);
 }
 
-:global(html.dark) .pay-method-select {
+html.dark .pay-method-select {
   background: var(--surface, #1e293b);
   border-color: var(--border, rgba(255, 255, 255, 0.15));
   color: #f1f5f9;

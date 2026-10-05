@@ -480,7 +480,7 @@ input:checked + .slider:before { transform: translateX(20px); }
   background: var(--surface);
 }
 .btn-confirm-pya {
-  width: 100%; padding: 14px; background: var(--passion-500); color: white;
+  width: 100%; padding: 14px; background: var(--passion-500); color: var(--on-accent);
   border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; transition: 0.2s;
 }
 .btn-confirm-pya:disabled { background: var(--ink-200); color: var(--ink-400); cursor: not-allowed; }

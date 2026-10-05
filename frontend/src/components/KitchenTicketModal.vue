@@ -336,7 +336,7 @@ const printTicket = () => {
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
 }
 
-:global(html.dark) .ascii-ticket {
+html.dark .ascii-ticket {
   background: #111;
   color: #0f0;
   border-color: #333;

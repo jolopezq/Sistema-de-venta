@@ -286,12 +286,12 @@ function getPaymentLabel(method) {
   border-radius: 6px;
 }
 
-:global(html.dark) .receipt-payments-box {
+html.dark .receipt-payments-box {
   background: rgba(30, 41, 59, 0.4);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-:global(html.dark) .receipt-pay-pill {
+html.dark .receipt-pay-pill {
   background: rgba(15, 23, 42, 0.6);
   border-color: rgba(255, 255, 255, 0.1);
   color: #F1F5F9;

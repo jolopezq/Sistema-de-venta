@@ -237,7 +237,7 @@ import { resolveImageUrl } from '../../utils/imageUrl.js';
   display: flex; align-items: center; justify-content: center; background: var(--surface); transition: all 0.2s;
 }
 .cat-checkbox.checked, .cat-checkbox.indeterminate {
-  background: var(--passion-500); border-color: var(--passion-500); color: white;
+  background: var(--passion-500); border-color: var(--passion-500); color: var(--on-accent);
 }
 
 .cat-card-body {
@@ -271,7 +271,7 @@ import { resolveImageUrl } from '../../utils/imageUrl.js';
   display: flex; align-items: center; justify-content: center; background: var(--surface); transition: all 0.2s;
 }
 .custom-checkbox.checked {
-  background: var(--passion-500); border-color: var(--passion-500); color: white;
+  background: var(--passion-500); border-color: var(--passion-500); color: var(--on-accent);
 }
 
 .empty-cat { padding: 16px 20px; font-size: 14px; color: var(--ink-500); font-style: italic; text-align: center; }
@@ -280,7 +280,7 @@ import { resolveImageUrl } from '../../utils/imageUrl.js';
   padding: 20px; background: var(--surface); border-top: 1px solid var(--border);
 }
 .btn-confirm-full {
-  width: 100%; background: var(--passion-500); color: white;
+  width: 100%; background: var(--passion-500); color: var(--on-accent);
   border: none; border-radius: 8px; padding: 16px; font-size: 16px; font-weight: 600;
   cursor: pointer; transition: background 0.2s;
 }

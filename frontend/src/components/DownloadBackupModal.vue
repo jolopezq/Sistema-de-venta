@@ -238,7 +238,7 @@ async function handleDownload() {
   margin-bottom: 20px;
 }
 
-:global(html.dark) .security-notice {
+html.dark .security-notice {
   background: rgba(245, 158, 11, 0.12);
   border-color: rgba(245, 158, 11, 0.3);
 }
@@ -254,7 +254,7 @@ async function handleDownload() {
   margin-bottom: 2px;
 }
 
-:global(html.dark) .notice-text strong {
+html.dark .notice-text strong {
   color: #fcd34d;
 }
 
@@ -265,7 +265,7 @@ async function handleDownload() {
   color: #78350f;
 }
 
-:global(html.dark) .notice-text p {
+html.dark .notice-text p {
   color: #fef3c7;
 }
 
@@ -318,7 +318,7 @@ async function handleDownload() {
   gap: 6px;
 }
 
-:global(html.dark) .backup-details {
+html.dark .backup-details {
   background: rgba(30, 41, 59, 0.6);
 }
 
@@ -352,7 +352,7 @@ async function handleDownload() {
   font-size: 12.5px;
 }
 
-:global(html.dark) .success-alert {
+html.dark .success-alert {
   background: rgba(22, 163, 74, 0.15);
   border-color: rgba(22, 163, 74, 0.3);
   color: #86efac;

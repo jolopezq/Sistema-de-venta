@@ -267,7 +267,7 @@ const tagLabel = computed(() => {
 
 .badge-count {
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   font-size: 10px;
   font-weight: 800;
   width: 16px;

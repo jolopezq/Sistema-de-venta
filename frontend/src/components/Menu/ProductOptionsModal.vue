@@ -279,7 +279,7 @@ const selectedGroup = ref(null);
   width: 100%;
   padding: 14px;
   background: var(--passion-500);
-  color: white;
+  color: var(--on-accent);
   font-size: 16px;
   font-weight: 700;
   border: none;
