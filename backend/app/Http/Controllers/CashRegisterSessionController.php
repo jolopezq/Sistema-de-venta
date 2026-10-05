@@ -352,13 +352,18 @@ class CashRegisterSessionController extends Controller
      *
      * Las ventas se toman por su vínculo con la sesión (cash_register_session_id),
      * asignado al registrarse cada venta (ver CashSessionResolver).
+     *
+     * Los pedidos PedidosYa se separan por canal (source), no por método de pago:
+     * no se rinden en caja aunque se hayan registrado con otro método.
      */
     private function calculateSessionStats(CashRegisterSession $session): array
     {
         $salesQuery = Sale::where('cash_register_session_id', $session->id);
 
-        $completedSales = (clone $salesQuery)->where('status', 'completed')->get();
+        $allCompleted   = (clone $salesQuery)->where('status', 'completed')->get();
         $voidedSales    = (clone $salesQuery)->where('status', 'voided')->get();
+
+        [$pedidosYaSales, $completedSales] = $allCompleted->partition(fn ($s) => $s->source === 'pedidosya');
 
         $completedSaleIds = $completedSales->pluck('id');
 
@@ -426,6 +431,8 @@ class CashRegisterSessionController extends Controller
             'qr_sales'          => $qrSales,
             'card_sales'        => $cardSales,
             'other_sales'       => $otherSales,
+            'pedidosya_count'   => $pedidosYaSales->count(),
+            'pedidosya_total'   => (float) $pedidosYaSales->sum('total_amount'),
             'opening_amount'    => (float) $session->opening_amount,
             'total_expenses'    => $totalExpenses,
             'cash_expenses'     => $cashExpenses,

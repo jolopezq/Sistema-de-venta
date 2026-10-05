@@ -16,10 +16,16 @@ se renombra con la fecha de la actualización de producción.
 - Fuentes Inter, Baloo 2 y JetBrains Mono alojadas localmente y precacheadas (funcionan sin internet). (`624702e`)
 - `frontend/scripts/audit-contrast.cjs`: auditoría de contraste WCAG por pantalla. (`2802a36`)
 - `AGENTS.md`, `CLAUDE.md`, `docs/BITACORA.md` y este archivo para la gestión de cambios.
+- Arqueo con PedidosYa aparte: `pedidosya_count` y `pedidosya_total` en las estadísticas de la caja.
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)
 - El sobrepago en efectivo se registra como cambio, no como ingreso. (`7005e0e`)
+- Los pedidos PedidosYa (`source = 'pedidosya'`) ya no suman a las ventas del local ni al efectivo esperado,
+  aunque se hayan registrado con otro método de pago; se guardan siempre con un único pago
+  `delivery_platform` por el total (POS y Control Diario) y el ajuste queda en auditoría.
+- La verificación de precios contra el catálogo usa el precio PedidosYa (`delivery_price`, o el local si
+  está vacío) en los pedidos de ese canal; el precio guardado de cada topping también es el del canal.
 - Botones naranjas y verdes con texto oscuro; textos naranjas y grises más contrastados. (`b7b6aa4`)
 - Usuarios y Auditoría usan la tipografía del sistema; el tema respeta la preferencia del sistema operativo. (`2802a36`)
 

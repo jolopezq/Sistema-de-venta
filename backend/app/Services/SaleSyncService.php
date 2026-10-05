@@ -76,7 +76,7 @@ class SaleSyncService
     {
         // El servidor recalcula subtotales, total y pagos (ver SalePricingService)
         [$data, $discrepancies] = $this->pricingService->normalizeTotals($data);
-        [$data['payments'], $paymentIssues] = $this->pricingService->normalizePayments($data['payments'] ?? [], (float) $data['total_amount']);
+        [$data['payments'], $paymentIssues] = $this->normalizeChannelPayments($data);
         $discrepancies = array_merge($discrepancies, $paymentIssues);
 
         // El POS envía la hora en UTC (ISO 8601); se guarda en la zona horaria de la app,
@@ -189,7 +189,7 @@ class SaleSyncService
             }
 
             if ($checkCatalogPrices) {
-                $mismatch = $this->pricingService->catalogPriceMismatch($product, $itemData, $selectedOptions);
+                $mismatch = $this->pricingService->catalogPriceMismatch($product, $itemData, $selectedOptions, $sale->source ?? 'pos');
                 if ($mismatch) {
                     $priceMismatches[] = $mismatch;
                 }
@@ -219,7 +219,7 @@ class SaleSyncService
                         'option_id'                 => $opt->id,
                         'option_group_id'           => $opt->option_group_id,
                         'option_name_snapshot'      => $opt->name,
-                        'additional_price_snapshot' => $opt->additional_price,
+                        'additional_price_snapshot' => SalePricingService::optionPrice($opt, $sale->source ?? 'pos'),
                         'quantity'                  => $mod['quantity'] ?? 1,
                         'created_at'                => $sale->created_at,
                         'updated_at'                => $sale->created_at,
@@ -296,6 +296,8 @@ class SaleSyncService
 
             $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway);
 
+            [$data['payments'], $paymentIssues] = $this->platformPaymentsIfPedidosYa($sale, $data);
+
             if (!empty($data['payments'])) {
                 foreach ($data['payments'] as $paymentData) {
                     SalePayment::create([
@@ -318,6 +320,7 @@ class SaleSyncService
                 'module'      => 'Sales',
                 'description' => "Registro manual/retroactivo de venta Ticket #{$orderNumber} (Total: Bs {$sale->total_amount}, Fecha: {$createdAt->format('Y-m-d H:i')}). Motivo: {$data['edit_reason']}",
             ]);
+            $this->auditPaymentIssues($paymentIssues, $orderNumber, $superAdminId);
 
             $this->auditClosedSessionChange($sale, $sale->cash_register_session_id, $superAdminId, 'Venta retroactiva');
 
@@ -418,7 +421,10 @@ class SaleSyncService
             // 5. Insertar nuevos items y descontar nuevo inventario
             $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway);
 
-            // 6. Insertar nuevos pagos
+            // 6. Insertar nuevos pagos (PedidosYa: un único pago de plataforma)
+            [$data['payments'], $paymentIssues] = $this->platformPaymentsIfPedidosYa($sale, $data);
+            $this->auditPaymentIssues($paymentIssues, $sale->order_number, $superAdminId);
+
             if (!empty($data['payments'])) {
                 foreach ($data['payments'] as $paymentData) {
                     SalePayment::create([
@@ -451,6 +457,52 @@ class SaleSyncService
 
             return $sale->fresh(['cashier:id,name', 'customer:id,name,ci_or_phone', 'items.product:id,name', 'items.saleItemOptions.option:id,name', 'payments', 'editedByUser:id,name']);
         });
+    }
+
+    /**
+     * Normaliza los pagos según el canal: PedidosYa va como un único pago de plataforma
+     * por el total; el resto, con la regla de sobrepago (ver SalePricingService).
+     *
+     * @return array{0: array, 1: string[]} Pagos normalizados y discrepancias.
+     */
+    protected function normalizeChannelPayments(array $data): array
+    {
+        $payments = $data['payments'] ?? [];
+        $total = (float) $data['total_amount'];
+
+        return ($data['source'] ?? null) === 'pedidosya'
+            ? $this->pricingService->normalizePlatformPayments($payments, $total)
+            : $this->pricingService->normalizePayments($payments, $total);
+    }
+
+    /**
+     * En registros y ediciones del admin solo se ajustan los pagos de PedidosYa;
+     * los de venta local se guardan tal como se ingresaron.
+     */
+    protected function platformPaymentsIfPedidosYa(Sale $sale, array $data): array
+    {
+        if ($sale->source !== 'pedidosya') {
+            return [$data['payments'] ?? [], []];
+        }
+
+        return $this->pricingService->normalizePlatformPayments($data['payments'] ?? [], (float) $sale->total_amount);
+    }
+
+    /**
+     * Deja en auditoría los ajustes de pago hechos al registrar o editar una venta manual.
+     */
+    protected function auditPaymentIssues(array $issues, string $orderNumber, int $userId): void
+    {
+        if (empty($issues)) {
+            return;
+        }
+
+        AuditLog::create([
+            'user_id'     => $userId,
+            'action'      => 'sale_sync_discrepancy',
+            'module'      => 'Sales',
+            'description' => "Venta Ticket #{$orderNumber} con pagos ajustados: " . implode('; ', $issues),
+        ]);
     }
 
     /**

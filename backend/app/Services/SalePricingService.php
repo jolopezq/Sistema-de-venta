@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Option;
 use App\Models\Product;
 use Illuminate\Support\Collection;
 
@@ -95,18 +96,66 @@ class SalePricingService
     }
 
     /**
-     * Compara el precio unitario cobrado con el que resulta del catálogo vigente.
+     * Pagos de un pedido de plataforma: un único pago 'delivery_platform' por el total.
+     * El dinero lo cobra la plataforma, así que nunca debe sumar como efectivo, QR o tarjeta.
+     *
+     * @return array{0: array, 1: string[]} Pagos normalizados y discrepancias.
+     */
+    public function normalizePlatformPayments(array $payments, float $total): array
+    {
+        $paid = round(array_sum(array_column($payments, 'amount')), 2);
+        $methods = array_unique(array_column($payments, 'method'));
+
+        if ($methods === ['delivery_platform'] && abs($paid - $total) <= self::TOLERANCE) {
+            return [$payments, []];
+        }
+
+        $sent = implode(', ', array_map(fn ($p) => "{$p['method']} {$p['amount']}", $payments)) ?: 'sin pagos';
+
+        return [
+            [['method' => 'delivery_platform', 'amount' => $total]],
+            ["Pedido PedidosYa con pagos ({$sent}); se registró un único pago de plataforma por {$total}"],
+        ];
+    }
+
+    /**
+     * Precio de un producto según el canal: PedidosYa usa delivery_price si está definido.
+     */
+    public static function productPrice(Product $product, string $source = 'pos'): float
+    {
+        if ($source === 'pedidosya' && (float) $product->delivery_price > 0) {
+            return (float) $product->delivery_price;
+        }
+
+        return (float) $product->price;
+    }
+
+    /**
+     * Precio adicional de una opción (tamaño, topping) según el canal.
+     */
+    public static function optionPrice(Option $option, string $source = 'pos'): float
+    {
+        if ($source === 'pedidosya' && (float) $option->delivery_price > 0) {
+            return (float) $option->delivery_price;
+        }
+
+        return (float) $option->additional_price;
+    }
+
+    /**
+     * Compara el precio unitario cobrado con el que resulta del catálogo vigente
+     * para el canal de la venta.
      *
      * @param Collection $selectedOptions Opciones elegidas, indexadas por id.
      * @return string|null Descripción de la diferencia, o null si coincide.
      */
-    public function catalogPriceMismatch(Product $product, array $itemData, Collection $selectedOptions): ?string
+    public function catalogPriceMismatch(Product $product, array $itemData, Collection $selectedOptions, string $source = 'pos'): ?string
     {
         $extras = 0.0;
         foreach ($itemData['modifiers'] ?? [] as $mod) {
             $option = $selectedOptions->get($mod['option_id']);
             if ($option) {
-                $extras += (float) $option->additional_price * (float) ($mod['quantity'] ?? 1);
+                $extras += self::optionPrice($option, $source) * (float) ($mod['quantity'] ?? 1);
             }
         }
 
@@ -117,7 +166,7 @@ class SalePricingService
             $pricePerGram = (float) ($product->price_per_gram ?: self::DEFAULT_PRICE_PER_GRAM);
             $expected = round((float) $itemData['weight_grams'] * $pricePerGram + $extras);
         } else {
-            $expected = round((float) $product->price + $extras, 2);
+            $expected = round(self::productPrice($product, $source) + $extras, 2);
         }
 
         $charged = (float) $itemData['unit_price'];
