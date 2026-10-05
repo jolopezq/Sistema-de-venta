@@ -44,8 +44,9 @@ export const useAuthStore = defineStore('auth', {
     async fetchUser() {
       if (!this.token) return;
       try {
-        const user = await apiFetch('/me');
-        this.user = user;
+        // /me responde { user, permissions }
+        const response = await apiFetch('/me');
+        this.user = response.user;
       } catch (e) {
         console.error('Sesión inválida', e);
         this.token = null;

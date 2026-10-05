@@ -203,6 +203,7 @@
               <select v-model="form.role" required :class="{'has-error': formErrors.role}">
                 <option value="cashier">Cajero</option>
                 <option value="admin">Administrador operativo</option>
+                <option value="kitchen">Cocina (KDS)</option>
                 <option value="super_admin">Super Admin</option>
               </select>
               <span v-if="formErrors.role" class="error-text">{{ formErrors.role[0] }}</span>
@@ -327,9 +328,10 @@ function alertAction(message) {
 
 // Constants
 const ROLE_META = {
-  cashier: { label: 'Cajero', cls: 'role-cajero', color: '#5C7A3F' },
+  cashier: { label: 'Cajero', cls: 'role-cashier', color: '#5C7A3F' },
   admin: { label: 'Administrador operativo', cls: 'role-admin', color: '#8B5E3C' },
-  super_admin: { label: 'Super Admin', cls: 'role-super', color: '#4B2E52' }
+  super_admin: { label: 'Super Admin', cls: 'role-super', color: '#4B2E52' },
+  kitchen: { label: 'Cocina', cls: 'role-kitchen', color: '#B4532A' }
 };
 
 // Data
@@ -702,6 +704,7 @@ table.oh-table tbody tr:hover{background:var(--cream-100);}
 .oh-badge.role-cashier{background:var(--leaf-pale);color:var(--leaf);}
 .oh-badge.role-admin{background:var(--coffee-pale);color:var(--coffee);}
 .oh-badge.role-super{background:var(--acai-pale);color:var(--acai);}
+.oh-badge.role-kitchen{background:var(--amber-pale);color:var(--amber);}
 
 .oh-status{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;}
 .oh-status .dot{width:7px;height:7px;border-radius:50%;}
