@@ -29,3 +29,8 @@ export function optionPrice(option, channel = CHANNEL_LOCAL) {
 export function missingDeliveryPrice(entity) {
   return !hasDeliveryPrice(entity);
 }
+
+/** El producto se ofrece en PedidosYa (sin valor cuenta como disponible). */
+export function isAvailableOnPedidosYa(product) {
+  return product?.available_on_pedidosya !== false;
+}

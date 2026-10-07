@@ -43,6 +43,11 @@ class ProductRequest extends FormRequest
         if (!empty($sanitized)) {
             $this->merge($sanitized);
         }
+
+        // Sin valor explícito no se toca la disponibilidad en PedidosYa (la columna tiene default true)
+        if ($this->has('available_on_pedidosya') && in_array($this->input('available_on_pedidosya'), [null, '', 'null'], true)) {
+            $this->offsetUnset('available_on_pedidosya');
+        }
     }
 
     /**
@@ -71,6 +76,7 @@ class ProductRequest extends FormRequest
             'excluded_options' => ['nullable', 'array'],
             'excluded_options.*' => ['exists:options,id'],
             'delivery_price' => ['nullable', 'numeric', 'min:0'],
+            'available_on_pedidosya' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -94,6 +100,7 @@ class ProductRequest extends FormRequest
             'printer_target.required' => 'El destino de impresión es obligatorio.',
             'printer_target.in' => 'El destino de impresión seleccionado no es válido.',
             'is_active.boolean' => 'El estado del producto debe ser verdadero o falso.',
+            'available_on_pedidosya.boolean' => 'La disponibilidad en PedidosYa debe ser verdadera o falsa.',
             'image.uploaded' => 'La imagen no pudo subirse. Por favor intenta con una imagen JPG, PNG o WEBP.',
             'image.image' => 'El archivo adjunto debe ser una imagen válida.',
             'image.mimes' => 'La imagen debe ser de tipo JPG, JPEG, PNG, GIF o WEBP.',

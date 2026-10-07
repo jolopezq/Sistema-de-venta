@@ -8,7 +8,7 @@ import CartItem from '../components/CartItem.vue';
 import CheckoutModal from '../components/CheckoutModal.vue';
 import ReceiptModal from '../components/ReceiptModal.vue';
 import ModifierModal from '../components/ModifierModal.vue';
-import { productPrice, missingDeliveryPrice, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
+import { productPrice, missingDeliveryPrice, isAvailableOnPedidosYa, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
 
 const catalog = useCatalogStore();
 const cart = useCartStore();
@@ -26,8 +26,12 @@ onMounted(async () => {
 });
 
 const filteredProducts = computed(() => {
-  if (activeCategoryId.value === null) return catalog.products;
-  return catalog.products.filter(p => p.category_id === activeCategoryId.value);
+  // En modo PedidosYa solo se ofrecen los productos marcados como disponibles en la plataforma
+  const channelProducts = cart.channel === CHANNEL_PEDIDOSYA
+    ? catalog.products.filter(isAvailableOnPedidosYa)
+    : catalog.products;
+  if (activeCategoryId.value === null) return channelProducts;
+  return channelProducts.filter(p => p.category_id === activeCategoryId.value);
 });
 
 const showModifierModal = ref(false);
@@ -297,7 +301,7 @@ function confirmClearCart() {
             @add="handleAddToCart(p)" 
           />
           <div v-if="filteredProducts.length === 0" style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--ink-500);font-weight:600;">
-            No hay productos disponibles.
+            {{ isPedidosYa ? 'No hay productos disponibles en PedidosYa.' : 'No hay productos disponibles.' }}
           </div>
         </div>
       </div>

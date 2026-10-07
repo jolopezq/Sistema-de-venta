@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { productPrice } from '../utils/channelPricing';
+import { productPrice, missingDeliveryPrice, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
 
 const props = defineProps({
   product: Object,
@@ -24,6 +24,11 @@ const displayPrice = computed(() => {
   }
   return `Bs ${productPrice(props.product, props.channel).toFixed(2)}`;
 });
+
+/** En PedidosYa, el producto no tiene precio de plataforma y se cobra el de mostrador */
+const usesLocalPrice = computed(() =>
+  props.channel === CHANNEL_PEDIDOSYA && !props.product.is_weight_based && missingDeliveryPrice(props.product)
+);
 
 import { resolveImageUrl } from '../utils/imageUrl.js';
 
@@ -65,7 +70,14 @@ const getImageUrl = computed(() => {
     </div>
 
     <div class="product-row">
-      <span class="product-price" :class="{ weight: product.is_weight_based }">{{ displayPrice }}</span>
+      <span class="product-price-col">
+        <span class="product-price" :class="{ weight: product.is_weight_based }">{{ displayPrice }}</span>
+        <span
+          v-if="usesLocalPrice"
+          class="local-price-tag"
+          title="Este producto no tiene precio PedidosYa: se cobra el precio de mostrador"
+        >precio local</span>
+      </span>
       <button
         class="add-btn"
         :disabled="disabled"
@@ -79,6 +91,27 @@ const getImageUrl = computed(() => {
 </template>
 
 <style scoped>
+.product-price-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.local-price-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: #FEF3C7;
+  color: #7A4A00;
+  white-space: nowrap;
+}
+html.dark .local-price-tag {
+  background: #3A2A06;
+  color: #FCD98A;
+}
 @keyframes pulse {
   0% { transform: scale(1); }
   50% { transform: scale(1.02); border-color: var(--lime-500); }

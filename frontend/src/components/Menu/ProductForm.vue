@@ -35,6 +35,8 @@ const initLocalProduct = (prod) => {
   lp.printer_target = lp.printer_target || 'none';
   lp.tag = lp.tag || '';
   lp.is_weight_based = Boolean(lp.is_weight_based);
+  // Sin valor cuenta como disponible en PedidosYa (igual que en el backend)
+  lp.available_on_pedidosya = lp.available_on_pedidosya !== false;
   lp.price_per_gram = (lp.price_per_gram !== null && lp.price_per_gram !== undefined) ? lp.price_per_gram : null;
   
   if (lp.optionGroups && lp.optionGroups.length > 0) {
@@ -389,6 +391,29 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- DISPONIBILIDAD EN PEDIDOSYA -->
+      <div class="section-block">
+        <button
+          type="button"
+          class="input-card pya-availability-card"
+          role="checkbox"
+          :aria-checked="localProduct.available_on_pedidosya"
+          @click="localProduct.available_on_pedidosya = !localProduct.available_on_pedidosya"
+        >
+          <span class="custom-checkbox" :class="{ checked: localProduct.available_on_pedidosya }">
+            <svg v-if="localProduct.available_on_pedidosya" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </span>
+          <span class="pya-availability-text">
+            <span class="input-label">🛵 Disponible en PedidosYa</span>
+            <span class="delivery-hint-text">
+              {{ localProduct.available_on_pedidosya
+                ? 'Aparece en el POS al registrar pedidos PedidosYa.'
+                : 'No aparece en el POS en modo PedidosYa.' }}
+            </span>
+          </span>
+        </button>
       </div>
 
       <!-- ETIQUETAS DE PRODUCTO Custom Dropdown -->
@@ -1093,6 +1118,25 @@ onUnmounted(() => {
   background: var(--passion-500, #e11d48);
   color: #ffffff;
   border-color: var(--passion-500, #e11d48);
+}
+.pya-availability-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.pya-availability-card:focus-visible {
+  outline: 2px solid var(--acai-700);
+  outline-offset: 2px;
+}
+.pya-availability-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 .delivery-hint-text {
   font-size: 10.5px;

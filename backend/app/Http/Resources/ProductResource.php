@@ -22,6 +22,8 @@ class ProductResource extends JsonResource
             'price' => (float) $this->price,
             'vip_price' => $this->vip_price !== null ? (float) $this->vip_price : null,
             'delivery_price' => $this->delivery_price !== null ? (float) $this->delivery_price : null,
+            // Sin valor (columna aún no migrada) cuenta como disponible
+            'available_on_pedidosya' => $this->available_on_pedidosya ?? true,
             'is_weight_based' => (bool) $this->is_weight_based,
             'price_per_gram' => $this->price_per_gram !== null ? (float) $this->price_per_gram : null,
             'category_id' => $this->category_id,

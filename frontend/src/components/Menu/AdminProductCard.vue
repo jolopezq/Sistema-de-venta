@@ -114,7 +114,11 @@ const tagLabel = computed(() => {
               <span class="product-price">{{ formatPrice(product.price) }} BOB</span>
               <span v-if="product.is_weight_based" class="weight-tag">/ kg</span>
             </div>
-            <div v-if="product.delivery_price" class="delivery-price-row" title="Precio para pedidos de PedidosYa">
+            <div v-if="product.available_on_pedidosya === false" class="delivery-price-row pya-off" title="No se ofrece en PedidosYa">
+              <span class="pya-tag">🛵</span>
+              <span class="pya-price">No en PedidosYa</span>
+            </div>
+            <div v-else-if="product.delivery_price" class="delivery-price-row" title="Precio para pedidos de PedidosYa">
               <span class="pya-tag">🛵</span>
               <span class="pya-price">{{ formatPrice(product.delivery_price) }} BOB</span>
             </div>
@@ -403,6 +407,9 @@ const tagLabel = computed(() => {
   font-weight: 700;
   color: var(--passion-text);
   white-space: nowrap;
+}
+.delivery-price-row.pya-off .pya-price {
+  color: var(--ink-500);
 }
 </style>
 

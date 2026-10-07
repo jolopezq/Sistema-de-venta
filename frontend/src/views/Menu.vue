@@ -140,6 +140,7 @@ const newProduct = () => {
     price: 0,
     vip_price: null,
     delivery_price: null,
+    available_on_pedidosya: true,
     category_id: activeCategory.value ? activeCategory.value.id : (categories.value.length ? categories.value[0].id : null),
     printer_target: 'kitchen',
     tag: '',
@@ -215,7 +216,7 @@ const saveProduct = async (productData) => {
     
     // Lista explícita de campos escalares permitidos
     const validFields = [
-      'name', 'description', 'price', 'vip_price', 'delivery_price',
+      'name', 'description', 'price', 'vip_price', 'delivery_price', 'available_on_pedidosya',
       'is_weight_based', 'price_per_gram', 'category_id', 'printer_target',
       'is_active', 'reactivate_at', 'tag'
     ];

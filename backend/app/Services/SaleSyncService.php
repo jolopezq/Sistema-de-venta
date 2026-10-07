@@ -193,6 +193,12 @@ class SaleSyncService
                 if ($mismatch) {
                     $priceMismatches[] = $mismatch;
                 }
+
+                // Un POS con catálogo en caché puede vender algo que ya no se ofrece en PedidosYa:
+                // la venta ya se cobró, así que se acepta y queda constancia.
+                if (($sale->source ?? 'pos') === 'pedidosya' && $product->available_on_pedidosya === false) {
+                    $priceMismatches[] = "{$product->name}: no está disponible en PedidosYa";
+                }
             }
 
             $itemIsTakeaway = $orderIsTakeaway ? true : !empty($itemData['is_takeaway']);

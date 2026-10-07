@@ -24,11 +24,15 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | 6. Refactor y rendimiento | Pendiente | — |
 | UI. Modo oscuro, modo claro (WCAG AA) y fuentes locales | ✅ | `2802a36`, `b7b6aa4`, `624702e` |
 | Canal PedidosYa: arqueo aparte, precios por canal, registro desde el POS ([plan](PLAN_PEDIDOSYA.md)) | ✅ en rama `feat/canal-pedidosya` | `a15b50b`, `a2e3f96` |
+| Precios PedidosYa ([plan](PLAN_PRECIOS_PEDIDOSYA.md)): 1. Disponible en PedidosYa | ✅ en rama `feat/precios-pedidosya` | ver registro |
 
 ## Pendientes
 
 ### Decisiones del usuario
 - [ ] Fusionar `feat/canal-pedidosya` en `mejoras/analisis-integral` (sale de esa rama).
+- [ ] Confirmar antes de fusionar `feat/precios-pedidosya`: la migración
+      `2026_10_07_000001_add_available_on_pedidosya_to_products_table` **cambia datos** al instalarse
+      (deja los productos por peso como no disponibles en PedidosYa).
 - [ ] Cargar los precios PedidosYa de los **productos** en Menú: hoy ninguno tiene `delivery_price` (solo
       13 opciones), así que el POS cobra el precio local y lo avisa en el banner.
 - [ ] Fusionar `mejoras/analisis-integral` en `main` (dispara la actualización de producción).

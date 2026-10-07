@@ -23,6 +23,11 @@ se renombra con la fecha de la actualización de producción.
   tras la venta, el POS vuelve a Local. Cambiar de canal con productos en el ticket pide vaciarlo.
 - Reporte de cierre, asistente de cierre, Turno y Control Diario muestran "Ventas del local" y un bloque
   PedidosYa aparte (informativo, no se rinde en caja).
+- Productos con casilla **"Disponible en PedidosYa"** (`products.available_on_pedidosya`). En modo PedidosYa
+  el POS solo muestra los disponibles; la migración deja fuera los productos por peso (Autoservicio). Una
+  venta PedidosYa de un producto no disponible (POS con catálogo viejo) se acepta y queda en auditoría.
+- En modo PedidosYa, las tarjetas sin precio de plataforma muestran la etiqueta "precio local" antes de
+  agregarlas al ticket.
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)
