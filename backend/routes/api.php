@@ -103,7 +103,27 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/audit-logs/export', [\App\Http\Controllers\AuditLogController::class, 'export']);
         Route::post('/system/backup/download', [\App\Http\Controllers\SystemBackupController::class, 'download'])->middleware('throttle:5,60');
         Route::post('/system/backup/restore', [\App\Http\Controllers\SystemBackupController::class, 'restore'])->middleware('throttle:5,60');
+
+        // Módulo de Finanzas (Solo Super Admin)
+        Route::prefix('finance')->group(function () {
+            Route::get('/pnl', [\App\Http\Controllers\FinanceReportController::class, 'pnl']);
+
+            // Categorías de gastos
+            Route::post('/categories', [\App\Http\Controllers\ExpenseCategoryController::class, 'store']);
+            Route::put('/categories/{expenseCategory}', [\App\Http\Controllers\ExpenseCategoryController::class, 'update']);
+            Route::patch('/categories/{expenseCategory}/toggle-active', [\App\Http\Controllers\ExpenseCategoryController::class, 'toggleActive']);
+
+            // Compras y gastos pagados fuera de caja
+            Route::apiResource('expenses', \App\Http\Controllers\FinanceExpenseController::class);
+
+            // Gastos fijos recurrentes
+            Route::apiResource('recurring-expenses', \App\Http\Controllers\RecurringExpenseController::class);
+            Route::patch('/recurring-expenses/{recurringExpense}/toggle-active', [\App\Http\Controllers\RecurringExpenseController::class, 'toggleActive']);
+        });
     });
+
+    // Categorías de gastos para clasificar egresos en turnos (cajeros, admin, super_admin)
+    Route::get('/expense-categories', [\App\Http\Controllers\ExpenseCategoryController::class, 'index']);
 
     // Gestión manual / retroactiva de ventas (admin y super_admin)
     Route::middleware(['admin'])->group(function () {

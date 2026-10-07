@@ -3,11 +3,9 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-04)
-- **Rama de trabajo:** `mejoras/analisis-integral` (10 commits sobre `main` + este registro). Sin push.
-  **No fusionada en `main`**: al fusionar, el vigilante actualiza producción y ejecuta la migración
-  `2026_10_04_000001_add_cash_register_session_id_to_sales_table` automáticamente.
-- **Tests:** 87 en verde (`php artisan test`, rama `feat/precios-pedidosya`). Build del frontend correcto.
+## Estado actual (2026-10-07)
+- **Rama de trabajo:** `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`).
+- **Tests:** 96 en verde (`php artisan test`). Build del frontend correcto.
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -24,8 +22,8 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | 6. Refactor y rendimiento | Pendiente | — |
 | UI. Modo oscuro, modo claro (WCAG AA) y fuentes locales | ✅ | `2802a36`, `b7b6aa4`, `624702e` |
 | Canal PedidosYa: arqueo aparte, precios por canal, registro desde el POS ([plan](PLAN_PEDIDOSYA.md)) | ✅ en rama `feat/canal-pedidosya` | `a15b50b`, `a2e3f96` |
-| Precios PedidosYa ([plan](PLAN_PRECIOS_PEDIDOSYA.md)): disponibilidad, ajuste por línea con motivo y Tarifario | ✅ en rama `feat/precios-pedidosya` | ver registro |
-| Precios PedidosYa solo en tamaños ([plan](PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md)): grupo `pedidosya_pricing` | ✅ en rama `feat/precios-pedidosya` | ver registro |
+| Precios PedidosYa solo en tamaños ([plan](PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md)): grupo `pedidosya_pricing` | ✅ en rama `feat/precios-pedidosya` | `b81d960` |
+| Módulo de Finanzas: Fase 1 P&L mensual, compras, gastos fijos y categorías ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | ver registro |
 
 ## Pendientes
 
@@ -114,6 +112,24 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-07 (3)** — Módulo de Finanzas (Fase 1: P&L mensual, compras, gastos fijos y categorías) implementado
+  en la rama `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`):
+  - Respaldo previo de base de datos en `storage/app/backups/pre_finanzas_20261007_160418.sqlite`.
+  - Migraciones para `expense_categories` (14 categorías estándar precargadas en `cost_of_sales`, `operating`,
+    `financial`, `taxes`), `finance_expenses` (compras y gastos fuera de caja), `recurring_expenses` (gastos
+    fijos y plantillas periódicas) y `cash_movements.expense_category_id` (clasificación en gaveta).
+  - Modelos Eloquent con relaciones, soft deletes y auditoría.
+  - Servicio `FinanceReportService` y controlador `FinanceReportController`: cálculo de Ventas Locales, Costo
+    de Ventas (Método A), Utilidad Bruta, Gastos Operativos, Utilidad Operativa (EBITDA), Impuestos y Utilidad
+    Neta con porcentajes y desgloses.
+  - Exclusión de ventas PedidosYa del POS en el P&L (se alimentarán en Fase 2 de las liquidaciones).
+  - Endpoints protegidos para rol `super_admin` (`403` para cajeros y administradores).
+  - Selector de categoría contable en modal de egreso de caja (`CashExpenseModal.vue`).
+  - Pantalla completa `Finance.vue` con KPIs, tabla de P&L, gestión de compras, gastos fijos y categorías.
+  - Ítem y ruta `/finanzas` en `AppShell.vue` y `router/index.js` condicionados a `super_admin`.
+  - Fixture CSV anonimizado `semana_pedidosya_anonimizada.csv` para pruebas sin datos personales ni NIT.
+  - 96 tests en verde (`php artisan test`), build exitoso (`npx vite build`).
 
 - **2026-10-07 (2)** — Plan de precios PedidosYa solo en los tamaños (`PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md`)
   ejecutado en `feat/precios-pedidosya`: migración `add_pedidosya_pricing_to_option_groups_table` (activa

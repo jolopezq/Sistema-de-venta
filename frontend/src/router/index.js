@@ -21,6 +21,7 @@ const routes = [
   { path: '/admin/ventas-retroactivas', name: 'RetroactiveSales', component: RetroactiveSales, meta: { requiresAuth: true, adminOnly: true } },
   { path: '/users', name: 'AdminUsers', component: AdminUsers, meta: { requiresAuth: true, superAdminOnly: true } },
   { path: '/audit-logs', name: 'AuditLogs', component: AuditLogs, meta: { requiresAuth: true, superAdminOnly: true } },
+  { path: '/finanzas', name: 'Finance', component: () => import('../views/Finance.vue'), meta: { requiresAuth: true, superAdminOnly: true } },
 ];
 
 export const router = createRouter({

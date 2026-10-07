@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useTurnoStore } from '../stores/turno';
+import { apiFetch } from '../services/api';
 
 /**
  * Modal de registro de egreso/ingreso extraordinario de efectivo.
@@ -23,12 +24,14 @@ const turnoStore = useTurnoStore();
 const isSaving   = ref(false);
 const errorMsg   = ref('');
 const successMsg = ref('');
+const categories = ref([]);
 
 const form = ref({
   type: 'expense',
   payment_method: 'cash',
   amount: '',
   description: '',
+  expense_category_id: null,
 });
 
 // Saldo actual en gaveta antes de este movimiento
@@ -61,9 +64,23 @@ const canSubmit = computed(() => {
   );
 });
 
-watch(() => props.visible, (v) => {
-  if (v) resetForm();
+watch(() => props.visible, async (v) => {
+  if (v) {
+    resetForm();
+    if (categories.value.length === 0) {
+      await fetchCategories();
+    }
+  }
 });
+
+async function fetchCategories() {
+  try {
+    const res = await apiFetch('/expense-categories?active_only=1');
+    categories.value = Array.isArray(res) ? res : [];
+  } catch (err) {
+    console.warn('No se pudieron cargar las categorías contables:', err);
+  }
+}
 
 function resetForm() {
   form.value = {
@@ -71,6 +88,7 @@ function resetForm() {
     payment_method: 'cash',
     amount: '',
     description: '',
+    expense_category_id: null,
   };
   errorMsg.value   = '';
   successMsg.value = '';
@@ -83,10 +101,11 @@ async function handleSubmit() {
   successMsg.value = '';
   try {
     await turnoStore.recordCashMovement({
-      type:           form.value.type,
-      payment_method: form.value.payment_method,
-      amount:         parseFloat(form.value.amount),
-      description:    form.value.description.trim(),
+      type:                form.value.type,
+      payment_method:      form.value.payment_method,
+      amount:              parseFloat(form.value.amount),
+      description:         form.value.description.trim(),
+      expense_category_id: form.value.type === 'expense' ? (form.value.expense_category_id || null) : null,
     }, props.sessionId || null);
     const methodLabel = form.value.payment_method === 'cash' ? 'en efectivo' : (form.value.payment_method === 'qr' ? 'vía QR' : 'con tarjeta');
     successMsg.value = form.value.type === 'expense'
@@ -218,6 +237,26 @@ function handleClose() {
               <p v-if="isOverdrawn" class="ce-error-inline">
                 ⚠️ El egreso supera el efectivo disponible en gaveta
               </p>
+            </div>
+
+            <div v-if="form.type === 'expense'" class="ce-field">
+              <label for="ce-category" class="ce-label">
+                Categoría contable <span class="ce-optional">(para Finanzas)</span>
+              </label>
+              <select
+                id="ce-category"
+                v-model="form.expense_category_id"
+                class="ce-input ce-select"
+              >
+                <option :value="null">-- Sin clasificar (se puede revisar en Finanzas) --</option>
+                <option
+                  v-for="cat in categories"
+                  :key="cat.id"
+                  :value="cat.id"
+                >
+                  {{ cat.name }} ({{ cat.group_name || cat.section }})
+                </option>
+              </select>
             </div>
 
             <div class="ce-field">

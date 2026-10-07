@@ -25,11 +25,14 @@ class CashMovement extends Model
     protected $fillable = [
         'cash_register_session_id',
         'user_id',
+        'expense_category_id',
         'type',
         'payment_method',
         'amount',
         'description',
         'sale_id',
+        'created_at',
+        'updated_at',
     ];
 
     protected function casts(): array
@@ -40,6 +43,14 @@ class CashMovement extends Model
     }
 
     // --- Relaciones ---
+
+    /**
+     * Categoría contable asignada al movimiento.
+     */
+    public function expenseCategory(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseCategory::class, 'expense_category_id');
+    }
 
     /**
      * Sesión de caja a la que pertenece este movimiento.

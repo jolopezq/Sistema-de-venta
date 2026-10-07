@@ -235,17 +235,19 @@ class CashRegisterSessionController extends Controller
         }
 
         $validated = $request->validate([
-            'type'           => 'required|in:expense,extra_income',
-            'payment_method' => 'nullable|in:cash,qr,card',
-            'amount'         => 'required|numeric|min:0.01',
-            'description'    => 'required|string|min:3|max:500',
-            'sale_id'        => 'nullable|uuid|exists:sales,id',
+            'type'                => 'required|in:expense,extra_income',
+            'expense_category_id' => 'nullable|exists:expense_categories,id',
+            'payment_method'      => 'nullable|in:cash,qr,card',
+            'amount'              => 'required|numeric|min:0.01',
+            'description'         => 'required|string|min:3|max:500',
+            'sale_id'             => 'nullable|uuid|exists:sales,id',
         ]);
 
         $movement = DB::transaction(function () use ($validated, $request, $cashSession) {
             return CashMovement::create([
                 'cash_register_session_id' => $cashSession->id,
                 'user_id'                  => $request->user()->id,
+                'expense_category_id'      => $validated['expense_category_id'] ?? null,
                 'type'                     => $validated['type'],
                 'payment_method'           => $validated['payment_method'] ?? 'cash',
                 'amount'                   => $validated['amount'],
@@ -259,7 +261,7 @@ class CashRegisterSessionController extends Controller
 
         return response()->json([
             'message'  => 'Movimiento de caja registrado correctamente.',
-            'movement' => $movement->load('user:id,name'),
+            'movement' => $movement->load(['user:id,name', 'expenseCategory:id,name,section,group_name']),
             'stats'    => $stats,
         ], 201);
     }
@@ -272,7 +274,7 @@ class CashRegisterSessionController extends Controller
         $this->ensureCanAccess($request, $cashSession);
 
         $movements = $cashSession->movements()
-            ->with('user:id,name')
+            ->with(['user:id,name', 'expenseCategory:id,name,section,group_name'])
             ->latest('created_at')
             ->get();
 

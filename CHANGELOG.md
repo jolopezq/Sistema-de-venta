@@ -39,6 +39,22 @@ se renombra con la fecha de la actualización de producción.
   de cuántos usan el precio local. "Aplicar +X %" (a los vacíos o a todos, redondeo a 0,50) llena una vista
   previa que se revisa antes de guardar. Se guarda en lote con `PUT /api/admin/pricing/pedidosya` (solo
   admin), que nunca toca el precio de mostrador y deja cada cambio en auditoría.
+- **Módulo de Finanzas — Fase 1 (Estado de Resultados mensual y gestión contable)** (`docs/PLAN_MODULO_FINANZAS.md`):
+  - Nuevo módulo `/finanzas` exclusivo para `super_admin` con protección en router, backend y menú lateral (`AppShell.vue`).
+  - Plan de cuentas y categorías (`expense_categories`): precarga de 14 categorías estándar organizadas por sección (`cost_of_sales`, `operating`, `financial`, `taxes`) y grupos contables.
+  - Compras y gastos pagados fuera de caja (`finance_expenses`): registro rápido con fecha, categoría, proveedor, monto, método de pago, comprobante y notas.
+  - Gastos fijos recurrentes (`recurring_expenses`): plantillas de costos fijos (alquiler, salarios, internet, régimen simplificado) con frecuencia y día estimado, prorrateados en el cálculo mensual.
+  - Clasificación de egresos en turnos de caja (`cash_movements.expense_category_id`): selector opcional de categoría contable en `CashExpenseModal.vue` para clasificar egresos en tiempo real.
+  - Cálculo automatizado del Estado de Resultados (`FinanceReportService` / `FinanceReportController`):
+    - Ventas del local (excluye PedidosYa para evitar duplicación).
+    - Costo de Ventas (COGS - Método A: compras registradas del mes + egresos clasificados).
+    - Utilidad Bruta y margen bruto (%).
+    - Gastos Operativos (OPEX: compras directas + gastos fijos + egresos de caja clasificados y sin clasificar).
+    - Utilidad Operativa (EBITDA) y margen operativo (%).
+    - Gastos Financieros e Impuestos fijos del régimen simplificado.
+    - Utilidad Neta y margen neto (%).
+  - Pantalla `Finance.vue` con 4 pestañas interactivas, KPIs visuales, tabla jerárquica del P&L, selector de período mensual y modales de gestión.
+  - Fixture anonimizado (`semana_pedidosya_anonimizada.csv`) para pruebas de PedidosYa sin datos personales ni NIT.
 - **Precio PedidosYa solo en tamaños** (`docs/PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md`):
   - Nueva columna `option_groups.pedidosya_pricing` (migración activa por defecto para grupos "Tamaño...").
   - En PedidosYa, solo los grupos marcados aplican `delivery_price`; toppings y frutas cobran siempre el precio local en ambos canales.
