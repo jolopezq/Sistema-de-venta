@@ -63,6 +63,7 @@ class PedidosYaSettlementTest extends TestCase
             'refunds'           => 153.04,
             'taxes'             => 39.83,
             'total_payout'      => 523.56,
+            'sales_mode'        => 'skip',
         ];
 
         $response = $this->actingAs($this->superAdmin)

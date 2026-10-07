@@ -91,6 +91,21 @@ se renombra con la fecha de la actualización de producción.
   e (informativa) ventas brutas − descuentos PedidosYa = ventas netas; diferencias mayores a Bs 1.
 - PedidosYa: una semana que cruza dos meses se prorratea por la fecha de cada pedido entregado; las ventas
   PedidosYa del POS de días sin semana importada se suman mientras tanto (con aviso).
+- **PedidosYa (auditoría, fase 3): la importación semanal crea o vincula las ventas** (plan de Finanzas §6.2–6.4).
+  Cada pedido entregado queda como venta PedidosYa con la fecha y hora del pedido, sus artículos y opciones, el
+  monto de PedidosYa (si difiere del Tarifario la línea lleva el motivo «Precio PedidosYa (importado)» y queda en
+  auditoría), un único pago de plataforma y estado entregado; descuenta inventario y no entra al arqueo. Una venta
+  ingresada a mano se **vincula** (Nº de pedido en la nota, o misma hora ±30 min y mismo monto; el dueño puede
+  elegir otra o crear una nueva). Los cancelados no crean venta. Reimportar no duplica.
+- Equivalencias de nombres PedidosYa ↔ POS en `platform_catalog_mappings` (`/finance/pedidosya-mappings`): se
+  proponen productos parecidos; una opción puede quedar «sin equivalencia» (se anota en la venta). La importación
+  no se confirma mientras falten equivalencias, salvo que se elija importar solo los montos
+  (`sales_mode=skip`); las ventas se pueden crear después (`GET/POST /finance/pedidosya-settlements/{id}/sales`).
+- Informe de la semana (`GET …/{id}/report`, plan §6.6): ventas por forma de pago y más vendidos, gastos de
+  PedidosYa con % sobre ventas, descuentos y reintegros, lo que se queda PedidosYa, costo de productos y ganancia
+  estimada (con el % de costo de ventas del mes), conciliación, pedidos a otro precio que el Tarifario y pedidos
+  sin venta. Se puede imprimir.
+- `pedidosya_orders.sale_link` y `catalog_total` (migración `2026_10_08_000003`).
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)

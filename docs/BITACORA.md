@@ -5,7 +5,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 
 ## Estado actual (2026-10-07)
 - **Rama de trabajo:** `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`).
-- **Tests:** 127 en verde (`php artisan test`, 634 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Tests:** 139 en verde (`php artisan test`, 747 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -25,8 +25,8 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | Precios PedidosYa solo en tamaños ([plan](PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md)): grupo `pedidosya_pricing` | ✅ en rama `feat/precios-pedidosya` | `b81d960` |
 | Módulo de Finanzas: Fase 1 P&L mensual, compras, gastos fijos y categorías ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | `4cdc459` |
 | Módulo de Finanzas: Fase 2 Importación semanal PedidosYa, conciliación y análisis de canal ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | ver registro |
-| Finanzas — corrección de la [auditoría](AUDITORIA_FINANZAS.md): fases 0 (bloqueantes), 1 (cálculos) y 2 (interfaz) | ✅ en rama `feat/modulo-finanzas` | `9a5f871`, `f2319e1`, ver registro |
-| Finanzas — auditoría fases 3 (importación crea ventas) y 4 (optimización) | En curso | — |
+| Finanzas — corrección de la [auditoría](AUDITORIA_FINANZAS.md): fases 0 (bloqueantes), 1 (cálculos), 2 (interfaz) y 3 (importación crea ventas) | ✅ en rama `feat/modulo-finanzas` | `9a5f871`, `f2319e1`, `36ec4ad`, ver registro |
+| Finanzas — auditoría fase 4 (optimización) | En curso | — |
 
 ## Pendientes
 
@@ -129,6 +129,13 @@ Formato: fecha — resumen — commits. Lo más reciente arriba.
   semanas con vista previa y conciliación en vivo. Contraste de Finanzas en 0 (claro y oscuro, 1440 y 390 px);
   la auditoría general marca 6 textos fuera de Finanzas que dependen de los datos del momento (insignia de tiempo
   urgente en Delivery, botón "Añadir primer producto" en Control Diario) y textos sobre degradados (`img=true`).
+  Fase 3 (importación crea ventas): `app/Services/PedidosYa/` (`ItemsParser`, `CatalogResolver`, `SalesLinker`,
+  `WeeklyReport`), equivalencias en `platform_catalog_mappings` (opción con `internal_id = 0` = sin equivalencia),
+  vínculo en `pedidosya_orders.sale_id` + `sale_link` (no se usa `delivery_orders`, que queda para el webhook).
+  Probado con la semana real en una copia: 2 productos a mapear ("Arma Tu Ohana Acai" → Arma tu Bowl, "Patriota
+  Bowl" → Patriota), 3 opciones sin equivalencia, 10 ventas creadas y 1 vinculada a mano. El informe marca 8
+  pedidos con otro precio que el Tarifario: **Mediano en PedidosYa es +8 (el POS tiene +7) y Arma tu Bowl 32 (el POS
+  tiene 35)** — corregir en Menú → Tarifario PedidosYa (decisión del dueño).
 
 - **2026-10-07 (4)** — Módulo de Finanzas (Fase 2: Liquidaciones semanales de PedidosYa, conciliación y análisis de canal):
   - Migración `2026_10_07_000008_create_pedidosya_settlements_tables.php` creando `pedidosya_settlements` y

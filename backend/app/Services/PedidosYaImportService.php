@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\PedidosYaSettlement;
 use App\Models\PedidosYaOrder;
+use App\Services\PedidosYa\SalesLinker;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -219,6 +220,8 @@ class PedidosYaImportService
             'orders_outside_range'   => $this->ordersOutsideRange($csv['orders'], $start, $end),
             'overlapping'            => $this->overlapping($start, $end)->map(fn ($st) => $this->weekLabel($st))->values()->all(),
             'replaces_settlement_id' => $existing?->id,
+            // Ventas que se crearán o vincularán (§6.2): sin las líneas internas para el registro
+            'sales'                  => array_diff_key(app(SalesLinker::class)->analyze($csv['orders'], $start, $end), ['payloads' => true]),
         ];
     }
 
@@ -229,9 +232,13 @@ class PedidosYaImportService
      * - Una semana que se solapa con otra ya cargada se rechaza; la misma semana se reemplaza (reimportación).
      * - Un pedido que ya pertenece a otra semana se rechaza; los pedidos fuera del rango se avisan.
      *
-     * @return array{settlement: PedidosYaSettlement, warnings: array<int, string>}
+     * Con `$salesMode = 'create'` además crea o vincula las ventas de los pedidos entregados (§6.3); se rechaza
+     * si quedan artículos sin equivalencia en el POS. Con 'skip' solo guarda los montos y los pedidos.
+     *
+     * @param array $links Elección del dueño por pedido: [order_number => sale_id | 'new']
+     * @return array{settlement: PedidosYaSettlement, warnings: array<int, string>, sales: ?array}
      */
-    public function importSettlement(array $statementData, string|UploadedFile $csvFile, int $userId, ?string $zipPath = null): array
+    public function importSettlement(array $statementData, string|UploadedFile $csvFile, int $userId, ?string $zipPath = null, string $salesMode = 'skip', array $links = []): array
     {
         $csvResult = $this->parseCsv($csvFile);
 
@@ -277,6 +284,19 @@ class PedidosYaImportService
                 . ': ' . implode(', ', array_slice($outside, 0, 5)) . (count($outside) > 5 ? '…' : '') . '.';
         }
 
+        $linker = app(SalesLinker::class);
+        if ($salesMode === 'create') {
+            $analysis = $linker->analyze($csvResult['orders'], $startDate, $endDate, $links);
+            if ($analysis['summary']['unresolved_names'] > 0) {
+                $names = collect($analysis['unresolved']['products'])->pluck('name')
+                    ->merge(collect($analysis['unresolved']['options'])->pluck('name'))
+                    ->implode(', ');
+                throw ValidationException::withMessages([
+                    'mappings' => "Hay artículos de PedidosYa sin equivalencia en el POS: {$names}. Asígnalos o importa solo los montos.",
+                ]);
+            }
+        }
+
         $netSales         = (float) $statementData['net_sales'];
         $deliveryFees     = (float) ($statementData['delivery_fees'] ?? 0);
         $serviceFees      = (float) $statementData['service_fees'];
@@ -294,6 +314,7 @@ class PedidosYaImportService
         );
         $discrepancy = round($totalPayout - $calculatedPayout, 2);
 
+        $salesResult = null;
         $settlement = DB::transaction(function () use (
             $statementData,
             $csvResult,
@@ -304,7 +325,11 @@ class PedidosYaImportService
             $sameWeek,
             $orderNumbers,
             $calculatedPayout,
-            $discrepancy
+            $discrepancy,
+            $salesMode,
+            $links,
+            $linker,
+            &$salesResult
         ) {
             $values = [
                 'start_date'             => $startDate,
@@ -347,7 +372,7 @@ class PedidosYaImportService
                 $settlement = PedidosYaSettlement::create($values);
             }
 
-            // Guardar o actualizar pedidos (idempotencia por order_number)
+            // Guardar o actualizar pedidos (idempotencia por order_number; la venta vinculada se conserva)
             foreach ($csvResult['orders'] as $orderData) {
                 PedidosYaOrder::updateOrCreate(
                     ['order_number' => $orderData['order_number']],
@@ -355,10 +380,18 @@ class PedidosYaImportService
                 );
             }
 
+            if ($salesMode === 'create') {
+                $salesResult = $linker->sync($settlement, $links, $userId);
+            }
+
             return $settlement->fresh(['orders']);
         });
 
-        return ['settlement' => $settlement, 'warnings' => $warnings];
+        if ($salesResult && count($salesResult['errors']) > 0) {
+            $warnings[] = count($salesResult['errors']) . ' pedido(s) no se pudieron registrar como venta: ' . implode(' ', $salesResult['errors']);
+        }
+
+        return ['settlement' => $settlement, 'warnings' => $warnings, 'sales' => $salesResult];
     }
 
     public static function isDelivered(?string $status): bool

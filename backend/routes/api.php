@@ -131,6 +131,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
             // Liquidaciones semanales de PedidosYa (importación y conciliación)
             Route::post('/pedidosya-settlements/preview', [\App\Http\Controllers\PedidosYaSettlementController::class, 'preview']);
+            Route::get('/pedidosya-settlements/{settlement}/sales', [\App\Http\Controllers\PedidosYaSettlementController::class, 'salesPreview']);
+            Route::post('/pedidosya-settlements/{settlement}/sales', [\App\Http\Controllers\PedidosYaSettlementController::class, 'syncSales']);
+            Route::get('/pedidosya-settlements/{settlement}/report', [\App\Http\Controllers\PedidosYaSettlementController::class, 'report']);
+
+            // Equivalencias de nombres PedidosYa ↔ productos y opciones del POS
+            Route::get('/pedidosya-mappings', [\App\Http\Controllers\PedidosYaMappingController::class, 'index']);
+            Route::post('/pedidosya-mappings', [\App\Http\Controllers\PedidosYaMappingController::class, 'store']);
+            Route::delete('/pedidosya-mappings/{mapping}', [\App\Http\Controllers\PedidosYaMappingController::class, 'destroy']);
             Route::apiResource('pedidosya-settlements', \App\Http\Controllers\PedidosYaSettlementController::class)
                 ->except(['update'])
                 ->parameters(['pedidosya-settlements' => 'settlement']);

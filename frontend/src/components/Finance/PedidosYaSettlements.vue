@@ -4,6 +4,8 @@ import { apiFetch } from '../../services/api';
 import { useFinanceStore, formatBs, formatDay, formatPercent, errorText } from '../../stores/finance';
 import FinanceModal from './FinanceModal.vue';
 import PedidosYaImportModal from './PedidosYaImportModal.vue';
+import PedidosYaSalesPanel from './PedidosYaSalesPanel.vue';
+import PedidosYaMappings from './PedidosYaMappings.vue';
 
 /** Pestaña PedidosYa: semanas importadas del mes, su conciliación y sus pedidos. */
 const props = defineProps({ intent: { type: String, default: '' } });
@@ -48,18 +50,16 @@ async function remove(st) {
   }
 }
 
-// ---------- Detalle de la semana ----------
-const detail = ref(null);
+// ---------- Informe de la semana (plan §6.6) ----------
+const detail = ref(null); // { settlement, report }
 const detailLoading = ref(false);
 const statusFilter = ref('');
-const page = ref(1);
 
-async function loadDetail(st) {
+async function loadReport(st) {
   detailLoading.value = true;
   try {
-    const params = new URLSearchParams({ page: page.value });
-    if (statusFilter.value) params.set('status', statusFilter.value);
-    detail.value = await apiFetch(`/finance/pedidosya-settlements/${st.id}?${params}`);
+    const report = await apiFetch(`/finance/pedidosya-settlements/${st.id}/report`);
+    detail.value = { settlement: report.settlement, report };
   } catch (err) {
     finance.notify(errorText(err), 'error');
     detail.value = null;
@@ -70,38 +70,101 @@ async function loadDetail(st) {
 
 function openDetail(st) {
   statusFilter.value = '';
-  page.value = 1;
-  detail.value = { settlement: st, orders: null };
-  loadDetail(st);
-}
-function setFilter(status) {
-  statusFilter.value = status;
-  page.value = 1;
-  loadDetail(detail.value.settlement);
-}
-function goPage(delta) {
-  page.value += delta;
-  loadDetail(detail.value.settlement);
+  detail.value = { settlement: st, report: null };
+  loadReport(st);
 }
 
-const statement = computed(() => {
-  const s = detail.value?.settlement;
-  if (!s) return [];
-  return [
-    ['Ventas brutas (CSV, entregados)', s.csv_gross_sales],
-    ['Ventas netas', s.net_sales],
-    ['Envíos a cargo del local', -s.delivery_fees],
-    ['Servicios PedidosYa (comisión)', -s.service_fees],
-    ['Cargos operativos', -s.operating_charges],
-    ['Publicidad en la app', -s.advertising],
-    ['Reintegros', s.refunds],
-    ['Impuestos (IVA)', -s.taxes],
-  ];
-});
+const report = computed(() => detail.value?.report || null);
+const filteredOrders = computed(() => (report.value?.orders || [])
+  .filter((o) => !statusFilter.value || o.status === statusFilter.value));
+
+const PAYMENT_LABEL = (m) => m;
 
 function hour(value) {
   if (!value) return '';
   return String(value).slice(11, 16);
+}
+
+function printReport() {
+  const r = report.value;
+  if (!r) return;
+  const st = r.settlement;
+  const row = (label, value) => `<tr><td>${label}</td><td style="text-align:right">${value}</td></tr>`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>PedidosYa ${formatDay(st.start_date)} – ${formatDay(st.end_date)}</title>
+<style>body{font-family:system-ui,sans-serif;color:#111;margin:24px;font-size:13px}h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:18px 0 6px}
+table{border-collapse:collapse;width:100%}td{padding:4px 0;border-bottom:1px solid #ddd}.muted{color:#555}</style></head><body>
+<h1>Informe PedidosYa · semana ${formatDay(st.start_date)} – ${formatDay(st.end_date)}</h1>
+<div class="muted">Pago ${formatDay(st.payout_date)} · Ohana Açaí</div>
+<h2>Ventas</h2><table>
+${row(`Pedidos entregados / cancelados`, `${r.sales.delivered_count} / ${r.sales.cancelled_count}`)}
+${row('Ventas brutas', formatBs(r.sales.gross_sales))}${row('Ticket promedio', formatBs(r.sales.average_ticket))}
+${r.sales.by_payment.map((p) => row(`Pago: ${p.method} (${p.count})`, formatBs(p.amount))).join('')}
+${row('Más vendidos', r.sales.top_items.map((i) => `${i.quantity} ${i.name}`).join(', '))}</table>
+<h2>Gastos PedidosYa</h2><table>
+${row(`Comisión (${formatPercent(r.costs.commission_percent)})`, formatBs(r.costs.commission))}
+${row(`Publicidad (${formatPercent(r.costs.advertising_percent)})`, formatBs(r.costs.advertising))}
+${row('IVA en comisiones', formatBs(r.costs.taxes))}${row('Cargos operativos', formatBs(r.costs.operating_charges))}
+${row('Envíos a cargo del local', formatBs(r.costs.delivery_fees))}${row(`Total (${formatPercent(r.costs.total_percent)})`, formatBs(r.costs.total))}</table>
+<h2>Descuentos y reintegros</h2><table>
+${row('Descuentos del local', formatBs(r.discounts.vendor))}${row('Descuentos PedidosYa', formatBs(r.discounts.pedidosya))}
+${row(`Reintegros (cancelados: ${r.refunds.cancelled_count} por ${formatBs(r.refunds.cancelled_amount)})`, formatBs(r.refunds.total))}</table>
+<h2>Resultado</h2><table>
+${row('Ventas netas', formatBs(r.result.net_sales))}${row('Total liquidado', formatBs(r.result.total_payout))}
+${row(`Se queda PedidosYa (${formatPercent(r.result.retained_percent)})`, formatBs(r.result.retained_amount))}
+${r.result.product_cost !== null ? row(`Costo de productos estimado (${formatPercent(r.result.food_cost_percent)} del mes)`, formatBs(r.result.product_cost)) + row('Ganancia estimada', formatBs(r.result.estimated_profit)) : ''}
+</table>
+<h2>Control</h2><table>
+${r.control.reconciliation.checks.map((c) => row(c.label, c.ok ? 'Cuadra' : `Diferencia ${formatBs(c.difference, { sign: true })}`)).join('')}
+${row('Ventas creadas / vinculadas / sin venta', `${r.control.sales_created} / ${r.control.sales_linked} / ${r.control.without_sale}`)}
+${r.control.price_differences.map((d) => row(`Pedido ${d.order_number} con otro precio`, `${formatBs(d.total)} (Tarifario ${formatBs(d.catalog_total)})`)).join('')}
+</table></body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { finance.notify('El navegador bloqueó la ventana del informe.', 'error'); return; }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
+// ---------- Crear o vincular las ventas de una semana ya cargada ----------
+const salesSync = ref(null); // { settlement, analysis }
+const salesLinks = ref({});
+const syncing = ref(false);
+
+async function openSalesSync() {
+  const st = detail.value.settlement;
+  salesLinks.value = {};
+  salesSync.value = { settlement: st, analysis: null };
+  await loadSalesAnalysis();
+}
+
+async function loadSalesAnalysis() {
+  try {
+    salesSync.value.analysis = await apiFetch(`/finance/pedidosya-settlements/${salesSync.value.settlement.id}/sales`);
+  } catch (err) {
+    finance.notify(errorText(err), 'error');
+    salesSync.value = null;
+  }
+}
+
+const syncBlocked = computed(() => (salesSync.value?.analysis?.summary?.unresolved_names || 0) > 0);
+
+async function runSync() {
+  syncing.value = true;
+  try {
+    const res = await apiFetch(`/finance/pedidosya-settlements/${salesSync.value.settlement.id}/sales`, {
+      method: 'POST',
+      body: JSON.stringify({ links: salesLinks.value }),
+    });
+    finance.notify(res.message, res.sales?.errors?.length ? 'error' : 'ok');
+    const st = salesSync.value.settlement;
+    salesSync.value = null;
+    await loadReport(st);
+  } catch (err) {
+    finance.notify(errorText(err), 'error');
+  } finally {
+    syncing.value = false;
+  }
 }
 
 function handleIntent(intent) {
@@ -206,9 +269,11 @@ watch(() => props.intent, handleIntent);
     </div>
   </div>
 
+  <PedidosYaMappings />
+
   <PedidosYaImportModal v-if="importOpen" @close="importOpen = false" @imported="onImported" />
 
-  <!-- Detalle de la semana -->
+  <!-- Informe de la semana -->
   <FinanceModal
     v-if="detail"
     :title="`Semana ${formatDay(detail.settlement.start_date, { year: false })} – ${formatDay(detail.settlement.end_date)}`"
@@ -216,15 +281,72 @@ watch(() => props.intent, handleIntent);
     wide
     @close="detail = null"
   >
-    <div class="fin-grid-2" style="align-items: start">
-      <div class="fin-pairs">
-        <div v-for="[label, value] in statement" :key="label" class="fin-pair">
-          <span>{{ label }}</span><strong class="fin-num">{{ formatBs(value) }}</strong>
-        </div>
-        <div class="fin-pair total"><span>Total liquidado</span><span class="fin-num">{{ formatBs(detail.settlement.total_payout) }}</span></div>
+    <div v-if="detailLoading && !report" class="fin-loading">Armando el informe…</div>
+    <template v-else-if="report">
+      <div class="fin-row">
+        <span class="fin-badge" :class="report.control.reconciliation.status === 'ok' ? 'ok' : 'err'">
+          {{ report.control.reconciliation.status === 'ok' ? 'Conciliada' : 'Con diferencias' }}
+        </span>
+        <span class="fin-badge" :class="report.control.without_sale ? 'warn' : 'ok'">
+          {{ report.control.without_sale ? `${report.control.without_sale} pedidos sin venta en el POS` : 'Todos los pedidos tienen venta' }}
+        </span>
+        <span class="fin-spacer"></span>
+        <button v-if="report.control.without_sale" class="fin-btn fin-btn-primary fin-btn-sm" type="button" @click="openSalesSync">Crear o vincular ventas</button>
+        <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="printReport">Imprimir</button>
       </div>
+
+      <div class="fin-grid-2" style="align-items: start">
+        <div>
+          <div class="fin-label">Ventas</div>
+          <div class="fin-pairs">
+            <div class="fin-pair"><span>Entregados / cancelados</span><strong class="fin-num">{{ report.sales.delivered_count }} / {{ report.sales.cancelled_count }}</strong></div>
+            <div class="fin-pair"><span>Ventas brutas</span><strong class="fin-num">{{ formatBs(report.sales.gross_sales) }}</strong></div>
+            <div class="fin-pair"><span>Ticket promedio</span><strong class="fin-num">{{ formatBs(report.sales.average_ticket) }}</strong></div>
+            <div v-for="p in report.sales.by_payment" :key="p.method" class="fin-pair">
+              <span>{{ PAYMENT_LABEL(p.method) }} ({{ p.count }})</span><strong class="fin-num">{{ formatBs(p.amount) }}</strong>
+            </div>
+          </div>
+          <p v-if="report.sales.top_items.length" class="fin-hint" style="margin: 6px 0 0">
+            Más vendidos: {{ report.sales.top_items.map((i) => `${i.quantity} ${i.name}`).join(' · ') }}
+          </p>
+        </div>
+        <div>
+          <div class="fin-label">Gastos PedidosYa</div>
+          <div class="fin-pairs">
+            <div class="fin-pair"><span>Comisión ({{ formatPercent(report.costs.commission_percent) }})</span><strong class="fin-num">{{ formatBs(report.costs.commission) }}</strong></div>
+            <div class="fin-pair"><span>Publicidad ({{ formatPercent(report.costs.advertising_percent) }})</span><strong class="fin-num">{{ formatBs(report.costs.advertising) }}</strong></div>
+            <div class="fin-pair"><span>IVA en comisiones</span><strong class="fin-num">{{ formatBs(report.costs.taxes) }}</strong></div>
+            <div v-if="report.costs.operating_charges" class="fin-pair"><span>Cargos operativos</span><strong class="fin-num">{{ formatBs(report.costs.operating_charges) }}</strong></div>
+            <div v-if="report.costs.delivery_fees" class="fin-pair"><span>Envíos a cargo del local</span><strong class="fin-num">{{ formatBs(report.costs.delivery_fees) }}</strong></div>
+            <div class="fin-pair total"><span>Total ({{ formatPercent(report.costs.total_percent) }})</span><span class="fin-num">{{ formatBs(report.costs.total) }}</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="fin-label">Descuentos y reintegros</div>
+          <div class="fin-pairs">
+            <div class="fin-pair"><span>Descuentos del local</span><strong class="fin-num">{{ formatBs(report.discounts.vendor) }}</strong></div>
+            <div class="fin-pair"><span>Descuentos PedidosYa</span><strong class="fin-num">{{ formatBs(report.discounts.pedidosya) }}</strong></div>
+            <div class="fin-pair"><span>Reintegros recibidos</span><strong class="fin-num">{{ formatBs(report.refunds.total, { sign: true }) }}</strong></div>
+            <div class="fin-pair"><span>Pedidos cancelados ({{ report.refunds.cancelled_count }})</span><strong class="fin-num">{{ formatBs(report.refunds.cancelled_amount) }}</strong></div>
+          </div>
+        </div>
+        <div>
+          <div class="fin-label">Resultado</div>
+          <div class="fin-pairs">
+            <div class="fin-pair"><span>Ventas netas</span><strong class="fin-num">{{ formatBs(report.result.net_sales) }}</strong></div>
+            <div class="fin-pair"><span>Total liquidado</span><strong class="fin-num">{{ formatBs(report.result.total_payout) }}</strong></div>
+            <div class="fin-pair total"><span>Se queda PedidosYa ({{ formatPercent(report.result.retained_percent) }})</span><span class="fin-num">{{ formatBs(report.result.retained_amount) }}</span></div>
+            <template v-if="report.result.product_cost !== null">
+              <div class="fin-pair"><span>Costo de productos ({{ formatPercent(report.result.food_cost_percent) }} del mes)</span><strong class="fin-num">{{ formatBs(-report.result.product_cost) }}</strong></div>
+              <div class="fin-pair total"><span>Ganancia estimada</span><span class="fin-num" :class="{ neg: report.result.estimated_profit < 0 }">{{ formatBs(report.result.estimated_profit) }}</span></div>
+            </template>
+            <p v-else class="fin-hint" style="margin: 6px 0 0">Registra las compras del mes para estimar el costo de los productos y la ganancia.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="fin-checks">
-        <div v-for="c in detail.settlement.reconciliation?.checks || []" :key="c.key" class="fin-check">
+        <div v-for="c in report.control.reconciliation.checks" :key="c.key" class="fin-check">
           <span class="fin-check-label">
             {{ c.label }}
             <span class="fin-muted fin-small"> · esperado {{ formatBs(c.expected) }}</span>
@@ -233,50 +355,86 @@ watch(() => props.intent, handleIntent);
           <span v-else class="fin-badge" :class="c.informative ? 'info' : 'err'">{{ c.informative ? 'Aviso' : 'Diferencia' }} {{ formatBs(c.difference, { sign: true }) }}</span>
         </div>
       </div>
-    </div>
 
-    <div class="fin-row">
-      <div class="fin-chips" role="group" aria-label="Estado del pedido">
-        <button class="fin-chip" :class="{ active: !statusFilter }" type="button" @click="setFilter('')">Todos</button>
-        <button class="fin-chip" :class="{ active: statusFilter === 'Entregado' }" type="button" @click="setFilter('Entregado')">Entregados</button>
-        <button class="fin-chip" :class="{ active: statusFilter === 'Cancelado' }" type="button" @click="setFilter('Cancelado')">Cancelados</button>
+      <div v-if="report.control.price_differences.length" class="fin-note">
+        {{ report.control.price_differences.length }} pedido(s) cobrados a otro precio que el Tarifario:
+        {{ report.control.price_differences.map((d) => `${d.order_number} (${formatBs(d.difference, { sign: true })})`).join(', ') }}.
+        Revisa los precios en Menú → Tarifario PedidosYa.
       </div>
-    </div>
 
-    <div v-if="detailLoading" class="fin-loading">Cargando pedidos…</div>
-    <div v-else-if="!detail.orders?.data?.length" class="fin-empty">Sin pedidos con este filtro.</div>
-    <div v-else class="fin-table-wrap">
-      <table class="fin-table stack">
-        <thead>
-          <tr>
-            <th>Pedido</th>
-            <th>Artículos</th>
-            <th>Pago</th>
-            <th class="right">Total</th>
-            <th class="right">Comisión</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="o in detail.orders.data" :key="o.id">
-            <td data-label="Pedido">
-              <span class="fin-cell-main fin-num">{{ formatDay(o.order_date, { year: false }) }} {{ hour(o.order_date) }}</span>
-              <div class="fin-cell-sub">
-                Nº {{ o.order_number }}
-                <span class="fin-badge" :class="o.status === 'Entregado' ? 'ok' : o.status === 'Cancelado' ? 'err' : ''">{{ o.status }}</span>
-              </div>
-            </td>
-            <td data-label="Artículos" class="fin-small">{{ o.items_text || '—' }}</td>
-            <td data-label="Pago" class="fin-small">{{ o.payment_method }}</td>
-            <td data-label="Total" class="right fin-num">{{ formatBs(o.subtotal) }}</td>
-            <td data-label="Comisión" class="right fin-num">{{ formatBs(o.commission) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div v-if="detail.orders?.last_page > 1" class="fin-row">
-      <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" :disabled="page <= 1" @click="goPage(-1)">Anterior</button>
-      <span class="fin-small fin-muted">Página {{ page }} de {{ detail.orders.last_page }}</span>
-      <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" :disabled="page >= detail.orders.last_page" @click="goPage(1)">Siguiente</button>
-    </div>
+      <div class="fin-row">
+        <div class="fin-chips" role="group" aria-label="Estado del pedido">
+          <button class="fin-chip" :class="{ active: !statusFilter }" type="button" @click="statusFilter = ''">Todos ({{ report.orders.length }})</button>
+          <button class="fin-chip" :class="{ active: statusFilter === 'Entregado' }" type="button" @click="statusFilter = 'Entregado'">Entregados</button>
+          <button class="fin-chip" :class="{ active: statusFilter === 'Cancelado' }" type="button" @click="statusFilter = 'Cancelado'">Cancelados</button>
+        </div>
+      </div>
+
+      <div class="fin-table-wrap">
+        <table class="fin-table stack">
+          <thead>
+            <tr>
+              <th>Pedido</th>
+              <th>Artículos</th>
+              <th class="right">Total</th>
+              <th class="right">Comisión</th>
+              <th>Venta</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="o in filteredOrders" :key="o.id">
+              <td data-label="Pedido">
+                <span class="fin-cell-main fin-num">{{ formatDay(o.order_date, { year: false }) }} {{ hour(o.order_date) }}</span>
+                <div class="fin-cell-sub">
+                  Nº {{ o.order_number }}
+                  <span class="fin-badge" :class="o.status === 'Entregado' ? 'ok' : o.status === 'Cancelado' ? 'err' : ''">{{ o.status }}</span>
+                </div>
+              </td>
+              <td data-label="Artículos" class="fin-small">
+                {{ o.items_text || '—' }}
+                <div class="fin-cell-sub">{{ o.payment_method }}</div>
+              </td>
+              <td data-label="Total" class="right fin-num">
+                {{ formatBs(o.subtotal) }}
+                <div v-if="o.catalog_total !== null && Number(o.catalog_total) !== Number(o.subtotal)" class="fin-cell-sub">Tarifario {{ formatBs(o.catalog_total) }}</div>
+              </td>
+              <td data-label="Comisión" class="right fin-num">{{ formatBs(o.commission) }}</td>
+              <td data-label="Venta">
+                <template v-if="o.sale">
+                  #{{ o.sale.order_number }}
+                  <div class="fin-cell-sub">{{ o.sale_link === 'created' ? 'creada al importar' : 'vinculada' }}</div>
+                </template>
+                <span v-else-if="o.status === 'Entregado'" class="fin-badge warn">Sin venta</span>
+                <span v-else class="fin-muted">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+  </FinanceModal>
+
+  <!-- Crear o vincular ventas de una semana ya cargada -->
+  <FinanceModal
+    v-if="salesSync"
+    title="Ventas de la semana en el POS"
+    :subtitle="`Semana ${formatDay(salesSync.settlement.start_date, { year: false })} – ${formatDay(salesSync.settlement.end_date)}`"
+    wide
+    :busy="syncing"
+    @close="salesSync = null"
+  >
+    <div v-if="!salesSync.analysis" class="fin-loading">Revisando los pedidos…</div>
+    <PedidosYaSalesPanel
+      v-else
+      v-model:links="salesLinks"
+      :analysis="salesSync.analysis"
+      @mappings-saved="loadSalesAnalysis"
+    />
+    <template #footer>
+      <button class="fin-btn fin-btn-secondary" type="button" :disabled="syncing" @click="salesSync = null">Cancelar</button>
+      <button class="fin-btn fin-btn-primary" type="button" :disabled="syncing || !salesSync.analysis || syncBlocked" @click="runSync">
+        {{ syncing ? 'Registrando…' : 'Crear o vincular ventas' }}
+      </button>
+    </template>
   </FinanceModal>
 </template>

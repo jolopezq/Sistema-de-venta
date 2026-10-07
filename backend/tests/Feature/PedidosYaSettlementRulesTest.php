@@ -34,6 +34,8 @@ class PedidosYaSettlementRulesTest extends TestCase
         'refunds'           => 153.04,
         'taxes'             => 39.83,
         'total_payout'      => 523.56,
+        // Estas pruebas cubren montos y semanas; la creación de ventas está en PedidosYaImportSalesTest
+        'sales_mode'        => 'skip',
     ];
 
     protected function setUp(): void

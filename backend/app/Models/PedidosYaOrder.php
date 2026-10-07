@@ -29,6 +29,8 @@ class PedidosYaOrder extends Model
         'items_text',
         'cancellation_reason',
         'sale_id',
+        'sale_link',
+        'catalog_total',
         'raw_data',
     ];
 
@@ -48,6 +50,7 @@ class PedidosYaOrder extends Model
             'vendor_discount'    => 'decimal:2',
             'pedidosya_discount' => 'decimal:2',
             'estimated_income'   => 'decimal:2',
+            'catalog_total'      => 'decimal:2',
             'raw_data'           => 'array',
         ];
     }
