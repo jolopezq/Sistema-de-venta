@@ -218,6 +218,28 @@ class FinanceRecurringExpenseTest extends TestCase
         $this->actingAs($this->owner)->deleteJson('/api/finance/expenses/999999')->assertNotFound();
     }
 
+    public function test_expense_list_returns_totals_of_the_whole_filter_by_section(): void
+    {
+        $cogs = ExpenseCategory::create(['name' => 'Frutas', 'section' => 'cost_of_sales', 'group_name' => 'Insumos']);
+        foreach ([[$cogs->id, 100], [$cogs->id, 50.5], [$this->opex->id, 30]] as [$cat, $amount]) {
+            FinanceExpense::create([
+                'date' => '2026-09-10', 'expense_category_id' => $cat, 'amount' => $amount,
+                'payment_method' => 'qr', 'user_id' => $this->owner->id,
+            ]);
+        }
+
+        $res = $this->actingAs($this->owner)->getJson('/api/finance/expenses?year=2026&month=9&per_page=1')->assertOk();
+
+        $this->assertCount(1, $res->json('data'));
+        $this->assertEquals(3, $res->json('totals.count'));
+        $this->assertEquals(180.5, $res->json('totals.amount'));
+        $this->assertEquals(150.5, $res->json('totals.by_section.cost_of_sales.amount'));
+        $this->assertEquals(1, $res->json('totals.by_section.operating.count'));
+
+        $section = $this->actingAs($this->owner)->getJson('/api/finance/expenses?year=2026&month=9&section=operating')->json();
+        $this->assertEquals(30.0, $section['totals']['amount']);
+    }
+
     public function test_cashier_cannot_generate_recurring_expenses(): void
     {
         $cashier = User::factory()->create(['role' => 'cashier']);

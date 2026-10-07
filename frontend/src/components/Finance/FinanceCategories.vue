@@ -1,0 +1,149 @@
+<script setup>
+import { computed, reactive, ref } from 'vue';
+import { apiFetch } from '../../services/api';
+import { useFinanceStore, errorText, SECTIONS } from '../../stores/finance';
+import FinanceModal from './FinanceModal.vue';
+
+/** Pestaña Categorías: plan de cuentas agrupado por sección del Estado de Resultados. */
+const finance = useFinanceStore();
+
+const SECTION_HELP = {
+  cost_of_sales: 'Insumos que se venden: helado, açaí, frutas, toppings, vasos y cucharas.',
+  operating: 'Gastos para operar: salarios, alquiler, servicios, publicidad, mantenimiento.',
+  financial: 'Intereses y comisiones bancarias.',
+  taxes: 'Cuota fija del régimen simplificado y otros impuestos.',
+};
+
+const groups = computed(() => Object.entries(SECTIONS).map(([key, label]) => ({
+  key,
+  label,
+  help: SECTION_HELP[key],
+  items: finance.categories.filter((c) => c.section === key),
+})));
+
+const modalOpen = ref(false);
+const saving = ref(false);
+const formError = ref('');
+const editing = ref(null);
+const form = reactive({ name: '', section: 'operating', group_name: '', sort_order: 10 });
+
+const sectionChanged = computed(() => editing.value && editing.value.section !== form.section);
+
+function openNew(section = 'operating') {
+  editing.value = null;
+  Object.assign(form, { name: '', section, group_name: '', sort_order: 10 });
+  formError.value = '';
+  modalOpen.value = true;
+}
+
+function openEdit(c) {
+  editing.value = c;
+  Object.assign(form, { name: c.name, section: c.section, group_name: c.group_name || '', sort_order: c.sort_order ?? 10 });
+  formError.value = '';
+  modalOpen.value = true;
+}
+
+async function save() {
+  if (!form.name.trim()) { formError.value = 'Escribe el nombre.'; return; }
+  if (sectionChanged.value) {
+    const ok = await finance.confirm({
+      title: 'Cambiar de sección',
+      message: `Todos los gastos de «${editing.value.name}», también los de meses anteriores, pasarán de `
+        + `${SECTIONS[editing.value.section]} a ${SECTIONS[form.section]} en el Estado de Resultados.`,
+      confirmLabel: 'Cambiar sección',
+    });
+    if (!ok) return;
+  }
+  saving.value = true;
+  formError.value = '';
+  try {
+    const url = editing.value ? `/finance/categories/${editing.value.id}` : '/finance/categories';
+    await apiFetch(url, { method: editing.value ? 'PUT' : 'POST', body: JSON.stringify(form) });
+    modalOpen.value = false;
+    finance.notify(editing.value ? 'Categoría actualizada.' : 'Categoría creada.');
+    await Promise.all([finance.loadCategories(), finance.loadPnl()]);
+  } catch (err) {
+    formError.value = errorText(err, 'No se pudo guardar la categoría.');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function toggle(c) {
+  try {
+    await apiFetch(`/finance/categories/${c.id}/toggle-active`, { method: 'PATCH' });
+    finance.notify(c.is_active ? `«${c.name}» desactivada: ya no aparece al registrar gastos.` : `«${c.name}» activada.`);
+    await finance.loadCategories();
+  } catch (err) {
+    finance.notify(errorText(err), 'error');
+  }
+}
+</script>
+
+<template>
+  <div v-for="g in groups" :key="g.key" class="fin-card">
+    <div class="fin-card-head">
+      <div>
+        <h2>{{ g.label }}</h2>
+        <p>{{ g.help }}</p>
+      </div>
+      <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="openNew(g.key)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14" /></svg>
+        Agregar
+      </button>
+    </div>
+    <div v-if="!g.items.length" class="fin-empty">Sin categorías.</div>
+    <div v-else class="fin-table-wrap">
+      <table class="fin-table stack">
+        <thead>
+          <tr>
+            <th>Categoría</th>
+            <th>Grupo</th>
+            <th>Estado</th>
+            <th class="actions"><span class="sr-only">Acciones</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in g.items" :key="c.id" :class="{ inactive: !c.is_active }">
+            <td data-label="Categoría" class="fin-cell-main">{{ c.name }}</td>
+            <td data-label="Grupo">{{ c.group_name || '—' }}</td>
+            <td data-label="Estado"><span class="fin-badge" :class="c.is_active ? 'ok' : ''">{{ c.is_active ? 'Activa' : 'Desactivada' }}</span></td>
+            <td class="actions">
+              <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="toggle(c)">{{ c.is_active ? 'Desactivar' : 'Activar' }}</button>
+              <button class="fin-icon-btn" type="button" :aria-label="`Editar ${c.name}`" @click="openEdit(c)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <FinanceModal v-if="modalOpen" :title="editing ? 'Editar categoría' : 'Nueva categoría'" :busy="saving" @close="modalOpen = false">
+    <div class="fin-field">
+      <label for="cx-name">Nombre</label>
+      <input id="cx-name" v-model="form.name" type="text" maxlength="100" class="fin-input" placeholder="Ej.: Empaques de delivery" />
+    </div>
+    <div class="fin-grid-2">
+      <div class="fin-field">
+        <label for="cx-section">Sección</label>
+        <select id="cx-section" v-model="form.section" class="fin-input">
+          <option v-for="(label, key) in SECTIONS" :key="key" :value="key">{{ label }}</option>
+        </select>
+      </div>
+      <div class="fin-field">
+        <label for="cx-group">Grupo (opcional)</label>
+        <input id="cx-group" v-model="form.group_name" type="text" maxlength="100" class="fin-input" placeholder="Ej.: Insumos" />
+      </div>
+    </div>
+    <div v-if="sectionChanged" class="fin-note">
+      Cambiar la sección reclasifica todos los gastos de esta categoría, también los de meses anteriores.
+    </div>
+    <div v-if="formError" class="fin-note err" role="alert">{{ formError }}</div>
+    <template #footer>
+      <button class="fin-btn fin-btn-secondary" type="button" :disabled="saving" @click="modalOpen = false">Cancelar</button>
+      <button class="fin-btn fin-btn-primary" type="button" :disabled="saving" @click="save">{{ saving ? 'Guardando…' : 'Guardar' }}</button>
+    </template>
+  </FinanceModal>
+</template>

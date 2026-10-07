@@ -13,7 +13,7 @@ class FinanceExpenseController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = FinanceExpense::with(['category', 'user:id,name']);
+        $query = FinanceExpense::with(['category', 'user:id,name', 'recurringExpense:id,name,frequency']);
 
         if ($request->filled('category_id')) {
             $query->where('expense_category_id', $request->category_id);
@@ -34,11 +34,26 @@ class FinanceExpenseController extends Controller
             $query->whereBetween('date', [$request->date_from, $request->date_to . ' 23:59:59']);
         }
 
+        // Totales del filtro completo (no solo de la página), por sección contable
+        $bySection = (clone $query)
+            ->join('expense_categories', 'expense_categories.id', '=', 'finance_expenses.expense_category_id')
+            ->selectRaw('expense_categories.section as section, COUNT(*) as count, SUM(finance_expenses.amount) as amount')
+            ->groupBy('expense_categories.section')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->section => ['count' => (int) $row->count, 'amount' => round((float) $row->amount, 2)]]);
+
+        $perPage = min(max((int) $request->input('per_page', 50), 1), 200);
         $expenses = $query->orderBy('date', 'desc')
             ->orderBy('id', 'desc')
-            ->paginate($request->input('per_page', 50));
+            ->paginate($perPage);
 
-        return response()->json($expenses);
+        return response()->json(array_merge($expenses->toArray(), [
+            'totals' => [
+                'count'      => $bySection->sum('count'),
+                'amount'     => round($bySection->sum('amount'), 2),
+                'by_section' => $bySection,
+            ],
+        ]));
     }
 
     public function store(FinanceExpenseRequest $request): JsonResponse

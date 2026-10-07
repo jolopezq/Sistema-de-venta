@@ -71,6 +71,8 @@
   --gold-text: #7A5C00;
   /* Morado para texto sobre fondos suaves (--acai-50) */
   --acai-text: #522B80;
+  /* Rojo para TEXTO sobre fondos suaves (--danger-100): --danger-600 queda en 4,35:1 */
+  --danger-text: #A3302F;
 
   /* Morado del isotipo Ohana */
   --acai-900: #20112F;
@@ -617,6 +619,7 @@ html.dark {
   --acai-text: #C9A7FF;
   --passion-text: #FFB06B;
   --gold-text: #FAD15C;
+  --danger-text: #FFA1A1;
 
   /* Puente de paleta Tailwind: equivalentes oscuros */
   --tw-bg-a7f3d0: #1F5A35;

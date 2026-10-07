@@ -35,12 +35,13 @@ class PedidosYaOrder extends Model
     protected function casts(): array
     {
         return [
-            'order_date'         => 'datetime',
-            'accepted_at'        => 'datetime',
-            'ready_at'           => 'datetime',
-            'pickup_at'          => 'datetime',
-            'delivered_at'       => 'datetime',
-            'cancelled_at'       => 'datetime',
+            // Hora de La Paz tal como viene en el CSV (sin pasar a UTC al serializar)
+            'order_date'         => 'datetime:Y-m-d H:i',
+            'accepted_at'        => 'datetime:Y-m-d H:i',
+            'ready_at'           => 'datetime:Y-m-d H:i',
+            'pickup_at'          => 'datetime:Y-m-d H:i',
+            'delivered_at'       => 'datetime:Y-m-d H:i',
+            'cancelled_at'       => 'datetime:Y-m-d H:i',
             'subtotal'           => 'decimal:2',
             'commission'         => 'decimal:2',
             'tax'                => 'decimal:2',

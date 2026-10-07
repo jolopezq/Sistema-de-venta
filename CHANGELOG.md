@@ -102,6 +102,26 @@ se renombra con la fecha de la actualización de producción.
   está vacío) en los pedidos de ese canal; el precio guardado de cada topping también es el del canal.
 - Botones naranjas y verdes con texto oscuro; textos naranjas y grises más contrastados. (`b7b6aa4`)
 - Usuarios y Auditoría usan la tipografía del sistema; el tema respeta la preferencia del sistema operativo. (`2802a36`)
+- Finanzas (auditoría, fase 2): pantalla rediseñada. El **Estado de Resultados** es la vista principal (tabla
+  línea · Bs · % de ventas, con desglose por categoría y por movimiento), 4 indicadores arriba, avisos con acceso
+  directo («Clasificar», «Revisar y generar», «Cargar semana») y resumen del canal PedidosYa. Selector de mes
+  compacto, pestañas con contadores que se cargan con la página y scroll horizontal en pantallas angostas;
+  en celular las listas se muestran como tarjetas y los formularios como hoja inferior.
+- Finanzas: `Finance.vue` (2.554 líneas) se divide en `components/Finance/` (`FinanceSummary`,
+  `FinanceStatementTable`, `FinanceExpenses`, `FinanceRecurring`, `FinanceCategories`,
+  `PedidosYaSettlements`, `PedidosYaImportModal`, `FinanceModal`, `FinanceConfirm`, `finance.css`) y el
+  store `stores/finance.js`. Solo tokens de `style.css` (nuevo `--danger-text`), modo oscuro incluido; 0
+  textos bajo WCAG AA en las 5 pestañas y sus ventanas, en ambos temas, a 1440 y 390 px.
+- Finanzas: confirmaciones y avisos con ventanas del sistema (sin `alert`/`confirm`); la fecha de un gasto
+  nuevo es la fecha local (hoy, o el último día si el mes ya pasó).
+- Compras y gastos: totales del filtro completo por sección (`totals` en `GET /finance/expenses`), aviso al
+  elegir pago en efectivo y sección de egresos de caja con su categoría editable.
+- Gastos fijos: panel del mes con pendientes, generados y descartados («Generar», «Recuperar»); las
+  plantillas indican primer mes y forma de pago.
+- PedidosYa: la carga de una semana lee primero el CSV (semana sugerida, totales, solapes, pedidos fuera de
+  rango) y muestra la conciliación mientras se escriben los montos; el detalle de la semana muestra el estado de
+  cuenta, las comprobaciones y los pedidos paginados con su hora local.
+- `scripts/audit-contrast.cjs` recorre también las pestañas de Finanzas.
 
 ### Corregido
 - La sincronización descartaba notas, alérgenos, estado de preparación, número de ticket y cantidad de
@@ -133,6 +153,8 @@ se renombra con la fecha de la actualización de producción.
   columnas `date` se guardan con hora `00:00:00`). Las fechas se devuelven como `AAAA-MM-DD`.
 - PedidosYa: se podían cargar semanas que se solapan (y sumarse dos veces); un CSV con columnas faltantes
   respondía error 500. Ahora se rechazan con 422 y un mensaje claro.
+- Finanzas: el detalle de pedidos de una semana PedidosYa no cargaba (la respuesta paginada no se leía) y la
+  conciliación del formulario sumaba los envíos en vez de restarlos.
 
 ### Seguridad
 - Permisos por rol aplicados en el backend; cocina sin acceso a ventas ni caja. (`938c31b`)

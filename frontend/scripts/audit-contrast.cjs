@@ -56,6 +56,13 @@ const AUDIT = () => {
   for (const [n, label] of [['04_turno', 'Caja / Turno'], ['05_delivery', 'Delivery'], ['06_menu', 'Menú'], ['07_inventario', 'Inventario'], ['08_control_diario', 'Control Diario'], ['09_usuarios', 'Usuarios'], ['10_auditoria', 'Auditoría']]) {
     try { await nav(label); await snap(n); } catch (e) { console.log('no se pudo abrir', n, e.message.slice(0,120)); }
   }
+  // Finanzas (solo super_admin): cada pestaña
+  try {
+    await nav('Finanzas'); await page.waitForSelector('.fin-statement, .fin-card', { timeout: 15000 }); await snap('11_finanzas_resumen');
+    for (const [n, tab] of [['12_finanzas_pedidosya', 'PedidosYa'], ['13_finanzas_compras', 'Compras y gastos'], ['14_finanzas_fijos', 'Gastos fijos'], ['15_finanzas_categorias', 'Categorías']]) {
+      await page.locator('.fin-tab', { hasText: tab }).first().click(); await snap(n);
+    }
+  } catch (e) { console.log('no se pudo abrir Finanzas', e.message.slice(0, 120)); }
   fs.writeFileSync(`${OUT}/report.json`, JSON.stringify(report, null, 1));
   const total = Object.values(report).reduce((n, r) => n + r.issues.length, 0);
   console.log(`Tema ${THEME}: ${total} textos bajo el mínimo AA`);
