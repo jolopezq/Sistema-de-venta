@@ -1,0 +1,772 @@
+{
+  "communities": {
+    "0": [
+      "backend_app_http_controllers_catalogcontroller",
+      "backend_app_http_controllers_catalogcontroller_catalogcontroller",
+      "backend_app_http_controllers_catalogcontroller_catalogcontroller_construct",
+      "backend_app_models_category",
+      "backend_app_models_category_category",
+      "backend_app_models_category_category_children",
+      "backend_app_models_category_category_products",
+      "backend_app_models_category_category_scopeordered",
+      "backend_app_models_customer",
+      "backend_app_models_customer_customer_sales",
+      "backend_app_models_ingredient",
+      "backend_app_models_product",
+      "backend_app_models_product_product",
+      "backend_app_models_product_product_casts",
+      "backend_app_models_product_product_recipes",
+      "backend_app_models_product_product_saleitems",
+      "backend_app_models_product_product_scopeactive",
+      "backend_app_models_user",
+      "backend_app_models_user_user",
+      "backend_app_models_user_user_cashregistersessions",
+      "backend_app_models_user_user_casts",
+      "backend_app_models_user_user_inventorymovements",
+      "backend_app_models_user_user_isadmin",
+      "backend_app_models_user_user_iscashier",
+      "backend_app_models_user_user_sales",
+      "backend_app_repositories_categoryrepository",
+      "backend_app_repositories_categoryrepository_categoryrepository",
+      "backend_app_repositories_categoryrepository_categoryrepository_allordered",
+      "backend_app_repositories_categoryrepository_categoryrepository_create",
+      "backend_app_repositories_categoryrepository_categoryrepository_delete",
+      "backend_app_repositories_categoryrepository_categoryrepository_update",
+      "backend_app_repositories_productrepository",
+      "backend_app_repositories_productrepository_productrepository",
+      "backend_app_repositories_productrepository_productrepository_allactive",
+      "backend_app_repositories_productrepository_productrepository_create",
+      "backend_app_repositories_productrepository_productrepository_delete",
+      "backend_app_repositories_productrepository_productrepository_findwithrecipes",
+      "backend_app_repositories_productrepository_productrepository_paginated",
+      "backend_app_repositories_productrepository_productrepository_update",
+      "backend_config_auth",
+      "backend_database_seeders_databaseseeder",
+      "backend_database_seeders_databaseseeder_databaseseeder",
+      "backend_database_seeders_databaseseeder_databaseseeder_run",
+      "backend_tests_feature_salesynctest",
+      "backend_tests_feature_salesynctest_salesynctest",
+      "backend_tests_feature_salesynctest_salesynctest_test_it_syncs_offline_sales_and_deducts_inventory_and_is_idempotent",
+      "illuminate_contracts_pagination_lengthawarepaginator",
+      "illuminate_database_eloquent_builder",
+      "illuminate_database_eloquent_collection",
+      "illuminate_database_eloquent_relations_hasmany",
+      "illuminate_database_eloquent_softdeletes",
+      "illuminate_database_seeder",
+      "illuminate_foundation_auth_user",
+      "illuminate_foundation_testing_refreshdatabase",
+      "illuminate_notifications_notifiable",
+      "laravel_sanctum_hasapitokens"
+    ],
+    "1": [
+      "backend_app_models_cashregistersession",
+      "backend_app_models_cashregistersession_cashregistersession",
+      "backend_app_models_cashregistersession_cashregistersession_cashier",
+      "backend_app_models_cashregistersession_cashregistersession_casts",
+      "backend_app_models_cashregistersession_cashregistersession_isopen",
+      "backend_app_models_deliveryorder",
+      "backend_app_models_deliveryorder_deliveryorder",
+      "backend_app_models_deliveryorder_deliveryorder_casts",
+      "backend_app_models_deliveryorder_deliveryorder_sale",
+      "backend_app_models_inventorymovement_inventorymovement",
+      "backend_app_models_inventorymovement_inventorymovement_casts",
+      "backend_app_models_inventorymovement_inventorymovement_ingredient",
+      "backend_app_models_inventorymovement_inventorymovement_performedbyuser",
+      "backend_app_models_loyaltyconfig",
+      "backend_app_models_loyaltyconfig_loyaltyconfig",
+      "backend_app_models_loyaltyconfig_loyaltyconfig_casts",
+      "backend_app_models_product_product_category",
+      "backend_app_models_recipe",
+      "backend_app_models_recipe_recipe",
+      "backend_app_models_recipe_recipe_casts",
+      "backend_app_models_recipe_recipe_ingredient",
+      "backend_app_models_recipe_recipe_product",
+      "backend_app_models_sale",
+      "backend_app_models_sale_sale",
+      "backend_app_models_sale_sale_cashier",
+      "backend_app_models_sale_sale_casts",
+      "backend_app_models_sale_sale_customer",
+      "backend_app_models_sale_sale_deliveryorder",
+      "backend_app_models_sale_sale_ispending",
+      "backend_app_models_sale_sale_isvoided",
+      "backend_app_models_sale_sale_items",
+      "backend_app_models_sale_sale_payments",
+      "backend_app_models_sale_sale_voidedbyuser",
+      "backend_app_models_saleitem",
+      "backend_app_models_saleitem_saleitem",
+      "backend_app_models_saleitem_saleitem_casts",
+      "backend_app_models_saleitem_saleitem_product",
+      "backend_app_models_saleitem_saleitem_sale",
+      "backend_app_models_salepayment",
+      "backend_app_models_salepayment_salepayment",
+      "backend_app_models_salepayment_salepayment_casts",
+      "backend_app_models_salepayment_salepayment_sale",
+      "illuminate_database_eloquent_concerns_hasuuids",
+      "illuminate_database_eloquent_factories_hasfactory",
+      "illuminate_database_eloquent_model",
+      "illuminate_database_eloquent_relations_belongsto",
+      "illuminate_database_eloquent_relations_hasone"
+    ],
+    "2": [
+      "frontend_src_app",
+      "frontend_src_app_network",
+      "frontend_src_components_cartitem",
+      "frontend_src_components_categoryfilter",
+      "frontend_src_components_networkindicator",
+      "frontend_src_components_networkindicator_network",
+      "frontend_src_components_productcard",
+      "frontend_src_db_database",
+      "frontend_src_db_database_db",
+      "frontend_src_main",
+      "frontend_src_main_app",
+      "frontend_src_router_index",
+      "frontend_src_router_index_router",
+      "frontend_src_router_index_routes",
+      "frontend_src_services_api",
+      "frontend_src_services_api_apifetch",
+      "frontend_src_services_syncservice",
+      "frontend_src_services_syncservice_syncpendingsales",
+      "frontend_src_stores_auth",
+      "frontend_src_stores_auth_useauthstore",
+      "frontend_src_stores_cart",
+      "frontend_src_stores_cart_usecartstore",
+      "frontend_src_stores_catalog",
+      "frontend_src_stores_catalog_usecatalogstore",
+      "frontend_src_stores_network",
+      "frontend_src_stores_network_usenetworkstore",
+      "frontend_src_views_login",
+      "frontend_src_views_login_auth",
+      "frontend_src_views_login_catalog",
+      "frontend_src_views_login_email",
+      "frontend_src_views_login_errormsg",
+      "frontend_src_views_login_handlelogin",
+      "frontend_src_views_login_isloading",
+      "frontend_src_views_login_password",
+      "frontend_src_views_login_router",
+      "frontend_src_views_pos",
+      "frontend_src_views_pos_activecategoryid",
+      "frontend_src_views_pos_auth",
+      "frontend_src_views_pos_cart",
+      "frontend_src_views_pos_catalog",
+      "frontend_src_views_pos_filteredproducts",
+      "frontend_src_views_pos_handleaddtocart",
+      "frontend_src_views_pos_handlecheckout",
+      "frontend_src_views_pos_handledecrease",
+      "frontend_src_views_pos_handleincrease",
+      "frontend_src_views_pos_handlelogout",
+      "frontend_src_views_pos_router"
+    ],
+    "3": [
+      "app_http_requests_categoryrequest",
+      "app_http_requests_productrequest",
+      "app_http_resources_categoryresource",
+      "app_http_resources_productresource",
+      "backend_app_http_controllers_catalogcontroller_catalogcontroller_index",
+      "backend_app_http_controllers_categorycontroller",
+      "backend_app_http_controllers_categorycontroller_categorycontroller",
+      "backend_app_http_controllers_categorycontroller_categorycontroller_construct",
+      "backend_app_http_controllers_categorycontroller_categorycontroller_destroy",
+      "backend_app_http_controllers_categorycontroller_categorycontroller_index",
+      "backend_app_http_controllers_categorycontroller_categorycontroller_show",
+      "backend_app_http_controllers_categorycontroller_categorycontroller_store",
+      "backend_app_http_controllers_categorycontroller_categorycontroller_update",
+      "backend_app_http_controllers_ingredientcontroller",
+      "backend_app_http_controllers_ingredientcontroller_ingredientcontroller",
+      "backend_app_http_controllers_ingredientcontroller_ingredientcontroller_destroy",
+      "backend_app_http_controllers_ingredientcontroller_ingredientcontroller_index",
+      "backend_app_http_controllers_ingredientcontroller_ingredientcontroller_show",
+      "backend_app_http_controllers_ingredientcontroller_ingredientcontroller_store",
+      "backend_app_http_controllers_ingredientcontroller_ingredientcontroller_update",
+      "backend_app_http_controllers_productcontroller",
+      "backend_app_http_controllers_productcontroller_productcontroller",
+      "backend_app_http_controllers_productcontroller_productcontroller_construct",
+      "backend_app_http_controllers_productcontroller_productcontroller_destroy",
+      "backend_app_http_controllers_productcontroller_productcontroller_index",
+      "backend_app_http_controllers_productcontroller_productcontroller_show",
+      "backend_app_http_controllers_productcontroller_productcontroller_store",
+      "backend_app_http_controllers_productcontroller_productcontroller_update",
+      "backend_app_http_requests_ingredientrequest",
+      "backend_app_http_requests_ingredientrequest_ingredientrequest",
+      "backend_app_http_requests_ingredientrequest_ingredientrequest_authorize",
+      "backend_app_http_requests_ingredientrequest_ingredientrequest_rules",
+      "backend_app_http_resources_ingredientresource",
+      "backend_app_http_resources_ingredientresource_ingredientresource",
+      "backend_app_http_resources_ingredientresource_ingredientresource_toarray",
+      "backend_app_models_ingredient_ingredient",
+      "backend_app_models_ingredient_ingredient_casts",
+      "backend_app_models_ingredient_ingredient_inventorymovements",
+      "backend_app_models_ingredient_ingredient_isbelowminimumstock",
+      "backend_app_models_ingredient_ingredient_recipes",
+      "categoryresource",
+      "controller",
+      "illuminate_http_resources_json_anonymousresourcecollection",
+      "illuminate_http_response",
+      "productresource"
+    ],
+    "4": [
+      "backend_composer",
+      "backend_composer_allow_plugins_pestphp_pest_plugin",
+      "backend_composer_allow_plugins_php_http_discovery",
+      "backend_composer_autoload",
+      "backend_composer_autoload_dev",
+      "backend_composer_autoload_dev_psr_4",
+      "backend_composer_autoload_psr_4",
+      "backend_composer_config",
+      "backend_composer_config_allow_plugins",
+      "backend_composer_config_optimize_autoloader",
+      "backend_composer_config_preferred_install",
+      "backend_composer_config_sort_packages",
+      "backend_composer_description",
+      "backend_composer_extra",
+      "backend_composer_extra_laravel",
+      "backend_composer_keywords",
+      "backend_composer_laravel_dont_discover",
+      "backend_composer_license",
+      "backend_composer_minimum_stability",
+      "backend_composer_name",
+      "backend_composer_prefer_stable",
+      "backend_composer_psr_4_app",
+      "backend_composer_psr_4_database_factories",
+      "backend_composer_psr_4_database_seeders",
+      "backend_composer_psr_4_tests",
+      "backend_composer_require",
+      "backend_composer_require_dev",
+      "backend_composer_require_dev_fakerphp_faker",
+      "backend_composer_require_dev_laravel_pail",
+      "backend_composer_require_dev_laravel_pao",
+      "backend_composer_require_dev_laravel_pint",
+      "backend_composer_require_dev_mockery_mockery",
+      "backend_composer_require_dev_nunomaduro_collision",
+      "backend_composer_require_dev_phpunit_phpunit",
+      "backend_composer_require_laravel_framework",
+      "backend_composer_require_laravel_sanctum",
+      "backend_composer_require_laravel_tinker",
+      "backend_composer_require_php",
+      "backend_composer_schema",
+      "backend_composer_type",
+      "ref_framework",
+      "ref_laravel"
+    ],
+    "5": [
+      "backend_app_http_controllers_authcontroller",
+      "backend_app_http_controllers_authcontroller_authcontroller",
+      "backend_app_http_controllers_authcontroller_authcontroller_login",
+      "backend_app_http_controllers_authcontroller_authcontroller_logout",
+      "backend_app_http_controllers_authcontroller_authcontroller_me",
+      "backend_app_http_controllers_controller",
+      "backend_app_http_controllers_controller_controller",
+      "backend_app_http_controllers_loyaltyconfigcontroller",
+      "backend_app_http_controllers_loyaltyconfigcontroller_loyaltyconfigcontroller",
+      "backend_app_http_controllers_loyaltyconfigcontroller_loyaltyconfigcontroller_show",
+      "backend_app_http_controllers_loyaltyconfigcontroller_loyaltyconfigcontroller_update",
+      "backend_app_http_controllers_recipecontroller",
+      "backend_app_http_controllers_recipecontroller_recipecontroller",
+      "backend_app_http_controllers_recipecontroller_recipecontroller_destroy",
+      "backend_app_http_controllers_recipecontroller_recipecontroller_store",
+      "backend_app_http_controllers_salecontroller",
+      "backend_app_http_controllers_salecontroller_salecontroller",
+      "backend_app_http_controllers_salecontroller_salecontroller_sync",
+      "backend_app_http_resources_categoryresource",
+      "backend_app_http_resources_categoryresource_categoryresource",
+      "backend_app_http_resources_categoryresource_categoryresource_toarray",
+      "backend_app_http_resources_customerresource",
+      "backend_app_http_resources_productresource",
+      "backend_app_http_resources_productresource_productresource",
+      "backend_app_http_resources_productresource_productresource_toarray",
+      "backend_app_http_resources_saleresource",
+      "backend_app_http_resources_saleresource_saleresource",
+      "backend_app_http_resources_saleresource_saleresource_toarray",
+      "backend_app_models_category_category_parent",
+      "backend_routes_api",
+      "illuminate_http_jsonresponse",
+      "illuminate_http_request",
+      "illuminate_http_resources_json_jsonresource"
+    ],
+    "6": [
+      "backend_composer_scripts",
+      "backend_composer_scripts_dev",
+      "backend_composer_scripts_post_autoload_dump",
+      "backend_composer_scripts_post_create_project_cmd",
+      "backend_composer_scripts_post_root_package_install",
+      "backend_composer_scripts_post_update_cmd",
+      "backend_composer_scripts_pre_package_uninstall",
+      "backend_composer_scripts_setup",
+      "backend_composer_scripts_test",
+      "ref_composer_config_disableprocesstimeout",
+      "ref_composer_install",
+      "ref_illuminate_foundation_composerscripts_postautoloaddump",
+      "ref_illuminate_foundation_composerscripts_prepackageuninstall",
+      "ref_npm_install_ignore_scripts",
+      "ref_npm_run_build",
+      "ref_npx_concurrently_c_93c5fd_c4b5fd_fb7185_fdba74_php_artisan_serve_php_artisan_queue_listen_tries_1_timeout_0_php_artisan_pail_timeout_0_npm_run_dev_names_server_queue_logs_vite_kill_others",
+      "ref_php_artisan_config_clear_ansi_no_additional_args",
+      "ref_php_artisan_key_generate",
+      "ref_php_artisan_key_generate_ansi",
+      "ref_php_artisan_migrate_force",
+      "ref_php_artisan_migrate_graceful_ansi",
+      "ref_php_artisan_package_discover_ansi",
+      "ref_php_artisan_test",
+      "ref_php_artisan_vendor_publish_tag_laravel_assets_ansi_force",
+      "ref_php_r_file_exists_database_database_sqlite_touch_database_database_sqlite",
+      "ref_php_r_file_exists_env_copy_env_example_env"
+    ],
+    "7": [
+      "app_models_customer",
+      "app_models_sale",
+      "backend_app_http_controllers_salecontroller_salecontroller_construct",
+      "backend_app_providers_appserviceprovider",
+      "backend_app_providers_appserviceprovider_appserviceprovider",
+      "backend_app_providers_appserviceprovider_appserviceprovider_boot",
+      "backend_app_providers_appserviceprovider_appserviceprovider_register",
+      "backend_app_repositories_customerrepository",
+      "backend_app_repositories_customerrepository_customerrepository",
+      "backend_app_repositories_customerrepository_customerrepository_find",
+      "backend_app_repositories_customerrepository_customerrepository_incrementpoints",
+      "backend_app_repositories_salerepository",
+      "backend_app_repositories_salerepository_php_sale",
+      "backend_app_repositories_salerepository_salerepository",
+      "backend_app_repositories_salerepository_salerepository_create",
+      "backend_app_repositories_salerepository_salerepository_existsbyuuid",
+      "backend_app_services_salesyncservice",
+      "backend_app_services_salesyncservice_salesyncservice",
+      "backend_app_services_salesyncservice_salesyncservice_construct",
+      "backend_app_services_salesyncservice_salesyncservice_processsale",
+      "backend_app_services_salesyncservice_salesyncservice_syncbatch",
+      "backend_app_services_salesyncservice_salesyncservice_updateloyaltypoints",
+      "backend_bootstrap_providers",
+      "customer",
+      "illuminate_support_serviceprovider"
+    ],
+    "8": [
+      "dexie",
+      "frontend_package",
+      "frontend_package_dependencies",
+      "frontend_package_dependencies_dexie",
+      "frontend_package_dependencies_pinia",
+      "frontend_package_dependencies_vue",
+      "frontend_package_dependencies_vue_router",
+      "frontend_package_devdependencies",
+      "frontend_package_devdependencies_vite",
+      "frontend_package_devdependencies_vitejs_plugin_vue",
+      "frontend_package_json_vite",
+      "frontend_package_name",
+      "frontend_package_private",
+      "frontend_package_scripts",
+      "frontend_package_scripts_build",
+      "frontend_package_scripts_dev",
+      "frontend_package_scripts_preview",
+      "frontend_package_type",
+      "frontend_package_version",
+      "pinia",
+      "vitejs_plugin_vue",
+      "vue",
+      "vue_router"
+    ],
+    "9": [
+      "backend_app_http_requests_categoryrequest",
+      "backend_app_http_requests_categoryrequest_categoryrequest",
+      "backend_app_http_requests_categoryrequest_categoryrequest_authorize",
+      "backend_app_http_requests_categoryrequest_categoryrequest_rules",
+      "backend_app_http_requests_loginrequest",
+      "backend_app_http_requests_loginrequest_loginrequest",
+      "backend_app_http_requests_loginrequest_loginrequest_authorize",
+      "backend_app_http_requests_loginrequest_loginrequest_rules",
+      "backend_app_http_requests_productrequest",
+      "backend_app_http_requests_productrequest_productrequest",
+      "backend_app_http_requests_productrequest_productrequest_authorize",
+      "backend_app_http_requests_productrequest_productrequest_rules",
+      "backend_app_http_requests_reciperequest",
+      "backend_app_http_requests_reciperequest_reciperequest",
+      "backend_app_http_requests_reciperequest_reciperequest_authorize",
+      "backend_app_http_requests_reciperequest_reciperequest_rules",
+      "backend_app_http_requests_syncsalesrequest",
+      "backend_app_http_requests_syncsalesrequest_syncsalesrequest",
+      "backend_app_http_requests_syncsalesrequest_syncsalesrequest_authorize",
+      "backend_app_http_requests_syncsalesrequest_syncsalesrequest_rules",
+      "illuminate_foundation_http_formrequest"
+    ],
+    "10": [
+      "backend_package",
+      "backend_package_devdependencies",
+      "backend_package_devdependencies_concurrently",
+      "backend_package_devdependencies_laravel_vite_plugin",
+      "backend_package_devdependencies_tailwindcss",
+      "backend_package_devdependencies_tailwindcss_vite",
+      "backend_package_devdependencies_vite",
+      "backend_package_json_vite",
+      "backend_package_private",
+      "backend_package_schema",
+      "backend_package_scripts",
+      "backend_package_scripts_build",
+      "backend_package_scripts_dev",
+      "backend_package_type",
+      "concurrently",
+      "laravel_vite_plugin",
+      "tailwindcss",
+      "tailwindcss_vite"
+    ],
+    "11": [
+      "backend_app_http_controllers_customercontroller",
+      "backend_app_http_controllers_customercontroller_customercontroller",
+      "backend_app_http_controllers_customercontroller_customercontroller_destroy",
+      "backend_app_http_controllers_customercontroller_customercontroller_index",
+      "backend_app_http_controllers_customercontroller_customercontroller_show",
+      "backend_app_http_controllers_customercontroller_customercontroller_store",
+      "backend_app_http_controllers_customercontroller_customercontroller_update",
+      "backend_app_http_requests_customerrequest",
+      "backend_app_http_requests_customerrequest_customerrequest",
+      "backend_app_http_requests_customerrequest_customerrequest_authorize",
+      "backend_app_http_requests_customerrequest_customerrequest_rules",
+      "backend_app_http_resources_customerresource_customerresource",
+      "backend_app_http_resources_customerresource_customerresource_toarray",
+      "backend_app_models_customer_customer",
+      "backend_app_models_customer_customer_casts",
+      "backend_app_models_customer_customer_isvip"
+    ],
+    "12": [
+      "app_models_ingredient",
+      "backend_app_http_controllers_inventorymovementcontroller",
+      "backend_app_http_controllers_inventorymovementcontroller_inventorymovementcontroller",
+      "backend_app_http_controllers_inventorymovementcontroller_inventorymovementcontroller_construct",
+      "backend_app_http_controllers_inventorymovementcontroller_inventorymovementcontroller_store",
+      "backend_app_http_requests_inventorymovementrequest",
+      "backend_app_http_requests_inventorymovementrequest_inventorymovementrequest",
+      "backend_app_http_requests_inventorymovementrequest_inventorymovementrequest_authorize",
+      "backend_app_http_requests_inventorymovementrequest_inventorymovementrequest_rules",
+      "backend_app_models_inventorymovement",
+      "backend_app_services_inventoryservice",
+      "backend_app_services_inventoryservice_inventoryservice",
+      "backend_app_services_inventoryservice_inventoryservice_deductfromrecipe",
+      "backend_app_services_inventoryservice_inventoryservice_recordrestock"
+    ],
+    "13": [
+      "backend_app_models_loyaltyconfig_loyaltyconfig_active",
+      "backend_database_factories_userfactory",
+      "backend_database_factories_userfactory_userfactory",
+      "backend_database_factories_userfactory_userfactory_definition",
+      "backend_database_factories_userfactory_userfactory_unverified",
+      "illuminate_database_eloquent_factories_factory",
+      "self",
+      "static"
+    ],
+    "14": [
+      "backend_tests_feature_exampletest",
+      "backend_tests_feature_exampletest_exampletest",
+      "backend_tests_feature_exampletest_exampletest_test_the_application_returns_a_successful_response",
+      "backend_tests_testcase",
+      "backend_tests_testcase_testcase",
+      "illuminate_foundation_testing_testcase"
+    ],
+    "15": [
+      "backend_tests_unit_exampletest",
+      "backend_tests_unit_exampletest_exampletest",
+      "backend_tests_unit_exampletest_exampletest_test_that_true_is_true",
+      "phpunit_framework_testcase"
+    ],
+    "16": [
+      "backend_database_migrations_0001_01_01_000000_create_users_table",
+      "backend_database_migrations_0001_01_01_000000_create_users_table_down",
+      "backend_database_migrations_0001_01_01_000000_create_users_table_up"
+    ],
+    "17": [
+      "backend_database_migrations_0001_01_01_000001_create_cache_table",
+      "backend_database_migrations_0001_01_01_000001_create_cache_table_down",
+      "backend_database_migrations_0001_01_01_000001_create_cache_table_up"
+    ],
+    "18": [
+      "backend_database_migrations_0001_01_01_000002_create_jobs_table",
+      "backend_database_migrations_0001_01_01_000002_create_jobs_table_down",
+      "backend_database_migrations_0001_01_01_000002_create_jobs_table_up"
+    ],
+    "19": [
+      "backend_database_migrations_2026_07_16_000001_create_customers_table",
+      "backend_database_migrations_2026_07_16_000001_create_customers_table_down",
+      "backend_database_migrations_2026_07_16_000001_create_customers_table_up"
+    ],
+    "20": [
+      "backend_database_migrations_2026_07_16_000002_create_categories_table",
+      "backend_database_migrations_2026_07_16_000002_create_categories_table_down",
+      "backend_database_migrations_2026_07_16_000002_create_categories_table_up"
+    ],
+    "21": [
+      "backend_database_migrations_2026_07_16_000003_create_products_table",
+      "backend_database_migrations_2026_07_16_000003_create_products_table_down",
+      "backend_database_migrations_2026_07_16_000003_create_products_table_up"
+    ],
+    "22": [
+      "backend_database_migrations_2026_07_16_000004_create_ingredients_table",
+      "backend_database_migrations_2026_07_16_000004_create_ingredients_table_down",
+      "backend_database_migrations_2026_07_16_000004_create_ingredients_table_up"
+    ],
+    "23": [
+      "backend_database_migrations_2026_07_16_000005_create_recipes_table",
+      "backend_database_migrations_2026_07_16_000005_create_recipes_table_down",
+      "backend_database_migrations_2026_07_16_000005_create_recipes_table_up"
+    ],
+    "24": [
+      "backend_database_migrations_2026_07_16_000006_create_sales_table",
+      "backend_database_migrations_2026_07_16_000006_create_sales_table_down",
+      "backend_database_migrations_2026_07_16_000006_create_sales_table_up"
+    ],
+    "25": [
+      "backend_database_migrations_2026_07_16_000007_create_sale_payments_table",
+      "backend_database_migrations_2026_07_16_000007_create_sale_payments_table_down",
+      "backend_database_migrations_2026_07_16_000007_create_sale_payments_table_up"
+    ],
+    "26": [
+      "backend_database_migrations_2026_07_16_000008_create_sale_items_table",
+      "backend_database_migrations_2026_07_16_000008_create_sale_items_table_down",
+      "backend_database_migrations_2026_07_16_000008_create_sale_items_table_up"
+    ],
+    "27": [
+      "backend_database_migrations_2026_07_16_000009_create_inventory_movements_table",
+      "backend_database_migrations_2026_07_16_000009_create_inventory_movements_table_down",
+      "backend_database_migrations_2026_07_16_000009_create_inventory_movements_table_up"
+    ],
+    "28": [
+      "backend_database_migrations_2026_07_16_000010_create_loyalty_config_table",
+      "backend_database_migrations_2026_07_16_000010_create_loyalty_config_table_down",
+      "backend_database_migrations_2026_07_16_000010_create_loyalty_config_table_up"
+    ],
+    "29": [
+      "backend_database_migrations_2026_07_16_000011_create_cash_register_sessions_table",
+      "backend_database_migrations_2026_07_16_000011_create_cash_register_sessions_table_down",
+      "backend_database_migrations_2026_07_16_000011_create_cash_register_sessions_table_up"
+    ],
+    "30": [
+      "backend_database_migrations_2026_07_16_000012_create_delivery_orders_table",
+      "backend_database_migrations_2026_07_16_000012_create_delivery_orders_table_down",
+      "backend_database_migrations_2026_07_16_000012_create_delivery_orders_table_up"
+    ],
+    "31": [
+      "backend_database_migrations_2026_07_16_100837_create_personal_access_tokens_table",
+      "backend_database_migrations_2026_07_16_100837_create_personal_access_tokens_table_down",
+      "backend_database_migrations_2026_07_16_100837_create_personal_access_tokens_table_up"
+    ],
+    "32": [
+      "backend_artisan",
+      "backend_routes_console"
+    ],
+    "33": [
+      "frontend_src_components_helloworld",
+      "frontend_src_components_helloworld_count"
+    ],
+    "34": [
+      "backend_bootstrap_app"
+    ],
+    "35": [
+      "backend_config_app"
+    ],
+    "36": [
+      "backend_config_cache"
+    ],
+    "37": [
+      "backend_config_database"
+    ],
+    "38": [
+      "backend_config_filesystems"
+    ],
+    "39": [
+      "backend_config_logging"
+    ],
+    "40": [
+      "backend_config_mail"
+    ],
+    "41": [
+      "backend_config_queue"
+    ],
+    "42": [
+      "backend_config_sanctum"
+    ],
+    "43": [
+      "backend_config_services"
+    ],
+    "44": [
+      "backend_config_session"
+    ],
+    "45": [
+      "backend_public_index"
+    ],
+    "46": [
+      "backend_resources_js_app"
+    ],
+    "47": [
+      "backend_resources_views_welcome_blade"
+    ],
+    "48": [
+      "backend_routes_web"
+    ],
+    "49": [
+      "backend_vite_config"
+    ],
+    "50": [
+      "frontend_vite_config"
+    ]
+  },
+  "cohesion": {
+    "0": 0.07012987012987013,
+    "1": 0.07770582793709528,
+    "2": 0.061979648473635525,
+    "3": 0.07575757575757576,
+    "4": 0.047619047619047616,
+    "5": 0.11174242424242424,
+    "6": 0.08,
+    "7": 0.12666666666666668,
+    "8": 0.08695652173913043,
+    "9": 0.11904761904761904,
+    "10": 0.1111111111111111,
+    "11": 0.21666666666666667,
+    "12": 0.1978021978021978,
+    "13": 0.32142857142857145,
+    "14": 0.4,
+    "15": 0.6666666666666666,
+    "16": 0.6666666666666666,
+    "17": 0.6666666666666666,
+    "18": 0.6666666666666666,
+    "19": 0.6666666666666666,
+    "20": 0.6666666666666666,
+    "21": 0.6666666666666666,
+    "22": 0.6666666666666666,
+    "23": 0.6666666666666666,
+    "24": 0.6666666666666666,
+    "25": 0.6666666666666666,
+    "26": 0.6666666666666666,
+    "27": 0.6666666666666666,
+    "28": 0.6666666666666666,
+    "29": 0.6666666666666666,
+    "30": 0.6666666666666666,
+    "31": 0.6666666666666666,
+    "32": 1.0,
+    "33": 1.0,
+    "34": 1.0,
+    "35": 1.0,
+    "36": 1.0,
+    "37": 1.0,
+    "38": 1.0,
+    "39": 1.0,
+    "40": 1.0,
+    "41": 1.0,
+    "42": 1.0,
+    "43": 1.0,
+    "44": 1.0,
+    "45": 1.0,
+    "46": 1.0,
+    "47": 1.0,
+    "48": 1.0,
+    "49": 1.0,
+    "50": 1.0
+  },
+  "gods": [
+    {
+      "id": "backend_app_models_product_product",
+      "label": "Product",
+      "degree": 20
+    },
+    {
+      "id": "backend_app_models_category_category",
+      "label": "Category",
+      "degree": 19
+    },
+    {
+      "id": "backend_app_models_ingredient_ingredient",
+      "label": "Ingredient",
+      "degree": 17
+    },
+    {
+      "id": "backend_app_repositories_productrepository_productrepository",
+      "label": "ProductRepository",
+      "degree": 16
+    },
+    {
+      "id": "backend_app_models_user_user",
+      "label": "User",
+      "degree": 15
+    },
+    {
+      "id": "backend_app_models_sale_sale",
+      "label": "Sale",
+      "degree": 14
+    },
+    {
+      "id": "backend_app_models_customer_customer",
+      "label": "Customer",
+      "degree": 13
+    },
+    {
+      "id": "backend_app_models_recipe_recipe",
+      "label": "Recipe",
+      "degree": 13
+    },
+    {
+      "id": "backend_app_services_salesyncservice_salesyncservice",
+      "label": "SaleSyncService",
+      "degree": 12
+    },
+    {
+      "id": "backend_app_repositories_categoryrepository_categoryrepository",
+      "label": "CategoryRepository",
+      "degree": 11
+    }
+  ],
+  "surprises": [
+    {
+      "source": "CustomerController",
+      "target": "Controller",
+      "source_files": [
+        "backend/app/Http/Controllers/CustomerController.php",
+        "backend/app/Http/Controllers/Controller.php"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "inherits",
+      "why": "bridges separate communities"
+    },
+    {
+      "source": "IngredientController",
+      "target": "Controller",
+      "source_files": [
+        "backend/app/Http/Controllers/IngredientController.php",
+        "backend/app/Http/Controllers/Controller.php"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "inherits",
+      "why": "bridges separate communities"
+    },
+    {
+      "source": "InventoryMovementController",
+      "target": "Controller",
+      "source_files": [
+        "backend/app/Http/Controllers/InventoryMovementController.php",
+        "backend/app/Http/Controllers/Controller.php"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "inherits",
+      "why": "bridges separate communities"
+    },
+    {
+      "source": "SaleController",
+      "target": "SaleSyncService",
+      "source_files": [
+        "backend/app/Http/Controllers/SaleController.php",
+        "backend/app/Services/SaleSyncService.php"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "bridges separate communities"
+    },
+    {
+      "source": "SaleSyncTest",
+      "target": "TestCase",
+      "source_files": [
+        "backend/tests/Feature/SaleSyncTest.php",
+        "backend/tests/TestCase.php"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "inherits",
+      "why": "bridges separate communities"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}
