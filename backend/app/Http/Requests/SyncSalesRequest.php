@@ -46,6 +46,8 @@ class SyncSalesRequest extends FormRequest
             'sales.*.items.*.is_takeaway'            => ['nullable', 'boolean'],
             'sales.*.items.*.weight_grams'           => ['nullable', 'numeric', 'min:0'],
             'sales.*.items.*.item_note'              => ['nullable', 'string', 'max:255'],
+            // Motivo del ajuste de precio de una línea (solo pedidos PedidosYa)
+            'sales.*.items.*.price_override_reason'  => ['nullable', 'string', 'max:255'],
             'sales.*.items.*.allergen_flags'         => ['nullable', 'array'],
             'sales.*.items.*.allergen_flags.*'       => ['string', 'max:50'],
             // El frontend envía 'modifiers'; el legado usa 'topping_modifications'. Ambos son aceptados.

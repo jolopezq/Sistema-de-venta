@@ -22,6 +22,7 @@ class SaleItem extends Model
         'product_id',
         'quantity',
         'unit_price',
+        'price_override_reason',
         'subtotal',
         'is_takeaway',
         'item_note',

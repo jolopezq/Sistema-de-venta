@@ -66,6 +66,8 @@ vender. `scripts/audit-contrast.cjs` usa `AUDIT_URL` (por defecto 5173, la base 
 - **Canal PedidosYa** (`sales.source = 'pedidosya'`): no entra al arqueo (se separa por `source`, no por
   método de pago) y se guarda siempre con un único pago `delivery_platform`. El arqueo lo informa en
   `pedidosya_count` / `pedidosya_total`.
+  Una línea PedidosYa cobrada a otro precio con `price_override_reason` es un ajuste auditado
+  (`pedidosya_price_override`), no una discrepancia; en ventas del local ese motivo se ignora.
 
 ## Trampas conocidas
 - En componentes Vue `scoped`, **no uses `:global(html.dark) .x`**: compila a `html.dark{}` y no aplica.

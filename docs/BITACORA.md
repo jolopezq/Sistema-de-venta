@@ -24,7 +24,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | 6. Refactor y rendimiento | Pendiente | — |
 | UI. Modo oscuro, modo claro (WCAG AA) y fuentes locales | ✅ | `2802a36`, `b7b6aa4`, `624702e` |
 | Canal PedidosYa: arqueo aparte, precios por canal, registro desde el POS ([plan](PLAN_PEDIDOSYA.md)) | ✅ en rama `feat/canal-pedidosya` | `a15b50b`, `a2e3f96` |
-| Precios PedidosYa ([plan](PLAN_PRECIOS_PEDIDOSYA.md)): 1. Disponible en PedidosYa | ✅ en rama `feat/precios-pedidosya` | ver registro |
+| Precios PedidosYa ([plan](PLAN_PRECIOS_PEDIDOSYA.md)): 1. Disponible en PedidosYa · 2. Ajuste por línea con motivo | ✅ en rama `feat/precios-pedidosya` | ver registro |
 
 ## Pendientes
 

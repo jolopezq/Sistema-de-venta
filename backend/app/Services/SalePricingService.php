@@ -143,13 +143,12 @@ class SalePricingService
     }
 
     /**
-     * Compara el precio unitario cobrado con el que resulta del catálogo vigente
-     * para el canal de la venta.
+     * Precio unitario que corresponde según el catálogo vigente y el canal de la venta
+     * (producto + opciones elegidas). Null si no se puede calcular (venta por peso sin gramos).
      *
      * @param Collection $selectedOptions Opciones elegidas, indexadas por id.
-     * @return string|null Descripción de la diferencia, o null si coincide.
      */
-    public function catalogPriceMismatch(Product $product, array $itemData, Collection $selectedOptions, string $source = 'pos'): ?string
+    public function expectedUnitPrice(Product $product, array $itemData, Collection $selectedOptions, string $source = 'pos'): ?float
     {
         $extras = 0.0;
         foreach ($itemData['modifiers'] ?? [] as $mod) {
@@ -164,13 +163,34 @@ class SalePricingService
                 return null; // Sin gramos no hay forma de verificar el precio por peso
             }
             $pricePerGram = (float) ($product->price_per_gram ?: self::DEFAULT_PRICE_PER_GRAM);
-            $expected = round((float) $itemData['weight_grams'] * $pricePerGram + $extras);
-        } else {
-            $expected = round(self::productPrice($product, $source) + $extras, 2);
+
+            return (float) round((float) $itemData['weight_grams'] * $pricePerGram + $extras);
         }
 
+        return round(self::productPrice($product, $source) + $extras, 2);
+    }
+
+    /**
+     * Indica si el precio cobrado difiere del esperado más allá del redondeo.
+     */
+    public function differsFromExpected(?float $expected, float $charged): bool
+    {
+        return $expected !== null && abs($expected - $charged) > self::TOLERANCE;
+    }
+
+    /**
+     * Compara el precio unitario cobrado con el que resulta del catálogo vigente
+     * para el canal de la venta.
+     *
+     * @param Collection $selectedOptions Opciones elegidas, indexadas por id.
+     * @return string|null Descripción de la diferencia, o null si coincide.
+     */
+    public function catalogPriceMismatch(Product $product, array $itemData, Collection $selectedOptions, string $source = 'pos'): ?string
+    {
+        $expected = $this->expectedUnitPrice($product, $itemData, $selectedOptions, $source);
         $charged = (float) $itemData['unit_price'];
-        if (abs($expected - $charged) <= self::TOLERANCE) {
+
+        if (!$this->differsFromExpected($expected, $charged)) {
             return null;
         }
 

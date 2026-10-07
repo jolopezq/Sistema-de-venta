@@ -140,6 +140,9 @@ async function handleConfirmVoid() {
               <div v-if="item.item_note" class="item-note">
                 📝 <em>{{ item.item_note }}</em>
               </div>
+              <div v-if="item.price_override_reason" class="item-note">
+                💲 Precio ajustado: <em>{{ item.price_override_reason }}</em>
+              </div>
 
               <!-- ALÉRGENOS -->
               <div v-if="item.allergen_flags && item.allergen_flags.length > 0" class="item-allergens">

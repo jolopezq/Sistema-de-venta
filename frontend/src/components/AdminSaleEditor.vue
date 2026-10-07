@@ -334,6 +334,7 @@ function initForm() {
           subtotal: Number(i.subtotal || (Number(i.quantity || 1) * rawUnitPrice)),
           is_takeaway: Boolean(i.is_takeaway),
           item_note: i.item_note || '',
+          priceOverrideReason: i.price_override_reason || '',
           selectedOptionIds,
           modifiers: [],
           isExpanded: true
@@ -496,6 +497,7 @@ function addProductToSale(product) {
     subtotal: initialBasePrice,
     is_takeaway: formData.value.is_takeaway,
     item_note: '',
+    priceOverrideReason: '',
     selectedOptionIds,
     modifiers: [],
     isExpanded: true
@@ -653,6 +655,10 @@ async function handleSave() {
       subtotal: Number(item.subtotal),
       is_takeaway: item.is_takeaway,
       item_note: item.item_note || null,
+      // Motivo del precio manual en pedidos PedidosYa (queda en la línea y en auditoría)
+      price_override_reason: saleOrigin.value === 'pedidosya' && item.priceMode === 'manual' && item.priceOverrideReason?.trim()
+        ? item.priceOverrideReason.trim()
+        : null,
       modifiers: item.modifiers || []
     })),
     payments: formData.value.payments.map(p => ({
@@ -1043,6 +1049,16 @@ function resetForm() {
                     💡 Catálogo tienda: <strong>Bs {{ (Number(getProduct(item.product_id)?.price) || 0).toFixed(2) }}</strong>
                     <span v-if="getProduct(item.product_id)?.delivery_price"> | PedidosYa: <strong>Bs {{ (Number(getProduct(item.product_id)?.delivery_price) || 0).toFixed(2) }}</strong></span>
                   </div>
+                  <label v-if="saleOrigin === 'pedidosya'" class="override-reason-field">
+                    <span>Motivo del ajuste:</span>
+                    <input
+                      v-model="item.priceOverrideReason"
+                      type="text"
+                      maxlength="200"
+                      class="input-override-reason"
+                      placeholder="Ej: Promo PedidosYa"
+                    />
+                  </label>
                 </div>
               </div>
 
@@ -2007,6 +2023,22 @@ function resetForm() {
   border: 1px dashed var(--tw-bg-fcd34d);
 }
 
+.override-reason-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.input-override-reason {
+  width: 170px;
+  padding: 3px 6px;
+  border: 1.5px solid var(--border);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 12px;
+  background: var(--surface);
+  color: var(--ink);
+}
 .catalog-price-hint {
   font-size: 11px;
   color: var(--tw-fg-c2410c);

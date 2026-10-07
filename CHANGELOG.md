@@ -28,6 +28,12 @@ se renombra con la fecha de la actualización de producción.
   venta PedidosYa de un producto no disponible (POS con catálogo viejo) se acepta y queda en auditoría.
 - En modo PedidosYa, las tarjetas sin precio de plataforma muestran la etiqueta "precio local" antes de
   agregarlas al ticket.
+- **Ajuste de precio por línea en pedidos PedidosYa**: en el ticket, "💲 Ajustar" permite cobrar otro precio
+  (promo de la plataforma, precio desactualizado) con motivo obligatorio. La línea muestra el precio del
+  tarifario tachado y el motivo; el recibo y el detalle de la venta lo indican. Se guarda en
+  `sale_items.price_override_reason` y queda en auditoría como `pedidosya_price_override` (no como
+  discrepancia). En ventas del local el cajero no puede ajustar precios y un motivo recibido se ignora y se
+  audita. En Control Diario, el modo "✏️ Manual Libre" de un pedido PedidosYa acepta el mismo motivo.
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)

@@ -120,7 +120,10 @@ export const useCartStore = defineStore('cart', {
           is_takeaway: product.is_takeaway || false,
           is_weight_based: Boolean(product.is_weight_based),
           weight_grams: product.weight_grams || null,
-          price_per_gram: product.price_per_gram || null
+          price_per_gram: product.price_per_gram || null,
+          // Ajuste de precio de la línea (solo PedidosYa): precio del tarifario y motivo
+          catalog_unit_price: null,
+          price_override_reason: null
         });
       }
     },
@@ -171,8 +174,51 @@ export const useCartStore = defineStore('cart', {
         is_takeaway: updatedProduct.is_takeaway || false,
         is_weight_based: Boolean(updatedProduct.is_weight_based),
         weight_grams: updatedProduct.weight_grams || null,
-        price_per_gram: updatedProduct.price_per_gram || null
+        price_per_gram: updatedProduct.price_per_gram || null,
+        // Editar la configuración recalcula el precio desde el tarifario: el ajuste se descarta
+        catalog_unit_price: null,
+        price_override_reason: null
       });
+    },
+
+    /**
+     * Ajusta el precio unitario de una línea con un motivo. Solo en pedidos PedidosYa
+     * (promo de la plataforma, precio desactualizado); en el local el precio no se toca.
+     * Si el precio nuevo es igual al del tarifario, se quita el ajuste.
+     *
+     * @returns {boolean} true si se aplicó.
+     */
+    overrideItemPrice(cartKey, unitPrice, reason) {
+      if (this.channel !== 'pedidosya') return false;
+      const item = this.items.find(i => i.cart_key === cartKey);
+      if (!item || item.is_weight_based) return false;
+
+      const price = Math.round(Number(unitPrice) * 100) / 100;
+      const cleanReason = String(reason || '').trim();
+      if (!Number.isFinite(price) || price < 0) return false;
+
+      const tariff = item.catalog_unit_price ?? item.unit_price;
+      if (Math.abs(price - tariff) < 0.005) {
+        this.clearItemPriceOverride(cartKey);
+        return true;
+      }
+      if (!cleanReason) return false;
+
+      item.catalog_unit_price = tariff;
+      item.unit_price = price;
+      item.price_override_reason = cleanReason.slice(0, 255);
+      item.subtotal = item.quantity * item.unit_price;
+      return true;
+    },
+
+    /** Vuelve la línea al precio del tarifario. */
+    clearItemPriceOverride(cartKey) {
+      const item = this.items.find(i => i.cart_key === cartKey);
+      if (!item || item.catalog_unit_price == null) return;
+      item.unit_price = item.catalog_unit_price;
+      item.catalog_unit_price = null;
+      item.price_override_reason = null;
+      item.subtotal = item.quantity * item.unit_price;
     },
 
     /**
@@ -250,7 +296,10 @@ export const useCartStore = defineStore('cart', {
           item_note: i.item_note || null,
           allergen_flags: i.allergen_flags || [],
           is_takeaway: resolveItemTakeaway(i),
-          weight_grams: i.is_weight_based ? i.weight_grams : null
+          weight_grams: i.is_weight_based ? i.weight_grams : null,
+          price_override_reason: this.channel === 'pedidosya' ? (i.price_override_reason || null) : null,
+          // Solo para el recibo y para restaurar el ticket; el servidor no lo usa
+          catalog_unit_price: i.price_override_reason ? i.catalog_unit_price : null
         })),
         payments: payments
       };
@@ -413,7 +462,9 @@ export const useCartStore = defineStore('cart', {
           base_price: Number(i.base_price) || Number(i.unit_price) || 0,
           item_note: i.item_note || '',
           allergen_flags: i.allergen_flags || [],
-          is_takeaway: i.is_takeaway || false
+          is_takeaway: i.is_takeaway || false,
+          catalog_unit_price: i.price_override_reason ? (Number(i.catalog_unit_price) || null) : null,
+          price_override_reason: i.price_override_reason || null
         }));
         this.customerId = sale.customer_id || null;
         this.channel = sale.source === 'pedidosya' ? 'pedidosya' : 'pos';

@@ -9,6 +9,7 @@ use App\Models\SalePayment;
 use App\Models\SaleItemOption;
 use App\Models\LoyaltyConfig;
 use App\Models\Option;
+use App\Models\Product;
 use App\Models\AuditLog;
 use App\Models\InventoryMovement;
 use App\Models\Ingredient;
@@ -17,6 +18,7 @@ use App\Repositories\ProductRepository;
 use App\Repositories\CustomerRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Exception;
@@ -119,7 +121,8 @@ class SaleSyncService
         ]);
 
         // 2. Insertar Items y Descontar Stock
-        $priceMismatches = $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway, true);
+        $priceAdjustments = [];
+        $priceMismatches = $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway, true, $priceAdjustments);
         $discrepancies = array_merge($discrepancies, $priceMismatches);
 
         // 3. Insertar Pagos
@@ -141,6 +144,8 @@ class SaleSyncService
         $this->auditClosedSessionChange($sale, $sale->cash_register_session_id, $cashierId, 'Venta sincronizada tarde');
 
         // 5. Dejar constancia de cualquier diferencia entre el POS y el servidor
+        $this->auditPriceAdjustments($priceAdjustments, $orderNumber, $cashierId);
+
         if (!empty($discrepancies)) {
             AuditLog::create([
                 'user_id'     => $cashierId,
@@ -155,11 +160,13 @@ class SaleSyncService
      * Inserta los ítems de una venta y descuenta el stock de recetas e insumos.
      *
      * @param bool $checkCatalogPrices Compara cada precio cobrado con el catálogo vigente.
+     * @param array $priceAdjustments Recibe los ajustes de precio con motivo (ver resolvePriceOverride).
      * @return string[] Diferencias de precio encontradas (vacío si no se verifican).
      */
-    public function insertSaleItems(Sale $sale, array $itemsData, int $cashierId, bool $orderIsTakeaway, bool $checkCatalogPrices = false): array
+    public function insertSaleItems(Sale $sale, array $itemsData, int $cashierId, bool $orderIsTakeaway, bool $checkCatalogPrices = false, array &$priceAdjustments = []): array
     {
         $priceMismatches = [];
+        $source = $sale->source ?? 'pos';
 
         foreach ($itemsData as $itemData) {
             $product = $this->productRepository->findWithRecipes($itemData['product_id']);
@@ -188,15 +195,20 @@ class SaleSyncService
                 }
             }
 
+            $overrideReason = $this->resolvePriceOverride($product, $itemData, $selectedOptions, $source, $priceAdjustments);
+
             if ($checkCatalogPrices) {
-                $mismatch = $this->pricingService->catalogPriceMismatch($product, $itemData, $selectedOptions, $sale->source ?? 'pos');
+                // Un ajuste con motivo no es una discrepancia: queda en su propio registro de auditoría
+                $mismatch = $overrideReason === null
+                    ? $this->pricingService->catalogPriceMismatch($product, $itemData, $selectedOptions, $source)
+                    : null;
                 if ($mismatch) {
                     $priceMismatches[] = $mismatch;
                 }
 
                 // Un POS con catálogo en caché puede vender algo que ya no se ofrece en PedidosYa:
                 // la venta ya se cobró, así que se acepta y queda constancia.
-                if (($sale->source ?? 'pos') === 'pedidosya' && $product->available_on_pedidosya === false) {
+                if ($source === 'pedidosya' && $product->available_on_pedidosya === false) {
                     $priceMismatches[] = "{$product->name}: no está disponible en PedidosYa";
                 }
             }
@@ -208,6 +220,7 @@ class SaleSyncService
                 'product_id'     => $product->id,
                 'quantity'       => $itemData['quantity'],
                 'unit_price'     => $itemData['unit_price'],
+                'price_override_reason' => $overrideReason,
                 'subtotal'       => $itemData['subtotal'],
                 'is_takeaway'    => $itemIsTakeaway,
                 'item_note'      => $itemData['item_note'] ?? null,
@@ -300,7 +313,9 @@ class SaleSyncService
             $sale->created_at = $createdAt;
             $sale->saveQuietly();
 
-            $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway);
+            $priceAdjustments = [];
+            $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway, false, $priceAdjustments);
+            $this->auditPriceAdjustments($priceAdjustments, $orderNumber, $superAdminId);
 
             [$data['payments'], $paymentIssues] = $this->platformPaymentsIfPedidosYa($sale, $data);
 
@@ -425,7 +440,9 @@ class SaleSyncService
             $sale->saveQuietly();
 
             // 5. Insertar nuevos items y descontar nuevo inventario
-            $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway);
+            $priceAdjustments = [];
+            $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway, false, $priceAdjustments);
+            $this->auditPriceAdjustments($priceAdjustments, $sale->order_number, $superAdminId);
 
             // 6. Insertar nuevos pagos (PedidosYa: un único pago de plataforma)
             [$data['payments'], $paymentIssues] = $this->platformPaymentsIfPedidosYa($sale, $data);
@@ -463,6 +480,71 @@ class SaleSyncService
 
             return $sale->fresh(['cashier:id,name', 'customer:id,name,ci_or_phone', 'items.product:id,name', 'items.saleItemOptions.option:id,name', 'payments', 'editedByUser:id,name']);
         });
+    }
+
+    /**
+     * Decide qué motivo de ajuste de precio se guarda en la línea.
+     *
+     * Solo los pedidos PedidosYa admiten ajustar el precio de una línea (promo de la plataforma,
+     * precio desactualizado). Si el precio coincide con el tarifario no hay ajuste; en una venta
+     * del local el motivo se descarta y queda constancia.
+     *
+     * @param array $priceAdjustments Acumula ['type' => 'override'|'ignored', 'text' => string].
+     */
+    protected function resolvePriceOverride(Product $product, array $itemData, Collection $selectedOptions, string $source, array &$priceAdjustments): ?string
+    {
+        $reason = trim((string) ($itemData['price_override_reason'] ?? ''));
+        if ($reason === '') {
+            return null;
+        }
+
+        $charged = (float) $itemData['unit_price'];
+
+        if ($source !== 'pedidosya') {
+            $priceAdjustments[] = [
+                'type' => 'ignored',
+                'text' => "{$product->name}: ajuste de precio a {$charged} con motivo \"{$reason}\" ignorado (solo se permite en pedidos PedidosYa)",
+            ];
+            return null;
+        }
+
+        $expected = $this->pricingService->expectedUnitPrice($product, $itemData, $selectedOptions, $source);
+        if (!$this->pricingService->differsFromExpected($expected, $charged)) {
+            return null; // Cobrado a precio del tarifario: no hay ajuste que registrar
+        }
+
+        $priceAdjustments[] = [
+            'type' => 'override',
+            'text' => "{$product->name}: tarifario {$expected}, cobrado {$charged}. Motivo: {$reason}",
+        ];
+
+        return $reason;
+    }
+
+    /**
+     * Deja en auditoría los ajustes de precio de PedidosYa y los motivos descartados.
+     */
+    protected function auditPriceAdjustments(array $priceAdjustments, string $orderNumber, int $userId): void
+    {
+        $byType = collect($priceAdjustments)->groupBy('type');
+
+        if ($byType->has('override')) {
+            AuditLog::create([
+                'user_id'     => $userId,
+                'action'      => 'pedidosya_price_override',
+                'module'      => 'Sales',
+                'description' => "Pedido PedidosYa Ticket #{$orderNumber} con precio ajustado: " . $byType['override']->pluck('text')->implode('; '),
+            ]);
+        }
+
+        if ($byType->has('ignored')) {
+            AuditLog::create([
+                'user_id'     => $userId,
+                'action'      => 'sale_sync_discrepancy',
+                'module'      => 'Sales',
+                'description' => "Venta Ticket #{$orderNumber}: " . $byType['ignored']->pluck('text')->implode('; '),
+            ]);
+        }
     }
 
     /**

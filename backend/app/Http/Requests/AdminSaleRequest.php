@@ -43,6 +43,7 @@ class AdminSaleRequest extends FormRequest
             'items.*.subtotal'               => ['required', 'numeric', 'min:0'],
             'items.*.is_takeaway'            => ['nullable', 'boolean'],
             'items.*.item_note'              => ['nullable', 'string', 'max:255'],
+            'items.*.price_override_reason'  => ['nullable', 'string', 'max:255'],
             'items.*.modifiers'              => ['nullable', 'array'],
             'items.*.modifiers.*.option_id'  => ['required_with:items.*.modifiers', 'integer', 'exists:options,id'],
             'items.*.modifiers.*.quantity'   => ['nullable', 'numeric', 'min:0.01'],

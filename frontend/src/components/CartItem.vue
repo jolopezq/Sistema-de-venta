@@ -1,6 +1,10 @@
 <script setup>
-defineProps({ item: Object });
-const emit = defineEmits(['increase', 'decrease', 'edit', 'toggle-takeaway']);
+defineProps({
+  item: Object,
+  // Solo en pedidos PedidosYa: permite ajustar el precio de la línea con un motivo
+  canAdjustPrice: { type: Boolean, default: false },
+});
+const emit = defineEmits(['increase', 'decrease', 'edit', 'toggle-takeaway', 'adjust-price']);
 
 /**
  * Agrupa los modificadores por grupo para mostrarlos como pills categorizadas.
@@ -56,6 +60,11 @@ function getModPillClass(groupName = '') {
           📝 {{ item.item_note }}
         </div>
 
+        <!-- Precio ajustado (PedidosYa) -->
+        <div v-if="item.price_override_reason" class="ticket-item-mods ticket-item-override">
+          💲 Precio ajustado: {{ item.price_override_reason }}
+        </div>
+
         <!-- Alérgenos -->
         <div v-if="item.allergen_flags && item.allergen_flags.length > 0" class="ticket-item-mods ticket-item-allergen">
           ⚠️ {{ item.allergen_flags.join(', ') }}
@@ -63,7 +72,19 @@ function getModPillClass(groupName = '') {
       </div>
 
       <div class="ticket-item-price-col">
+        <div
+          v-if="item.price_override_reason && item.catalog_unit_price != null"
+          class="ticket-item-price-old"
+          title="Precio del tarifario"
+        >Bs {{ (Number(item.catalog_unit_price) * Number(item.quantity)).toFixed(2) }}</div>
         <div class="ticket-item-price">Bs {{ item.is_weight_based ? Number(item.subtotal).toFixed(0) : Number(item.subtotal).toFixed(2) }}</div>
+        <button
+          v-if="canAdjustPrice && !item.is_weight_based"
+          type="button"
+          class="btn-adjust-price"
+          :title="item.price_override_reason ? 'Cambiar el ajuste de precio' : 'Ajustar precio (promo, precio desactualizado)'"
+          @click.stop="emit('adjust-price', item)"
+        >💲 {{ item.price_override_reason ? 'Ajustado' : 'Ajustar' }}</button>
         <!-- Botón editar — siempre visible en tablet, hover en desktop -->
         <button
           class="btn-edit-item"
@@ -83,6 +104,39 @@ function getModPillClass(groupName = '') {
 </template>
 
 <style scoped>
+.ticket-item-price-old {
+  font-size: 11.5px;
+  color: var(--ink-500);
+  text-decoration: line-through;
+}
+.ticket-item-override {
+  color: #8A0030;
+  font-weight: 600;
+}
+html.dark .ticket-item-override {
+  color: #FFB3C9;
+}
+.btn-adjust-price {
+  margin-top: 4px;
+  padding: 3px 8px;
+  border-radius: 99px;
+  border: 1px solid #C2003F;
+  background: var(--surface);
+  color: #8A0030;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+html.dark .btn-adjust-price {
+  color: #FFB3C9;
+  border-color: #FF6B96;
+}
+.btn-adjust-price:focus-visible {
+  outline: 2px solid var(--acai-700);
+  outline-offset: 2px;
+}
 /* Pill de modificador — base */
 .mod-pill {
   display: inline-flex;

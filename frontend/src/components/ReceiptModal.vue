@@ -99,6 +99,9 @@ function getPaymentLabel(method) {
             <div v-if="item.item_note" class="item-note">
               Nota: {{ item.item_note }}
             </div>
+            <div v-if="item.price_override_reason" class="item-note">
+              Precio ajustado: {{ item.price_override_reason }}
+            </div>
           </div>
         </div>
 

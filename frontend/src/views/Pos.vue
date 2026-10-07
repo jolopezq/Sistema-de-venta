@@ -8,6 +8,7 @@ import CartItem from '../components/CartItem.vue';
 import CheckoutModal from '../components/CheckoutModal.vue';
 import ReceiptModal from '../components/ReceiptModal.vue';
 import ModifierModal from '../components/ModifierModal.vue';
+import PriceOverrideModal from '../components/PriceOverrideModal.vue';
 import { productPrice, missingDeliveryPrice, isAvailableOnPedidosYa, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
 
 const catalog = useCatalogStore();
@@ -257,6 +258,28 @@ const itemsWithoutDeliveryPrice = computed(() => {
   return [...names];
 });
 
+// ── Ajuste de precio de una línea (solo PedidosYa) ──
+const priceOverrideItem = ref(null);
+
+function openPriceOverride(item) {
+  if (!isPedidosYa.value || item.is_weight_based) return;
+  priceOverrideItem.value = item;
+}
+
+function applyPriceOverride({ price, reason }) {
+  if (priceOverrideItem.value) {
+    cart.overrideItemPrice(priceOverrideItem.value.cart_key, price, reason);
+  }
+  priceOverrideItem.value = null;
+}
+
+function clearPriceOverride() {
+  if (priceOverrideItem.value) {
+    cart.clearItemPriceOverride(priceOverrideItem.value.cart_key);
+  }
+  priceOverrideItem.value = null;
+}
+
 const showClearConfirmModal = ref(false);
 
 function handleClearCart() {
@@ -361,6 +384,8 @@ function confirmClearCart() {
             v-for="item in cart.items"
             :key="item.cart_key"
             :item="item"
+            :can-adjust-price="isPedidosYa"
+            @adjust-price="openPriceOverride"
             @increase="handleIncrease"
             @decrease="handleDecrease"
             @edit="handleEditCartItem"
@@ -422,6 +447,14 @@ function confirmClearCart() {
       :channel="cart.channel"
       @close="showModifierModal = false; editingCartItem = null"
       @confirm="handleConfirmModifiers"
+    />
+
+    <PriceOverrideModal
+      :show="Boolean(priceOverrideItem)"
+      :item="priceOverrideItem"
+      @close="priceOverrideItem = null"
+      @apply="applyPriceOverride"
+      @clear="clearPriceOverride"
     />
 
     <!-- Confirmación para cambiar de canal con productos en el ticket -->
