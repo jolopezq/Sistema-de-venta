@@ -1,5 +1,8 @@
 # Plan: precios PedidosYa en el POS
 
+> **Estado (07/10/2026):** fases 1, 2 y 3 implementadas en la rama `feat/precios-pedidosya`. La fase 0
+> (cargar los precios) es del usuario y ahora se hace desde Menú → Tarifario PedidosYa.
+
 > Continuación de [PLAN_PEDIDOSYA.md](PLAN_PEDIDOSYA.md). Antes de empezar, lee `AGENTS.md` y
 > `docs/BITACORA.md` y sigue sus reglas (rama, plan aprobado, respaldo, tests, CHANGELOG y bitácora).
 

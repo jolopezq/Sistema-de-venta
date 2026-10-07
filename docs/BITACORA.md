@@ -7,7 +7,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 - **Rama de trabajo:** `mejoras/analisis-integral` (10 commits sobre `main` + este registro). Sin push.
   **No fusionada en `main`**: al fusionar, el vigilante actualiza producción y ejecuta la migración
   `2026_10_04_000001_add_cash_register_session_id_to_sales_table` automáticamente.
-- **Tests:** 73 en verde (`php artisan test`). Build del frontend correcto.
+- **Tests:** 87 en verde (`php artisan test`, rama `feat/precios-pedidosya`). Build del frontend correcto.
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
