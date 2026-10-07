@@ -1,7 +1,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { apiFetch } from '../services/api';
-import AppShell from '../components/AppShell.vue';
 
 // Pestañas disponibles
 const activeTab = ref('summary'); // 'summary' | 'expenses' | 'recurring' | 'categories'
@@ -426,7 +425,8 @@ async function fetchSettlements() {
   settlementsLoading.value = true;
   try {
     const data = await apiFetch(`/finance/pedidosya-settlements?year=${selectedYear.value}&month=${selectedMonth.value}`);
-    settlements.value = Array.isArray(data) ? data : [];
+    // El backend responde paginado ({ data: [...] })
+    settlements.value = Array.isArray(data) ? data : (data?.data || []);
   } catch (err) {
     console.error('Error al cargar liquidaciones de PedidosYa:', err);
   } finally {
@@ -579,7 +579,6 @@ function methodBadge(m) {
 </script>
 
 <template>
-  <AppShell>
     <div class="fin-page">
       <!-- HEADER CON SELECTOR DE PERÍODO -->
       <header class="fin-header">
@@ -1637,7 +1636,6 @@ function methodBadge(m) {
         </div>
       </Teleport>
     </div>
-  </AppShell>
 </template>
 
 <style scoped>

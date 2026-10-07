@@ -18,8 +18,12 @@ class PedidosYaSettlementController extends Controller
     {
         $query = PedidosYaSettlement::with('user:id,name');
 
-        if ($request->filled('year')) {
-            $query->whereYear('start_date', $request->year);
+        if ($request->filled('year') && $request->filled('month')) {
+            // Semanas cuya fecha de fin cae en el mes (mismo criterio que el Estado de Resultados)
+            $start = sprintf('%04d-%02d-01', (int) $request->year, (int) $request->month);
+            $query->whereBetween('end_date', [$start, date('Y-m-t', strtotime($start))]);
+        } elseif ($request->filled('year')) {
+            $query->whereYear('end_date', $request->year);
         }
 
         $settlements = $query->orderBy('start_date', 'desc')

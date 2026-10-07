@@ -101,6 +101,15 @@ se renombra con la fecha de la actualización de producción.
   de ese día; ahora empieza a las 00:00.
 - Las reglas de modo oscuro de los componentes nunca se aplicaban (`:global(html.dark)` en estilos scoped);
   pantallas de cocina, cobro y Control Diario con texto ilegible. (`2802a36`)
+- Finanzas: la pantalla se dibujaba dentro de otro menú lateral (doble menú y doble encabezado, contenido
+  cortado a la derecha). Ahora usa el marco común de la app.
+- Finanzas: el Estado de Resultados cortaba los meses en hora UTC aunque las ventas se guardan en hora de La
+  Paz (las ventas de las 00:00–04:00 del día 1 caían en el mes anterior). Los tests corren ahora con
+  `APP_TIMEZONE=America/La_Paz`.
+- Finanzas: la pestaña de liquidaciones PedidosYa aparecía siempre vacía (la respuesta paginada no se leía) y no
+  filtraba por mes.
+- Se restauran 10 imágenes de productos que un commit de graphify había borrado del repositorio (al fusionar en
+  `main` se habrían borrado en producción).
 
 ### Seguridad
 - Permisos por rol aplicados en el backend; cocina sin acceso a ventas ni caja. (`938c31b`)

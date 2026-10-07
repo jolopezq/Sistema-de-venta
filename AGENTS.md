@@ -26,6 +26,9 @@ Léela completa antes de tocar código. El estado vivo del trabajo está en
   estructural o funcional relevante (nuevos módulos/endpoints, refactorizaciones, modelos o cambios
   de flujo), ejecuta `graphify update .` para que los cambios queden registrados y actualizados en
   los nodos de `graphify-out/`.
+- **Nunca incluyas cambios de `backend/storage/app/public/`** (imágenes subidas desde el Menú) en un commit:
+  al fusionar en `main` el vigilante haría `git pull` y borraría o cambiaría imágenes en producción. Revisa
+  `git status` antes de cada `git add -A` (los commits de graphify son el caso típico).
 - Escribe en español, como el resto del código y la documentación.
 
 ## Verificación obligatoria

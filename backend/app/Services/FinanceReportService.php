@@ -23,25 +23,19 @@ class FinanceReportService
         $startLocal = Carbon::create($year, $month, 1, 0, 0, 0, $timezone)->startOfMonth();
         $endLocal = (clone $startLocal)->endOfMonth();
 
-        $startUtc = (clone $startLocal)->setTimezone('UTC');
-        $endUtc = (clone $endLocal)->setTimezone('UTC');
-
+        // Las fechas (`created_at`) se guardan en la hora de la app (La Paz): se filtra con los
+        // límites locales del mes, sin convertir a UTC.
         $startDateStr = $startLocal->toDateString();
         $endDateStr = $endLocal->toDateString();
+        $startBound = $startDateStr . ' 00:00:00';
+        $endBound = $endDateStr . ' 23:59:59';
 
-        // 1. Ingresos por ventas del local (excluye pedidosya porque en P&L se toman de liquidaciones en fase 2)
+        // 1. Ventas del local (las de PedidosYa salen de las liquidaciones semanales)
         $localSalesQuery = Sale::where('status', 'completed')
             ->where(function ($q) {
                 $q->whereNull('source')->orWhere('source', '!=', 'pedidosya');
             })
-            ->whereBetween('created_at', [$startUtc, $endUtc]);
-
-        // 1. Ingresos por ventas del local (excluye pedidosya porque en P&L se toman de liquidaciones en fase 2)
-        $localSalesQuery = Sale::where('status', 'completed')
-            ->where(function ($q) {
-                $q->whereNull('source')->orWhere('source', '!=', 'pedidosya');
-            })
-            ->whereBetween('created_at', [$startUtc, $endUtc]);
+            ->whereBetween('created_at', [$startBound, $endBound]);
 
         $localSalesTotal = (float) $localSalesQuery->sum('total_amount');
         $localSalesCount = (int) $localSalesQuery->count();
@@ -69,7 +63,7 @@ class FinanceReportService
         // 5. Egresos de caja registrados en los turnos del mes
         $cashExpenses = CashMovement::with('expenseCategory')
             ->where('type', 'expense')
-            ->whereBetween('created_at', [$startUtc, $endUtc])
+            ->whereBetween('created_at', [$startBound, $endBound])
             ->get();
 
         // 6. Gastos fijos / recurrentes activos

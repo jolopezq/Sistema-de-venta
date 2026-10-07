@@ -114,6 +114,10 @@ número de orden solo para ventas nuevas.
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
 
+- **2026-10-07 (auditoría Finanzas)** — Auditoría de `feat/modulo-finanzas` ([informe](AUDITORIA_FINANZAS.md)) y
+  corrección por fases. Fase 0: imágenes restauradas, doble marco de la pantalla, bordes de mes en hora de La
+  Paz (test nuevo) y lista de liquidaciones.
+
 - **2026-10-07 (4)** — Módulo de Finanzas (Fase 2: Liquidaciones semanales de PedidosYa, conciliación y análisis de canal):
   - Migración `2026_10_07_000008_create_pedidosya_settlements_tables.php` creando `pedidosya_settlements` y
     `pedidosya_orders` con persistencia de campos normalizados y `raw_data` JSON.
