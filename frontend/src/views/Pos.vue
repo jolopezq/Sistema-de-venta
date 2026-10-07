@@ -247,9 +247,17 @@ const itemsWithoutDeliveryPrice = computed(() => {
       names.add(product.name);
     }
     for (const mod of item.modifiers || []) {
-      const opt = (product.option_groups || [])
-        .flatMap(og => og.options || [])
-        .find(o => o.id === mod.option_id);
+      let opt = null;
+      for (const og of (product.option_groups || [])) {
+        const found = (og.options || []).find(o => o.id === mod.option_id);
+        if (found) {
+          opt = {
+            ...found,
+            pedidosya_pricing: found.pedidosya_pricing !== undefined ? found.pedidosya_pricing : og.pedidosya_pricing,
+          };
+          break;
+        }
+      }
       if (opt && Number(opt.additional_price) > 0 && missingDeliveryPrice(opt)) {
         names.add(`${product.name} · ${opt.name}`);
       }

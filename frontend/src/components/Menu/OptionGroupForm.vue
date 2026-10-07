@@ -150,6 +150,17 @@ const deleteGroup = () => emit('delete', localGroup.value.id);
             <div class="rule-text">Número <strong>máximo</strong> de opcionales que puede seleccionar el cliente</div>
             <input type="number" min="0" v-model="localGroup.max_selections" class="input-number" />
           </div>
+          <hr class="rule-divider" />
+          <div class="rule-row">
+            <div class="rule-text">
+              <div>🛵 <strong>Precio distinto en PedidosYa</strong></div>
+              <div class="rule-subtext">Úsalo para tamaños. Toppings y frutas cobran lo mismo en los dos canales.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" v-model="localGroup.pedidosya_pricing" />
+              <span class="slider round"></span>
+            </label>
+          </div>
         </div>
 
         <!-- OPCIONALES (X) -->
@@ -389,6 +400,11 @@ const deleteGroup = () => emit('delete', localGroup.value.id);
 .rule-text {
   font-size: 14px;
   color: var(--ink-900);
+}
+.rule-subtext {
+  font-size: 12px;
+  color: var(--ink-500);
+  margin-top: 2px;
 }
 
 /* Switch Toggle */

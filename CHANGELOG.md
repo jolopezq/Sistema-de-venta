@@ -39,6 +39,14 @@ se renombra con la fecha de la actualización de producción.
   de cuántos usan el precio local. "Aplicar +X %" (a los vacíos o a todos, redondeo a 0,50) llena una vista
   previa que se revisa antes de guardar. Se guarda en lote con `PUT /api/admin/pricing/pedidosya` (solo
   admin), que nunca toca el precio de mostrador y deja cada cambio en auditoría.
+- **Precio PedidosYa solo en tamaños** (`docs/PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md`):
+  - Nueva columna `option_groups.pedidosya_pricing` (migración activa por defecto para grupos "Tamaño...").
+  - En PedidosYa, solo los grupos marcados aplican `delivery_price`; toppings y frutas cobran siempre el precio local en ambos canales.
+  - `SalePricingService` y `utils/channelPricing.js` sincronizados con la nueva regla.
+  - `PedidosYaPricingController` rechaza con 422 cualquier intento de asignar tarifa de delivery a opciones de grupos no marcados.
+  - El POS no alerta de "Sin precio PedidosYa" para toppings ni frutas.
+  - En Opcionales (Menú), casilla "🛵 Precio distinto en PedidosYa", campo exclusivo en el modal de edición de opcionales e indicadores visuales claros en la lista de opciones.
+  - El Tarifario PedidosYa lista únicamente los tamaños de grupos marcados en su sección de opcionales.
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)

@@ -173,7 +173,7 @@ class SaleSyncService
             $modifiers = $itemData['modifiers'] ?? $itemData['topping_modifications'] ?? [];
             
             $selectedOptionIds = array_column($modifiers, 'option_id');
-            $selectedOptions = Option::whereIn('id', $selectedOptionIds)->get()->keyBy('id');
+            $selectedOptions = Option::with('optionGroup')->whereIn('id', $selectedOptionIds)->get()->keyBy('id');
             
             $selectionsByGroup = [];
             foreach ($modifiers as $mod) {

@@ -42,6 +42,7 @@ function resetDrafts() {
   }
   const od = {};
   for (const og of props.optionGroups) {
+    if (!og.pedidosya_pricing) continue;
     for (const o of og.options || []) {
       od[o.id] = { delivery_price: toPrice(o.delivery_price) === null ? '' : fmt(o.delivery_price) };
     }
@@ -65,6 +66,7 @@ const productSections = computed(() => {
 
 const optionSections = computed(() =>
   props.optionGroups
+    .filter(og => Boolean(og.pedidosya_pricing))
     .map(og => ({
       id: og.id,
       name: og.name,
@@ -85,10 +87,13 @@ const changedProducts = computed(() =>
   })
 );
 const changedOptions = computed(() =>
-  props.optionGroups.flatMap(og => og.options || []).filter(o => {
-    const d = optionDrafts.value[o.id];
-    return d && toPrice(d.delivery_price) !== toPrice(o.delivery_price);
-  })
+  props.optionGroups
+    .filter(og => Boolean(og.pedidosya_pricing))
+    .flatMap(og => og.options || [])
+    .filter(o => {
+      const d = optionDrafts.value[o.id];
+      return d && toPrice(d.delivery_price) !== toPrice(o.delivery_price);
+    })
 );
 const changesCount = computed(() => changedProducts.value.length + changedOptions.value.length);
 const isProductChanged = (p) => changedProducts.value.some(c => c.id === p.id);
@@ -262,9 +267,9 @@ async function save() {
       </div>
     </section>
 
-    <!-- Opciones -->
-    <section class="tariff-card">
-      <h3 class="tariff-card-title">Tamaños y toppings</h3>
+    <!-- Opciones (Solo tamaños) -->
+    <section class="tariff-card" v-if="optionSections.length > 0">
+      <h3 class="tariff-card-title">Tamaños</h3>
       <div class="table-scroll">
         <table class="tariff-table">
           <thead>
@@ -282,6 +287,7 @@ async function save() {
               <td class="num">+{{ fmt(o.additional_price) }}</td>
               <td class="num">
                 <input
+                  v-if="optionDrafts[o.id]"
                   v-model="optionDrafts[o.id].delivery_price"
                   type="number"
                   min="0"
@@ -290,15 +296,15 @@ async function save() {
                   :placeholder="fmt(o.additional_price)"
                   :aria-label="`Precio PedidosYa de ${sec.name} ${o.name}`"
                 />
-                <span v-if="!optionDrafts[o.id].delivery_price" class="row-tag">usa local</span>
+                <span v-if="optionDrafts[o.id] && !optionDrafts[o.id].delivery_price" class="row-tag">usa local</span>
               </td>
-              <td class="num muted">{{ diffLabel(o.additional_price, optionDrafts[o.id].delivery_price) }}</td>
+              <td class="num muted">{{ diffLabel(o.additional_price, optionDrafts[o.id]?.delivery_price) }}</td>
             </tr>
           </tbody>
         </table>
       </div>
       <p class="tariff-note">
-        Un precio PedidosYa de 0 cuenta como vacío: se cobra el precio de mostrador.
+        Toppings, frutas y demás opcionales cobran el mismo precio en PedidosYa.
       </p>
     </section>
 

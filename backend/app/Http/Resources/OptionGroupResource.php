@@ -14,8 +14,17 @@ class OptionGroupResource extends JsonResource
             'name' => $this->name,
             'min_selections' => $this->min_selections,
             'max_selections' => $this->max_selections,
+            'pedidosya_pricing' => (bool) $this->pedidosya_pricing,
             'is_active' => $this->is_active,
-            'options' => OptionResource::collection($this->whenLoaded('options')),
+            'options' => $this->whenLoaded('options', function () {
+                return OptionResource::collection(
+                    $this->options->each(function ($opt) {
+                        if (!$opt->relationLoaded('optionGroup')) {
+                            $opt->setRelation('optionGroup', $this->resource);
+                        }
+                    })
+                );
+            }),
             'products' => ProductResource::collection($this->whenLoaded('products')),
         ];
     }

@@ -17,6 +17,7 @@ class OptionGroupRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'min_selections' => ['required', 'integer', 'min:0'],
             'max_selections' => ['nullable', 'integer', 'gte:min_selections'],
+            'pedidosya_pricing' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'options' => ['sometimes', 'array'],
             'options.*.id' => ['nullable', 'exists:options,id'],

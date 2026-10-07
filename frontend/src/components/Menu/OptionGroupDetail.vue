@@ -164,7 +164,7 @@ const openAddOptionModal = () => {
   optionForm.value = {
     name: '',
     additional_price: 0,
-    delivery_price: 0,
+    delivery_price: '',
     is_active: true
   };
   showOptionModal.value = true;
@@ -180,7 +180,7 @@ const openEditOptionModal = (opt) => {
   optionForm.value = {
     name: opt.name,
     additional_price: Number(opt.additional_price) || 0,
-    delivery_price: Number(opt.delivery_price) || 0,
+    delivery_price: Number(opt.delivery_price) > 0 ? Number(opt.delivery_price) : '',
     is_active: opt.is_active ?? true
   };
   showOptionModal.value = true;
@@ -189,7 +189,12 @@ const openEditOptionModal = (opt) => {
 // Save Option (Create or Update)
 const saveOption = async () => {
   if (!optionForm.value.name.trim()) return;
-  if (Number(optionForm.value.additional_price) < 0 || Number(optionForm.value.delivery_price) < 0) {
+  const numAddPrice = Number(optionForm.value.additional_price) || 0;
+  const numDelPrice = optionForm.value.delivery_price !== '' && optionForm.value.delivery_price !== null
+    ? Number(optionForm.value.delivery_price)
+    : null;
+
+  if (numAddPrice < 0 || (numDelPrice !== null && numDelPrice < 0)) {
     emit('alert', 'El precio no puede ser negativo.');
     return;
   }
@@ -197,8 +202,8 @@ const saveOption = async () => {
   try {
     const payload = {
       name: optionForm.value.name.trim(),
-      additional_price: Number(optionForm.value.additional_price) || 0,
-      delivery_price: Number(optionForm.value.delivery_price) || 0,
+      additional_price: numAddPrice,
+      delivery_price: props.group.pedidosya_pricing ? numDelPrice : null,
       is_active: optionForm.value.is_active,
       is_default: editingOption.value ? (editingOption.value.is_default || false) : false,
       option_group_id: props.group.id
@@ -252,13 +257,18 @@ const deleteOption = async () => {
     <!-- Top section -->
     <div class="card-section top-section">
       <div class="top-left">
-        <h2 class="og-title">{{ group.name }}</h2>
-        <button class="btn-edit-pencil" @click="emit('edit-group', group)" title="Editar reglas del grupo">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 20h9"></path>
-            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-          </svg>
-        </button>
+        <div class="og-title-wrapper">
+          <h2 class="og-title">{{ group.name }}</h2>
+          <button class="btn-edit-pencil" @click="emit('edit-group', group)" title="Editar reglas del grupo">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+          </button>
+        </div>
+        <p v-if="!group.pedidosya_pricing" class="og-channel-note">
+          Mismo precio en local y PedidosYa
+        </p>
       </div>
 
       <div class="top-right">
@@ -336,6 +346,9 @@ const deleteOption = async () => {
             <span class="slider round"></span>
           </label>
           <div class="opt-price-below" v-if="opt.additional_price > 0">{{ formatPrice(opt.additional_price) }}</div>
+          <div class="opt-price-pya" v-if="group.pedidosya_pricing">
+            🛵 {{ Number(opt.delivery_price) > 0 ? formatPrice(opt.delivery_price) : '= local' }}
+          </div>
         </div>
       </div>
 
@@ -373,9 +386,10 @@ const deleteOption = async () => {
             <input type="number" step="0.50" min="0" v-model="optionForm.additional_price" placeholder="0.00" class="form-control" />
           </div>
 
-          <div class="input-group">
-            <label>Precio adicional en delivery (BOB)</label>
-            <input type="number" step="0.50" min="0" v-model="optionForm.delivery_price" placeholder="0.00" class="form-control" />
+          <div class="input-group" v-if="group.pedidosya_pricing">
+            <label>Precio adicional en PedidosYa (BOB)</label>
+            <input type="number" step="0.50" min="0" v-model="optionForm.delivery_price" placeholder="Vacío = usa precio local" class="form-control" />
+            <span class="field-hint">Vacío = cobra el mismo precio adicional del local.</span>
           </div>
 
           <div class="input-group-row" v-if="editingOption">
@@ -430,8 +444,22 @@ const deleteOption = async () => {
 
 .top-left {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.og-title-wrapper {
+  display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.og-channel-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-500);
+  font-weight: 500;
 }
 
 .og-title {
@@ -655,6 +683,19 @@ const deleteOption = async () => {
   font-size: 13px;
   color: var(--ink-500);
   font-weight: 600;
+}
+
+.opt-price-pya {
+  font-size: 12px;
+  color: var(--passion-text);
+  font-weight: 700;
+}
+
+.field-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-500);
+  margin-top: 4px;
 }
 
 /* TOGGLE SWITCH */

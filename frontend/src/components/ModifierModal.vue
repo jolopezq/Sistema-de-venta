@@ -94,6 +94,10 @@ const filteredGroups = computed(() => {
       ...og,
       options: [...og.options]
         .filter(opt => opt.is_active && !(props.product?.excluded_options || []).includes(opt.id))
+        .map(opt => ({
+          ...opt,
+          pedidosya_pricing: opt.pedidosya_pricing !== undefined ? opt.pedidosya_pricing : og.pedidosya_pricing
+        }))
         .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
     }));
 });

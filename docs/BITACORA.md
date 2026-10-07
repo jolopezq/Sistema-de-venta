@@ -25,14 +25,16 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | UI. Modo oscuro, modo claro (WCAG AA) y fuentes locales | ✅ | `2802a36`, `b7b6aa4`, `624702e` |
 | Canal PedidosYa: arqueo aparte, precios por canal, registro desde el POS ([plan](PLAN_PEDIDOSYA.md)) | ✅ en rama `feat/canal-pedidosya` | `a15b50b`, `a2e3f96` |
 | Precios PedidosYa ([plan](PLAN_PRECIOS_PEDIDOSYA.md)): disponibilidad, ajuste por línea con motivo y Tarifario | ✅ en rama `feat/precios-pedidosya` | ver registro |
+| Precios PedidosYa solo en tamaños ([plan](PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md)): grupo `pedidosya_pricing` | ✅ en rama `feat/precios-pedidosya` | ver registro |
 
 ## Pendientes
 
 ### Decisiones del usuario
 - [ ] Fusionar `feat/canal-pedidosya` en `mejoras/analisis-integral` (sale de esa rama).
-- [ ] Confirmar antes de fusionar `feat/precios-pedidosya`: la migración
-      `2026_10_07_000001_add_available_on_pedidosya_to_products_table` **cambia datos** al instalarse
-      (deja los productos por peso como no disponibles en PedidosYa).
+- [ ] Confirmar antes de fusionar `feat/precios-pedidosya`: las migraciones
+      `2026_10_07_000001_add_available_on_pedidosya_to_products_table` y
+      `2026_10_07_000003_add_pedidosya_pricing_to_option_groups_table` **cambian datos** al instalarse
+      (deja los productos por peso como no disponibles en PedidosYa y marca los grupos 'Tamaño...' con precio propio).
 - [ ] Completar el tarifario PedidosYa (Menú → Tarifario PedidosYa): al 07/10 la base local tiene precio en
       los bowls (30) pero no en Arma tu Bowl, Capuchino, 4 toppings ni Tamaño Café Grande.
 - [ ] Fusionar `feat/precios-pedidosya` en `feat/canal-pedidosya` (sale de esa rama) y ejecutar
@@ -112,6 +114,14 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-07 (2)** — Plan de precios PedidosYa solo en los tamaños (`PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md`)
+  ejecutado en `feat/precios-pedidosya`: migración `add_pedidosya_pricing_to_option_groups_table` (activa
+  por defecto para grupos 'Tamaño...'), regla de precios sincronizada en backend y frontend (toppings y
+  frutas cobran siempre precio local en ambos canales), validación y rechazo 422 en Tarifario para opcionales
+  no marcados, eliminación de avisos espurios en el POS por toppings, casilla "🛵 Precio distinto en PedidosYa"
+  e indicadores de precio PedidosYa en Menú (Opcionales y Tarifario). 92 tests en verde (5 tests nuevos de
+  cobertura), build y auditoría de contraste (0 textos bajo AA en Menú y POS).
 
 - **2026-10-07** — Plan de precios PedidosYa ejecutado en `feat/precios-pedidosya` (desde
   `feat/canal-pedidosya`): casilla "Disponible en PedidosYa", etiqueta "precio local" en el POS, ajuste de

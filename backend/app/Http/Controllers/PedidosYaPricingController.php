@@ -50,7 +50,14 @@ class PedidosYaPricingController extends Controller
 
             $options = 0;
             foreach ($validated['options'] ?? [] as $row) {
-                $option = Option::findOrFail($row['id']);
+                $option = Option::with('optionGroup')->findOrFail($row['id']);
+                if (array_key_exists('delivery_price', $row) && $row['delivery_price'] !== null) {
+                    if (!$option->optionGroup || !$option->optionGroup->pedidosya_pricing) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'options' => ['Este grupo cobra el mismo precio en PedidosYa.'],
+                        ]);
+                    }
+                }
                 if (array_key_exists('delivery_price', $row)) {
                     $option->delivery_price = $row['delivery_price'];
                 }

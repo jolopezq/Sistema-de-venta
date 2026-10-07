@@ -36,7 +36,7 @@ class PedidosYaChannelTest extends TestCase
             'name' => 'Bowl', 'price' => 30, 'delivery_price' => 36,
             'category_id' => $category->id, 'printer_target' => 'kitchen',
         ]);
-        $group = OptionGroup::create(['name' => 'Toppings', 'min_selections' => 0, 'max_selections' => 3]);
+        $group = OptionGroup::create(['name' => 'Tamaños', 'min_selections' => 0, 'max_selections' => 3, 'pedidosya_pricing' => true]);
         $this->topping = Option::create([
             'option_group_id' => $group->id, 'name' => 'Frutilla', 'additional_price' => 3, 'delivery_price' => 4,
         ]);

@@ -12,7 +12,7 @@ class OptionController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
-        return OptionResource::collection(Option::with('recipes.ingredient')->get());
+        return OptionResource::collection(Option::with(['recipes.ingredient', 'optionGroup'])->get());
     }
 
     public function store(OptionRequest $request): OptionResource

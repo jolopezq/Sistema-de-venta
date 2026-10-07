@@ -16,7 +16,15 @@ class OptionGroup extends Model
         'name',
         'min_selections',
         'max_selections',
+        'pedidosya_pricing',
         'is_active',
+    ];
+
+    protected $casts = [
+        'min_selections' => 'integer',
+        'max_selections' => 'integer',
+        'pedidosya_pricing' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     public function options()

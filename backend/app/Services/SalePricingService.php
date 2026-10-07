@@ -132,11 +132,16 @@ class SalePricingService
 
     /**
      * Precio adicional de una opción (tamaño, topping) según el canal.
+     * En PedidosYa solo los grupos con pedidosya_pricing aplican tarifa de plataforma;
+     * los demás cobran el precio local.
      */
     public static function optionPrice(Option $option, string $source = 'pos'): float
     {
-        if ($source === 'pedidosya' && (float) $option->delivery_price > 0) {
-            return (float) $option->delivery_price;
+        if ($source === 'pedidosya') {
+            $hasGroupPricing = (bool) ($option->optionGroup?->pedidosya_pricing);
+            if ($hasGroupPricing && (float) $option->delivery_price > 0) {
+                return (float) $option->delivery_price;
+            }
         }
 
         return (float) $option->additional_price;

@@ -16,6 +16,7 @@ class PedidosYaPricingTest extends TestCase
 
     private User $admin;
     private Product $product;
+    private Option $sizeOption;
     private Option $topping;
 
     protected function setUp(): void
@@ -26,15 +27,17 @@ class PedidosYaPricingTest extends TestCase
         $this->product = Product::create([
             'name' => 'Bowl', 'price' => 28, 'category_id' => $category->id, 'printer_target' => 'kitchen',
         ]);
-        $group = OptionGroup::create(['name' => 'Toppings', 'min_selections' => 0, 'max_selections' => 3]);
-        $this->topping = Option::create(['option_group_id' => $group->id, 'name' => 'Coco', 'additional_price' => 4]);
+        $sizeGroup = OptionGroup::create(['name' => 'Tamaño Acai', 'min_selections' => 1, 'max_selections' => 1, 'pedidosya_pricing' => true]);
+        $this->sizeOption = Option::create(['option_group_id' => $sizeGroup->id, 'name' => 'Ohana', 'additional_price' => 32]);
+        $toppingGroup = OptionGroup::create(['name' => 'Toppings', 'min_selections' => 0, 'max_selections' => 3, 'pedidosya_pricing' => false]);
+        $this->topping = Option::create(['option_group_id' => $toppingGroup->id, 'name' => 'Coco', 'additional_price' => 4]);
     }
 
     public function test_admin_saves_pedidosya_prices_and_availability_in_batch(): void
     {
         $this->actingAs($this->admin)->putJson('/api/admin/pricing/pedidosya', [
             'products' => [['id' => $this->product->id, 'delivery_price' => 35, 'available_on_pedidosya' => false]],
-            'options'  => [['id' => $this->topping->id, 'delivery_price' => 5]],
+            'options'  => [['id' => $this->sizeOption->id, 'delivery_price' => 36]],
         ])->assertOk()
             ->assertJsonPath('updated_products', 1)
             ->assertJsonPath('updated_options', 1);
@@ -44,12 +47,20 @@ class PedidosYaPricingTest extends TestCase
         $this->assertFalse($product->available_on_pedidosya);
         $this->assertEquals(28, $product->price, 'El precio de mostrador no cambia');
 
-        $topping = $this->topping->fresh();
-        $this->assertEquals(5, $topping->delivery_price);
-        $this->assertEquals(4, $topping->additional_price, 'El precio de mostrador no cambia');
+        $sizeOption = $this->sizeOption->fresh();
+        $this->assertEquals(36, $sizeOption->delivery_price);
+        $this->assertEquals(32, $sizeOption->additional_price, 'El precio de mostrador no cambia');
 
         $this->assertDatabaseHas('audit_logs', ['module' => 'Product', 'action' => 'updated', 'user_id' => $this->admin->id]);
         $this->assertDatabaseHas('audit_logs', ['module' => 'Option', 'action' => 'updated', 'user_id' => $this->admin->id]);
+    }
+
+    public function test_option_in_unmarked_group_rejects_pedidosya_price_with_422(): void
+    {
+        $this->actingAs($this->admin)->putJson('/api/admin/pricing/pedidosya', [
+            'options' => [['id' => $this->topping->id, 'delivery_price' => 5]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['options']);
     }
 
     public function test_empty_price_clears_the_pedidosya_price(): void
@@ -75,7 +86,7 @@ class PedidosYaPricingTest extends TestCase
     public function test_negative_prices_are_rejected(): void
     {
         $this->actingAs($this->admin)->putJson('/api/admin/pricing/pedidosya', [
-            'options' => [['id' => $this->topping->id, 'delivery_price' => -1]],
+            'options' => [['id' => $this->sizeOption->id, 'delivery_price' => -1]],
         ])->assertUnprocessable();
     }
 
