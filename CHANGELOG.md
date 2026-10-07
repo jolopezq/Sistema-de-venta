@@ -34,6 +34,11 @@ se renombra con la fecha de la actualización de producción.
   `sale_items.price_override_reason` y queda en auditoría como `pedidosya_price_override` (no como
   discrepancia). En ventas del local el cajero no puede ajustar precios y un motivo recibido se ignora y se
   audita. En Control Diario, el modo "✏️ Manual Libre" de un pedido PedidosYa acepta el mismo motivo.
+- **Tarifario PedidosYa** (Menú → "🛵 Tarifario PedidosYa"): tabla con todos los productos, tamaños y toppings
+  con su precio de mostrador y su precio PedidosYa editable, la disponibilidad de cada producto y un resumen
+  de cuántos usan el precio local. "Aplicar +X %" (a los vacíos o a todos, redondeo a 0,50) llena una vista
+  previa que se revisa antes de guardar. Se guarda en lote con `PUT /api/admin/pricing/pedidosya` (solo
+  admin), que nunca toca el precio de mostrador y deja cada cambio en auditoría.
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)

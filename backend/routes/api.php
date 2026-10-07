@@ -53,6 +53,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::apiResource('option-groups', \App\Http\Controllers\OptionGroupController::class)->except(['index', 'show']);
         Route::apiResource('options', \App\Http\Controllers\OptionController::class)->except(['index', 'show']);
         Route::apiResource('products', ProductController::class)->except(['index', 'show']);
+        // Tarifario PedidosYa: precios de plataforma y disponibilidad en lote
+        Route::put('/admin/pricing/pedidosya', [\App\Http\Controllers\PedidosYaPricingController::class, 'update']);
         Route::apiResource('ingredients', IngredientController::class)->except(['index', 'show']);
         Route::apiResource('customers', CustomerController::class)->except(['index', 'show']);
 

@@ -24,7 +24,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | 6. Refactor y rendimiento | Pendiente | — |
 | UI. Modo oscuro, modo claro (WCAG AA) y fuentes locales | ✅ | `2802a36`, `b7b6aa4`, `624702e` |
 | Canal PedidosYa: arqueo aparte, precios por canal, registro desde el POS ([plan](PLAN_PEDIDOSYA.md)) | ✅ en rama `feat/canal-pedidosya` | `a15b50b`, `a2e3f96` |
-| Precios PedidosYa ([plan](PLAN_PRECIOS_PEDIDOSYA.md)): 1. Disponible en PedidosYa · 2. Ajuste por línea con motivo | ✅ en rama `feat/precios-pedidosya` | ver registro |
+| Precios PedidosYa ([plan](PLAN_PRECIOS_PEDIDOSYA.md)): disponibilidad, ajuste por línea con motivo y Tarifario | ✅ en rama `feat/precios-pedidosya` | ver registro |
 
 ## Pendientes
 
@@ -33,8 +33,10 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 - [ ] Confirmar antes de fusionar `feat/precios-pedidosya`: la migración
       `2026_10_07_000001_add_available_on_pedidosya_to_products_table` **cambia datos** al instalarse
       (deja los productos por peso como no disponibles en PedidosYa).
-- [ ] Cargar los precios PedidosYa de los **productos** en Menú: hoy ninguno tiene `delivery_price` (solo
-      13 opciones), así que el POS cobra el precio local y lo avisa en el banner.
+- [ ] Completar el tarifario PedidosYa (Menú → Tarifario PedidosYa): al 07/10 la base local tiene precio en
+      los bowls (30) pero no en Arma tu Bowl, Capuchino, 4 toppings ni Tamaño Café Grande.
+- [ ] Fusionar `feat/precios-pedidosya` en `feat/canal-pedidosya` (sale de esa rama) y ejecutar
+      `php artisan migrate` en la Mac con respaldo previo (dos migraciones nuevas).
 - [ ] Fusionar `mejoras/analisis-integral` en `main` (dispara la actualización de producción).
 - [ ] `graphify-out/`: regenerar el grafo (está desactualizado respecto al código) y commitearlo, o
       ignorar `cache/` y `obsidian/` en git.
@@ -110,6 +112,15 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-07** — Plan de precios PedidosYa ejecutado en `feat/precios-pedidosya` (desde
+  `feat/canal-pedidosya`): casilla "Disponible en PedidosYa", etiqueta "precio local" en el POS, ajuste de
+  precio por línea con motivo (`price_override_reason`, auditoría `pedidosya_price_override`) y pantalla
+  Tarifario con guardado en lote. 87 tests en verde, build correcto, migraciones probadas sobre una copia de
+  la base local y flujo PedidosYa completo (tarifario → venta con ajuste → sincronización) contra esa copia.
+  Contraste: 0 textos bajo AA en las pantallas nuevas (dark y light); queda 1 preexistente en el hover de
+  `.chip-price` del modal de producto (4,39). Los tests se corrieron con PHP 8.4 en WebAssembly (sin PHP
+  nativo en el entorno); en la Mac basta `php artisan test`.
 
 - **2026-10-04 (3)** — Plan PedidosYa ejecutado en `feat/canal-pedidosya`: arqueo separado por `source`,
   pagos de plataforma normalizados, verificación de precios por canal, selector de canal en el POS y bloque

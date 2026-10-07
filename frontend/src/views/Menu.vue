@@ -7,6 +7,7 @@ import OptionGroupDetail from '../components/Menu/OptionGroupDetail.vue';
 import AdminProductCard from '../components/Menu/AdminProductCard.vue';
 import ProductOptionsModal from '../components/Menu/ProductOptionsModal.vue';
 import ProductPauseModal from '../components/Menu/ProductPauseModal.vue';
+import PedidosYaPricing from '../components/Menu/PedidosYaPricing.vue';
 import { useCatalogStore } from '../stores/catalog';
 
 // State
@@ -15,7 +16,7 @@ const products = ref([]);
 const optionGroups = ref([]);
 const ingredients = ref([]);
 
-const activeTab = ref('productos'); // 'productos' o 'opcionales'
+const activeTab = ref('productos'); // 'productos', 'opcionales' o 'tarifario' (precios PedidosYa)
 const activeCategory = ref(null);
 const activeOptionGroup = ref(null);
 
@@ -504,11 +505,17 @@ const handleUpdateSuccess = async (groupId) => {
         @click="activeTab = 'opcionales'; if (!activeOptionGroup && optionGroups.length > 0) activeOptionGroup = optionGroups[0];">
         Opcionales
       </div>
+      <div 
+        class="tab-item" 
+        :class="{ active: activeTab === 'tarifario' }" 
+        @click="activeTab = 'tarifario'">
+        🛵 Tarifario PedidosYa
+      </div>
     </div>
 
     <div class="admin-body">
-      <!-- SIDEBAR DINÁMICA SEGÚN TAB -->
-      <div class="admin-side">
+      <!-- SIDEBAR DINÁMICA SEGÚN TAB (el tarifario usa todo el ancho) -->
+      <div v-if="activeTab !== 'tarifario'" class="admin-side">
         
         <!-- SIDEBAR PRODUCTOS (CATEGORÍAS) -->
         <template v-if="activeTab === 'productos'">
@@ -592,6 +599,16 @@ const handleUpdateSuccess = async (groupId) => {
               <p class="text-muted">Esta categoría no será visible a los usuarios hasta que sumes el primer producto.</p>
             </div>
           </div>
+
+          <!-- TAB TARIFARIO PEDIDOSYA -->
+          <PedidosYaPricing
+            v-if="activeTab === 'tarifario'"
+            :products="products"
+            :optionGroups="optionGroups"
+            :categories="categories"
+            @saved="fetchData"
+            @alert="alertAction"
+          />
 
           <!-- TAB OPCIONALES: DETALLE DE GRUPO -->
           <div v-if="activeTab === 'opcionales'" class="options-detail-view">
