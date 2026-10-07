@@ -385,8 +385,8 @@
     "semantic_hash": "1a03818ea91deb4f3989c6c994e5867c"
   },
   "backend/routes/api.php": {
-    "mtime": 1791403976.8445644,
-    "ast_hash": "98b35fdb1fa5d8ea8b2310076c6227d4",
+    "mtime": 1791404979.6847377,
+    "ast_hash": "d49c320ed197819ac960710901df9777",
     "semantic_hash": ""
   },
   "backend/routes/console.php": {
@@ -1640,8 +1640,8 @@
     "semantic_hash": ""
   },
   "backend/app/Services/FinanceReportService.php": {
-    "mtime": 1791404026.8768492,
-    "ast_hash": "417dd39c295db94a38a46230fcf2fda5",
+    "mtime": 1791404941.174333,
+    "ast_hash": "8cf6c7e65c6c673c725043ee1e31b12a",
     "semantic_hash": ""
   },
   "backend/database/migrations/2026_10_07_000004_create_expense_categories_table.php": {
@@ -1675,13 +1675,43 @@
     "semantic_hash": ""
   },
   "frontend/src/views/Finance.vue": {
-    "mtime": 1791404462.6054592,
-    "ast_hash": "032c2c95084c5270aed40cf669b343c4",
+    "mtime": 1791405756.8112943,
+    "ast_hash": "40f3a9c676e144049d1855a9c4cc88b4",
     "semantic_hash": ""
   },
   "docs/PLAN_MODULO_FINANZAS.md": {
     "mtime": 1791403808.3475618,
     "ast_hash": "dfc41170a28ebf48c728e9cc54b1b9e0",
+    "semantic_hash": ""
+  },
+  "backend/app/Http/Controllers/PedidosYaSettlementController.php": {
+    "mtime": 1791404957.651676,
+    "ast_hash": "a2f2f530e8940b2027924a15465c85da",
+    "semantic_hash": ""
+  },
+  "backend/app/Models/PedidosYaOrder.php": {
+    "mtime": 1791405037.6295404,
+    "ast_hash": "e0d17146bc05166962b4cfb0e207e05f",
+    "semantic_hash": ""
+  },
+  "backend/app/Models/PedidosYaSettlement.php": {
+    "mtime": 1791405026.2234912,
+    "ast_hash": "cf251787b39ac1f258b981b860878216",
+    "semantic_hash": ""
+  },
+  "backend/app/Services/PedidosYaImportService.php": {
+    "mtime": 1791405124.5755682,
+    "ast_hash": "5f22002678ef7b72767e8d257ba05633",
+    "semantic_hash": ""
+  },
+  "backend/database/migrations/2026_10_07_000008_create_pedidosya_settlements_tables.php": {
+    "mtime": 1791404798.790767,
+    "ast_hash": "c172c3d8f457f6ee23add0873dc78e41",
+    "semantic_hash": ""
+  },
+  "backend/tests/Feature/PedidosYaSettlementTest.php": {
+    "mtime": 1791405366.8207545,
+    "ast_hash": "5ecec5325c4bf503db37d32ddd83a65e",
     "semantic_hash": ""
   }
 }

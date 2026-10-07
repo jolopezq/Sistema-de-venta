@@ -190,5 +190,13 @@
   "188": "2026_10_07_000004_create_expense_categories_table.php",
   "189": "2026_10_07_000005_create_finance_expenses_table.php",
   "190": "2026_10_07_000006_create_recurring_expenses_table.php",
-  "191": "2026_10_07_000007_add_expense_category_id_to_cash_movements_table.php"
+  "191": "2026_10_07_000007_add_expense_category_id_to_cash_movements_table.php",
+  "192": "PedidosYaPricingTest",
+  "193": "IngredientCategoryRequest",
+  "194": "ExpenseCategoryRequest",
+  "195": "RecipeRequest",
+  "196": "RolePermissionRequest",
+  "197": "SyncSalesRequest",
+  "198": "Illuminate\\Http\\Resources\\Json\\JsonResource",
+  "199": "2026_10_07_000008_create_pedidosya_settlements_tables.php"
 }

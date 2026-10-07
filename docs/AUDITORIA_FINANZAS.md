@@ -154,3 +154,35 @@ efectivo (B4); índice en `sales` (B8); decisión sobre `graphify-out/cache` (B5
 - Verificación por fase: `php artisan test` (con La Paz), `npx vite build`, capturas a 1440 px y 390 px en ambos
   temas y auditoría de contraste de `/finanzas`.
 - Volver a pedir auditoría al terminar las fases 0 a 2.
+
+## 5. Estado de la corrección (07–08/10/2026)
+
+| Fase | Commit | Resultado |
+|---|---|---|
+| 0. Bloqueantes | `9a5f871` | Imágenes restauradas y regla en `AGENTS.md`; un solo marco; meses en hora de La Paz (test de bordes: septiembre = 107); lista de liquidaciones |
+| 1. Cálculos | `f2319e1` | Gastos fijos generados por mes; avisos; clasificación de egresos; semanas con rango del CSV, sin solapes, prorrateo y conciliación completa |
+| 2. Interfaz | `36ec4ad` | Estado de Resultados como vista principal; `Finance.vue` dividido en `components/Finance/` + `stores/finance.js`; contraste 0 (claro y oscuro, 1440 y 390 px) |
+| 3. Importación | `a7def47` | La importación crea o vincula las ventas, equivalencias de nombres e informe semanal |
+| 4. Optimización | ver registro | Índices de reportes, totales del servidor, grafo actualizado |
+
+| Id | Estado |
+|---|---|
+| C1, C2, A1, A3 | Corregidos (fase 0) |
+| A2, M1–M4 | Corregidos (fase 1) |
+| M5–M8 | Corregidos (fase 2) |
+| A4 | Corregido (fase 3) |
+| B1 | Verificado sin cambios: con 8 productos × 3 grupos × 6 opciones, `/api/catalog` hace 9 consultas (el grupo se asigna desde `OptionGroupResource`) |
+| B2, B6 | Corregidos (fases 0 y 1–3: 39 tests nuevos) |
+| B3, B4, B7 | Corregidos (fase 2: totales del servidor, aviso de pago en efectivo, aviso al cambiar la sección) |
+| B8 | Corregido (fase 4: índices `sales (status, created_at)`, `sales (source, created_at)`, `cash_movements (type, created_at)`) |
+| B5 | **Pendiente de decisión del dueño** (los commits nuevos no tocan `graphify-out/cache`) |
+
+Hallazgos nuevos durante la corrección (corregidos):
+
+- Editar o eliminar una compra respondía 200 sin cambiar nada (el parámetro de la ruta no coincidía con el del
+  controlador); lo mismo al ver o eliminar una semana PedidosYa.
+- Los gastos del último día del mes quedaban fuera de listas y del Estado de Resultados (`date` se guarda con
+  `00:00:00`), y las fechas se devolvían como `…T04:00:00Z`.
+- El formulario de la semana sumaba los envíos en vez de restarlos y el detalle de pedidos no cargaba.
+- Un CSV con columnas faltantes respondía error 500.
+

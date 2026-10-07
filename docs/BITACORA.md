@@ -26,7 +26,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | Módulo de Finanzas: Fase 1 P&L mensual, compras, gastos fijos y categorías ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | `4cdc459` |
 | Módulo de Finanzas: Fase 2 Importación semanal PedidosYa, conciliación y análisis de canal ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | ver registro |
 | Finanzas — corrección de la [auditoría](AUDITORIA_FINANZAS.md): fases 0 (bloqueantes), 1 (cálculos), 2 (interfaz) y 3 (importación crea ventas) | ✅ en rama `feat/modulo-finanzas` | `9a5f871`, `f2319e1`, `36ec4ad`, ver registro |
-| Finanzas — auditoría fase 4 (optimización) | En curso | — |
+| Finanzas — auditoría fase 4 (optimización) | ✅ en rama `feat/modulo-finanzas` | ver registro |
 
 ## Pendientes
 
@@ -43,6 +43,12 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 - [ ] Fusionar `mejoras/analisis-integral` en `main` (dispara la actualización de producción).
 - [ ] `graphify-out/`: regenerar el grafo (está desactualizado respecto al código) y commitearlo, o
       ignorar `cache/` y `obsidian/` en git.
+- [ ] Finanzas: ejecutar `php artisan migrate` en la Mac (con respaldo previo) para las 4 migraciones
+      `2026_10_08_*` antes de probar la rama `feat/modulo-finanzas`.
+- [ ] Finanzas: cargar en la pestaña Gastos fijos el mes de inicio real de cada gasto y generar los meses
+      pasados que se quieran ver en el Estado de Resultados (los fijos ya no se suman solos).
+- [ ] Tarifario PedidosYa: Tamaño Mediano +8 (hoy +7) y Arma tu Bowl 32 (hoy 35), según la semana 14–20/09.
+- [ ] Pedir una nueva auditoría de `feat/modulo-finanzas` (fases 0 a 4 terminadas) antes de fusionarla.
 - [ ] Matriz `role_permissions` (pantalla Usuarios → Roles y permisos): conectarla al backend o eliminarla.
       Hoy no se aplica y sus datos dicen que el admin solo tiene lectura en todo.
 - [ ] Botones naranjas/verdes en modo claro usan texto oscuro (decisión aplicada). Alternativa si se
@@ -136,6 +142,9 @@ Formato: fecha — resumen — commits. Lo más reciente arriba.
   Bowl" → Patriota), 3 opciones sin equivalencia, 10 ventas creadas y 1 vinculada a mano. El informe marca 8
   pedidos con otro precio que el Tarifario: **Mediano en PedidosYa es +8 (el POS tiene +7) y Arma tu Bowl 32 (el POS
   tiene 35)** — corregir en Menú → Tarifario PedidosYa (decisión del dueño).
+  Fase 4: índices de reportes (migración `2026_10_08_000004`), B1 verificado sin N+1, grafo actualizado (sin la
+  caché). Estado por hallazgo en [AUDITORIA_FINANZAS.md §5](AUDITORIA_FINANZAS.md). Las 4 migraciones nuevas se
+  probaron en una copia de la base de la Mac (también `rollback`); la base real **no** se migró.
 
 - **2026-10-07 (4)** — Módulo de Finanzas (Fase 2: Liquidaciones semanales de PedidosYa, conciliación y análisis de canal):
   - Migración `2026_10_07_000008_create_pedidosya_settlements_tables.php` creando `pedidosya_settlements` y

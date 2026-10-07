@@ -106,6 +106,8 @@ se renombra con la fecha de la actualización de producción.
   estimada (con el % de costo de ventas del mes), conciliación, pedidos a otro precio que el Tarifario y pedidos
   sin venta. Se puede imprimir.
 - `pedidosya_orders.sale_link` y `catalog_total` (migración `2026_10_08_000003`).
+- Índices para los reportes por mes: `sales (status, created_at)`, `sales (source, created_at)` y
+  `cash_movements (type, created_at)` (migración `2026_10_08_000004`).
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)
