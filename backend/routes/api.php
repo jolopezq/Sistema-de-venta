@@ -119,6 +119,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
             // Gastos fijos recurrentes
             Route::apiResource('recurring-expenses', \App\Http\Controllers\RecurringExpenseController::class);
             Route::patch('/recurring-expenses/{recurringExpense}/toggle-active', [\App\Http\Controllers\RecurringExpenseController::class, 'toggleActive']);
+
+            // Liquidaciones semanales de PedidosYa (importación y conciliación)
+            Route::apiResource('pedidosya-settlements', \App\Http\Controllers\PedidosYaSettlementController::class);
         });
     });
 

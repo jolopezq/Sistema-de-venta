@@ -5,7 +5,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 
 ## Estado actual (2026-10-07)
 - **Rama de trabajo:** `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`).
-- **Tests:** 96 en verde (`php artisan test`). Build del frontend correcto.
+- **Tests:** 100 en verde (`php artisan test`, 446 aserciones). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -23,7 +23,8 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | UI. Modo oscuro, modo claro (WCAG AA) y fuentes locales | ✅ | `2802a36`, `b7b6aa4`, `624702e` |
 | Canal PedidosYa: arqueo aparte, precios por canal, registro desde el POS ([plan](PLAN_PEDIDOSYA.md)) | ✅ en rama `feat/canal-pedidosya` | `a15b50b`, `a2e3f96` |
 | Precios PedidosYa solo en tamaños ([plan](PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md)): grupo `pedidosya_pricing` | ✅ en rama `feat/precios-pedidosya` | `b81d960` |
-| Módulo de Finanzas: Fase 1 P&L mensual, compras, gastos fijos y categorías ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | ver registro |
+| Módulo de Finanzas: Fase 1 P&L mensual, compras, gastos fijos y categorías ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | `4cdc459` |
+| Módulo de Finanzas: Fase 2 Importación semanal PedidosYa, conciliación y análisis de canal ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | ver registro |
 
 ## Pendientes
 
@@ -113,8 +114,27 @@ número de orden solo para ventas nuevas.
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
 
+- **2026-10-07 (4)** — Módulo de Finanzas (Fase 2: Liquidaciones semanales de PedidosYa, conciliación y análisis de canal):
+  - Migración `2026_10_07_000008_create_pedidosya_settlements_tables.php` creando `pedidosya_settlements` y
+    `pedidosya_orders` con persistencia de campos normalizados y `raw_data` JSON.
+  - Modelos `PedidosYaSettlement` y `PedidosYaOrder` con nombres de tabla explícitos y relaciones.
+  - Servicio `PedidosYaImportService`: lectura nativa de CSV de órdenes (soporte de BOM, separadores, comas decimales),
+    parsing de fechas a `America/La_Paz`, conciliación de los 8 montos del estado de cuenta PDF e idempotencia
+    completa por número de pedido para permitir reimportaciones sin duplicados.
+  - Servicio `FinanceReportService` actualizado para incluir ventas netas de liquidaciones en ingresos totales,
+    costos operativos de plataforma (comisiones, publicidad, retención IVA − reembolsos) en OPEX, y cálculo
+    específico de rentabilidad del canal (`pedidosya_analysis`).
+  - Endpoints RESTful en `PedidosYaSettlementController` bajo middleware `super_admin`.
+  - Frontend `Finance.vue`:
+    - Pestaña "🛵 Liquidaciones PedidosYa" con métricas mensuales y tabla de liquidaciones.
+    - Banner de rentabilidad PedidosYa en el Estado de Resultados.
+    - Modal de carga de semana con conciliación en tiempo real (alerta de discrepancia si la suma difiere del total a pagar).
+    - Modal/drawer para explorar los pedidos de la semana con filtros por estado (Todos, Entregados, Cancelados).
+  - Test feature `PedidosYaSettlementTest` (4 tests pasados, 21 aserciones).
+  - 100 tests totales en verde (`php artisan test`), build Vite correcto (`npx vite build`), grafo sincronizado (`graphify update .`).
+
 - **2026-10-07 (3)** — Módulo de Finanzas (Fase 1: P&L mensual, compras, gastos fijos y categorías) implementado
-  en la rama `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`):
+  en la rama `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`): — `4cdc459`
   - Respaldo previo de base de datos en `storage/app/backups/pre_finanzas_20261007_160418.sqlite`.
   - Migraciones para `expense_categories` (14 categorías estándar precargadas en `cost_of_sales`, `operating`,
     `financial`, `taxes`), `finance_expenses` (compras y gastos fuera de caja), `recurring_expenses` (gastos

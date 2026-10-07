@@ -36,28 +36,43 @@ class FinanceReportService
             })
             ->whereBetween('created_at', [$startUtc, $endUtc]);
 
+        // 1. Ingresos por ventas del local (excluye pedidosya porque en P&L se toman de liquidaciones en fase 2)
+        $localSalesQuery = Sale::where('status', 'completed')
+            ->where(function ($q) {
+                $q->whereNull('source')->orWhere('source', '!=', 'pedidosya');
+            })
+            ->whereBetween('created_at', [$startUtc, $endUtc]);
+
         $localSalesTotal = (float) $localSalesQuery->sum('total_amount');
         $localSalesCount = (int) $localSalesQuery->count();
         $averageTicket = $localSalesCount > 0 ? round($localSalesTotal / $localSalesCount, 2) : 0.0;
 
-        // Total Ingresos Operativos (fase 1: solo local; fase 2 sumará liquidaciones netas de PedidosYa)
-        $totalRevenue = $localSalesTotal;
+        // 2. Liquidaciones semanales de PedidosYa que finalizan en el mes seleccionado (§7.1)
+        $pedidosyaSettlements = \App\Models\PedidosYaSettlement::whereBetween('end_date', [$startDateStr, $endDateStr])->get();
+        $pedidosyaNetSales = (float) $pedidosyaSettlements->sum('net_sales');
+        $pedidosyaTotalPayout = (float) $pedidosyaSettlements->sum('total_payout');
+        $pedidosyaGrossSales = (float) $pedidosyaSettlements->sum('csv_gross_sales');
+        $pedidosyaDeliveredCount = (int) $pedidosyaSettlements->sum('delivered_count');
+        $pedidosyaCancelledCount = (int) $pedidosyaSettlements->sum('cancelled_count');
 
-        // 2. Traer categorías activas para desglose estructurado
+        // Total Ingresos Operativos (Ventas del local + Ventas netas PedidosYa)
+        $totalRevenue = round($localSalesTotal + $pedidosyaNetSales, 2);
+
+        // 3. Traer categorías activas para desglose estructurado
         $allCategories = ExpenseCategory::orderBy('sort_order')->get()->keyBy('id');
 
-        // 3. Compras y gastos registrados fuera de caja en el mes
+        // 4. Compras y gastos registrados fuera de caja en el mes
         $directExpenses = FinanceExpense::with('category')
             ->whereBetween('date', [$startDateStr, $endDateStr])
             ->get();
 
-        // 4. Egresos de caja registrados en los turnos del mes
+        // 5. Egresos de caja registrados en los turnos del mes
         $cashExpenses = CashMovement::with('expenseCategory')
             ->where('type', 'expense')
             ->whereBetween('created_at', [$startUtc, $endUtc])
             ->get();
 
-        // 5. Gastos fijos / recurrentes activos
+        // 6. Gastos fijos / recurrentes activos
         $recurringExpenses = RecurringExpense::with('category')
             ->active()
             ->get();
@@ -67,6 +82,59 @@ class FinanceReportService
         $operatingItems = collect();
         $financialItems = collect();
         $taxItems = collect();
+
+        // Agregar costos operativos de PedidosYa (comisiones, publicidad, IVA, reintegros)
+        foreach ($pedidosyaSettlements as $st) {
+            if ($st->service_fees > 0) {
+                $operatingItems->push([
+                    'id'            => 'pya_srv_' . $st->id,
+                    'source'        => 'pedidosya_settlement',
+                    'category_id'   => null,
+                    'category_name' => 'Comisión PedidosYa',
+                    'group_name'    => 'Plataforma Delivery',
+                    'description'   => "Comisión liquidación semana {$st->start_date->format('d/m')} al {$st->end_date->format('d/m')}",
+                    'amount'        => (float) $st->service_fees,
+                    'date'          => $st->end_date->toDateString(),
+                ]);
+            }
+            if ($st->advertising > 0) {
+                $operatingItems->push([
+                    'id'            => 'pya_adv_' . $st->id,
+                    'source'        => 'pedidosya_settlement',
+                    'category_id'   => null,
+                    'category_name' => 'Publicidad PedidosYa',
+                    'group_name'    => 'Marketing Delivery',
+                    'description'   => "Publicidad in-app semana {$st->start_date->format('d/m')} al {$st->end_date->format('d/m')}",
+                    'amount'        => (float) $st->advertising,
+                    'date'          => $st->end_date->toDateString(),
+                ]);
+            }
+            if ($st->taxes > 0) {
+                $operatingItems->push([
+                    'id'            => 'pya_tax_' . $st->id,
+                    'source'        => 'pedidosya_settlement',
+                    'category_id'   => null,
+                    'category_name' => 'IVA en comisiones PedidosYa',
+                    'group_name'    => 'Impuestos Delivery',
+                    'description'   => "IVA s/comisiones semana {$st->start_date->format('d/m')} al {$st->end_date->format('d/m')}",
+                    'amount'        => (float) $st->taxes,
+                    'date'          => $st->end_date->toDateString(),
+                ]);
+            }
+            if ($st->refunds > 0) {
+                // Los reintegros reducen el costo de la plataforma
+                $operatingItems->push([
+                    'id'            => 'pya_ref_' . $st->id,
+                    'source'        => 'pedidosya_settlement',
+                    'category_id'   => null,
+                    'category_name' => 'Reintegros PedidosYa',
+                    'group_name'    => 'Plataforma Delivery',
+                    'description'   => "Reintegros semana {$st->start_date->format('d/m')} al {$st->end_date->format('d/m')}",
+                    'amount'        => -(float) $st->refunds,
+                    'date'          => $st->end_date->toDateString(),
+                ]);
+            }
+        }
 
         // Procesar FinanceExpenses (compras y pagos fuera de caja)
         foreach ($directExpenses as $expense) {
@@ -161,7 +229,7 @@ class FinanceReportService
                 'local_sales'       => $localSalesTotal,
                 'local_sales_count' => $localSalesCount,
                 'average_ticket'    => $averageTicket,
-                'pedidosya_net'     => 0.0, // Fase 2
+                'pedidosya_net'     => $pedidosyaNetSales,
                 'total'             => $totalRevenue,
             ],
             'cost_of_sales' => [
@@ -197,6 +265,17 @@ class FinanceReportService
             'net_profit' => [
                 'amount'     => $netProfit,
                 'percentage' => $netMarginPercent,
+            ],
+            'pedidosya_analysis' => [
+                'gross_sales'      => $pedidosyaGrossSales,
+                'net_sales'        => $pedidosyaNetSales,
+                'total_payout'     => $pedidosyaTotalPayout,
+                'retention_amount' => round($pedidosyaGrossSales - $pedidosyaTotalPayout, 2),
+                'retention_percent'=> $pedidosyaGrossSales > 0 ? round((($pedidosyaGrossSales - $pedidosyaTotalPayout) / $pedidosyaGrossSales) * 100, 1) : 0.0,
+                'delivered_count'  => $pedidosyaDeliveredCount,
+                'cancelled_count'  => $pedidosyaCancelledCount,
+                'average_ticket'   => $pedidosyaDeliveredCount > 0 ? round($pedidosyaGrossSales / $pedidosyaDeliveredCount, 2) : 0.0,
+                'settlements_count'=> $pedidosyaSettlements->count(),
             ],
         ];
     }

@@ -55,6 +55,21 @@ se renombra con la fecha de la actualización de producción.
     - Utilidad Neta y margen neto (%).
   - Pantalla `Finance.vue` con 4 pestañas interactivas, KPIs visuales, tabla jerárquica del P&L, selector de período mensual y modales de gestión.
   - Fixture anonimizado (`semana_pedidosya_anonimizada.csv`) para pruebas de PedidosYa sin datos personales ni NIT.
+- **Módulo de Finanzas — Fase 2 (Liquidaciones semanales de PedidosYa, conciliación bancaria y análisis de canal)** (`docs/PLAN_MODULO_FINANZAS.md`):
+  - Tablas `pedidosya_settlements` y `pedidosya_orders` creadas por migración con almacenamiento JSON de datos crudos.
+  - Servicio `PedidosYaImportService`: lectura nativa de CSV semanal de PedidosYa, detección de BOM, formateo de importes con comas decimales, conversión de fechas a hora boliviana (`America/La_Paz`) e idempotencia por `order_number` y `settlement_id`.
+  - Conciliación de 8 montos del estado de cuenta PDF (ventas netas, envío, comisiones de servicio, cargos operativos, publicidad, reintegros, impuestos y total pagado al banco).
+  - Integración en `FinanceReportService`:
+    - Incorporación de ventas netas de liquidaciones en ingresos totales (`revenue.pedidosya_net`).
+    - Costos netos de plataforma (comisiones + publicidad + impuestos retenidos − reintegros) integrados a gastos operativos (OPEX).
+    - Bloque de análisis de rentabilidad PedidosYa (`pedidosya_analysis`): ventas brutas en app, total depositado en cuenta bancaria, retención de plataforma (monto y %), y desglose de pedidos entregados vs cancelados.
+  - Controlador `PedidosYaSettlementController` con endpoints protegidos para `super_admin`.
+  - Frontend:
+    - Pestaña "🛵 Liquidaciones PedidosYa" en `Finance.vue` con resumen mensual y tabla de semanas.
+    - Banner de rentabilidad PedidosYa en el Estado de Resultados.
+    - Modal de importación con subida de CSV y comprobante ZIP/PDF, y validador de conciliación en vivo (alerta visual según discrepancia).
+    - Modal/drawer para visualizar todas las órdenes de la semana con filtros por estado (Todos / Entregados / Cancelados).
+  - Suite de pruebas `PedidosYaSettlementTest` en verde.
 - **Precio PedidosYa solo en tamaños** (`docs/PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md`):
   - Nueva columna `option_groups.pedidosya_pricing` (migración activa por defecto para grupos "Tamaño...").
   - En PedidosYa, solo los grupos marcados aplican `delivery_price`; toppings y frutas cobran siempre el precio local en ambos canales.

@@ -71,6 +71,61 @@ const categoryForm = reactive({
 const categoryFormSaving = ref(false);
 const categoryFormError = ref('');
 
+// Datos de Liquidaciones PedidosYa (Fase 2)
+const settlements = ref([]);
+const settlementsLoading = ref(false);
+
+// Modal de Carga de Liquidación
+const isSettlementModalOpen = ref(false);
+const settlementCsvFile = ref(null);
+const settlementZipFile = ref(null);
+const settlementCsvInput = ref(null);
+const settlementZipInput = ref(null);
+const settlementFormSaving = ref(false);
+const settlementFormError = ref('');
+
+const settlementForm = reactive({
+  start_date: '',
+  end_date: '',
+  payout_date: '',
+  net_sales: '',
+  delivery_fees: '0.00',
+  service_fees: '',
+  operating_charges: '0.00',
+  advertising: '0.00',
+  refunds: '0.00',
+  taxes: '0.00',
+  total_payout: '',
+  notes: '',
+});
+
+// Modal de detalle de órdenes
+const isOrdersModalOpen = ref(false);
+const selectedSettlement = ref(null);
+const settlementOrdersLoading = ref(false);
+const ordersFilter = ref('all'); // 'all' | 'Entregado' | 'Cancelado'
+
+const calculatedPayout = computed(() => {
+  const net = parseFloat(settlementForm.net_sales) || 0;
+  const del = parseFloat(settlementForm.delivery_fees) || 0;
+  const srv = parseFloat(settlementForm.service_fees) || 0;
+  const op  = parseFloat(settlementForm.operating_charges) || 0;
+  const adv = parseFloat(settlementForm.advertising) || 0;
+  const ref = parseFloat(settlementForm.refunds) || 0;
+  const tax = parseFloat(settlementForm.taxes) || 0;
+
+  return net + del - srv - op - adv + ref - tax;
+});
+
+const settlementDiscrepancy = computed(() => {
+  const entered = parseFloat(settlementForm.total_payout) || 0;
+  return entered - calculatedPayout.value;
+});
+
+const isReconciled = computed(() => {
+  return Math.abs(settlementDiscrepancy.value) <= 1.0;
+});
+
 // Meses en español
 const monthNames = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -88,6 +143,7 @@ onMounted(async () => {
     fetchCategories(),
     fetchExpenses(),
     fetchRecurring(),
+    fetchSettlements(),
   ]);
 });
 
@@ -113,6 +169,7 @@ function nextMonth() {
 watch([selectedYear, selectedMonth], () => {
   fetchPnL();
   fetchExpenses();
+  fetchSettlements();
 });
 
 // 1. Fetch P&L
@@ -364,6 +421,136 @@ async function toggleCategoryActive(cat) {
   }
 }
 
+// 5. Fetch y Métodos PedidosYa (Fase 2)
+async function fetchSettlements() {
+  settlementsLoading.value = true;
+  try {
+    const data = await apiFetch(`/finance/pedidosya-settlements?year=${selectedYear.value}&month=${selectedMonth.value}`);
+    settlements.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('Error al cargar liquidaciones de PedidosYa:', err);
+  } finally {
+    settlementsLoading.value = false;
+  }
+}
+
+function openCreateSettlementModal() {
+  settlementCsvFile.value = null;
+  settlementZipFile.value = null;
+  if (settlementCsvInput.value) settlementCsvInput.value.value = '';
+  if (settlementZipInput.value) settlementZipInput.value.value = '';
+
+  settlementForm.start_date = '';
+  settlementForm.end_date = '';
+  settlementForm.payout_date = '';
+  settlementForm.net_sales = '';
+  settlementForm.delivery_fees = '0.00';
+  settlementForm.service_fees = '';
+  settlementForm.operating_charges = '0.00';
+  settlementForm.advertising = '0.00';
+  settlementForm.refunds = '0.00';
+  settlementForm.taxes = '0.00';
+  settlementForm.total_payout = '';
+  settlementForm.notes = '';
+  settlementFormError.value = '';
+  isSettlementModalOpen.value = true;
+}
+
+function handleCsvFileSelect(e) {
+  const file = e.target.files?.[0];
+  if (file) {
+    settlementCsvFile.value = file;
+  }
+}
+
+function handleZipFileSelect(e) {
+  const file = e.target.files?.[0];
+  if (file) {
+    settlementZipFile.value = file;
+  }
+}
+
+async function saveSettlement() {
+  if (!settlementCsvFile.value) {
+    settlementFormError.value = 'Debes seleccionar el archivo CSV semanal descargado de PedidosYa.';
+    return;
+  }
+  if (!settlementForm.start_date || !settlementForm.end_date) {
+    settlementFormError.value = 'Indica el rango de fechas de la semana.';
+    return;
+  }
+  if (!settlementForm.net_sales || !settlementForm.total_payout) {
+    settlementFormError.value = 'Completa las ventas netas y el total a pagar del estado de cuenta.';
+    return;
+  }
+
+  settlementFormSaving.value = true;
+  settlementFormError.value = '';
+
+  try {
+    const formData = new FormData();
+    formData.append('csv_file', settlementCsvFile.value);
+    if (settlementZipFile.value) {
+      formData.append('zip_file', settlementZipFile.value);
+    }
+    formData.append('start_date', settlementForm.start_date);
+    formData.append('end_date', settlementForm.end_date);
+    if (settlementForm.payout_date) formData.append('payout_date', settlementForm.payout_date);
+    formData.append('net_sales', settlementForm.net_sales);
+    formData.append('delivery_fees', settlementForm.delivery_fees || '0.00');
+    formData.append('service_fees', settlementForm.service_fees || '0.00');
+    formData.append('operating_charges', settlementForm.operating_charges || '0.00');
+    formData.append('advertising', settlementForm.advertising || '0.00');
+    formData.append('refunds', settlementForm.refunds || '0.00');
+    formData.append('taxes', settlementForm.taxes || '0.00');
+    formData.append('total_payout', settlementForm.total_payout);
+    if (settlementForm.notes) formData.append('notes', settlementForm.notes);
+
+    await apiFetch('/finance/pedidosya-settlements', {
+      method: 'POST',
+      body: formData,
+    });
+
+    isSettlementModalOpen.value = false;
+    await Promise.all([fetchSettlements(), fetchPnL()]);
+  } catch (err) {
+    settlementFormError.value = err?.message || 'Error al procesar la liquidación.';
+  } finally {
+    settlementFormSaving.value = false;
+  }
+}
+
+async function deleteSettlement(id) {
+  if (!confirm('¿Seguro de eliminar esta liquidación y sus pedidos asociados? Se recalculará el P&L.')) return;
+  try {
+    await apiFetch(`/finance/pedidosya-settlements/${id}`, { method: 'DELETE' });
+    await Promise.all([fetchSettlements(), fetchPnL()]);
+  } catch (err) {
+    alert(err?.message || 'Error al eliminar');
+  }
+}
+
+async function viewSettlementOrders(item) {
+  selectedSettlement.value = item;
+  ordersFilter.value = 'all';
+  isOrdersModalOpen.value = true;
+  settlementOrdersLoading.value = true;
+  try {
+    const data = await apiFetch(`/finance/pedidosya-settlements/${item.id}`);
+    selectedSettlement.value = data;
+  } catch (err) {
+    console.error('Error al cargar órdenes:', err);
+  } finally {
+    settlementOrdersLoading.value = false;
+  }
+}
+
+const filteredOrders = computed(() => {
+  if (!selectedSettlement.value?.orders) return [];
+  if (ordersFilter.value === 'all') return selectedSettlement.value.orders;
+  return selectedSettlement.value.orders.filter(o => o.status === ordersFilter.value);
+});
+
 // Helpers visuales
 function formatBs(val) {
   const n = parseFloat(val) || 0;
@@ -425,6 +612,13 @@ function methodBadge(m) {
           @click="activeTab = 'summary'"
         >
           📊 Estado de Resultados
+        </button>
+        <button
+          class="fin-tab-btn"
+          :class="{ active: activeTab === 'pedidosya' }"
+          @click="activeTab = 'pedidosya'"
+        >
+          🛵 Liquidaciones PedidosYa ({{ settlements.length }})
         </button>
         <button
           class="fin-tab-btn"
@@ -534,6 +728,46 @@ function methodBadge(m) {
                   Margen neto {{ pnlData.net_profit.percentage }}%
                 </span>
                 <span>Resultado final del mes</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPI DESTACADO: CANAL PEDIDOSYA -->
+          <div v-if="pnlData.pedidosya_analysis && pnlData.pedidosya_analysis.settlements_count > 0" class="fin-card fin-pya-kpi-card">
+            <div class="pya-card-header">
+              <div class="pya-title-group">
+                <span class="pya-icon">🛵</span>
+                <div>
+                  <h3 class="pya-title">Rentabilidad del Canal PedidosYa</h3>
+                  <p class="pya-sub">{{ pnlData.pedidosya_analysis.settlements_count }} liquidaciones semanales contabilizadas</p>
+                </div>
+              </div>
+              <button class="fin-btn-secondary btn-sm" @click="activeTab = 'pedidosya'">
+                Ver Detalle de Semanas ➔
+              </button>
+            </div>
+            <div class="pya-kpi-grid">
+              <div class="pya-metric">
+                <span class="metric-label">Ventas Brutas en App</span>
+                <span class="metric-val">{{ formatBs(pnlData.pedidosya_analysis.gross_sales) }}</span>
+                <span class="metric-hint">{{ pnlData.pedidosya_analysis.delivered_count }} pedidos entregados</span>
+              </div>
+              <div class="pya-metric">
+                <span class="metric-label">Depositado en Banco</span>
+                <span class="metric-val text-success">{{ formatBs(pnlData.pedidosya_analysis.total_payout) }}</span>
+                <span class="metric-hint">Liquidado efectivamente</span>
+              </div>
+              <div class="pya-metric">
+                <span class="metric-label">Costo de Plataforma (Retención)</span>
+                <span class="metric-val text-danger">{{ formatBs(pnlData.pedidosya_analysis.retention_amount) }}</span>
+                <span class="metric-hint badge-warn">{{ pnlData.pedidosya_analysis.retention_percent }}% retenido por PedidosYa</span>
+              </div>
+              <div class="pya-metric">
+                <span class="metric-label">Cancelaciones / Reclamos</span>
+                <span class="metric-val" :class="pnlData.pedidosya_analysis.cancelled_count > 0 ? 'text-danger' : 'text-muted'">
+                  {{ pnlData.pedidosya_analysis.cancelled_count }} pedidos
+                </span>
+                <span class="metric-hint">No cobrados</span>
               </div>
             </div>
           </div>
@@ -855,6 +1089,125 @@ function methodBadge(m) {
         </div>
       </div>
 
+      <!-- TAB 5: LIQUIDACIONES PEDIDOSYA (FASE 2) -->
+      <div v-else-if="activeTab === 'pedidosya'" class="fin-tab-content">
+        <div class="fin-card">
+          <div class="fin-card-header">
+            <div>
+              <h2 class="fin-section-title">Liquidaciones y Rentabilidad PedidosYa</h2>
+              <p class="fin-subtitle">
+                Importa los reportes semanales en CSV junto con el estado de cuenta oficial para conciliar ingresos,
+                comisiones, publicidad y retenciones tributarias.
+              </p>
+            </div>
+            <button class="fin-btn-primary" @click="openCreateSettlementModal">
+              ➕ Cargar Semana PedidosYa
+            </button>
+          </div>
+
+          <div v-if="settlementsLoading" class="fin-loading">
+            <div class="fin-spinner"></div>
+            <span>Cargando liquidaciones del período...</span>
+          </div>
+
+          <div v-else-if="settlements.length === 0" class="fin-empty-state">
+            <span class="empty-icon">🛵</span>
+            <p>No hay semanas de PedidosYa importadas para este mes.</p>
+            <button class="fin-btn-secondary" @click="openCreateSettlementModal">
+              Cargar la primera semana (CSV)
+            </button>
+          </div>
+
+          <div v-else>
+            <!-- Resumen de Liquidaciones del Mes -->
+            <div class="fin-pya-month-summary">
+              <div class="summary-metric">
+                <span class="m-label">Semanas Contabilizadas</span>
+                <span class="m-val">{{ settlements.length }}</span>
+              </div>
+              <div class="summary-metric">
+                <span class="m-label">Ventas Brutas en App (CSV)</span>
+                <span class="m-val">
+                  {{ formatBs(settlements.reduce((acc, s) => acc + (parseFloat(s.csv_gross_sales) || 0), 0)) }}
+                </span>
+              </div>
+              <div class="summary-metric">
+                <span class="m-label">Total Liquidado (Depositado)</span>
+                <span class="m-val text-success">
+                  {{ formatBs(settlements.reduce((acc, s) => acc + (parseFloat(s.total_payout) || 0), 0)) }}
+                </span>
+              </div>
+              <div class="summary-metric">
+                <span class="m-label">Retención Total Plataforma</span>
+                <span class="m-val text-danger">
+                  {{ formatBs(settlements.reduce((acc, s) => {
+                    const gross = parseFloat(s.csv_gross_sales) || 0;
+                    const payout = parseFloat(s.total_payout) || 0;
+                    return acc + (gross - payout);
+                  }, 0)) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Tabla de Liquidaciones -->
+            <table class="fin-table">
+              <thead>
+                <tr>
+                  <th>Semana</th>
+                  <th>Depósito</th>
+                  <th class="text-center">Pedidos</th>
+                  <th class="text-right">Ventas Netas (PDF)</th>
+                  <th class="text-right">Ventas Brutas (CSV)</th>
+                  <th class="text-right">Comisión</th>
+                  <th class="text-right">Liquidado</th>
+                  <th class="text-center">Conciliación</th>
+                  <th class="text-center">Comprobante</th>
+                  <th class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in settlements" :key="item.id">
+                  <td class="text-bold">
+                    {{ item.start_date }} al {{ item.end_date }}
+                  </td>
+                  <td>{{ item.payout_date || '—' }}</td>
+                  <td class="text-center">
+                    <span class="badge-tag success">{{ item.delivered_count }} entregados</span>
+                    <span v-if="item.cancelled_count > 0" class="badge-tag danger ml-1">
+                      {{ item.cancelled_count }} canc.
+                    </span>
+                  </td>
+                  <td class="text-right">{{ formatBs(item.net_sales) }}</td>
+                  <td class="text-right">{{ formatBs(item.csv_gross_sales) }}</td>
+                  <td class="text-right text-danger">{{ formatBs(item.service_fees) }}</td>
+                  <td class="text-right text-bold text-success">{{ formatBs(item.total_payout) }}</td>
+                  <td class="text-center">
+                    <span v-if="Math.abs(item.discrepancy) <= 1.0" class="status-pill active" title="Diferencia <= 1 Bs">
+                      ✓ Conciliado
+                    </span>
+                    <span v-else class="status-pill inactive" :title="`Diferencia de Bs ${item.discrepancy}`">
+                      ⚠️ Dif: {{ formatBs(item.discrepancy) }}
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <span v-if="item.zip_path" class="badge-file" title="Archivo adjunto">📦 Adjunto</span>
+                    <span v-else class="text-muted text-xs">—</span>
+                  </td>
+                  <td class="text-center">
+                    <button class="fin-btn-secondary btn-xs" @click="viewSettlementOrders(item)" title="Ver órdenes de esta semana">
+                      📋 Ver Pedidos ({{ item.orders_count }})
+                    </button>
+                    <button class="fin-action-btn text-danger ml-2" @click="deleteSettlement(item.id)" title="Eliminar liquidación">
+                      🗑️
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- MODALES -->
 
       <!-- MODAL COMPRA / GASTO DIRECTO -->
@@ -1041,6 +1394,243 @@ function methodBadge(m) {
               </button>
               <button class="fin-btn-primary" @click="saveCategory" :disabled="categoryFormSaving">
                 {{ categoryFormSaving ? 'Guardando...' : 'Crear Categoría' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- MODAL CARGAR SEMANA PEDIDOSYA (FASE 2) -->
+      <Teleport to="body">
+        <div v-if="isSettlementModalOpen" class="fin-modal-backdrop" @click.self="isSettlementModalOpen = false">
+          <div class="fin-modal-panel fin-modal-lg">
+            <div class="fin-modal-header">
+              <h3>🛵 Cargar Liquidación Semanal de PedidosYa</h3>
+              <button class="fin-modal-close" @click="isSettlementModalOpen = false">✕</button>
+            </div>
+
+            <div class="fin-modal-body">
+              <div v-if="settlementFormError" class="fin-alert fin-alert-error">
+                ⚠️ {{ settlementFormError }}
+              </div>
+
+              <div class="fin-pya-form-layout">
+                <!-- Paso 1: Archivo CSV -->
+                <div class="form-section-box">
+                  <h4 class="section-box-title">1. Archivo de Órdenes (.CSV)</h4>
+                  <p class="section-box-sub">Descargado de PedidosYa Portal (Reporte de órdenes de la semana).</p>
+                  <input
+                    type="file"
+                    ref="settlementCsvInput"
+                    accept=".csv"
+                    @change="handleCsvFileSelect"
+                    class="fin-input-file"
+                  />
+                  <div v-if="settlementCsvFile" class="file-picked-info">
+                    📄 {{ settlementCsvFile.name }} ({{ (settlementCsvFile.size / 1024).toFixed(1) }} KB)
+                  </div>
+                </div>
+
+                <!-- Paso 2: Período y Depósito -->
+                <div class="form-section-box">
+                  <h4 class="section-box-title">2. Período y Depósito Bancario</h4>
+                  <div class="fin-form-grid">
+                    <div class="fin-field">
+                      <label>Fecha de Inicio <span class="req">*</span></label>
+                      <input type="date" v-model="settlementForm.start_date" class="fin-input" />
+                    </div>
+                    <div class="fin-field">
+                      <label>Fecha de Fin <span class="req">*</span></label>
+                      <input type="date" v-model="settlementForm.end_date" class="fin-input" />
+                    </div>
+                    <div class="fin-field full-width">
+                      <label>Fecha de Pago / Depósito en Cuenta</label>
+                      <input type="date" v-model="settlementForm.payout_date" class="fin-input" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Paso 3: Montos del Estado de Cuenta PDF -->
+                <div class="form-section-box">
+                  <h4 class="section-box-title">3. Estado de Cuenta Oficial (Montos PDF)</h4>
+                  <p class="section-box-sub">Ingresa los importes exactos del resumen de liquidación para conciliar con el banco.</p>
+                  
+                  <div class="fin-form-grid">
+                    <div class="fin-field">
+                      <label>Ventas Netas <span class="req">*</span></label>
+                      <input type="number" step="0.01" v-model="settlementForm.net_sales" placeholder="0.00" class="fin-input text-bold" />
+                    </div>
+                    <div class="fin-field">
+                      <label>Tarifas de Servicio (Comisión) <span class="req">*</span></label>
+                      <input type="number" step="0.01" v-model="settlementForm.service_fees" placeholder="0.00" class="fin-input" />
+                    </div>
+                    <div class="fin-field">
+                      <label>Costos de Publicidad</label>
+                      <input type="number" step="0.01" v-model="settlementForm.advertising" placeholder="0.00" class="fin-input" />
+                    </div>
+                    <div class="fin-field">
+                      <label>Devoluciones y Reintegros (+)</label>
+                      <input type="number" step="0.01" v-model="settlementForm.refunds" placeholder="0.00" class="fin-input" />
+                    </div>
+                    <div class="fin-field">
+                      <label>Impuestos / Retención IVA (-)</label>
+                      <input type="number" step="0.01" v-model="settlementForm.taxes" placeholder="0.00" class="fin-input" />
+                    </div>
+                    <div class="fin-field">
+                      <label>Cargos Operativos / Envíos</label>
+                      <input type="number" step="0.01" v-model="settlementForm.operating_charges" placeholder="0.00" class="fin-input" />
+                    </div>
+                    <div class="fin-field full-width highlight-payout">
+                      <label>Total Liquidado a Pagar (En tu cuenta de banco) <span class="req">*</span></label>
+                      <input type="number" step="0.01" v-model="settlementForm.total_payout" placeholder="0.00" class="fin-input text-bold payout-input" />
+                    </div>
+                  </div>
+
+                  <!-- Conciliación en vivo -->
+                  <div class="reconciliation-live-box" :class="{ ok: isReconciled, diff: !isReconciled }">
+                    <div class="rec-row">
+                      <span>Total Calculado según conceptos:</span>
+                      <strong class="rec-val">{{ formatBs(calculatedPayout) }}</strong>
+                    </div>
+                    <div class="rec-row">
+                      <span>Total Liquidado ingresado:</span>
+                      <strong class="rec-val">{{ formatBs(settlementForm.total_payout || 0) }}</strong>
+                    </div>
+                    <div class="rec-status-line">
+                      <span v-if="isReconciled" class="rec-ok-badge">
+                        ✅ Montos perfectamente conciliados (Diferencia: {{ formatBs(settlementDiscrepancy) }})
+                      </span>
+                      <span v-else class="rec-diff-badge">
+                        ⚠️ Discrepancia detectada: {{ formatBs(settlementDiscrepancy) }}. Revisa que las cifras coincidan con el PDF.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Paso 4: Comprobante ZIP o PDF -->
+                <div class="form-section-box">
+                  <h4 class="section-box-title">4. Comprobante de Respaldo (.ZIP o .PDF)</h4>
+                  <p class="section-box-sub">Opcional: Adjunta el PDF del estado de cuenta o comprobante bancario.</p>
+                  <input
+                    type="file"
+                    ref="settlementZipInput"
+                    accept=".zip,.pdf"
+                    @change="handleZipFileSelect"
+                    class="fin-input-file"
+                  />
+                  <div v-if="settlementZipFile" class="file-picked-info">
+                    📦 {{ settlementZipFile.name }} ({{ (settlementZipFile.size / 1024).toFixed(1) }} KB)
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="fin-modal-footer">
+              <button class="fin-btn-secondary" @click="isSettlementModalOpen = false" :disabled="settlementFormSaving">
+                Cancelar
+              </button>
+              <button class="fin-btn-primary" @click="saveSettlement" :disabled="settlementFormSaving">
+                {{ settlementFormSaving ? 'Procesando órdenes...' : 'Importar y Contabilizar' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- MODAL DETALLE DE PEDIDOS DE LA LIQUIDACIÓN -->
+      <Teleport to="body">
+        <div v-if="isOrdersModalOpen" class="fin-modal-backdrop" @click.self="isOrdersModalOpen = false">
+          <div class="fin-modal-panel fin-modal-xl">
+            <div class="fin-modal-header">
+              <div>
+                <h3>Órdenes de PedidosYa — {{ selectedSettlement?.start_date }} al {{ selectedSettlement?.end_date }}</h3>
+                <p class="fin-subtitle" v-if="selectedSettlement">
+                  Total {{ selectedSettlement.orders_count }} órdenes · Ventas Brutas: {{ formatBs(selectedSettlement.csv_gross_sales) }} · Liquidado: {{ formatBs(selectedSettlement.total_payout) }}
+                </p>
+              </div>
+              <button class="fin-modal-close" @click="isOrdersModalOpen = false">✕</button>
+            </div>
+
+            <div class="fin-modal-body">
+              <div v-if="settlementOrdersLoading" class="fin-loading">
+                <div class="fin-spinner"></div>
+                <span>Cargando detalle de pedidos...</span>
+              </div>
+
+              <div v-else>
+                <!-- Filtros de Estado -->
+                <div class="orders-filter-bar">
+                  <div class="orders-tabs">
+                    <button
+                      class="filter-pill"
+                      :class="{ active: ordersFilter === 'all' }"
+                      @click="ordersFilter = 'all'"
+                    >
+                      Todos ({{ selectedSettlement?.orders?.length || 0 }})
+                    </button>
+                    <button
+                      class="filter-pill success"
+                      :class="{ active: ordersFilter === 'Entregado' }"
+                      @click="ordersFilter = 'Entregado'"
+                    >
+                      Entregados ({{ selectedSettlement?.orders?.filter(o => o.status === 'Entregado').length || 0 }})
+                    </button>
+                    <button
+                      class="filter-pill danger"
+                      :class="{ active: ordersFilter === 'Cancelado' }"
+                      @click="ordersFilter = 'Cancelado'"
+                    >
+                      Cancelados / Rechazados ({{ selectedSettlement?.orders?.filter(o => o.status === 'Cancelado').length || 0 }})
+                    </button>
+                  </div>
+                </div>
+
+                <div class="table-container" style="max-height: 520px; overflow-y: auto;">
+                  <table class="fin-table">
+                    <thead>
+                      <tr>
+                        <th>Nro Pedido</th>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Pago</th>
+                        <th>Artículos</th>
+                        <th class="text-right">Subtotal</th>
+                        <th class="text-right">Comisión</th>
+                        <th class="text-right">Ingreso Estimado</th>
+                        <th class="text-center">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="order in filteredOrders" :key="order.id">
+                        <td class="text-bold">{{ order.order_number }}</td>
+                        <td class="text-xs">{{ order.order_date ? order.order_date.substring(0, 16).replace('T', ' ') : '—' }}</td>
+                        <td class="text-xs">{{ order.delivery_type || '—' }}</td>
+                        <td class="text-xs">{{ order.payment_method || '—' }}</td>
+                        <td class="items-cell">
+                          <span class="items-text">{{ order.items_text }}</span>
+                        </td>
+                        <td class="text-right">{{ formatBs(order.subtotal) }}</td>
+                        <td class="text-right text-danger">{{ formatBs(order.commission) }}</td>
+                        <td class="text-right text-bold text-success">{{ formatBs(order.estimated_income) }}</td>
+                        <td class="text-center">
+                          <span
+                            class="status-pill"
+                            :class="order.status === 'Entregado' ? 'active' : 'inactive'"
+                            :title="order.cancellation_reason || ''"
+                          >
+                            {{ order.status }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="fin-modal-footer">
+              <button class="fin-btn-secondary" @click="isOrdersModalOpen = false">
+                Cerrar
               </button>
             </div>
           </div>
@@ -1635,5 +2225,330 @@ html.dark .fin-tab-btn.active {
 .fin-filter-row {
   margin-bottom: 1rem;
   max-width: 320px;
+}
+
+/* PedidosYa - Rentabilidad & Liquidaciones (Fase 2) */
+.fin-pya-kpi-card {
+  margin-top: 1.5rem;
+  background: linear-gradient(135deg, var(--surface-card) 0%, rgba(239, 68, 68, 0.04) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+html.dark .fin-pya-kpi-card {
+  background: linear-gradient(135deg, var(--surface-card) 0%, rgba(239, 68, 68, 0.08) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.pya-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.pya-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pya-icon {
+  font-size: 2rem;
+  background: rgba(239, 68, 68, 0.12);
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.pya-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.pya-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0.15rem 0 0 0;
+}
+
+.pya-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.pya-metric {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1rem;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.metric-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.metric-val {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.metric-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.badge-warn {
+  color: #ea580c;
+  font-weight: 600;
+}
+
+/* Resumen mensual en Tab PedidosYa */
+.fin-pya-month-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  background: var(--surface);
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.summary-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.m-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.m-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+/* Modales XL y LG */
+.fin-modal-lg {
+  max-width: 680px;
+}
+
+.fin-modal-xl {
+  max-width: 1080px;
+  max-height: 90vh;
+}
+
+.fin-pya-form-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-section-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.section-box-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.25rem 0;
+}
+
+.section-box-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0 0 0.85rem 0;
+}
+
+.fin-input-file {
+  width: 100%;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.file-picked-info {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.highlight-payout {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px dashed rgba(16, 185, 129, 0.4);
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+
+.payout-input {
+  font-size: 1.1rem;
+  color: #10b981;
+}
+
+/* Caja de conciliación en vivo */
+.reconciliation-live-box {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.84rem;
+}
+
+.reconciliation-live-box.ok {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.reconciliation-live-box.diff {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.rec-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+}
+
+.rec-val {
+  color: var(--text-primary);
+}
+
+.rec-status-line {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.rec-ok-badge {
+  color: #10b981;
+}
+
+.rec-diff-badge {
+  color: #ef4444;
+}
+
+/* Badges y botones pequeños */
+.badge-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+}
+
+.badge-tag.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.badge-tag.danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+.badge-file {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+}
+
+.btn-xs {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.ml-1 { margin-left: 0.25rem; }
+.ml-2 { margin-left: 0.5rem; }
+
+/* Modal de Pedidos */
+.orders-filter-bar {
+  margin-bottom: 1rem;
+}
+
+.orders-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 9999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.filter-pill.active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+  font-weight: 600;
+}
+
+.filter-pill.success.active {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.filter-pill.danger.active {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+.items-cell {
+  max-width: 320px;
+}
+
+.items-text {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 </style>
