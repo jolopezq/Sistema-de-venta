@@ -18,9 +18,22 @@ class ItemsParser
      */
     public function parse(?string $text): array
     {
+        return $this->parseDetailed($text)['items'];
+    }
+
+    /**
+     * Igual que parse(), pero devuelve también las partes que no se pudieron leer
+     * (corchete sin cerrar, texto después de las opciones…) para no crear una venta incompleta.
+     *
+     * @return array{items: array, unparsed: array<int, string>}
+     */
+    public function parseDetailed(?string $text): array
+    {
         $items = [];
+        $unparsed = [];
         foreach ($this->splitTopLevel((string) $text) as $part) {
-            if (!preg_match('/^(?:(\d+)\s*x?\s+)?([^\[]+?)\s*(?:\[(.*)\])?\s*$/u', $part, $m)) {
+            if (!preg_match('/^(?:(\d+)\s*x?\s+)?([^\[\]]+?)\s*(?:\[([^\[\]]*)\])?\s*$/u', $part, $m)) {
+                $unparsed[] = $part;
                 continue;
             }
 
@@ -38,7 +51,7 @@ class ItemsParser
             ];
         }
 
-        return $items;
+        return ['items' => $items, 'unparsed' => $unparsed];
     }
 
     /** Separa por comas que no están dentro de corchetes. */

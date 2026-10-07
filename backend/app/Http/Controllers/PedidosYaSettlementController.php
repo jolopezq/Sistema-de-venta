@@ -11,7 +11,6 @@ use App\Services\PedidosYa\WeeklyReport;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 class PedidosYaSettlementController extends Controller
@@ -110,7 +109,8 @@ class PedidosYaSettlementController extends Controller
                 $validated['sales_mode'] ?? 'create',
                 $validated['links'] ?? []
             );
-        } catch (ValidationException $e) {
+        } catch (\Throwable $e) {
+            // Si la importación no se guardó, el ZIP subido no queda huérfano
             if ($zipPath) {
                 Storage::delete($zipPath);
             }

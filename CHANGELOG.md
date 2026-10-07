@@ -172,6 +172,11 @@ se renombra con la fecha de la actualización de producción.
   respondía error 500. Ahora se rechazan con 422 y un mensaje claro.
 - Finanzas: el detalle de pedidos de una semana PedidosYa no cargaba (la respuesta paginada no se leía) y la
   conciliación del formulario sumaba los envíos en vez de restarlos.
+- PedidosYa (revisión de la fase 3): una venta del POS vinculada a un pedido de una semana importada pero
+  registrada un día fuera de esa semana se sumaba dos veces en el Estado de Resultados; un pedido con artículos
+  ilegibles o un producto por peso creaba una venta vacía o a precio 0 (ahora se informa para registrarlo a
+  mano); al reimportar una semana sin un pedido, se avisa que su venta sigue registrada; el ZIP subido se borra
+  si la importación falla y el ZIP reemplazado se elimina.
 
 ### Seguridad
 - Permisos por rol aplicados en el backend; cocina sin acceso a ventas ni caja. (`938c31b`)

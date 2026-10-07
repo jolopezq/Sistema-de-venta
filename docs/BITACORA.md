@@ -5,7 +5,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 
 ## Estado actual (2026-10-07)
 - **Rama de trabajo:** `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`).
-- **Tests:** 139 en verde (`php artisan test`, 747 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Tests:** 143 en verde (`php artisan test`, 767 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).

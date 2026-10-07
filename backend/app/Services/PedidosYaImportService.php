@@ -8,6 +8,7 @@ use App\Services\PedidosYa\SalesLinker;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
@@ -315,6 +316,8 @@ class PedidosYaImportService
         $discrepancy = round($totalPayout - $calculatedPayout, 2);
 
         $salesResult = null;
+        $removedWithSale = [];
+        $previousZip = $sameWeek?->zip_path;
         $settlement = DB::transaction(function () use (
             $statementData,
             $csvResult,
@@ -329,7 +332,8 @@ class PedidosYaImportService
             $salesMode,
             $links,
             $linker,
-            &$salesResult
+            &$salesResult,
+            &$removedWithSale
         ) {
             $values = [
                 'start_date'             => $startDate,
@@ -366,7 +370,11 @@ class PedidosYaImportService
                 $sameWeek->update($values);
                 $settlement = $sameWeek;
 
-                // Pedidos que ya no vienen en el archivo nuevo
+                // Pedidos que ya no vienen en el archivo nuevo. Sus ventas no se anulan solas: se avisa.
+                $removed = $settlement->orders()->whereNotIn('order_number', $orderNumbers)->with('sale:id,order_number,status')->get();
+                foreach ($removed->filter(fn ($o) => $o->sale && $o->sale->status === 'completed') as $o) {
+                    $removedWithSale[] = "{$o->order_number} (venta #{$o->sale->order_number})";
+                }
                 $settlement->orders()->whereNotIn('order_number', $orderNumbers)->delete();
             } else {
                 $settlement = PedidosYaSettlement::create($values);
@@ -386,6 +394,15 @@ class PedidosYaImportService
 
             return $settlement->fresh(['orders']);
         });
+
+        if ($zipPath !== null && $previousZip && $previousZip !== $zipPath) {
+            Storage::delete($previousZip);
+        }
+
+        if (count($removedWithSale) > 0) {
+            $warnings[] = 'Estos pedidos ya no están en el archivo y conservan su venta: ' . implode(', ', $removedWithSale)
+                . '. Anúlalas en Control Diario si corresponde.';
+        }
 
         if ($salesResult && count($salesResult['errors']) > 0) {
             $warnings[] = count($salesResult['errors']) . ' pedido(s) no se pudieron registrar como venta: ' . implode(' ', $salesResult['errors']);

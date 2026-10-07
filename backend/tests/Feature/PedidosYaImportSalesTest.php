@@ -301,6 +301,75 @@ class PedidosYaImportSalesTest extends TestCase
         $this->assertEquals(0.0, $after['pedidosya_pos_unreconciled']);
     }
 
+    /** Copia del CSV de ejemplo con un cambio, para casos puntuales. */
+    private function csvVariant(callable $change): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pya') . '.csv';
+        file_put_contents($path, $change(file_get_contents($this->csv)));
+
+        return $path;
+    }
+
+    private function importFile(string $path, array $extra = [])
+    {
+        return $this->actingAs($this->owner)->post('/api/finance/pedidosya-settlements', array_merge($this->statement, [
+            'csv_file' => new UploadedFile($path, 'semana.csv', 'text/csv', null, true),
+        ], $extra), ['Accept' => 'application/json']);
+    }
+
+    public function test_unreadable_items_are_reported_instead_of_creating_an_empty_sale(): void
+    {
+        $this->mapNames();
+        // Corchete sin cerrar en el pedido 2285990545
+        $path = $this->csvVariant(fn ($csv) => preg_replace('/1 Classic Bowl \[1 Mediano\]/', '1 Classic Bowl [1 Mediano', $csv, 1));
+
+        $res = $this->importFile($path)->assertCreated();
+
+        $this->assertEquals(10, $res->json('sales.created'));
+        $this->assertStringContainsString('2285990545', implode(' ', $res->json('warnings')));
+        $this->assertNull(PedidosYaOrder::where('order_number', '2285990545')->value('sale_id'));
+        @unlink($path);
+    }
+
+    public function test_weight_based_products_are_not_imported_with_price_zero(): void
+    {
+        $this->p['Classic Bowl']->update(['is_weight_based' => true]);
+        $this->mapNames();
+
+        $row = collect($this->preview()->json('sales.orders'))->firstWhere('order_number', '2284401825');
+        $this->assertEquals('error', $row['action']);
+        $this->assertStringContainsString('por peso', $row['errors'][0]);
+    }
+
+    public function test_a_linked_sale_registered_after_the_week_is_not_counted_twice(): void
+    {
+        $this->mapNames();
+        // Pedido del domingo 20/09 cargado en el POS el lunes 21/09 con su número en la nota
+        $this->posSale('2026-09-21 09:00:00', 30, 'PedidosYa #2292326089');
+
+        $this->import()->assertCreated()->assertJsonPath('sales.linked', 1);
+        $revenue = $this->actingAs($this->owner)->getJson('/api/finance/pnl?year=2026&month=9')->json('revenue');
+
+        $this->assertEquals(0.0, $revenue['pedidosya_pos_unreconciled']);
+        $this->assertEquals(710.0, $revenue['total']);
+    }
+
+    public function test_reimport_without_an_order_warns_that_its_sale_remains(): void
+    {
+        $this->mapNames();
+        $this->import()->assertCreated();
+        $saleNumber = Sale::find(PedidosYaOrder::where('order_number', '2292326089')->value('sale_id'))->order_number;
+
+        $path = $this->csvVariant(fn ($csv) => implode("\n", array_filter(explode("\n", $csv), fn ($line) => !str_contains($line, '2292326089'))));
+        $res = $this->importFile($path)->assertCreated();
+
+        $warning = implode(' ', $res->json('warnings'));
+        $this->assertStringContainsString('2292326089', $warning);
+        $this->assertStringContainsString($saleNumber, $warning);
+        $this->assertNull(PedidosYaOrder::where('order_number', '2292326089')->first());
+        @unlink($path);
+    }
+
     public function test_mappings_can_be_listed_and_deleted(): void
     {
         $this->mapNames();

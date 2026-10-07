@@ -6,6 +6,7 @@ use App\Models\Sale;
 use App\Models\CashMovement;
 use App\Models\FinanceExpense;
 use App\Models\ExpenseCategory;
+use App\Models\PedidosYaOrder;
 use App\Models\PedidosYaSettlement;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -70,6 +71,9 @@ class FinanceReportService
         $posPedidosYaSales = Sale::where('status', 'completed')
             ->where('source', 'pedidosya')
             ->whereBetween('created_at', [$startBound, $endBound])
+            // Una venta vinculada a un pedido de una semana importada ya está en sus ventas netas,
+            // aunque se haya registrado un día fuera de esa semana
+            ->whereNotIn('id', PedidosYaOrder::select('sale_id')->whereNotNull('sale_id')->whereHas('settlement'))
             ->get(['id', 'total_amount', 'created_at']);
 
         $unreconciledPyaSales = $posPedidosYaSales->filter(

@@ -51,14 +51,13 @@ class SalesLinker
         $linkedSales = Sale::whereIn('id', $existingLinks->values())->get()->keyBy('id');
 
         // Ventas PedidosYa del POS de la semana que todavía no están vinculadas a ningún pedido
-        $takenIds = PedidosYaOrder::whereNotNull('sale_id')->pluck('sale_id');
         $pool = Sale::where('source', 'pedidosya')
             ->where('status', 'completed')
             ->whereBetween('created_at', [
                 Carbon::parse($startDate)->subDay()->toDateString() . ' 00:00:00',
                 Carbon::parse($endDate)->addDay()->toDateString() . ' 23:59:59',
             ])
-            ->whereNotIn('id', $takenIds)
+            ->whereNotIn('id', PedidosYaOrder::select('sale_id')->whereNotNull('sale_id'))
             ->orderBy('created_at')
             ->get(['id', 'order_number', 'created_at', 'total_amount', 'notes'])
             ->keyBy('id');
@@ -133,7 +132,13 @@ class SalesLinker
             }
 
             // Artículos (también para los vinculados, para comparar con el Tarifario)
-            $built = $this->buildLines($resolver, $this->parser->parse($row['items_text']), $total);
+            $parsed = $this->parser->parseDetailed($row['items_text']);
+            $built = $this->buildLines($resolver, $parsed['items'], $total);
+            if (empty($parsed['items'])) {
+                $built['errors'][] = 'No se pudieron leer los artículos del pedido: regístralo a mano en Control Diario.';
+            } elseif (!empty($parsed['unparsed'])) {
+                $built['errors'][] = 'No se pudo leer «' . implode('», «', $parsed['unparsed']) . '»: regístralo a mano en Control Diario.';
+            }
             $row['lines'] = $built['lines'];
             $row['catalog_total'] = $built['catalog_total'];
             $row['ignored'] = $built['ignored'];
@@ -230,6 +235,9 @@ class SalesLinker
             switch ($row['action']) {
                 case 'cancelled':
                     $result['cancelled']++;
+                    foreach ($row['errors'] as $error) {
+                        $result['errors'][] = "Pedido {$row['order_number']}: {$error}";
+                    }
                     break;
 
                 case 'linked':
@@ -314,6 +322,10 @@ class SalesLinker
                 $unresolvedProducts[] = $item['name'];
                 $lines[] = $line;
                 continue;
+            }
+
+            if ($product->is_weight_based) {
+                $errors[] = "{$product->name} se vende por peso: regístralo a mano en Control Diario.";
             }
 
             $modifiers = [];
