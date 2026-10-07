@@ -22,6 +22,10 @@ Léela completa antes de tocar código. El estado vivo del trabajo está en
   No hagas push ni fusiones en `main` sin que el usuario lo pida.
 - **Cada cambio funcional actualiza en el mismo commit** `CHANGELOG.md` (sección "Sin publicar") y,
   si cambia el estado del plan o surge una decisión/pendiente, `docs/BITACORA.md`.
+- **Actualización de Graphify tras cambios importantes**: cada vez que se realice un cambio
+  estructural o funcional relevante (nuevos módulos/endpoints, refactorizaciones, modelos o cambios
+  de flujo), ejecuta `graphify update .` para que los cambios queden registrados y actualizados en
+  los nodos de `graphify-out/`.
 - Escribe en español, como el resto del código y la documentación.
 
 ## Verificación obligatoria
@@ -31,6 +35,7 @@ Léela completa antes de tocar código. El estado vivo del trabajo está en
 | Frontend | `cd frontend && npx vite build` |
 | Estilos / colores | Con backend y frontend levantados: `node scripts/audit-contrast.cjs <carpeta> dark` y `... light` desde `frontend/` (objetivo: 0 textos bajo WCAG AA; los marcados `img=true` van sobre degradados y se revisan a ojo) |
 | Flujo de venta completo | Login → abrir caja → vender → cocina → anular (admin) → cerrar caja, contra una **copia** de la base (ver abajo cómo levantarla) |
+| Grafo (Graphify) | Tras cambios importantes: `graphify update .` para sincronizar los nodos y dependencias |
 
 **Servidor contra una copia de la base** (nunca `DB_DATABASE=… php artisan serve`: `serve` no pasa esa
 variable a sus procesos y **escribe en la base real**):

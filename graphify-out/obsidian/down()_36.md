@@ -1,0 +1,17 @@
+---
+source_file: "backend/database/migrations/2026_08_26_210000_add_kitchen_role_to_users_and_permissions.php"
+type: "code"
+community: "database/migrations: 2026_08_26_210000_add_ki"
+location: "L27"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/database/migrations_2026_08_26_210000_add_ki
+---
+
+# down()
+
+## Connections
+- [[2026_08_26_210000_add_kitchen_role_to_users_and_permissions.php]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/database/migrations_2026_08_26_210000_add_ki
