@@ -5,8 +5,8 @@ namespace App\Services;
 use App\Models\Sale;
 use App\Models\CashMovement;
 use App\Models\FinanceExpense;
-use App\Models\RecurringExpense;
 use App\Models\ExpenseCategory;
+use App\Models\PedidosYaSettlement;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -41,23 +41,53 @@ class FinanceReportService
         $localSalesCount = (int) $localSalesQuery->count();
         $averageTicket = $localSalesCount > 0 ? round($localSalesTotal / $localSalesCount, 2) : 0.0;
 
-        // 2. Liquidaciones semanales de PedidosYa que finalizan en el mes seleccionado (§7.1)
-        $pedidosyaSettlements = \App\Models\PedidosYaSettlement::whereBetween('end_date', [$startDateStr, $endDateStr])->get();
-        $pedidosyaNetSales = (float) $pedidosyaSettlements->sum('net_sales');
-        $pedidosyaTotalPayout = (float) $pedidosyaSettlements->sum('total_payout');
-        $pedidosyaGrossSales = (float) $pedidosyaSettlements->sum('csv_gross_sales');
-        $pedidosyaDeliveredCount = (int) $pedidosyaSettlements->sum('delivered_count');
-        $pedidosyaCancelledCount = (int) $pedidosyaSettlements->sum('cancelled_count');
+        // 2. Semanas de PedidosYa que tocan el mes. Las que cruzan dos meses se prorratean por la fecha
+        //    de cada pedido entregado (plan §7.1, auditoría M2).
+        $monthKey = $startLocal->format('Y-m');
+        $pedidosyaSettlements = PedidosYaSettlement::with('orders:id,settlement_id,status,order_date,subtotal')
+            ->where('start_date', '<=', $endBound)
+            ->where('end_date', '>=', $startDateStr)
+            ->orderBy('start_date')
+            ->get();
 
-        // Total Ingresos Operativos (Ventas del local + Ventas netas PedidosYa)
-        $totalRevenue = round($localSalesTotal + $pedidosyaNetSales, 2);
+        $pyaMonth = $pedidosyaSettlements->map(fn (PedidosYaSettlement $st) => $this->settlementShare($st, $monthKey));
+
+        $pedidosyaNetSales = round($pyaMonth->sum('net_sales'), 2);
+        $pedidosyaTotalPayout = round($pyaMonth->sum('total_payout'), 2);
+        $pedidosyaGrossSales = round($pyaMonth->sum('gross_sales'), 2);
+        $pedidosyaDeliveredCount = (int) $pyaMonth->sum('delivered_count');
+        $pedidosyaCancelledCount = (int) $pyaMonth->sum('cancelled_count');
+
+        // 2b. Ventas PedidosYa del POS en días sin semana importada: se usan mientras tanto (plan §7.1)
+        //     y el resumen avisa que están sin conciliar. En días con semana importada manda la liquidación.
+        $coveredDays = [];
+        foreach ($pedidosyaSettlements as $st) {
+            for ($d = $st->start_date->copy(); $d->lte($st->end_date); $d->addDay()) {
+                $coveredDays[$d->toDateString()] = true;
+            }
+        }
+
+        $posPedidosYaSales = Sale::where('status', 'completed')
+            ->where('source', 'pedidosya')
+            ->whereBetween('created_at', [$startBound, $endBound])
+            ->get(['id', 'total_amount', 'created_at']);
+
+        $unreconciledPyaSales = $posPedidosYaSales->filter(
+            fn ($sale) => !isset($coveredDays[$sale->created_at->toDateString()])
+        );
+        $unreconciledPyaTotal = round((float) $unreconciledPyaSales->sum('total_amount'), 2);
+        $unreconciledPyaCount = $unreconciledPyaSales->count();
+
+        // Total de ingresos: ventas del local + ventas netas PedidosYa (+ PedidosYa del POS sin conciliar)
+        $totalRevenue = round($localSalesTotal + $pedidosyaNetSales + $unreconciledPyaTotal, 2);
 
         // 3. Traer categorías activas para desglose estructurado
         $allCategories = ExpenseCategory::orderBy('sort_order')->get()->keyBy('id');
 
         // 4. Compras y gastos registrados fuera de caja en el mes
         $directExpenses = FinanceExpense::with('category')
-            ->whereBetween('date', [$startDateStr, $endDateStr])
+            // Las columnas `date` se guardan como 'AAAA-MM-DD 00:00:00': el último día se incluye con 23:59:59
+            ->whereBetween('date', [$startDateStr, $endBound])
             ->get();
 
         // 5. Egresos de caja registrados en los turnos del mes
@@ -66,10 +96,8 @@ class FinanceReportService
             ->whereBetween('created_at', [$startBound, $endBound])
             ->get();
 
-        // 6. Gastos fijos / recurrentes activos
-        $recurringExpenses = RecurringExpense::with('category')
-            ->active()
-            ->get();
+        // 6. Los gastos fijos ya no se suman aquí: se generan como gastos reales del mes
+        //    (RecurringExpenseService) y entran con los demás gastos (auditoría A2).
 
         // Estructura de acumulación por secciones
         $cogsItems = collect();
@@ -77,55 +105,36 @@ class FinanceReportService
         $financialItems = collect();
         $taxItems = collect();
 
-        // Agregar costos operativos de PedidosYa (comisiones, publicidad, IVA, reintegros)
-        foreach ($pedidosyaSettlements as $st) {
-            if ($st->service_fees > 0) {
-                $operatingItems->push([
-                    'id'            => 'pya_srv_' . $st->id,
-                    'source'        => 'pedidosya_settlement',
-                    'category_id'   => null,
-                    'category_name' => 'Comisión PedidosYa',
-                    'group_name'    => 'Plataforma Delivery',
-                    'description'   => "Comisión liquidación semana {$st->start_date->format('d/m')} al {$st->end_date->format('d/m')}",
-                    'amount'        => (float) $st->service_fees,
-                    'date'          => $st->end_date->toDateString(),
-                ]);
-            }
-            if ($st->advertising > 0) {
-                $operatingItems->push([
-                    'id'            => 'pya_adv_' . $st->id,
-                    'source'        => 'pedidosya_settlement',
-                    'category_id'   => null,
-                    'category_name' => 'Publicidad PedidosYa',
-                    'group_name'    => 'Marketing Delivery',
-                    'description'   => "Publicidad in-app semana {$st->start_date->format('d/m')} al {$st->end_date->format('d/m')}",
-                    'amount'        => (float) $st->advertising,
-                    'date'          => $st->end_date->toDateString(),
-                ]);
-            }
-            if ($st->taxes > 0) {
-                $operatingItems->push([
-                    'id'            => 'pya_tax_' . $st->id,
-                    'source'        => 'pedidosya_settlement',
-                    'category_id'   => null,
-                    'category_name' => 'IVA en comisiones PedidosYa',
-                    'group_name'    => 'Impuestos Delivery',
-                    'description'   => "IVA s/comisiones semana {$st->start_date->format('d/m')} al {$st->end_date->format('d/m')}",
-                    'amount'        => (float) $st->taxes,
-                    'date'          => $st->end_date->toDateString(),
-                ]);
-            }
-            if ($st->refunds > 0) {
+        // Costos de PedidosYa (servicios, publicidad, IVA, cargos, envíos y reintegros), en la parte del mes
+        foreach ($pedidosyaSettlements as $i => $st) {
+            $share = $pyaMonth[$i];
+            $week = $st->start_date->format('d/m') . ' al ' . $st->end_date->format('d/m');
+            $partial = $share['fraction'] < 1 ? ' (' . round($share['fraction'] * 100) . ' % en el mes)' : '';
+
+            $lines = [
+                ['srv', 'service_fees', 'Comisión PedidosYa', 'Plataforma Delivery', 'Comisión semana', 1],
+                ['adv', 'advertising', 'Publicidad PedidosYa', 'Marketing Delivery', 'Publicidad en la app semana', 1],
+                ['tax', 'taxes', 'IVA en comisiones PedidosYa', 'Impuestos Delivery', 'IVA s/comisiones semana', 1],
+                ['ops', 'operating_charges', 'Cargos operativos PedidosYa', 'Plataforma Delivery', 'Cargos operativos semana', 1],
+                ['dlv', 'delivery_fees', 'Envíos PedidosYa', 'Plataforma Delivery', 'Envíos a cargo del local semana', 1],
                 // Los reintegros reducen el costo de la plataforma
+                ['ref', 'refunds', 'Reintegros PedidosYa', 'Plataforma Delivery', 'Reintegros semana', -1],
+            ];
+
+            foreach ($lines as [$code, $field, $name, $group, $label, $sign]) {
+                if ($share[$field] == 0.0) {
+                    continue;
+                }
+
                 $operatingItems->push([
-                    'id'            => 'pya_ref_' . $st->id,
+                    'id'            => "pya_{$code}_{$st->id}",
                     'source'        => 'pedidosya_settlement',
                     'category_id'   => null,
-                    'category_name' => 'Reintegros PedidosYa',
-                    'group_name'    => 'Plataforma Delivery',
-                    'description'   => "Reintegros semana {$st->start_date->format('d/m')} al {$st->end_date->format('d/m')}",
-                    'amount'        => -(float) $st->refunds,
-                    'date'          => $st->end_date->toDateString(),
+                    'category_name' => $name,
+                    'group_name'    => $group,
+                    'description'   => "{$label} {$week}{$partial}",
+                    'amount'        => $sign * $share[$field],
+                    'date'          => min($st->end_date->toDateString(), $endDateStr),
                 ]);
             }
         }
@@ -136,7 +145,7 @@ class FinanceReportService
             $section = $cat ? $cat->section : 'operating';
             $item = [
                 'id'            => 'fe_' . $expense->id,
-                'source'        => 'direct_expense',
+                'source'        => $expense->recurring_expense_id ? 'recurring_expense' : 'direct_expense',
                 'category_id'   => $cat?->id,
                 'category_name' => $cat?->name ?? 'Sin categoría',
                 'group_name'    => $cat?->group_name ?? 'General',
@@ -166,36 +175,6 @@ class FinanceReportService
             $this->assignToSection($section, $item, $cogsItems, $operatingItems, $financialItems, $taxItems);
         }
 
-        // Procesar RecurringExpenses (gastos fijos del mes)
-        foreach ($recurringExpenses as $rec) {
-            $cat = $rec->category;
-            $section = $cat ? $cat->section : 'operating';
-            
-            // Si la frecuencia es mensual, entra directamente.
-            // Para bimestral/anual se calcula el valor equivalente o se prorratea
-            $amount = (float) $rec->amount;
-            if ($rec->frequency === 'bimonthly') {
-                $amount = round($amount / 2, 2);
-            } elseif ($rec->frequency === 'quarterly') {
-                $amount = round($amount / 3, 2);
-            } elseif ($rec->frequency === 'annual') {
-                $amount = round($amount / 12, 2);
-            }
-
-            $item = [
-                'id'            => 'rec_' . $rec->id,
-                'source'        => 'recurring_expense',
-                'category_id'   => $cat?->id,
-                'category_name' => $cat?->name ?? 'Gasto fijo',
-                'group_name'    => $cat?->group_name ?? 'Gastos fijos',
-                'description'   => $rec->name . ' (' . ucfirst($rec->frequency) . ')',
-                'amount'        => $amount,
-                'date'          => $startDateStr,
-            ];
-
-            $this->assignToSection($section, $item, $cogsItems, $operatingItems, $financialItems, $taxItems);
-        }
-
         // Totales de costos y gastos
         $totalCogs = round($cogsItems->sum('amount'), 2);
         $grossProfit = round($totalRevenue - $totalCogs, 2);
@@ -211,6 +190,20 @@ class FinanceReportService
         $netProfit = round($operatingProfit - $totalFinancial - $totalTaxes, 2);
         $netMarginPercent = $totalRevenue > 0 ? round(($netProfit / $totalRevenue) * 100, 2) : 0.0;
 
+        $warnings = $this->warnings(
+            $year,
+            $month,
+            $totalRevenue,
+            $totalCogs,
+            $cashExpenses,
+            $pedidosyaSettlements,
+            $coveredDays,
+            $unreconciledPyaCount,
+            $unreconciledPyaTotal,
+            $startLocal,
+            $endLocal
+        );
+
         return [
             'period' => [
                 'year'       => $year,
@@ -224,6 +217,8 @@ class FinanceReportService
                 'local_sales_count' => $localSalesCount,
                 'average_ticket'    => $averageTicket,
                 'pedidosya_net'     => $pedidosyaNetSales,
+                'pedidosya_pos_unreconciled'       => $unreconciledPyaTotal,
+                'pedidosya_pos_unreconciled_count' => $unreconciledPyaCount,
                 'total'             => $totalRevenue,
             ],
             'cost_of_sales' => [
@@ -270,8 +265,194 @@ class FinanceReportService
                 'cancelled_count'  => $pedidosyaCancelledCount,
                 'average_ticket'   => $pedidosyaDeliveredCount > 0 ? round($pedidosyaGrossSales / $pedidosyaDeliveredCount, 2) : 0.0,
                 'settlements_count'=> $pedidosyaSettlements->count(),
+                'prorated'         => $pyaMonth->contains(fn ($share) => $share['fraction'] < 1),
             ],
+            'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Parte de una semana PedidosYa que corresponde al mes.
+     * Peso de cada mes = ventas brutas de sus pedidos entregados (fecha del pedido); sin pedidos, por días.
+     * El último mes de la semana recibe el resto, para que la suma de los meses dé el total exacto.
+     */
+    public function settlementShare(PedidosYaSettlement $st, string $monthKey): array
+    {
+        $firstKey = $st->start_date->format('Y-m');
+        $lastKey = $st->end_date->format('Y-m');
+        $clamp = fn (string $key) => $key < $firstKey ? $firstKey : ($key > $lastKey ? $lastKey : $key);
+
+        $weights = [];
+        $grossByMonth = [];
+        $deliveredByMonth = [];
+        $cancelledByMonth = [];
+
+        foreach ($st->orders as $order) {
+            $key = $clamp($order->order_date->format('Y-m'));
+            if (PedidosYaImportService::isDelivered($order->status)) {
+                $weights[$key] = ($weights[$key] ?? 0) + (float) $order->subtotal;
+                $grossByMonth[$key] = ($grossByMonth[$key] ?? 0) + (float) $order->subtotal;
+                $deliveredByMonth[$key] = ($deliveredByMonth[$key] ?? 0) + 1;
+            } elseif (mb_strtolower(trim((string) $order->status)) === 'cancelado') {
+                $cancelledByMonth[$key] = ($cancelledByMonth[$key] ?? 0) + 1;
+            }
+        }
+
+        $byOrders = array_sum($weights) > 0;
+        if (!$byOrders) {
+            $weights = [];
+            for ($d = $st->start_date->copy(); $d->lte($st->end_date); $d->addDay()) {
+                $weights[$d->format('Y-m')] = ($weights[$d->format('Y-m')] ?? 0) + 1;
+            }
+        }
+        ksort($weights);
+
+        $total = array_sum($weights);
+        $fraction = $total > 0 ? ($weights[$monthKey] ?? 0) / $total : 0.0;
+
+        $allocate = function (float $amount, int $precision = 2) use ($weights, $total, $monthKey) {
+            if (!isset($weights[$monthKey]) || $total <= 0) {
+                return 0.0;
+            }
+            $keys = array_keys($weights);
+            $last = end($keys);
+            if ($monthKey !== $last) {
+                return round($amount * $weights[$monthKey] / $total, $precision);
+            }
+            $others = 0.0;
+            foreach ($weights as $key => $weight) {
+                if ($key !== $last) {
+                    $others += round($amount * $weight / $total, $precision);
+                }
+            }
+            return round($amount - $others, $precision);
+        };
+
+        $share = ['fraction' => $fraction];
+        foreach (['net_sales', 'delivery_fees', 'service_fees', 'operating_charges', 'advertising', 'refunds', 'taxes', 'total_payout'] as $field) {
+            $share[$field] = $allocate((float) $st->{$field});
+        }
+
+        if ($byOrders) {
+            $share['gross_sales'] = round($grossByMonth[$monthKey] ?? 0, 2);
+            $share['delivered_count'] = $deliveredByMonth[$monthKey] ?? 0;
+            $share['cancelled_count'] = $cancelledByMonth[$monthKey] ?? 0;
+        } else {
+            $share['gross_sales'] = $allocate((float) $st->csv_gross_sales);
+            $share['delivered_count'] = (int) $allocate((float) $st->delivered_count, 0);
+            $share['cancelled_count'] = (int) $allocate((float) $st->cancelled_count, 0);
+        }
+
+        return $share;
+    }
+
+    /**
+     * Avisos de datos faltantes o sin conciliar (auditoría M4): sin ellos el resumen parece completo
+     * aunque falten compras, egresos por clasificar, gastos fijos o semanas de PedidosYa.
+     */
+    private function warnings(
+        int $year,
+        int $month,
+        float $totalRevenue,
+        float $totalCogs,
+        Collection $cashExpenses,
+        Collection $settlements,
+        array $coveredDays,
+        int $unreconciledPyaCount,
+        float $unreconciledPyaTotal,
+        Carbon $startLocal,
+        Carbon $endLocal
+    ): array {
+        $warnings = [];
+        $money = fn (float $v) => number_format($v, 2, ',', '.');
+
+        if ($totalRevenue > 0 && $totalCogs == 0.0) {
+            $warnings[] = [
+                'code'    => 'no_purchases',
+                'level'   => 'warning',
+                'message' => 'No hay compras registradas este mes: la utilidad bruta aparece como el 100 % de las ventas.',
+                'action'  => 'add_purchase',
+            ];
+        }
+
+        $unclassified = $cashExpenses->whereNull('expense_category_id');
+        if ($unclassified->isNotEmpty()) {
+            $amount = round((float) $unclassified->sum('amount'), 2);
+            $warnings[] = [
+                'code'    => 'unclassified_cash_movements',
+                'level'   => 'warning',
+                'message' => "{$unclassified->count()} egreso(s) de caja sin clasificar (Bs {$money($amount)}): se cuentan como gastos operativos.",
+                'count'   => $unclassified->count(),
+                'amount'  => $amount,
+                'action'  => 'classify_cash',
+            ];
+        }
+
+        $pending = app(RecurringExpenseService::class)->forPeriod($year, $month)->where('status', 'pending');
+        if ($pending->isNotEmpty()) {
+            $amount = round((float) $pending->sum('amount'), 2);
+            $warnings[] = [
+                'code'    => 'pending_recurring',
+                'level'   => 'warning',
+                'message' => "{$pending->count()} gasto(s) fijo(s) del mes sin generar (Bs {$money($amount)}).",
+                'count'   => $pending->count(),
+                'amount'  => $amount,
+                'action'  => 'generate_recurring',
+            ];
+        }
+
+        // Semanas (lunes a domingo) del mes ya terminadas que no tienen liquidación importada
+        $today = Carbon::now(config('app.timezone', 'America/La_Paz'))->toDateString();
+        $missingWeeks = [];
+        for ($monday = $startLocal->copy()->startOfWeek(Carbon::MONDAY); $monday->lte($endLocal); $monday->addWeek()) {
+            $sunday = $monday->copy()->endOfWeek(Carbon::SUNDAY);
+            if ($sunday->toDateString() >= $today) {
+                break;
+            }
+            for ($d = $monday->copy(); $d->lte($sunday); $d->addDay()) {
+                $inMonth = $d->betweenIncluded($startLocal->copy()->startOfDay(), $endLocal);
+                if ($inMonth && !isset($coveredDays[$d->toDateString()])) {
+                    $missingWeeks[] = $monday->format('d/m') . '–' . $sunday->format('d/m');
+                    break;
+                }
+            }
+        }
+
+        $usesImport = $settlements->isNotEmpty() || PedidosYaSettlement::exists();
+        if (count($missingWeeks) > 0 && ($usesImport || $unreconciledPyaCount > 0)) {
+            $message = 'Semanas PedidosYa sin cargar: ' . implode(', ', $missingWeeks) . '.';
+            if ($unreconciledPyaCount > 0) {
+                $message .= " Mientras tanto se suman {$unreconciledPyaCount} venta(s) PedidosYa del POS (Bs {$money($unreconciledPyaTotal)}) sin descontar comisión ni publicidad.";
+            }
+            $warnings[] = [
+                'code'    => 'pedidosya_missing_weeks',
+                'level'   => 'warning',
+                'message' => $message,
+                'weeks'   => $missingWeeks,
+                'action'  => 'import_pedidosya',
+            ];
+        } elseif ($unreconciledPyaCount > 0) {
+            $warnings[] = [
+                'code'    => 'pedidosya_unreconciled_sales',
+                'level'   => 'info',
+                'message' => "{$unreconciledPyaCount} venta(s) PedidosYa del POS (Bs {$money($unreconciledPyaTotal)}) aún sin semana importada.",
+                'action'  => 'import_pedidosya',
+            ];
+        }
+
+        foreach ($settlements as $st) {
+            if ($st->reconciliation['status'] !== 'ok') {
+                $warnings[] = [
+                    'code'          => 'pedidosya_reconciliation',
+                    'level'         => 'warning',
+                    'message'       => 'La semana PedidosYa ' . $st->start_date->format('d/m') . '–' . $st->end_date->format('d/m') . ' tiene diferencias de conciliación.',
+                    'settlement_id' => $st->id,
+                    'action'        => 'view_pedidosya',
+                ];
+            }
+        }
+
+        return $warnings;
     }
 
     private function assignToSection(

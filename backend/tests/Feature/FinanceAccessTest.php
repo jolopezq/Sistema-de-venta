@@ -32,6 +32,38 @@ class FinanceAccessTest extends TestCase
         $this->actingAs($this->superAdmin)->getJson('/api/finance/pnl')->assertOk();
     }
 
+    public function test_cashier_and_admin_cannot_use_the_new_finance_endpoints(): void
+    {
+        $session = \App\Models\CashRegisterSession::create([
+            'cashier_id'     => $this->cashier->id,
+            'status'         => 'open',
+            'opening_amount' => 100,
+            'opened_at'      => now(),
+        ]);
+        $movement = \App\Models\CashMovement::create([
+            'cash_register_session_id' => $session->id,
+            'user_id'                  => $this->cashier->id,
+            'type'                     => 'expense',
+            'payment_method'           => 'cash',
+            'amount'                   => 10,
+            'description'              => 'Hielo',
+        ]);
+
+        $routes = [
+            ['get', '/api/finance/recurring-expenses/pending?year=2026&month=9'],
+            ['post', '/api/finance/recurring-expenses/generate'],
+            ['get', '/api/finance/cash-movements?year=2026&month=9'],
+            ['patch', "/api/finance/cash-movements/{$movement->id}/category"],
+            ['post', '/api/finance/pedidosya-settlements/preview'],
+        ];
+
+        foreach ([$this->cashier, $this->admin] as $user) {
+            foreach ($routes as [$method, $uri]) {
+                $this->actingAs($user)->json($method, $uri, ['year' => 2026, 'month' => 9])->assertForbidden();
+            }
+        }
+    }
+
     public function test_cashier_can_read_expense_categories_for_cash_movement(): void
     {
         $this->actingAs($this->cashier)->getJson('/api/expense-categories')->assertOk();

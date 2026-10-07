@@ -19,6 +19,8 @@ class RecurringExpenseRequest extends FormRequest
             'amount'              => ['required', 'numeric', 'min:0.01'],
             'frequency'           => ['required', 'string', 'in:monthly,bimonthly,quarterly,annual'],
             'day_of_month'        => ['nullable', 'integer', 'min:1', 'max:31'],
+            'start_month'         => ['nullable', 'date_format:Y-m'],
+            'payment_method'      => ['nullable', 'string', 'in:cash,qr,card,bank_transfer'],
             'is_active'           => ['nullable', 'boolean'],
             'notes'               => ['nullable', 'string', 'max:1000'],
         ];
@@ -33,6 +35,7 @@ class RecurringExpenseRequest extends FormRequest
             'amount.required'              => 'El monto es obligatorio.',
             'amount.min'                   => 'El monto debe ser mayor a 0.',
             'frequency.required'           => 'La frecuencia es obligatoria.',
+            'start_month.date_format'      => 'El mes de inicio debe tener el formato AAAA-MM.',
         ];
     }
 }

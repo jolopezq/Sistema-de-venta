@@ -28,9 +28,10 @@ class FinanceExpenseController extends Controller
         if ($request->filled('year') && $request->filled('month')) {
             $start = Carbon::create((int) $request->year, (int) $request->month, 1)->startOfMonth()->toDateString();
             $end = Carbon::create((int) $request->year, (int) $request->month, 1)->endOfMonth()->toDateString();
-            $query->whereBetween('date', [$start, $end]);
+            // `date` se guarda como 'AAAA-MM-DD 00:00:00': el último día se incluye con 23:59:59
+            $query->whereBetween('date', [$start, $end . ' 23:59:59']);
         } elseif ($request->filled('date_from') && $request->filled('date_to')) {
-            $query->whereBetween('date', [$request->date_from, $request->date_to]);
+            $query->whereBetween('date', [$request->date_from, $request->date_to . ' 23:59:59']);
         }
 
         $expenses = $query->orderBy('date', 'desc')

@@ -20,12 +20,15 @@ class FinanceExpense extends Model
         'receipt_number',
         'notes',
         'user_id',
+        'recurring_expense_id',
+        'period',
     ];
 
     protected function casts(): array
     {
         return [
-            'date'   => 'date',
+            // Se serializa como 'AAAA-MM-DD' (antes '…T04:00:00.000000Z' rompía la lista y el formulario)
+            'date'   => 'date:Y-m-d',
             'amount' => 'decimal:2',
         ];
     }
@@ -38,5 +41,11 @@ class FinanceExpense extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Gasto fijo que generó este gasto (vacío si se registró a mano). */
+    public function recurringExpense(): BelongsTo
+    {
+        return $this->belongsTo(RecurringExpense::class)->withTrashed();
     }
 }

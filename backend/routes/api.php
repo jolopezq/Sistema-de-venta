@@ -114,14 +114,26 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::patch('/categories/{expenseCategory}/toggle-active', [\App\Http\Controllers\ExpenseCategoryController::class, 'toggleActive']);
 
             // Compras y gastos pagados fuera de caja
-            Route::apiResource('expenses', \App\Http\Controllers\FinanceExpenseController::class);
+            // (el parámetro se llama como en el controlador; con `{expense}` no se resolvía el modelo
+            // y editar o eliminar respondía 200 sin cambiar nada)
+            Route::apiResource('expenses', \App\Http\Controllers\FinanceExpenseController::class)
+                ->parameters(['expenses' => 'financeExpense']);
 
-            // Gastos fijos recurrentes
+            // Egresos de caja del mes y su clasificación contable
+            Route::get('/cash-movements', [\App\Http\Controllers\FinanceCashMovementController::class, 'index']);
+            Route::patch('/cash-movements/{cashMovement}/category', [\App\Http\Controllers\FinanceCashMovementController::class, 'classify']);
+
+            // Gastos fijos recurrentes: propuesta y generación por mes (antes del recurso para no chocar con {id})
+            Route::get('/recurring-expenses/pending', [\App\Http\Controllers\RecurringExpenseController::class, 'pending']);
+            Route::post('/recurring-expenses/generate', [\App\Http\Controllers\RecurringExpenseController::class, 'generate']);
             Route::apiResource('recurring-expenses', \App\Http\Controllers\RecurringExpenseController::class);
             Route::patch('/recurring-expenses/{recurringExpense}/toggle-active', [\App\Http\Controllers\RecurringExpenseController::class, 'toggleActive']);
 
             // Liquidaciones semanales de PedidosYa (importación y conciliación)
-            Route::apiResource('pedidosya-settlements', \App\Http\Controllers\PedidosYaSettlementController::class);
+            Route::post('/pedidosya-settlements/preview', [\App\Http\Controllers\PedidosYaSettlementController::class, 'preview']);
+            Route::apiResource('pedidosya-settlements', \App\Http\Controllers\PedidosYaSettlementController::class)
+                ->except(['update'])
+                ->parameters(['pedidosya-settlements' => 'settlement']);
         });
     });
 

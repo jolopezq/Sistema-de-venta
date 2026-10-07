@@ -110,7 +110,10 @@ class PedidosYaSettlementTest extends TestCase
 
         $this->actingAs($this->superAdmin)
             ->post('/api/finance/pedidosya-settlements', $payload, ['Accept' => 'application/json'])
-            ->assertStatus(500); // Excepción lanzada por columna ausente
+            ->assertStatus(422)
+            ->assertJsonPath('message', "El archivo CSV no contiene la columna obligatoria: 'Fecha del pedido'.");
+
+        $this->assertDatabaseCount('pedidosya_settlements', 0);
 
         @unlink($tempPath);
     }

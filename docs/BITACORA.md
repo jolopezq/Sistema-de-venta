@@ -5,7 +5,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 
 ## Estado actual (2026-10-07)
 - **Rama de trabajo:** `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`).
-- **Tests:** 100 en verde (`php artisan test`, 446 aserciones). Build de Vite sin errores (`npx vite build`).
+- **Tests:** 126 en verde (`php artisan test`, 627 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -25,6 +25,8 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | Precios PedidosYa solo en tamaños ([plan](PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md)): grupo `pedidosya_pricing` | ✅ en rama `feat/precios-pedidosya` | `b81d960` |
 | Módulo de Finanzas: Fase 1 P&L mensual, compras, gastos fijos y categorías ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | `4cdc459` |
 | Módulo de Finanzas: Fase 2 Importación semanal PedidosYa, conciliación y análisis de canal ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | ver registro |
+| Finanzas — corrección de la [auditoría](AUDITORIA_FINANZAS.md): fase 0 (bloqueantes) y fase 1 (cálculos) | ✅ en rama `feat/modulo-finanzas` | `9a5f871`, ver registro |
+| Finanzas — auditoría fases 2 (interfaz), 3 (importación crea ventas) y 4 (optimización) | En curso | — |
 
 ## Pendientes
 
@@ -117,6 +119,13 @@ Formato: fecha — resumen — commits. Lo más reciente arriba.
 - **2026-10-07 (auditoría Finanzas)** — Auditoría de `feat/modulo-finanzas` ([informe](AUDITORIA_FINANZAS.md)) y
   corrección por fases. Fase 0: imágenes restauradas, doble marco de la pantalla, bordes de mes en hora de La
   Paz (test nuevo) y lista de liquidaciones.
+  Fase 1 (cálculos): gastos fijos generados por mes (`RecurringExpenseService`, migración
+  `2026_10_08_000001`), avisos del resumen, clasificación de egresos de caja desde Finanzas, semanas PedidosYa con
+  rango del CSV, sin solapes, prorrateo entre meses y conciliación completa (migración `2026_10_08_000002`, que
+  calcula los descuentos de las semanas ya importadas). Además: editar/eliminar gastos no hacía nada (parámetro de
+  ruta), y el último día del mes quedaba fuera de listas y del Estado de Resultados. 126 tests en verde.
+  **Pendiente de la fase 2:** la pantalla aún no muestra los avisos ni el botón "Generar gastos fijos del mes"
+  (hasta entonces los gastos fijos no entran al Estado de Resultados).
 
 - **2026-10-07 (4)** — Módulo de Finanzas (Fase 2: Liquidaciones semanales de PedidosYa, conciliación y análisis de canal):
   - Migración `2026_10_07_000008_create_pedidosya_settlements_tables.php` creando `pedidosya_settlements` y

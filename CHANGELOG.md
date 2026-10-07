@@ -78,6 +78,19 @@ se renombra con la fecha de la actualización de producción.
   - El POS no alerta de "Sin precio PedidosYa" para toppings ni frutas.
   - En Opcionales (Menú), casilla "🛵 Precio distinto en PedidosYa", campo exclusivo en el modal de edición de opcionales e indicadores visuales claros en la lista de opciones.
   - El Tarifario PedidosYa lista únicamente los tamaños de grupos marcados en su sección de opcionales.
+- Finanzas (auditoría, fase 1): `GET /finance/recurring-expenses/pending` y `POST …/generate` (idempotente;
+  un gasto generado y eliminado no se vuelve a proponer salvo que se pida); plantillas con `start_month` y
+  forma de pago.
+- Finanzas: avisos en el Estado de Resultados (`warnings`): mes sin compras, egresos de caja sin clasificar,
+  gastos fijos sin generar, semanas PedidosYa sin cargar y semanas con diferencias de conciliación.
+- Finanzas: `GET /finance/cash-movements` y `PATCH /finance/cash-movements/{id}/category` para clasificar
+  desde Finanzas los egresos de caja que quedaron sin categoría.
+- PedidosYa: `POST /finance/pedidosya-settlements/preview` y semana tomada del CSV (lunes a domingo) si no se
+  indica; se avisan los pedidos fuera del rango y se rechazan los que ya pertenecen a otra semana.
+- PedidosYa: conciliación completa por semana (`reconciliation`): total liquidado, comisión del CSV = servicios
+  e (informativa) ventas brutas − descuentos PedidosYa = ventas netas; diferencias mayores a Bs 1.
+- PedidosYa: una semana que cruza dos meses se prorratea por la fecha de cada pedido entregado; las ventas
+  PedidosYa del POS de días sin semana importada se suman mientras tanto (con aviso).
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)
@@ -110,6 +123,16 @@ se renombra con la fecha de la actualización de producción.
   filtraba por mes.
 - Se restauran 10 imágenes de productos que un commit de graphify había borrado del repositorio (al fusionar en
   `main` se habrían borrado en producción).
+- Finanzas: los gastos fijos se sumaban en todos los meses (incluso antes de existir, y cambiar el monto
+  reescribía la historia; bimestrales y anuales se dividían). Ahora cada mes se **generan** como gastos reales
+  (`finance_expenses.recurring_expense_id` + `period`, únicos por plantilla y mes) desde `start_month`; el
+  bimestral, trimestral o anual entra completo en su mes. El Estado de Resultados solo lee gastos reales.
+- Finanzas: editar o eliminar una compra o gasto respondía "actualizado" sin cambiar nada (el parámetro de la
+  ruta no coincidía con el del controlador); lo mismo al ver o eliminar una semana PedidosYa.
+- Finanzas: los gastos del último día del mes no aparecían en la lista ni en el Estado de Resultados (las
+  columnas `date` se guardan con hora `00:00:00`). Las fechas se devuelven como `AAAA-MM-DD`.
+- PedidosYa: se podían cargar semanas que se solapan (y sumarse dos veces); un CSV con columnas faltantes
+  respondía error 500. Ahora se rechazan con 422 y un mensaje claro.
 
 ### Seguridad
 - Permisos por rol aplicados en el backend; cocina sin acceso a ventas ni caja. (`938c31b`)

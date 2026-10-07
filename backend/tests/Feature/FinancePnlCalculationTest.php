@@ -121,21 +121,23 @@ class FinancePnlCalculationTest extends TestCase
             'user_id'             => $this->superAdmin->id,
         ]);
 
-        // 6. Gasto fijo recurrente mensual (200 Bs mensual)
+        // 6. Gastos fijos (desde septiembre). No entran al Estado de Resultados hasta generarse.
         RecurringExpense::create([
             'name'                => 'Alquiler local',
             'expense_category_id' => $opexCat->id,
             'amount'              => 200.00,
             'frequency'           => 'monthly',
+            'start_month'         => '2026-09',
             'is_active'           => true,
         ]);
 
-        // 7. Gasto fijo recurrente bimestral (100 Bs bimestral -> 50 Bs en el mes)
+        // 7. Bimestral: corresponde en septiembre, noviembre… y entra completo (sin dividir)
         RecurringExpense::create([
             'name'                => 'Mantenimiento preventivo',
             'expense_category_id' => $opexCat->id,
             'amount'              => 100.00,
             'frequency'           => 'bimonthly',
+            'start_month'         => '2026-09',
             'is_active'           => true,
         ]);
 
@@ -145,8 +147,23 @@ class FinancePnlCalculationTest extends TestCase
             'expense_category_id' => $taxCat->id,
             'amount'              => 40.00,
             'frequency'           => 'monthly',
+            'start_month'         => '2026-09',
             'is_active'           => true,
         ]);
+
+        // Antes de generar: solo gastos reales y un aviso con los 3 gastos fijos pendientes (340)
+        $before = $this->actingAs($this->superAdmin)->getJson('/api/finance/pnl?year=2026&month=9')->assertOk()->json();
+        $this->assertEquals(100.00, $before['operating_expenses']['total']);
+        $this->assertEquals(0.00, $before['taxes']['total']);
+        $pending = collect($before['warnings'])->firstWhere('code', 'pending_recurring');
+        $this->assertNotNull($pending);
+        $this->assertEquals(3, $pending['count']);
+        $this->assertEquals(340.00, $pending['amount']);
+
+        $this->actingAs($this->superAdmin)
+            ->postJson('/api/finance/recurring-expenses/generate', ['year' => 2026, 'month' => 9])
+            ->assertCreated()
+            ->assertJsonPath('created', 3);
 
         // Consultar P&L de Septiembre 2026
         $response = $this->actingAs($this->superAdmin)
@@ -156,31 +173,40 @@ class FinancePnlCalculationTest extends TestCase
         $data = $response->json();
 
         // Verificaciones matemáticas:
-        // Ingresos locales: 1000
+        // Ingresos locales: 1000 (la venta PedidosYa del POS cae en una semana sin importar: se suma aparte)
         $this->assertEquals(1000.00, $data['revenue']['local_sales']);
-        $this->assertEquals(1000.00, $data['revenue']['total']);
+        $this->assertEquals(300.00, $data['revenue']['pedidosya_pos_unreconciled']);
+        $this->assertEquals(1300.00, $data['revenue']['total']);
 
-        // Costo de ventas: 250 + 150 = 400 (40%)
+        // Costo de ventas: 250 + 150 = 400
         $this->assertEquals(400.00, $data['cost_of_sales']['total']);
-        $this->assertEquals(40.0, $data['cost_of_sales']['percentage']);
 
-        // Utilidad bruta: 1000 - 400 = 600 (60%)
-        $this->assertEquals(600.00, $data['gross_profit']['amount']);
-        $this->assertEquals(60.0, $data['gross_profit']['percentage']);
+        // Utilidad bruta: 1300 - 400 = 900
+        $this->assertEquals(900.00, $data['gross_profit']['amount']);
 
-        // Gastos operativos: 100 (directo) + 200 (mensual) + 50 (bimestral prorrateado) = 350 (35%)
-        $this->assertEquals(350.00, $data['operating_expenses']['total']);
-        $this->assertEquals(35.0, $data['operating_expenses']['percentage']);
+        // Gastos operativos: 100 (directo) + 200 (mensual) + 100 (bimestral completo) = 400
+        $this->assertEquals(400.00, $data['operating_expenses']['total']);
 
-        // Utilidad operativa: 600 - 350 = 250 (25%)
-        $this->assertEquals(250.00, $data['operating_profit']['amount']);
-        $this->assertEquals(25.0, $data['operating_profit']['percentage']);
+        // Utilidad operativa: 900 - 400 = 500
+        $this->assertEquals(500.00, $data['operating_profit']['amount']);
 
         // Impuestos: 40
         $this->assertEquals(40.00, $data['taxes']['total']);
 
-        // Utilidad neta: 250 - 40 = 210 (21%)
-        $this->assertEquals(210.00, $data['net_profit']['amount']);
-        $this->assertEquals(21.0, $data['net_profit']['percentage']);
+        // Utilidad neta: 500 - 40 = 460 (35,38 %)
+        $this->assertEquals(460.00, $data['net_profit']['amount']);
+        $this->assertEquals(35.38, $data['net_profit']['percentage']);
+
+        // Ya no queda el aviso de gastos fijos pendientes
+        $this->assertNull(collect($data['warnings'])->firstWhere('code', 'pending_recurring'));
+
+        // Octubre: el bimestral no corresponde; mensual y cuota sí (pendientes, 240)
+        $oct = $this->actingAs($this->superAdmin)->getJson('/api/finance/pnl?year=2026&month=10')->json();
+        $this->assertEquals(0.00, $oct['operating_expenses']['total']);
+        $this->assertEquals(240.00, collect($oct['warnings'])->firstWhere('code', 'pending_recurring')['amount']);
+
+        // Agosto (antes del inicio): no corresponde ningún gasto fijo
+        $aug = $this->actingAs($this->superAdmin)->getJson('/api/finance/pnl?year=2026&month=8')->json();
+        $this->assertNull(collect($aug['warnings'])->firstWhere('code', 'pending_recurring'));
     }
 }

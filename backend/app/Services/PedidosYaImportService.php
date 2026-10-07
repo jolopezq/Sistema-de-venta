@@ -7,6 +7,7 @@ use App\Models\PedidosYaOrder;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 class PedidosYaImportService
@@ -80,6 +81,10 @@ class PedidosYaImportService
         $csvEstimatedIncome = 0.0;
         $deliveredCount = 0;
         $cancelledCount = 0;
+        $pedidosyaDiscountTotal = 0.0;
+        $vendorDiscountTotal = 0.0;
+        $firstOrderDate = null;
+        $lastOrderDate = null;
 
         $timezone = config('app.timezone', 'America/La_Paz');
 
@@ -109,8 +114,10 @@ class PedidosYaImportService
             $estimatedIncome = $this->parseNumber($getVal('Ingreso estimado'));
 
             // Acumular estadísticas del CSV
-            if (mb_strtolower($status) === 'entregado') {
+            if (self::isDelivered($status)) {
                 $csvGrossSales += $subtotal;
+                $pedidosyaDiscountTotal += $pedidosyaDiscount;
+                $vendorDiscountTotal += $vendorDiscount;
                 $deliveredCount++;
             } elseif (mb_strtolower($status) === 'cancelado') {
                 $cancelledCount++;
@@ -122,6 +129,12 @@ class PedidosYaImportService
             // Fechas
             $orderDateStr = $getVal('Fecha del pedido');
             $orderDate = $this->parseDate($orderDateStr, $timezone);
+            if ($orderDate === null) {
+                fclose($handle);
+                throw new InvalidArgumentException("El pedido {$orderNumber} no tiene una fecha válida ('{$orderDateStr}').");
+            }
+            $firstOrderDate = $firstOrderDate === null || $orderDate < $firstOrderDate ? $orderDate : $firstOrderDate;
+            $lastOrderDate = $lastOrderDate === null || $orderDate > $lastOrderDate ? $orderDate : $lastOrderDate;
 
             // Construir raw_data completo asociativo
             $rawAssoc = [];
@@ -154,8 +167,22 @@ class PedidosYaImportService
 
         fclose($handle);
 
+        if (count($orders) === 0) {
+            throw new InvalidArgumentException('El archivo CSV no tiene pedidos.');
+        }
+
+        // Semana sugerida: de lunes a domingo, la que contiene los pedidos del archivo
+        $suggestedStart = Carbon::parse($firstOrderDate)->startOfWeek(Carbon::MONDAY)->toDateString();
+        $suggestedEnd = Carbon::parse($lastOrderDate)->endOfWeek(Carbon::SUNDAY)->toDateString();
+
         return [
             'orders'               => $orders,
+            'first_order_date'     => substr($firstOrderDate, 0, 10),
+            'last_order_date'      => substr($lastOrderDate, 0, 10),
+            'suggested_start_date' => $suggestedStart,
+            'suggested_end_date'   => $suggestedEnd,
+            'csv_pedidosya_discount' => round($pedidosyaDiscountTotal, 2),
+            'csv_vendor_discount'  => round($vendorDiscountTotal, 2),
             'orders_count'         => count($orders),
             'delivered_count'      => $deliveredCount,
             'cancelled_count'      => $cancelledCount,
@@ -166,11 +193,89 @@ class PedidosYaImportService
     }
 
     /**
-     * Importa una semana completa guardando la liquidación y sus pedidos correspondientes.
+     * Vista previa del archivo, sin guardar nada: semana sugerida, totales del CSV y conflictos.
      */
-    public function importSettlement(array $statementData, string|UploadedFile $csvFile, int $userId, ?string $zipPath = null): PedidosYaSettlement
+    public function preview(string|UploadedFile $csvFile, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $csv = $this->parseCsv($csvFile);
+        $start = $startDate ?: $csv['suggested_start_date'];
+        $end = $endDate ?: $csv['suggested_end_date'];
+
+        $existing = PedidosYaSettlement::whereDate('start_date', $start)->whereDate('end_date', $end)->first();
+
+        return [
+            'start_date'             => $start,
+            'end_date'               => $end,
+            'first_order_date'       => $csv['first_order_date'],
+            'last_order_date'        => $csv['last_order_date'],
+            'orders_count'           => $csv['orders_count'],
+            'delivered_count'        => $csv['delivered_count'],
+            'cancelled_count'        => $csv['cancelled_count'],
+            'csv_gross_sales'        => $csv['csv_gross_sales'],
+            'csv_commission'         => $csv['csv_commission'],
+            'csv_estimated_income'   => $csv['csv_estimated_income'],
+            'csv_pedidosya_discount' => $csv['csv_pedidosya_discount'],
+            'csv_vendor_discount'    => $csv['csv_vendor_discount'],
+            'orders_outside_range'   => $this->ordersOutsideRange($csv['orders'], $start, $end),
+            'overlapping'            => $this->overlapping($start, $end)->map(fn ($st) => $this->weekLabel($st))->values()->all(),
+            'replaces_settlement_id' => $existing?->id,
+        ];
+    }
+
+    /**
+     * Importa una semana completa guardando la liquidación y sus pedidos.
+     *
+     * - El rango sale del CSV (lunes a domingo) si no se indica.
+     * - Una semana que se solapa con otra ya cargada se rechaza; la misma semana se reemplaza (reimportación).
+     * - Un pedido que ya pertenece a otra semana se rechaza; los pedidos fuera del rango se avisan.
+     *
+     * @return array{settlement: PedidosYaSettlement, warnings: array<int, string>}
+     */
+    public function importSettlement(array $statementData, string|UploadedFile $csvFile, int $userId, ?string $zipPath = null): array
     {
         $csvResult = $this->parseCsv($csvFile);
+
+        $startDate = Carbon::parse(!empty($statementData['start_date']) ? $statementData['start_date'] : $csvResult['suggested_start_date'])->toDateString();
+        $endDate = Carbon::parse(!empty($statementData['end_date']) ? $statementData['end_date'] : $csvResult['suggested_end_date'])->toDateString();
+
+        if ($endDate < $startDate) {
+            throw ValidationException::withMessages([
+                'end_date' => 'La fecha de fin no puede ser anterior a la de inicio.',
+            ]);
+        }
+
+        $overlapping = $this->overlapping($startDate, $endDate);
+        if ($overlapping->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'start_date' => 'La semana se cruza con otra ya cargada (' . $overlapping->map(fn ($st) => $this->weekLabel($st))->implode(', ')
+                    . '). Elimina esa semana o corrige las fechas.',
+            ]);
+        }
+
+        $sameWeek = PedidosYaSettlement::whereDate('start_date', $startDate)->whereDate('end_date', $endDate)->first();
+
+        $orderNumbers = array_column($csvResult['orders'], 'order_number');
+        $takenOrders = PedidosYaOrder::whereIn('order_number', $orderNumbers)
+            ->whereHas('settlement')
+            ->when($sameWeek, fn ($q) => $q->where('settlement_id', '!=', $sameWeek->id))
+            ->with('settlement')
+            ->get();
+
+        if ($takenOrders->isNotEmpty()) {
+            $first = $takenOrders->first();
+            throw ValidationException::withMessages([
+                'csv_file' => "El archivo trae {$takenOrders->count()} pedido(s) que ya pertenecen a otra semana (por ejemplo, "
+                    . "{$first->order_number} en {$this->weekLabel($first->settlement)}).",
+            ]);
+        }
+
+        $warnings = [];
+        $outside = $this->ordersOutsideRange($csvResult['orders'], $startDate, $endDate);
+        if (count($outside) > 0) {
+            $warnings[] = count($outside) . ' pedido(s) del archivo tienen fecha fuera de la semana '
+                . Carbon::parse($startDate)->format('d/m') . '–' . Carbon::parse($endDate)->format('d/m')
+                . ': ' . implode(', ', array_slice($outside, 0, 5)) . (count($outside) > 5 ? '…' : '') . '.';
+        }
 
         $netSales         = (float) $statementData['net_sales'];
         $deliveryFees     = (float) ($statementData['delivery_fees'] ?? 0);
@@ -181,7 +286,7 @@ class PedidosYaImportService
         $taxes            = (float) ($statementData['taxes'] ?? 0);
         $totalPayout      = (float) $statementData['total_payout'];
 
-        // Conciliación según §6.3:
+        // Conciliación según §6.7:
         // Ventas netas - envíos - servicios - cargos - publicidad + reintegros - impuestos = total liquidado
         $calculatedPayout = round(
             $netSales - $deliveryFees - $serviceFees - $operatingCharges - $advertising + $refunds - $taxes,
@@ -189,43 +294,58 @@ class PedidosYaImportService
         );
         $discrepancy = round($totalPayout - $calculatedPayout, 2);
 
-        return DB::transaction(function () use (
+        $settlement = DB::transaction(function () use (
             $statementData,
             $csvResult,
             $userId,
             $zipPath,
+            $startDate,
+            $endDate,
+            $sameWeek,
+            $orderNumbers,
             $calculatedPayout,
             $discrepancy
         ) {
-            // Guardar o actualizar la liquidación para ese rango de fechas
-            $settlement = PedidosYaSettlement::updateOrCreate(
-                [
-                    'start_date' => $statementData['start_date'],
-                    'end_date'   => $statementData['end_date'],
-                ],
-                [
-                    'payout_date'          => $statementData['payout_date'] ?? null,
-                    'net_sales'            => $statementData['net_sales'],
-                    'delivery_fees'        => $statementData['delivery_fees'] ?? 0,
-                    'service_fees'         => $statementData['service_fees'],
-                    'operating_charges'    => $statementData['operating_charges'] ?? 0,
-                    'advertising'          => $statementData['advertising'] ?? 0,
-                    'refunds'              => $statementData['refunds'] ?? 0,
-                    'taxes'                => $statementData['taxes'] ?? 0,
-                    'total_payout'         => $statementData['total_payout'],
-                    'calculated_payout'    => $calculatedPayout,
-                    'discrepancy'          => $discrepancy,
-                    'orders_count'         => $csvResult['orders_count'],
-                    'delivered_count'      => $csvResult['delivered_count'],
-                    'cancelled_count'      => $csvResult['cancelled_count'],
-                    'csv_gross_sales'      => $csvResult['csv_gross_sales'],
-                    'csv_commission'       => $csvResult['csv_commission'],
-                    'csv_estimated_income' => $csvResult['csv_estimated_income'],
-                    'zip_path'             => $zipPath,
-                    'notes'                => $statementData['notes'] ?? null,
-                    'user_id'              => $userId,
-                ]
-            );
+            $values = [
+                'start_date'             => $startDate,
+                'end_date'               => $endDate,
+                'payout_date'            => $statementData['payout_date'] ?? null,
+                'net_sales'              => $statementData['net_sales'],
+                'delivery_fees'          => $statementData['delivery_fees'] ?? 0,
+                'service_fees'           => $statementData['service_fees'],
+                'operating_charges'      => $statementData['operating_charges'] ?? 0,
+                'advertising'            => $statementData['advertising'] ?? 0,
+                'refunds'                => $statementData['refunds'] ?? 0,
+                'taxes'                  => $statementData['taxes'] ?? 0,
+                'total_payout'           => $statementData['total_payout'],
+                'calculated_payout'      => $calculatedPayout,
+                'discrepancy'            => $discrepancy,
+                'orders_count'           => $csvResult['orders_count'],
+                'delivered_count'        => $csvResult['delivered_count'],
+                'cancelled_count'        => $csvResult['cancelled_count'],
+                'csv_gross_sales'        => $csvResult['csv_gross_sales'],
+                'csv_commission'         => $csvResult['csv_commission'],
+                'csv_estimated_income'   => $csvResult['csv_estimated_income'],
+                'csv_pedidosya_discount' => $csvResult['csv_pedidosya_discount'],
+                'csv_vendor_discount'    => $csvResult['csv_vendor_discount'],
+                'notes'                  => $statementData['notes'] ?? null,
+                'user_id'                => $userId,
+            ];
+
+            // Al reimportar sin ZIP se conserva el adjunto anterior
+            if ($zipPath !== null || $sameWeek === null) {
+                $values['zip_path'] = $zipPath;
+            }
+
+            if ($sameWeek) {
+                $sameWeek->update($values);
+                $settlement = $sameWeek;
+
+                // Pedidos que ya no vienen en el archivo nuevo
+                $settlement->orders()->whereNotIn('order_number', $orderNumbers)->delete();
+            } else {
+                $settlement = PedidosYaSettlement::create($values);
+            }
 
             // Guardar o actualizar pedidos (idempotencia por order_number)
             foreach ($csvResult['orders'] as $orderData) {
@@ -237,6 +357,47 @@ class PedidosYaImportService
 
             return $settlement->fresh(['orders']);
         });
+
+        return ['settlement' => $settlement, 'warnings' => $warnings];
+    }
+
+    public static function isDelivered(?string $status): bool
+    {
+        return mb_strtolower(trim((string) $status)) === 'entregado';
+    }
+
+    /** Semanas ya cargadas que se cruzan con el rango (sin contar la misma semana exacta). */
+    protected function overlapping(string $startDate, string $endDate)
+    {
+        // Las columnas `date` se guardan como 'AAAA-MM-DD 00:00:00'
+        return PedidosYaSettlement::where('start_date', '<=', $endDate . ' 23:59:59')
+            ->where('end_date', '>=', $startDate)
+            ->whereNot(function ($q) use ($startDate, $endDate) {
+                $q->whereDate('start_date', $startDate)->whereDate('end_date', $endDate);
+            })
+            ->orderBy('start_date')
+            ->get();
+    }
+
+    /** Números de pedido cuya fecha cae fuera del rango. */
+    protected function ordersOutsideRange(array $orders, string $startDate, string $endDate): array
+    {
+        return array_values(array_map(
+            fn ($o) => $o['order_number'],
+            array_filter($orders, function ($o) use ($startDate, $endDate) {
+                $day = substr((string) $o['order_date'], 0, 10);
+                return $day < $startDate || $day > $endDate;
+            })
+        ));
+    }
+
+    protected function weekLabel(?PedidosYaSettlement $st): string
+    {
+        if (!$st) {
+            return 'otra semana';
+        }
+
+        return $st->start_date->format('d/m/Y') . '–' . $st->end_date->format('d/m/Y');
     }
 
     /**
