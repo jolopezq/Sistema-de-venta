@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\NameKey;
 use Illuminate\Foundation\Http\FormRequest;
 
 class FinanceExpenseRequest extends FormRequest
@@ -9,6 +10,13 @@ class FinanceExpenseRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('supplier')) {
+            $this->merge(['supplier' => NameKey::tidy($this->input('supplier')) ?: null]);
+        }
     }
 
     public function rules(): array

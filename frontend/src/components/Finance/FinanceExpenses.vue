@@ -2,9 +2,10 @@
 import { computed, reactive, ref, watch, onMounted } from 'vue';
 import { apiFetch } from '../../services/api';
 import {
-  useFinanceStore, formatBs, formatDay, localDate, errorText, SECTIONS, PAYMENT_METHODS,
+  useFinanceStore, formatBs, formatDay, localDate, errorText, nameKey, SECTIONS, PAYMENT_METHODS,
 } from '../../stores/finance';
 import FinanceModal from './FinanceModal.vue';
+import CategorySelect from './CategorySelect.vue';
 
 /**
  * Pestaña Compras y gastos: lo pagado fuera de la caja (finance_expenses) y los egresos de caja del mes,
@@ -52,7 +53,10 @@ function openNew() {
     supplier: '', amount: '', payment_method: 'bank_transfer', receipt_number: '', notes: '',
   });
   formError.value = '';
+  categoryTouched.value = false;
+  supplierHint.value = '';
   modalOpen.value = true;
+  finance.loadSuppliers();
 }
 
 function openEdit(item) {
@@ -67,21 +71,43 @@ function openEdit(item) {
     notes: item.notes || '',
   });
   formError.value = '';
+  categoryTouched.value = true;
+  supplierHint.value = '';
   modalOpen.value = true;
+  finance.loadSuppliers();
 }
 
-const formCategories = computed(() => {
-  const list = finance.activeCategories.slice();
-  // Al editar, la categoría actual se muestra aunque esté desactivada
-  if (editing.value && !list.some((c) => c.id === form.expense_category_id)) {
-    const current = finance.categories.find((c) => c.id === form.expense_category_id);
-    if (current) list.unshift(current);
+// ---------- Proveedores ya usados ----------
+const categoryTouched = ref(false);
+const supplierHint = ref('');
+
+function chooseCategory(id) {
+  form.expense_category_id = id;
+  categoryTouched.value = true;
+  supplierHint.value = '';
+}
+
+/** Al escribir un proveedor conocido se propone la categoría de su última compra (si no se eligió otra). */
+function onSupplierInput() {
+  const key = nameKey(form.supplier);
+  const known = key ? finance.suppliers.find((s) => nameKey(s.name) === key) : null;
+  if (!known) {
+    supplierHint.value = '';
+    return;
   }
-  return list;
-});
-const groupedFormCategories = computed(() => Object.entries(SECTIONS)
-  .map(([key, label]) => ({ key, label, items: formCategories.value.filter((c) => c.section === key) }))
-  .filter((g) => g.items.length));
+  const category = finance.categories.find((c) => c.id === known.expense_category_id && c.is_active);
+  if (!categoryTouched.value && category) {
+    form.expense_category_id = category.id;
+    supplierHint.value = `Categoría de las compras anteriores a ${known.name}.`;
+  }
+}
+
+/** Al salir del campo se usa la forma ya registrada del proveedor ("frutas del valle" → "Frutas del Valle"). */
+function onSupplierBlur() {
+  const key = nameKey(form.supplier);
+  const known = key ? finance.suppliers.find((s) => nameKey(s.name) === key) : null;
+  if (known) form.supplier = known.name;
+}
 
 async function save() {
   if (!(Number(form.amount) > 0)) { formError.value = 'El monto debe ser mayor a 0.'; return; }
@@ -93,6 +119,8 @@ async function save() {
     const url = editing.value ? `/finance/expenses/${editing.value.id}` : '/finance/expenses';
     await apiFetch(url, { method: editing.value ? 'PUT' : 'POST', body: JSON.stringify(form) });
     modalOpen.value = false;
+    // Ya guardado: el formulario queda libre aunque las listas tarden en recargarse
+    saving.value = false;
     finance.notify(editing.value ? 'Gasto actualizado.' : 'Gasto registrado.');
     await Promise.all([finance.loadExpenses(), finance.loadPnl(), finance.loadRecurring()]);
   } catch (err) {
@@ -285,18 +313,15 @@ watch(() => props.intent, handleIntent);
             </td>
             <td data-label="Monto" class="right fin-num fin-cell-main">{{ formatBs(m.amount) }}</td>
             <td data-label="Categoría">
-              <select
-                class="fin-input fin-input-sm"
-                :value="m.expense_category_id || ''"
+              <CategorySelect
+                small
+                :model-value="m.expense_category_id || ''"
+                placeholder="Sin clasificar — elegir…"
+                default-section="operating"
                 :disabled="classifying === m.id"
                 :aria-label="`Categoría de ${m.description || 'egreso'}`"
-                @change="classify(m, $event.target.value)"
-              >
-                <option value="" disabled>Sin clasificar — elegir…</option>
-                <optgroup v-for="(label, key) in SECTIONS" :key="key" :label="label">
-                  <option v-for="c in finance.activeCategories.filter((x) => x.section === key)" :key="c.id" :value="c.id">{{ c.name }}</option>
-                </optgroup>
-              </select>
+                @update:model-value="(id) => classify(m, id)"
+              />
               <span v-if="!m.expense_category_id" class="fin-badge warn" style="margin-top: 4px">Sin clasificar</span>
             </td>
           </tr>
@@ -331,18 +356,25 @@ watch(() => props.intent, handleIntent);
         <input id="fx-amount" v-model="form.amount" type="number" min="0.01" step="0.01" inputmode="decimal" class="fin-input" placeholder="0,00" />
       </div>
     </div>
-    <div class="fin-field">
-      <label for="fx-cat">Categoría</label>
-      <select id="fx-cat" v-model="form.expense_category_id" class="fin-input">
-        <optgroup v-for="g in groupedFormCategories" :key="g.key" :label="g.label">
-          <option v-for="c in g.items" :key="c.id" :value="c.id">{{ c.name }}{{ c.is_active ? '' : ' (desactivada)' }}</option>
-        </optgroup>
-      </select>
-    </div>
     <div class="fin-grid-2">
       <div class="fin-field">
         <label for="fx-supplier">Proveedor o concepto</label>
-        <input id="fx-supplier" v-model="form.supplier" type="text" maxlength="150" class="fin-input" placeholder="Ej.: Frutas del Valle" />
+        <input
+          id="fx-supplier"
+          v-model="form.supplier"
+          type="text"
+          maxlength="150"
+          class="fin-input"
+          list="fx-supplier-list"
+          autocomplete="off"
+          placeholder="Ej.: Frutas del Valle"
+          @input="onSupplierInput"
+          @change="onSupplierInput"
+          @blur="onSupplierBlur"
+        />
+        <datalist id="fx-supplier-list">
+          <option v-for="sup in finance.suppliers" :key="sup.name" :value="sup.name" />
+        </datalist>
       </div>
       <div class="fin-field">
         <label for="fx-method">Forma de pago</label>
@@ -350,6 +382,17 @@ watch(() => props.intent, handleIntent);
           <option v-for="(label, key) in PAYMENT_METHODS" :key="key" :value="key">{{ label }}</option>
         </select>
       </div>
+    </div>
+    <div class="fin-field">
+      <label for="fx-cat">Categoría</label>
+      <CategorySelect
+        id="fx-cat"
+        :model-value="form.expense_category_id"
+        default-section="cost_of_sales"
+        @update:model-value="chooseCategory"
+      />
+      <span v-if="supplierHint" class="fin-hint">{{ supplierHint }}</span>
+      <span v-else class="fin-hint">¿No está en la lista? Elige «+ Nueva categoría…» al final.</span>
     </div>
     <div v-if="form.payment_method === 'cash'" class="fin-note">
       Si el dinero salió de la caja del turno, ya es un egreso de caja: no lo registres aquí o se contará dos veces.

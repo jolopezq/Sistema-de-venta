@@ -2,9 +2,10 @@
 import { computed, reactive, ref, watch, onMounted } from 'vue';
 import { apiFetch } from '../../services/api';
 import {
-  useFinanceStore, formatBs, formatDay, errorText, SECTIONS, PAYMENT_METHODS, FREQUENCIES, MONTHS,
+  useFinanceStore, formatBs, formatDay, errorText, PAYMENT_METHODS, FREQUENCIES, MONTHS,
 } from '../../stores/finance';
 import FinanceModal from './FinanceModal.vue';
+import CategorySelect from './CategorySelect.vue';
 
 /**
  * Pestaña Gastos fijos: los del mes (generar los pendientes) y las plantillas.
@@ -87,13 +88,6 @@ function openEdit(t) {
   modalOpen.value = true;
 }
 
-const groupedCategories = computed(() => Object.entries(SECTIONS)
-  .map(([key, label]) => ({
-    key,
-    label,
-    items: finance.categories.filter((c) => c.section === key && (c.is_active || c.id === form.expense_category_id)),
-  }))
-  .filter((g) => g.items.length));
 
 async function save() {
   if (!form.name.trim()) { formError.value = 'Escribe el concepto.'; return; }
@@ -104,6 +98,8 @@ async function save() {
     const url = editing.value ? `/finance/recurring-expenses/${editing.value.id}` : '/finance/recurring-expenses';
     await apiFetch(url, { method: editing.value ? 'PUT' : 'POST', body: JSON.stringify(form) });
     modalOpen.value = false;
+    // Ya guardado: el formulario queda libre aunque las listas tarden en recargarse
+    saving.value = false;
     finance.notify(editing.value ? 'Gasto fijo actualizado. Los meses ya generados no cambian.' : 'Gasto fijo agregado.');
     await Promise.all([finance.loadRecurring(), finance.loadPnl()]);
   } catch (err) {
@@ -282,11 +278,7 @@ watch(() => props.intent, handleIntent);
       </div>
       <div class="fin-field">
         <label for="rx-cat">Categoría</label>
-        <select id="rx-cat" v-model="form.expense_category_id" class="fin-input">
-          <optgroup v-for="g in groupedCategories" :key="g.key" :label="g.label">
-            <option v-for="c in g.items" :key="c.id" :value="c.id">{{ c.name }}</option>
-          </optgroup>
-        </select>
+        <CategorySelect id="rx-cat" v-model="form.expense_category_id" default-section="operating" />
       </div>
     </div>
     <div class="fin-grid-3">

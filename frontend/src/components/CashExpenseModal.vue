@@ -248,7 +248,7 @@ function handleClose() {
                 v-model="form.expense_category_id"
                 class="ce-input ce-select"
               >
-                <option :value="null">-- Sin clasificar (se puede revisar en Finanzas) --</option>
+                <option :value="null">Otro / no está en la lista (descríbelo abajo)</option>
                 <option
                   v-for="cat in categories"
                   :key="cat.id"
@@ -257,6 +257,9 @@ function handleClose() {
                   {{ cat.name }} ({{ cat.group_name || cat.section }})
                 </option>
               </select>
+              <p v-if="!form.expense_category_id" class="ce-hint">
+                El dueño lo clasifica después en Finanzas: escribe bien qué se compró o pagó.
+              </p>
             </div>
 
             <div class="ce-field">
@@ -481,6 +484,13 @@ function handleClose() {
 }
 .ce-input.input-error {
   border-color: #f87171;
+}
+.ce-hint {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  /* El panel es oscuro en ambos temas: mismo gris claro que las etiquetas */
+  color: var(--color-text-secondary, #bbb);
 }
 .ce-char-count {
   font-size: 0.72rem;

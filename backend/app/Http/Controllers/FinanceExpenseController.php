@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\FinanceExpenseRequest;
 use App\Models\FinanceExpense;
+use App\Support\NameKey;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,9 +57,56 @@ class FinanceExpenseController extends Controller
         ]));
     }
 
+    /**
+     * Proveedores ya usados (para sugerirlos al escribir), con su categoría más reciente.
+     * Se agrupan por nombre sin mayúsculas ni acentos y se muestra la forma escrita más reciente.
+     */
+    public function suppliers(): JsonResponse
+    {
+        $rows = FinanceExpense::whereNotNull('supplier')
+            ->where('supplier', '!=', '')
+            ->whereNull('recurring_expense_id')
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->get(['supplier', 'expense_category_id', 'date']);
+
+        $suppliers = $rows->groupBy(fn ($r) => NameKey::make($r->supplier))
+            ->map(fn ($group) => [
+                'name'                => $group->first()->supplier,
+                'expense_category_id' => $group->first()->expense_category_id,
+                'count'               => $group->count(),
+                'last_date'           => $group->first()->date->toDateString(),
+            ])
+            ->sortByDesc('count')
+            ->take(300)
+            ->values();
+
+        return response()->json($suppliers);
+    }
+
+    /** Si el proveedor ya existe escrito de otra forma ("frutas del valle"), se usa la forma ya registrada. */
+    private function canonicalSupplier(?string $supplier): ?string
+    {
+        if (!$supplier) {
+            return $supplier;
+        }
+
+        $key = NameKey::make($supplier);
+        $match = FinanceExpense::whereNotNull('supplier')
+            ->whereNull('recurring_expense_id')
+            ->orderByDesc('date')
+            ->pluck('supplier')
+            ->first(fn ($s) => NameKey::make($s) === $key);
+
+        return $match ?? $supplier;
+    }
+
     public function store(FinanceExpenseRequest $request): JsonResponse
     {
         $data = $request->validated();
+        if (array_key_exists('supplier', $data)) {
+            $data['supplier'] = $this->canonicalSupplier($data['supplier']);
+        }
         $data['user_id'] = Auth::id();
 
         $expense = FinanceExpense::create($data);
@@ -76,7 +124,11 @@ class FinanceExpenseController extends Controller
 
     public function update(FinanceExpenseRequest $request, FinanceExpense $financeExpense): JsonResponse
     {
-        $financeExpense->update($request->validated());
+        $data = $request->validated();
+        if (!$financeExpense->recurring_expense_id && array_key_exists('supplier', $data)) {
+            $data['supplier'] = $this->canonicalSupplier($data['supplier']);
+        }
+        $financeExpense->update($data);
 
         return response()->json([
             'message' => 'Gasto actualizado correctamente.',

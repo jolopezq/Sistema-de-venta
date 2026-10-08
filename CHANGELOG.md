@@ -108,6 +108,14 @@ se renombra con la fecha de la actualización de producción.
 - `pedidosya_orders.sale_link` y `catalog_total` (migración `2026_10_08_000003`).
 - Índices para los reportes por mes: `sales (status, created_at)`, `sales (source, created_at)` y
   `cash_movements (type, created_at)` (migración `2026_10_08_000004`).
+- Finanzas: **registrar lo que no está en la lista**. Los desplegables de categoría (compras y gastos, gastos
+  fijos y clasificación de egresos de caja) terminan en «+ Nueva categoría…»: se escribe el nombre, se elige la
+  sección del Estado de Resultados (costo de ventas, operativos, financieros o impuestos) y queda creada y
+  elegida. Avisa si ya existe una parecida para usarla en vez de duplicarla; el backend rechaza nombres repetidos
+  aunque cambien mayúsculas, acentos o espacios (también contra categorías desactivadas). Solo el dueño crea
+  categorías: en la caja, el cajero elige «Otro / no está en la lista», describe el egreso y el dueño lo clasifica.
+- Compras y gastos: el proveedor sugiere los ya usados (`GET /finance/suppliers`), propone la categoría de su
+  última compra y se guarda con la forma ya registrada («frutas del valle» → «Frutas del Valle»).
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)
@@ -177,6 +185,8 @@ se renombra con la fecha de la actualización de producción.
   ilegibles o un producto por peso creaba una venta vacía o a precio 0 (ahora se informa para registrarlo a
   mano); al reimportar una semana sin un pedido, se avisa que su venta sigue registrada; el ZIP subido se borra
   si la importación falla y el ZIP reemplazado se elimina.
+- Finanzas: al reabrir un formulario mientras se recargaban las listas tras guardar, quedaba en «Guardando…»
+  (botones desactivados y sin cerrar con Escape).
 
 ### Seguridad
 - Permisos por rol aplicados en el backend; cocina sin acceso a ventas ni caja. (`938c31b`)

@@ -30,7 +30,12 @@ class ExpenseCategoryController extends Controller
 
     public function store(ExpenseCategoryRequest $request): JsonResponse
     {
-        $category = ExpenseCategory::create($request->validated());
+        $data = $request->validated();
+        // Una categoría nueva va al final de su sección
+        $data['sort_order'] = $data['sort_order'] ?? ((int) ExpenseCategory::where('section', $data['section'])->max('sort_order') + 1);
+        $data['is_active'] = $data['is_active'] ?? true;
+
+        $category = ExpenseCategory::create($data);
 
         return response()->json([
             'message'  => 'Categoría creada correctamente.',

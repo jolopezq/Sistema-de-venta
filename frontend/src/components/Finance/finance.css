@@ -612,3 +612,25 @@ html.dark .fin-page .fin-toast.error { background: var(--danger-100); color: var
   cursor: pointer;
 }
 .fin-page .fin-check-inline input { width: 16px; height: 16px; accent-color: var(--acai-500); }
+
+/* Elección de sección al crear una categoría */
+.fin-page .fin-section-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fin-page .fin-section-option {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-900);
+}
+.fin-page .fin-section-option > span { display: flex; flex-direction: column; gap: 2px; }
+.fin-page .fin-section-option input { margin-top: 2px; accent-color: var(--acai-500); }
+.fin-page .fin-section-option.active { border-color: var(--acai-300); background: var(--acai-50); }
+.fin-page .fin-section-option.active strong { color: var(--acai-text); }
+@media (max-width: 760px) {
+  .fin-page .fin-section-options { grid-template-columns: 1fr; }
+}

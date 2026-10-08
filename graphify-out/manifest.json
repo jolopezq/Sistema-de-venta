@@ -385,8 +385,8 @@
     "semantic_hash": "1a03818ea91deb4f3989c6c994e5867c"
   },
   "backend/routes/api.php": {
-    "mtime": 1791411972.5554152,
-    "ast_hash": "d9190a9b7feb509d159242c70dda739d",
+    "mtime": 1791414330.652157,
+    "ast_hash": "6924f109af74244caa70d8d518b06ec4",
     "semantic_hash": ""
   },
   "backend/routes/console.php": {
@@ -990,8 +990,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/CashExpenseModal.vue": {
-    "mtime": 1791406428.1420665,
-    "ast_hash": "bc9891d2e8331636456ee7ea43f4072f",
+    "mtime": 1791414477.7839854,
+    "ast_hash": "758cecbecc535b119d4a16ed394fc0cd",
     "semantic_hash": ""
   },
   "frontend/src/components/CashSessionReport.vue": {
@@ -1445,8 +1445,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1791412431.8998375,
-    "ast_hash": "a97b44d6872407364a9bf0cbbea16b68",
+    "mtime": 1791427881.849924,
+    "ast_hash": "8fdfecac167e18788eb063d6b0dc082d",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -1455,8 +1455,8 @@
     "semantic_hash": ""
   },
   "docs/BITACORA.md": {
-    "mtime": 1791412431.914998,
-    "ast_hash": "a70bc3583f38ef75d0c8cd06a8e47c70",
+    "mtime": 1791427881.8650372,
+    "ast_hash": "2ee7a210c5a1e1343e141d24c053a4c0",
     "semantic_hash": ""
   },
   "docs/PLAN_PEDIDOSYA.md": {
@@ -1555,13 +1555,13 @@
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/ExpenseCategoryController.php": {
-    "mtime": 1791406428.1380665,
-    "ast_hash": "dcede4c6082e4537d4a9ddd99934c96b",
+    "mtime": 1791414316.2290113,
+    "ast_hash": "a269423de3f2403ddb615b8ca4bcd930",
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/FinanceExpenseController.php": {
-    "mtime": 1791410646.304444,
-    "ast_hash": "54396ebcc7f8ce0a619058821ceb3d13",
+    "mtime": 1791414353.6050062,
+    "ast_hash": "77879503ea041bb18da31073b186f4a6",
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/FinanceReportController.php": {
@@ -1575,13 +1575,13 @@
     "semantic_hash": ""
   },
   "backend/app/Http/Requests/ExpenseCategoryRequest.php": {
-    "mtime": 1791406428.1380665,
-    "ast_hash": "f979871b33f474f9910d460d9c29ce52",
+    "mtime": 1791414316.2284486,
+    "ast_hash": "39930f63f8c2458620efa0a771c7ae4c",
     "semantic_hash": ""
   },
   "backend/app/Http/Requests/FinanceExpenseRequest.php": {
-    "mtime": 1791406428.1380665,
-    "ast_hash": "b6031dba80372c7c340e1a1aef8cbe9e",
+    "mtime": 1791414330.6509912,
+    "ast_hash": "c663e487003b55fbab9a41b1106d7c13",
     "semantic_hash": ""
   },
   "backend/app/Http/Requests/RecurringExpenseRequest.php": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": ""
   },
   "backend/app/Services/FinanceReportService.php": {
-    "mtime": 1791410299.9113052,
-    "ast_hash": "f4a612cedced36a778e98ddff821dbae",
+    "mtime": 1791413205.271651,
+    "ast_hash": "b13c89ac2a4331e9464ec5264436d082",
     "semantic_hash": ""
   },
   "backend/database/migrations/2026_10_07_000004_create_expense_categories_table.php": {
@@ -1650,8 +1650,8 @@
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/PedidosYaSettlementController.php": {
-    "mtime": 1791411972.55587,
-    "ast_hash": "9c36337780116428c864e7532a274681",
+    "mtime": 1791413224.861264,
+    "ast_hash": "47cf4638fdb0fda0e5c92aab7ff0618e",
     "semantic_hash": ""
   },
   "backend/app/Models/PedidosYaOrder.php": {
@@ -1665,8 +1665,8 @@
     "semantic_hash": ""
   },
   "backend/app/Services/PedidosYaImportService.php": {
-    "mtime": 1791411917.2361622,
-    "ast_hash": "e31b756cfe44f93921edef8e4fe7bfec",
+    "mtime": 1791413205.2727518,
+    "ast_hash": "267f2951ef52468f936fb237de81ff9e",
     "semantic_hash": ""
   },
   "backend/database/migrations/2026_10_07_000008_create_pedidosya_settlements_tables.php": {
@@ -1695,13 +1695,13 @@
     "semantic_hash": ""
   },
   "backend/app/Services/PedidosYa/ItemsParser.php": {
-    "mtime": 1791411783.7061024,
-    "ast_hash": "35d0f3ddc5e2e4a58202422b0c639b9b",
+    "mtime": 1791413205.2724183,
+    "ast_hash": "9f98dbb29fc8485470024fc8d258014c",
     "semantic_hash": ""
   },
   "backend/app/Services/PedidosYa/SalesLinker.php": {
-    "mtime": 1791411892.9649024,
-    "ast_hash": "59b88285328e35a02201b9c6b37bf75a",
+    "mtime": 1791413205.272127,
+    "ast_hash": "4d9f2c49144f07c85e65b62d6b32cc2c",
     "semantic_hash": ""
   },
   "backend/app/Services/PedidosYa/WeeklyReport.php": {
@@ -1750,8 +1750,8 @@
     "semantic_hash": ""
   },
   "backend/tests/Feature/PedidosYaImportSalesTest.php": {
-    "mtime": 1791412072.0694983,
-    "ast_hash": "5a52c3907219587da36840d96216af19",
+    "mtime": 1791413224.8765724,
+    "ast_hash": "880aa7a7935efa2dd7c71a3d3bfcf7d0",
     "semantic_hash": ""
   },
   "backend/tests/Feature/PedidosYaSettlementRulesTest.php": {
@@ -1760,8 +1760,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceCategories.vue": {
-    "mtime": 1791410944.6569242,
-    "ast_hash": "051af96f310ee58194a5ddc3799d0be5",
+    "mtime": 1791427787.1857302,
+    "ast_hash": "f71d1a92bab8553b7a3d6256199e8685",
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceConfirm.vue": {
@@ -1770,18 +1770,18 @@
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceExpenses.vue": {
-    "mtime": 1791411381.3920677,
-    "ast_hash": "61355c6913f92b42fea5ade73e366775",
+    "mtime": 1791427787.1861174,
+    "ast_hash": "5a2ce590369885812b74795aea9eb9d1",
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceModal.vue": {
-    "mtime": 1791410951.9416099,
+    "mtime": 1791427787.1868033,
     "ast_hash": "f58a878bfe20aec06a27ce12e2cdeea9",
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceRecurring.vue": {
-    "mtime": 1791410924.9689245,
-    "ast_hash": "25e84793546c4e5317f4a07214da8856",
+    "mtime": 1791427787.1865735,
+    "ast_hash": "d64e7b10399476bcee9f3f21e5743f2e",
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceStatementTable.vue": {
@@ -1815,13 +1815,13 @@
     "semantic_hash": ""
   },
   "frontend/src/stores/finance.js": {
-    "mtime": 1791410673.2809303,
-    "ast_hash": "0bcb7325337328d5149851e9bb4d8f9e",
+    "mtime": 1791414375.2611241,
+    "ast_hash": "545e00da4c62334e59adfb7fca20c17b",
     "semantic_hash": ""
   },
   "docs/AUDITORIA_FINANZAS.md": {
-    "mtime": 1791409769.0178225,
-    "ast_hash": "7c22a48a6328054cae48d095fde5fcef",
+    "mtime": 1791412543.8543172,
+    "ast_hash": "8b368d21feb4510688483fe30c5d79d7",
     "semantic_hash": ""
   },
   "backend/storage/app/public/products/6cEIgdqh0dNEMBCY04o7c5PbXH5lo6as7iZi0f47.png": {
@@ -1857,6 +1857,21 @@
   "backend/storage/app/public/products/wceexpCSQRqbP2OSIaHfQO3jbXXokU3Xf5XvNGU7.png": {
     "mtime": 1791389032.5409088,
     "ast_hash": "1c4a3ae9e7114f44270f1f902e21dd35",
+    "semantic_hash": ""
+  },
+  "backend/app/Support/NameKey.php": {
+    "mtime": 1791414316.1863577,
+    "ast_hash": "406e2518023a088a10893fa90560e7c6",
+    "semantic_hash": ""
+  },
+  "backend/tests/Feature/FinanceNewEntriesTest.php": {
+    "mtime": 1791414353.6099467,
+    "ast_hash": "3b2f1b91fa8b301d8058dc8826b455f5",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/Finance/CategorySelect.vue": {
+    "mtime": 1791414964.308046,
+    "ast_hash": "1134977dd002af06cbc2c4cd29fb6e3a",
     "semantic_hash": ""
   }
 }

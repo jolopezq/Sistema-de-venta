@@ -58,6 +58,11 @@ export function formatDay(value, { year = true } = {}) {
   return year ? `${d}/${m}/${y}` : `${d}/${m}`;
 }
 
+/** Clave para comparar nombres escritos a mano (sin mayúsculas, acentos ni espacios repetidos). */
+export function nameKey(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 /** Mensaje legible de un error de apiFetch (los 422 traen el detalle en validationErrors). */
 export function errorText(err, fallback = 'No se pudo completar la operación.') {
   if (err?.validationErrors) {
@@ -86,6 +91,7 @@ export const useFinanceStore = defineStore('finance', () => {
   const recurringPeriod = ref({ items: [], pending_count: 0, pending_total: 0 });
   const cashMovements = ref({ data: [], count: 0, total: 0 });
   const settlements = ref([]);
+  const suppliers = ref([]);
 
   // Estados de carga y error por bloque
   const loading = ref({ pnl: false, expenses: false, recurring: false, cash: false, settlements: false, categories: false });
@@ -133,6 +139,21 @@ export const useFinanceStore = defineStore('finance', () => {
   const loadCashMovements = () => run('cash', async () => {
     cashMovements.value = await apiFetch(`/finance/cash-movements?${periodQuery.value}`);
   });
+
+  const loadSuppliers = () => run('suppliers', async () => {
+    const data = await apiFetch('/finance/suppliers');
+    suppliers.value = Array.isArray(data) ? data : [];
+  });
+
+  /** Crea una categoría que no estaba en la lista y recarga el listado. Devuelve la categoría creada. */
+  async function createCategory({ name, section, group_name = null }) {
+    const res = await apiFetch('/finance/categories', {
+      method: 'POST',
+      body: JSON.stringify({ name, section, group_name }),
+    });
+    await loadCategories();
+    return res.category;
+  }
 
   const loadSettlements = () => run('settlements', async () => {
     const data = await apiFetch(`/finance/pedidosya-settlements?${periodQuery.value}&per_page=20`);
@@ -195,8 +216,8 @@ export const useFinanceStore = defineStore('finance', () => {
   return {
     year, month, periodLabel, periodQuery, isCurrentMonth,
     pnl, categories, activeCategories, expenses, expenseTotals, expenseFilter, templates, recurringPeriod,
-    cashMovements, settlements, loading, errors, counts,
-    loadPnl, loadCategories, loadExpenses, loadRecurring, loadCashMovements, loadSettlements, loadPeriod, loadAll,
+    cashMovements, settlements, suppliers, loading, errors, counts,
+    loadPnl, loadCategories, loadSuppliers, createCategory, loadExpenses, loadRecurring, loadCashMovements, loadSettlements, loadPeriod, loadAll,
     setPeriod, shiftMonth,
     toast, notify, dialog, confirm, closeDialog,
   };

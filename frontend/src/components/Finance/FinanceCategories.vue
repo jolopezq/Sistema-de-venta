@@ -60,6 +60,8 @@ async function save() {
     const url = editing.value ? `/finance/categories/${editing.value.id}` : '/finance/categories';
     await apiFetch(url, { method: editing.value ? 'PUT' : 'POST', body: JSON.stringify(form) });
     modalOpen.value = false;
+    // Ya guardado: el formulario queda libre aunque las listas tarden en recargarse
+    saving.value = false;
     finance.notify(editing.value ? 'Categoría actualizada.' : 'Categoría creada.');
     await Promise.all([finance.loadCategories(), finance.loadPnl()]);
   } catch (err) {

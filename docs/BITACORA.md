@@ -5,7 +5,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 
 ## Estado actual (2026-10-07)
 - **Rama de trabajo:** `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`).
-- **Tests:** 143 en verde (`php artisan test`, 767 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Tests:** 148 en verde (`php artisan test`, 796 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -121,6 +121,13 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-08** — Registrar lo que no está en la lista (decisiones del dueño: crear la categoría ahí mismo;
+  solo el dueño crea categorías, el cajero usa «Otro / no está en la lista»; también sugerir proveedores; las
+  equivalencias de PedidosYa quedan como estaban). `CategorySelect.vue` con «+ Nueva categoría…» en compras, gastos
+  fijos y egresos de caja; nombres únicos sin importar mayúsculas/acentos (`App\Support\NameKey`); proveedores
+  sugeridos y unificados (`GET /finance/suppliers`). 148 tests en verde; flujo probado en el navegador (claro 1440,
+  oscuro 390) con contraste en 0.
 
 - **2026-10-07 (auditoría Finanzas)** — Auditoría de `feat/modulo-finanzas` ([informe](AUDITORIA_FINANZAS.md)) y
   corrección por fases. Fase 0: imágenes restauradas, doble marco de la pantalla, bordes de mes en hora de La

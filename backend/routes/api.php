@@ -116,6 +116,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             // Compras y gastos pagados fuera de caja
             // (el parámetro se llama como en el controlador; con `{expense}` no se resolvía el modelo
             // y editar o eliminar respondía 200 sin cambiar nada)
+            Route::get('/suppliers', [\App\Http\Controllers\FinanceExpenseController::class, 'suppliers']);
             Route::apiResource('expenses', \App\Http\Controllers\FinanceExpenseController::class)
                 ->parameters(['expenses' => 'financeExpense']);
 
