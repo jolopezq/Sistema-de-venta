@@ -222,6 +222,8 @@ class SaleSyncService
                 'unit_price'     => $itemData['unit_price'],
                 'price_override_reason' => $overrideReason,
                 'subtotal'       => $itemData['subtotal'],
+                // Gramos de un producto por peso (Autoservicio), para costearlo
+                'weight_grams'   => $product->is_weight_based && !empty($itemData['weight_grams']) ? (float) $itemData['weight_grams'] : null,
                 'is_takeaway'    => $itemIsTakeaway,
                 'item_note'      => $itemData['item_note'] ?? null,
                 'allergen_flags' => isset($itemData['allergen_flags']) && is_array($itemData['allergen_flags']) ? $itemData['allergen_flags'] : null,

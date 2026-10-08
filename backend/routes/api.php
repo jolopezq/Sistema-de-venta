@@ -107,6 +107,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Módulo de Finanzas (Solo Super Admin)
         Route::prefix('finance')->group(function () {
             Route::get('/pnl', [\App\Http\Controllers\FinanceReportController::class, 'pnl']);
+            Route::get('/break-even', [\App\Http\Controllers\FinanceReportController::class, 'breakEven']);
+
+            // Costos por receta y margen (componentes, recetas, ajustes de opciones y asistente de recetas base)
+            Route::get('/costs', [\App\Http\Controllers\FinanceCostController::class, 'index']);
+            Route::post('/costs/components', [\App\Http\Controllers\FinanceCostController::class, 'storeComponent']);
+            Route::put('/costs/components/{ingredient}', [\App\Http\Controllers\FinanceCostController::class, 'updateComponent']);
+            Route::put('/costs/products/{product}/recipe', [\App\Http\Controllers\FinanceCostController::class, 'updateProductRecipe']);
+            Route::put('/costs/options/{option}/recipe', [\App\Http\Controllers\FinanceCostController::class, 'updateOptionRecipe']);
+            Route::get('/costs/base-recipes', [\App\Http\Controllers\FinanceCostController::class, 'baseRecipesPreview']);
+            Route::post('/costs/base-recipes', [\App\Http\Controllers\FinanceCostController::class, 'applyBaseRecipes']);
 
             // Categorías de gastos
             Route::post('/categories', [\App\Http\Controllers\ExpenseCategoryController::class, 'store']);

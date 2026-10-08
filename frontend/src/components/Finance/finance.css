@@ -459,6 +459,8 @@ html.dark .fin-page .fin-btn-danger { color: var(--on-accent); }
 .fin-page .fin-modal-head h2 { margin: 0; font-family: var(--font-heading); font-size: 19px; color: var(--ink-900); }
 .fin-page .fin-modal-head p { margin: 3px 0 0; font-size: 12.5px; color: var(--ink-500); }
 .fin-page .fin-modal-body { padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+/* El cuerpo es el que se desplaza: un hijo con overflow (una tabla ancha) no debe encogerse hasta desaparecer */
+.fin-page .fin-modal-body > * { flex-shrink: 0; }
 .fin-page .fin-modal-foot {
   display: flex;
   justify-content: flex-end;
@@ -634,3 +636,4 @@ html.dark .fin-page .fin-toast.error { background: var(--danger-100); color: var
 @media (max-width: 760px) {
   .fin-page .fin-section-options { grid-template-columns: 1fr; }
 }
+.fin-page .fin-behavior { width: auto; min-width: 110px; }

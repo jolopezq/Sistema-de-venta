@@ -7,6 +7,12 @@
 > en unidades reales (vaso, tapa, azúcar, leche, 18 g de café por 1 o 2 tazas según la bebida, matcha, bombilla,
 > siropes); el **Autoservicio se costea por peso** (helado) + envase + cucharilla; las cifras del documento
 > entran como **valores iniciales editables**.
+>
+> **Estado (08/10/2026): implementado** en `feat/costos-punto-equilibrio` (fases 1 a 4). Probado en una copia de la
+> base de la Mac: con las recetas base y gastos fijos de prueba (alquiler 2.500, sueldo 2.500, cuota bimestral 300),
+> agosto 2026 da un margen de contribución de ≈ 68 % y un punto de equilibrio de ≈ Bs 7.600 al mes (Bs 247 por día,
+> ≈ 7,4 productos). Los productos eliminados y vueltos a crear con el mismo nombre (Capuchino) se costean con la
+> receta del vigente; los eliminados sin reemplazo (Frapu de cafe) quedan fuera y se avisan como «producto eliminado».
 
 ## 1. Revisión del análisis
 
@@ -52,7 +58,7 @@ costos fijos, el punto de equilibrio sería **~253 bowls al mes (~8,4 por día)*
 | Producto u opción | Receta | Costo inicial |
 |---|---|---:|
 | Classic, Hawaian, Aloha, Marley, Akahai, Shaka, Patriota | 1 base + 1 mix + 1 toppings + 1 kit chico | 9,20 |
-| Arma tu Bowl | 1 base + 1 toppings + 1 kit chico; **cada fruta elegida** +0,34 mix | 9,24 con 3 frutas |
+| Arma tu Bowl | 1 base + 1 toppings + 1 kit chico; **cada fruta elegida** +⅓ mix (0,67) | 9,20 con 3 frutas (igual que un bowl chico) |
 | Tamaño Mediano / Grande / Ohana | ver ajuste 2 de la §1 | +2,50 / +5,00 / +11,00 |
 | Sin granola, Sin leche en polvo | −0,33 pack toppings | −0,50 |
 | Extra granola, Extra leche en polvo, Leche condensada, Leche en polvo | +0,33 pack toppings | +0,50 |
@@ -121,7 +127,7 @@ duplicar. Se aplicará primero en una copia de la base; en la base real lo ejecu
 
 | Fase | Contenido | Verificación |
 |---|---|---|
-| 1. Modelo y costo | Migraciones (`tracks_stock`, `weight_grams`, `cost_behavior`), `RecipeCostService`, inventario sin descontar componentes, gramos guardados | Tests: bowl chico 9,20, Mediano 11,70, Grande 14,20, Ohana 20,20, «Sin granola» −0,50, Arma tu Bowl con 3 frutas 9,24, Autoservicio 350 g 9,95, Capuchino con 18 g para 2 tazas (9 g por taza) y su Grande; un componente sin costo deja la receta incompleta; componentes sin movimiento de stock; `weight_grams` guardado; flujo de venta completo |
+| 1. Modelo y costo | Migraciones (`tracks_stock`, `weight_grams`, `cost_behavior`), `RecipeCostService`, inventario sin descontar componentes, gramos guardados | Tests: bowl chico 9,20, Mediano 11,70, Grande 14,20, Ohana 20,20, «Sin granola» −0,50, Arma tu Bowl con 3 frutas 9,20, Autoservicio 350 g 9,95, Capuchino con 18 g para 2 tazas (9 g por taza) y su Grande; un componente sin costo deja la receta incompleta; componentes sin movimiento de stock; `weight_grams` guardado; flujo de venta completo |
 | 2. Costos y margen | Pestaña nueva y asistente | Tests de API y del asistente (idempotente, no pisa recetas); capturas 1440/390 en ambos temas; contraste 0 |
 | 3. Punto de equilibrio | `BreakEvenService`, tarjeta del Resumen, fijo / variable en Categorías | Tests: anual 1.200 → 100 por mes; gasto generado no se cuenta dos veces; comisión PedidosYa como variable; fórmulas con cifras conocidas |
 | 4. Cierre | Bitácora, CHANGELOG, grafo; entrega en la rama de la Mac | `php artisan test`, `npx vite build`, auditoría de contraste |
@@ -132,3 +138,7 @@ duplicar. Se aplicará primero en una copia de la base; en la base real lo ejecu
 - Completar los costos y cantidades del café: precio del kg de café, del litro de leche, del sobre de azúcar, de
   los vasos y tapas por tamaño, bombillas, matcha y siropes; y cuántas tazas rinde la dosis de 18 g en cada bebida.
 - Cargar los gastos fijos reales en Finanzas → Gastos fijos (sin ellos no hay punto de equilibrio).
+- En la Mac: `php artisan migrate` con respaldo previo (migración `2026_10_09_000001`, además de las `2026_10_08_*`
+  de Finanzas) y luego Finanzas → Costos y margen → «Cargar recetas base» en la base real.
+- Revisar en Categorías qué gastos son fijos o variables (por defecto: costo de ventas variable, el resto fijo;
+  «Empaques delivery» quedó variable por estar en costo de ventas).

@@ -3,9 +3,9 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-07)
-- **Rama de trabajo:** `feat/modulo-finanzas` (a partir de `feat/precios-pedidosya`).
-- **Tests:** 148 en verde (`php artisan test`, 796 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+## Estado actual (2026-10-08)
+- **Rama de trabajo:** `feat/costos-punto-equilibrio` (a partir de `feat/modulo-finanzas`, que sale de `feat/precios-pedidosya`).
+- **Tests:** 171 en verde (`php artisan test`, ≈ 940 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -27,6 +27,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | Módulo de Finanzas: Fase 2 Importación semanal PedidosYa, conciliación y análisis de canal ([plan](PLAN_MODULO_FINANZAS.md)) | ✅ en rama `feat/modulo-finanzas` | ver registro |
 | Finanzas — corrección de la [auditoría](AUDITORIA_FINANZAS.md): fases 0 (bloqueantes), 1 (cálculos), 2 (interfaz) y 3 (importación crea ventas) | ✅ en rama `feat/modulo-finanzas` | `9a5f871`, `f2319e1`, `36ec4ad`, ver registro |
 | Finanzas — auditoría fase 4 (optimización) | ✅ en rama `feat/modulo-finanzas` | ver registro |
+| Finanzas — costos por receta, margen de contribución y punto de equilibrio ([plan](PLAN_COSTOS_PUNTO_EQUILIBRIO.md)) | ✅ en rama `feat/costos-punto-equilibrio` | ver registro |
 
 ## Pendientes
 
@@ -49,6 +50,10 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       pasados que se quieran ver en el Estado de Resultados (los fijos ya no se suman solos).
 - [ ] Tarifario PedidosYa: Tamaño Mediano +8 (hoy +7) y Arma tu Bowl 32 (hoy 35), según la semana 14–20/09.
 - [ ] Pedir una nueva auditoría de `feat/modulo-finanzas` (fases 0 a 4 terminadas) antes de fusionarla.
+- [ ] Costos y punto de equilibrio: `php artisan migrate` en la Mac con respaldo (migración `2026_10_09_000001`);
+      luego Finanzas → Costos y margen → «Cargar recetas base», cargar los precios del café (kg de café, litro de
+      leche, azúcar, vasos y tapas, matcha, bombilla, siropes) y los gastos fijos reales. Revisar el costo por kg del
+      helado del Autoservicio (25 es un valor inicial) y qué categorías son fijas o variables.
 - [ ] Matriz `role_permissions` (pantalla Usuarios → Roles y permisos): conectarla al backend o eliminarla.
       Hoy no se aplica y sus datos dicen que el admin solo tiene lectura en todo.
 - [ ] Botones naranjas/verdes en modo claro usan texto oscuro (decisión aplicada). Alternativa si se
@@ -121,6 +126,22 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-08 (costos)** — Costos por receta, margen de contribución y punto de equilibrio
+  ([plan](PLAN_COSTOS_PUNTO_EQUILIBRIO.md); decisiones del dueño: porciones solo para costeo, fijos = gastos fijos
+  mensualizados + otros marcados como fijos, café con receta propia en unidades reales, Autoservicio por peso +
+  envase + cucharilla, cifras del análisis como valores iniciales). `RecipeCostService`, `BaseRecipesService`
+  (asistente idempotente que no pisa recetas existentes salvo que se marquen), `BreakEvenService`,
+  `FinanceCostController`; pestaña «Costos y margen», editor de recetas con g/ml y «rinde», tarjeta «Punto de
+  equilibrio» en el Resumen y tipo de costo en Categorías. Los componentes de costeo no mueven stock
+  (`ingredients.tracks_stock`). Los gramos de las ventas por peso se guardan (`sale_items.weight_grams`).
+  Corregido además: respuestas atrasadas al cambiar de mes rápido, tablas que se encogían dentro de las ventanas y
+  los gramos precargados al editar una venta por peso en Control Diario.
+  Probado en una copia de la base de la Mac (migrada; la real **no**): flujo en el navegador (asistente, editor,
+  resumen, categorías) en claro/oscuro a 1440 y 390 px con contraste 0, y flujo de venta por API (abrir caja →
+  vender Autoservicio 400 g + Classic Bowl → cocina → anular → cerrar caja sin diferencia; los componentes de
+  costeo no movieron stock). Hallazgo en los datos: Capuchino y Frapu de cafe se eliminaron el 17/08 y Capuchino se
+  volvió a crear; las ventas del producto viejo se costean con la receta del nuevo y Frapu queda fuera del margen.
 
 - **2026-10-08** — Registrar lo que no está en la lista (decisiones del dueño: crear la categoría ahí mismo;
   solo el dueño crea categorías, el cajero usa «Otro / no está en la lista»; también sugerir proveedores; las

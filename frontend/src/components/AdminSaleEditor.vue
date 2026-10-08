@@ -307,6 +307,7 @@ function initForm() {
         let autoPriceExpected = isPya && p?.delivery_price && Number(p.delivery_price) > 0
           ? Number(p.delivery_price)
           : Number(p?.price || 0);
+        const baseExpected = autoPriceExpected;
 
         groups.forEach(og => {
           const selected = selectedOptionIds[og.id] || [];
@@ -332,7 +333,10 @@ function initForm() {
           product_id: i.product_id,
           quantity: Number(i.quantity || 1),
           priceMode,
-          weightGrams: isWeight ? Number(i.quantity || 350) : 0,
+          // Gramos guardados en la línea; en ventas viejas se deducen del precio cobrado sin los extras
+          weightGrams: isWeight
+            ? Number(i.weight_grams) || Math.round(Math.max(0, rawUnitPrice - (autoPriceExpected - baseExpected)) / Number(p?.price_per_gram || 0.08)) || 350
+            : 0,
           pricePerGram: Number(p?.price_per_gram || 0.08),
           unit_price: rawUnitPrice,
           subtotal: Number(i.subtotal || (Number(i.quantity || 1) * rawUnitPrice)),
@@ -655,6 +659,8 @@ async function handleSave() {
     items: formData.value.items.map(item => ({
       product_id: item.product_id,
       quantity: Number(item.quantity),
+      // Los gramos pesados alimentan el costo por receta de los productos por peso
+      weight_grams: item.priceMode === 'weight' && Number(item.weightGrams) > 0 ? Number(item.weightGrams) : null,
       unit_price: Number(item.unit_price),
       subtotal: Number(item.subtotal),
       is_takeaway: item.is_takeaway,

@@ -6,6 +6,7 @@ import FinanceExpenses from '../components/Finance/FinanceExpenses.vue';
 import FinanceRecurring from '../components/Finance/FinanceRecurring.vue';
 import FinanceCategories from '../components/Finance/FinanceCategories.vue';
 import PedidosYaSettlements from '../components/Finance/PedidosYaSettlements.vue';
+import FinanceCosts from '../components/Finance/FinanceCosts.vue';
 import FinanceConfirm from '../components/Finance/FinanceConfirm.vue';
 import '../components/Finance/finance.css';
 
@@ -20,6 +21,7 @@ const TABS = [
   { key: 'pedidosya', label: 'PedidosYa' },
   { key: 'expenses', label: 'Compras y gastos' },
   { key: 'recurring', label: 'Gastos fijos' },
+  { key: 'costs', label: 'Costos y margen' },
   { key: 'categories', label: 'Categorías' },
 ];
 const activeTab = ref('summary');
@@ -33,6 +35,9 @@ const tabCounter = computed(() => ({
   recurring: finance.counts.recurringPending
     ? { value: `${finance.counts.recurringPending} por generar`, alert: true }
     : { value: finance.templates.length },
+  costs: finance.counts.incompleteRecipes
+    ? { value: `${finance.counts.incompleteRecipes} incompletas`, alert: true }
+    : null,
   categories: { value: finance.counts.categories },
 }));
 
@@ -91,6 +96,7 @@ onMounted(() => finance.loadAll());
       <PedidosYaSettlements v-else-if="activeTab === 'pedidosya'" :intent="intent" @intent-done="intent = ''" />
       <FinanceExpenses v-else-if="activeTab === 'expenses'" :intent="intent" @intent-done="intent = ''" />
       <FinanceRecurring v-else-if="activeTab === 'recurring'" :intent="intent" @intent-done="intent = ''" />
+      <FinanceCosts v-else-if="activeTab === 'costs'" />
       <FinanceCategories v-else-if="activeTab === 'categories'" />
     </section>
 

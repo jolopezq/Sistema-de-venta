@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useFinanceStore, formatBs, formatPercent } from '../../stores/finance';
 import FinanceStatementTable from './FinanceStatementTable.vue';
+import FinanceBreakEven from './FinanceBreakEven.vue';
 
 /** Pestaña Resumen: avisos de datos faltantes, indicadores, Estado de Resultados y canal PedidosYa. */
 const finance = useFinanceStore();
@@ -62,6 +63,8 @@ const kpis = computed(() => {
         <span class="fin-kpi-sub">{{ k.sub }}</span>
       </div>
     </div>
+
+    <FinanceBreakEven @navigate="(tab, intent) => emit('navigate', tab, intent)" />
 
     <div class="fin-summary">
       <FinanceStatementTable :pnl="pnl" />

@@ -25,20 +25,20 @@ const modalOpen = ref(false);
 const saving = ref(false);
 const formError = ref('');
 const editing = ref(null);
-const form = reactive({ name: '', section: 'operating', group_name: '', sort_order: 10 });
+const form = reactive({ name: '', section: 'operating', group_name: '', sort_order: 10, cost_behavior: 'fixed' });
 
 const sectionChanged = computed(() => editing.value && editing.value.section !== form.section);
 
 function openNew(section = 'operating') {
   editing.value = null;
-  Object.assign(form, { name: '', section, group_name: '', sort_order: 10 });
+  Object.assign(form, { name: '', section, group_name: '', sort_order: 10, cost_behavior: section === 'cost_of_sales' ? 'variable' : 'fixed' });
   formError.value = '';
   modalOpen.value = true;
 }
 
 function openEdit(c) {
   editing.value = c;
-  Object.assign(form, { name: c.name, section: c.section, group_name: c.group_name || '', sort_order: c.sort_order ?? 10 });
+  Object.assign(form, { name: c.name, section: c.section, group_name: c.group_name || '', sort_order: c.sort_order ?? 10, cost_behavior: c.cost_behavior || 'fixed' });
   formError.value = '';
   modalOpen.value = true;
 }
@@ -68,6 +68,25 @@ async function save() {
     formError.value = errorText(err, 'No se pudo guardar la categoría.');
   } finally {
     saving.value = false;
+  }
+}
+
+/** Fijo o variable: decide si el gasto entra en los costos fijos del punto de equilibrio. */
+const savingBehavior = ref(null);
+async function setBehavior(c, value) {
+  if (value === c.cost_behavior) return;
+  savingBehavior.value = c.id;
+  try {
+    await apiFetch(`/finance/categories/${c.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name: c.name, section: c.section, group_name: c.group_name, cost_behavior: value }),
+    });
+    finance.notify(`«${c.name}» ahora es un costo ${value === 'fixed' ? 'fijo' : 'variable'}.`);
+    await Promise.all([finance.loadCategories(), finance.loadBreakEven()]);
+  } catch (err) {
+    finance.notify(errorText(err), 'error');
+  } finally {
+    savingBehavior.value = null;
   }
 }
 
@@ -101,6 +120,7 @@ async function toggle(c) {
           <tr>
             <th>Categoría</th>
             <th>Grupo</th>
+            <th>Tipo de costo</th>
             <th>Estado</th>
             <th class="actions"><span class="sr-only">Acciones</span></th>
           </tr>
@@ -109,6 +129,18 @@ async function toggle(c) {
           <tr v-for="c in g.items" :key="c.id" :class="{ inactive: !c.is_active }">
             <td data-label="Categoría" class="fin-cell-main">{{ c.name }}</td>
             <td data-label="Grupo">{{ c.group_name || '—' }}</td>
+            <td data-label="Tipo de costo">
+              <select
+                class="fin-input fin-input-sm fin-behavior"
+                :value="c.cost_behavior || 'fixed'"
+                :disabled="savingBehavior === c.id"
+                :aria-label="`Tipo de costo de ${c.name}`"
+                @change="setBehavior(c, $event.target.value)"
+              >
+                <option value="fixed">Fijo</option>
+                <option value="variable">Variable</option>
+              </select>
+            </td>
             <td data-label="Estado"><span class="fin-badge" :class="c.is_active ? 'ok' : ''">{{ c.is_active ? 'Activa' : 'Desactivada' }}</span></td>
             <td class="actions">
               <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="toggle(c)">{{ c.is_active ? 'Desactivar' : 'Activar' }}</button>
@@ -138,6 +170,13 @@ async function toggle(c) {
         <label for="cx-group">Grupo (opcional)</label>
         <input id="cx-group" v-model="form.group_name" type="text" maxlength="100" class="fin-input" placeholder="Ej.: Insumos" />
       </div>
+    </div>
+    <div class="fin-field">
+      <label for="cx-behavior">Tipo de costo (punto de equilibrio)</label>
+      <select id="cx-behavior" v-model="form.cost_behavior" class="fin-input">
+        <option value="fixed">Fijo: se paga aunque no se venda (alquiler, sueldos, servicios)</option>
+        <option value="variable">Variable: sube con lo que se vende (insumos, comisiones por venta)</option>
+      </select>
     </div>
     <div v-if="sectionChanged" class="fin-note">
       Cambiar la sección reclasifica todos los gastos de esta categoría, también los de meses anteriores.

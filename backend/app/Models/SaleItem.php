@@ -24,6 +24,7 @@ class SaleItem extends Model
         'unit_price',
         'price_override_reason',
         'subtotal',
+        'weight_grams',
         'is_takeaway',
         'item_note',
         'allergen_flags',
@@ -37,6 +38,7 @@ class SaleItem extends Model
             'quantity' => 'decimal:4',
             'unit_price' => 'decimal:2',
             'subtotal' => 'decimal:2',
+            'weight_grams' => 'decimal:2',
             'is_takeaway' => 'boolean',
             'allergen_flags' => 'array',
         ];

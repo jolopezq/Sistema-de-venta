@@ -30,6 +30,7 @@ class Ingredient extends Model
         'min_shelf_date',
         'ingredient_category_id',
         'type',
+        'tracks_stock',
     ];
 
     protected function casts(): array
@@ -39,6 +40,7 @@ class Ingredient extends Model
             'minimum_stock' => 'decimal:4',
             'unit_cost' => 'decimal:4',
             'weighted_avg_cost' => 'decimal:4',
+            'tracks_stock' => 'boolean',
             'expiration_date' => 'date',
             'min_shelf_date' => 'date',
         ];
@@ -59,6 +61,22 @@ class Ingredient extends Model
     public function inventoryMovements(): HasMany
     {
         return $this->hasMany(InventoryMovement::class);
+    }
+
+    public function optionRecipes(): HasMany
+    {
+        return $this->hasMany(OptionRecipe::class);
+    }
+
+    /**
+     * Costo de una unidad (kg, litro o unidad) para costear recetas: el costo promedio (CPP) si hubo compras
+     * registradas; si no, el último costo cargado.
+     */
+    public function costPerUnit(): float
+    {
+        $cpp = (float) $this->weighted_avg_cost;
+
+        return $cpp > 0 ? $cpp : (float) $this->unit_cost;
     }
 
     // --- Helpers ---

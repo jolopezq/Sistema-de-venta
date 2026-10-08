@@ -13,6 +13,7 @@ class ExpenseCategory extends Model
     protected $fillable = [
         'name',
         'section',
+        'cost_behavior',
         'group_name',
         'sort_order',
         'is_active',

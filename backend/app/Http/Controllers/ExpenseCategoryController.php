@@ -34,6 +34,8 @@ class ExpenseCategoryController extends Controller
         // Una categoría nueva va al final de su sección
         $data['sort_order'] = $data['sort_order'] ?? ((int) ExpenseCategory::where('section', $data['section'])->max('sort_order') + 1);
         $data['is_active'] = $data['is_active'] ?? true;
+        // Las compras de insumos varían con lo vendido; el resto es fijo salvo que se indique otra cosa
+        $data['cost_behavior'] = $data['cost_behavior'] ?? ($data['section'] === 'cost_of_sales' ? 'variable' : 'fixed');
 
         $category = ExpenseCategory::create($data);
 
@@ -45,7 +47,11 @@ class ExpenseCategoryController extends Controller
 
     public function update(ExpenseCategoryRequest $request, ExpenseCategory $expenseCategory): JsonResponse
     {
-        $expenseCategory->update($request->validated());
+        $data = $request->validated();
+        if (array_key_exists('cost_behavior', $data) && $data['cost_behavior'] === null) {
+            unset($data['cost_behavior']);
+        }
+        $expenseCategory->update($data);
 
         return response()->json([
             'message'  => 'Categoría actualizada correctamente.',

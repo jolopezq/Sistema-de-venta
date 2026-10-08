@@ -42,6 +42,7 @@ class ExpenseCategoryRequest extends FormRequest
                 }
             }],
             'section'     => ['required', 'string', 'in:cost_of_sales,operating,financial,taxes'],
+            'cost_behavior' => ['nullable', 'in:fixed,variable'],
             'group_name'  => ['nullable', 'string', 'max:100'],
             'sort_order'  => ['nullable', 'integer'],
             'is_active'   => ['nullable', 'boolean'],

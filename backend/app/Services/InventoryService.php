@@ -67,6 +67,11 @@ class InventoryService
                 $deduction = $recipe->quantity_required * $quantitySold;
                 $ingredient = $recipe->ingredient;
 
+                // Componente de costo (porción de açaí, mix de frutas…): solo costea, no mueve stock
+                if ($ingredient && $ingredient->tracks_stock === false) {
+                    continue;
+                }
+
                 // Descuento de stock
                 $ingredient->current_stock -= $deduction;
                 $ingredient->save();
@@ -118,6 +123,10 @@ class InventoryService
                     // quantity_delta can be negative (for exclusions like "Without Granola")
                     $deduction = $optRecipe->quantity_delta * $qtySold * $saleItemOption->quantity;
                     $ingredient = $optRecipe->ingredient;
+
+                    if ($ingredient && $ingredient->tracks_stock === false) {
+                        continue; // Componente de costo: no mueve stock
+                    }
 
                     // Descontar (o devolver si es negativo) stock
                     $ingredient->current_stock -= $deduction;

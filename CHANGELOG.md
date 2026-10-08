@@ -116,6 +116,23 @@ se renombra con la fecha de la actualización de producción.
   categorías: en la caja, el cajero elige «Otro / no está en la lista», describe el egreso y el dueño lo clasifica.
 - Compras y gastos: el proveedor sugiere los ya usados (`GET /finance/suppliers`), propone la categoría de su
   última compra y se guarda con la forma ya registrada («frutas del valle» → «Frutas del Valle»).
+- Finanzas: **Costos y margen** (`docs/PLAN_COSTOS_PUNTO_EQUILIBRIO.md`). Nueva pestaña con el costo por receta de
+  cada producto, su margen en el local y en PedidosYa (después del % que se queda la plataforma) y el costo de cada
+  tamaño. El asistente «Cargar recetas base» crea los componentes de costeo del análisis (porción base, mix de
+  frutas, pack de toppings, kits descartables por tamaño, helado por kg y envase del Autoservicio, café en grano,
+  leche, azúcar, vasos de café, matcha, bombilla y siropes) con sus costos como valores iniciales editables, y las
+  recetas de bowls, Arma tu Bowl, Autoservicio y café, más los ajustes por opción (tamaños, «Sin …», toppings extra y
+  cada fruta de Arma tu Bowl). Editor de recetas con cantidades en g/ml y «rinde» (18 g de café para 2 tazas = 9 g por
+  taza). Los componentes de costeo (`ingredients.tracks_stock = false`) no mueven el stock de Inventario.
+- Finanzas: **Punto de equilibrio** en el Resumen: margen de contribución (por canal), costos fijos del mes (gastos
+  fijos mensualizados + otros gastos en categorías fijas), ventas necesarias al mes y por día (y productos por día),
+  avance del mes, ritmo, día en que se alcanza y proyección al cierre; un mes cerrado muestra su resultado.
+  Sin recetas usa el costo de las compras del mes; sin ventas, el margen del mes anterior. `GET /finance/break-even`.
+- Categorías con **tipo de costo fijo o variable** (`expense_categories.cost_behavior`; el costo de ventas queda
+  variable). Se elige en Categorías y al crear una.
+- Las ventas de productos por peso guardan los gramos pesados (`sale_items.weight_grams`) desde el POS y desde
+  Control Diario; las ventas anteriores se costean con los gramos deducidos del precio.
+- Migración `2026_10_09_000001_add_costing_fields` (`tracks_stock`, `weight_grams`, `cost_behavior`).
 
 ### Cambiado
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)
@@ -187,6 +204,11 @@ se renombra con la fecha de la actualización de producción.
   si la importación falla y el ZIP reemplazado se elimina.
 - Finanzas: al reabrir un formulario mientras se recargaban las listas tras guardar, quedaba en «Guardando…»
   (botones desactivados y sin cerrar con Escape).
+- Finanzas: al cambiar de mes rápido, una respuesta atrasada del mes anterior podía quedar en pantalla (el Estado de
+  Resultados de septiembre con agosto elegido); ahora cada bloque muestra solo su última petición.
+- Finanzas: en las ventanas con tablas (asistente de recetas) la tabla se encogía hasta desaparecer.
+- Control Diario: al editar una venta por peso, los gramos se precargaban con la cantidad (1 g) en lugar de los
+  gramos vendidos.
 
 ### Seguridad
 - Permisos por rol aplicados en el backend; cocina sin acceso a ventas ni caja. (`938c31b`)

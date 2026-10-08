@@ -58,6 +58,14 @@ export function formatDay(value, { year = true } = {}) {
   return year ? `${d}/${m}/${y}` : `${d}/${m}`;
 }
 
+/** Unidad en que se escribe la cantidad de un componente (g y ml en lugar de kg y litros). */
+export const UNIT_DISPLAY = {
+  kg: { short: 'g', factor: 1000, costLabel: 'por kg' },
+  litros: { short: 'ml', factor: 1000, costLabel: 'por litro' },
+  unidades: { short: 'u', factor: 1, costLabel: 'por unidad' },
+  sacos: { short: 'sacos', factor: 1, costLabel: 'por saco' },
+};
+
 /** Clave para comparar nombres escritos a mano (sin mayúsculas, acentos ni espacios repetidos). */
 export function nameKey(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -91,53 +99,68 @@ export const useFinanceStore = defineStore('finance', () => {
   const recurringPeriod = ref({ items: [], pending_count: 0, pending_total: 0 });
   const cashMovements = ref({ data: [], count: 0, total: 0 });
   const settlements = ref([]);
+  const costs = ref(null);
+  const breakEven = ref(null);
   const suppliers = ref([]);
 
   // Estados de carga y error por bloque
-  const loading = ref({ pnl: false, expenses: false, recurring: false, cash: false, settlements: false, categories: false });
+  const loading = ref({ pnl: false, expenses: false, recurring: false, cash: false, settlements: false, categories: false, costs: false, breakEven: false });
   const errors = ref({});
 
+  // Cada bloque guarda solo la respuesta de su última petición: al cambiar de mes rápido, una respuesta
+  // atrasada del mes anterior no debe pisar la del mes que se está viendo.
+  const latest = {};
   async function run(key, fn) {
+    const id = (latest[key] = (latest[key] || 0) + 1);
+    const isCurrent = () => latest[key] === id;
     loading.value[key] = true;
     errors.value[key] = '';
     try {
-      await fn();
+      await fn(isCurrent);
     } catch (err) {
-      errors.value[key] = errorText(err, 'No se pudieron cargar los datos.');
+      if (isCurrent()) errors.value[key] = errorText(err, 'No se pudieron cargar los datos.');
     } finally {
-      loading.value[key] = false;
+      if (isCurrent()) loading.value[key] = false;
     }
   }
 
-  const loadPnl = () => run('pnl', async () => {
-    pnl.value = await apiFetch(`/finance/pnl?${periodQuery.value}`);
-  });
+  // El punto de equilibrio depende de lo mismo que el Estado de Resultados: se recargan juntos
+  const loadPnl = () => Promise.all([
+    run('pnl', async (isCurrent) => {
+      const data = await apiFetch(`/finance/pnl?${periodQuery.value}`);
+      if (isCurrent()) pnl.value = data;
+    }),
+    loadBreakEven(),
+  ]);
 
   const loadCategories = () => run('categories', async () => {
     const data = await apiFetch('/expense-categories');
     categories.value = Array.isArray(data) ? data : [];
   });
 
-  const loadExpenses = () => run('expenses', async () => {
+  const loadExpenses = () => run('expenses', async (isCurrent) => {
     const params = new URLSearchParams({ year: year.value, month: month.value, per_page: 200 });
     if (expenseFilter.value.category_id) params.set('category_id', expenseFilter.value.category_id);
     if (expenseFilter.value.section) params.set('section', expenseFilter.value.section);
     const data = await apiFetch(`/finance/expenses?${params}`);
+    if (!isCurrent()) return;
     expenses.value = data.data || [];
     expenseTotals.value = data.totals || { count: expenses.value.length, amount: 0, by_section: {} };
   });
 
-  const loadRecurring = () => run('recurring', async () => {
+  const loadRecurring = () => run('recurring', async (isCurrent) => {
     const [list, period] = await Promise.all([
       apiFetch('/finance/recurring-expenses'),
       apiFetch(`/finance/recurring-expenses/pending?${periodQuery.value}`),
     ]);
+    if (!isCurrent()) return;
     templates.value = Array.isArray(list) ? list : [];
     recurringPeriod.value = period;
   });
 
-  const loadCashMovements = () => run('cash', async () => {
-    cashMovements.value = await apiFetch(`/finance/cash-movements?${periodQuery.value}`);
+  const loadCashMovements = () => run('cash', async (isCurrent) => {
+    const data = await apiFetch(`/finance/cash-movements?${periodQuery.value}`);
+    if (isCurrent()) cashMovements.value = data;
   });
 
   const loadSuppliers = () => run('suppliers', async () => {
@@ -155,8 +178,19 @@ export const useFinanceStore = defineStore('finance', () => {
     return res.category;
   }
 
-  const loadSettlements = () => run('settlements', async () => {
+  const loadCosts = () => run('costs', async (isCurrent) => {
+    const data = await apiFetch('/finance/costs');
+    if (isCurrent()) costs.value = data;
+  });
+
+  const loadBreakEven = () => run('breakEven', async (isCurrent) => {
+    const data = await apiFetch(`/finance/break-even?${periodQuery.value}`);
+    if (isCurrent()) breakEven.value = data;
+  });
+
+  const loadSettlements = () => run('settlements', async (isCurrent) => {
     const data = await apiFetch(`/finance/pedidosya-settlements?${periodQuery.value}&per_page=20`);
+    if (!isCurrent()) return;
     settlements.value = Array.isArray(data) ? data : (data?.data || []);
   });
 
@@ -166,7 +200,7 @@ export const useFinanceStore = defineStore('finance', () => {
   }
 
   function loadAll() {
-    return Promise.all([loadCategories(), loadPeriod()]);
+    return Promise.all([loadCategories(), loadCosts(), loadPeriod()]);
   }
 
   function setPeriod(y, m) {
@@ -187,6 +221,8 @@ export const useFinanceStore = defineStore('finance', () => {
     recurringPending: recurringPeriod.value.pending_count || 0,
     unclassified: cashMovements.value.data.filter((m) => !m.expense_category_id).length,
     categories: categories.value.filter((c) => c.is_active).length,
+    withoutRecipe: (costs.value?.products || []).filter((p) => !p.has_recipe).length,
+    incompleteRecipes: (costs.value?.products || []).filter((p) => p.has_recipe && !p.complete).length,
   }));
 
   const activeCategories = computed(() => categories.value.filter((c) => c.is_active));
@@ -216,8 +252,9 @@ export const useFinanceStore = defineStore('finance', () => {
   return {
     year, month, periodLabel, periodQuery, isCurrentMonth,
     pnl, categories, activeCategories, expenses, expenseTotals, expenseFilter, templates, recurringPeriod,
-    cashMovements, settlements, suppliers, loading, errors, counts,
+    cashMovements, settlements, suppliers, costs, breakEven, loading, errors, counts,
     loadPnl, loadCategories, loadSuppliers, createCategory, loadExpenses, loadRecurring, loadCashMovements, loadSettlements, loadPeriod, loadAll,
+    loadCosts, loadBreakEven,
     setPeriod, shiftMonth,
     toast, notify, dialog, confirm, closeDialog,
   };
