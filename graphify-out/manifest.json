@@ -140,9 +140,9 @@
     "semantic_hash": "a0d093d6fc59415fff868ec5aca8dcb4"
   },
   "backend/app/Models/Ingredient.php": {
-    "mtime": 1791389032.498809,
-    "ast_hash": "2f747183fd49961e54a4a49ec65ad282",
-    "semantic_hash": "2f747183fd49961e54a4a49ec65ad282"
+    "mtime": 1791441464.6728542,
+    "ast_hash": "58e62bd965e495f6fb611cd4b8942044",
+    "semantic_hash": ""
   },
   "backend/app/Models/InventoryMovement.php": {
     "mtime": 1791389032.498809,
@@ -170,8 +170,8 @@
     "semantic_hash": ""
   },
   "backend/app/Models/SaleItem.php": {
-    "mtime": 1791389579.83745,
-    "ast_hash": "dd9b4462d2efb5640c4c038dca688816",
+    "mtime": 1791441464.672263,
+    "ast_hash": "49388e42b3e11b5f4b2ba301088bd4f7",
     "semantic_hash": ""
   },
   "backend/app/Models/SalePayment.php": {
@@ -190,13 +190,13 @@
     "semantic_hash": ""
   },
   "backend/app/Services/InventoryService.php": {
-    "mtime": 1791389032.4997315,
-    "ast_hash": "0cb9c1ff3409fcd6dcb625fbfcf816d3",
-    "semantic_hash": "0cb9c1ff3409fcd6dcb625fbfcf816d3"
+    "mtime": 1791441471.8470101,
+    "ast_hash": "ef4896c9d4ba9f4a88e7b73da057f9cc",
+    "semantic_hash": ""
   },
   "backend/app/Services/SaleSyncService.php": {
-    "mtime": 1791406428.1420665,
-    "ast_hash": "84cdbe6f1b7cabe261925dc5f4c71b16",
+    "mtime": 1791441471.8480206,
+    "ast_hash": "2b263c898294400939e9ead9a026fc03",
     "semantic_hash": ""
   },
   "backend/artisan": {
@@ -385,8 +385,8 @@
     "semantic_hash": "1a03818ea91deb4f3989c6c994e5867c"
   },
   "backend/routes/api.php": {
-    "mtime": 1791414330.652157,
-    "ast_hash": "6924f109af74244caa70d8d518b06ec4",
+    "mtime": 1791441996.4203103,
+    "ast_hash": "819fb775d4d3f7183d21f4376045fb81",
     "semantic_hash": ""
   },
   "backend/routes/console.php": {
@@ -610,8 +610,8 @@
     "semantic_hash": "bea16af72b5e441d75dbb7eed00087ed"
   },
   "backend/app/Http/Requests/AdminSaleRequest.php": {
-    "mtime": 1791389579.8382127,
-    "ast_hash": "3157d5fcd0a6cad715f2e6e4781af5d2",
+    "mtime": 1791441471.848574,
+    "ast_hash": "f9700d08318de0c8270caf83459f414d",
     "semantic_hash": ""
   },
   "backend/app/Http/Requests/IngredientCategoryRequest.php": {
@@ -970,8 +970,8 @@
     "semantic_hash": "1180c3a31c2fe14487d004b829e25580"
   },
   "frontend/src/components/AdminSaleEditor.vue": {
-    "mtime": 1791406428.1420665,
-    "ast_hash": "a9f4facda8010b702706cc8cb2ce776d",
+    "mtime": 1791442754.1855106,
+    "ast_hash": "bb70f69dbd5ed8ae55b9236bbdb19f77",
     "semantic_hash": ""
   },
   "frontend/src/components/AppShell.vue": {
@@ -1445,8 +1445,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1791427881.849924,
-    "ast_hash": "8fdfecac167e18788eb063d6b0dc082d",
+    "mtime": 1791442975.2042887,
+    "ast_hash": "f4a1c6d61cdae906ee016db8fd06b9c8",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -1455,8 +1455,8 @@
     "semantic_hash": ""
   },
   "docs/BITACORA.md": {
-    "mtime": 1791427881.8650372,
-    "ast_hash": "2ee7a210c5a1e1343e141d24c053a4c0",
+    "mtime": 1791443001.3618171,
+    "ast_hash": "e3d0b482eef2d3627b13df8bfb932283",
     "semantic_hash": ""
   },
   "docs/PLAN_PEDIDOSYA.md": {
@@ -1555,8 +1555,8 @@
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/ExpenseCategoryController.php": {
-    "mtime": 1791414316.2290113,
-    "ast_hash": "a269423de3f2403ddb615b8ca4bcd930",
+    "mtime": 1791442034.6521614,
+    "ast_hash": "1920c324c91c43ba60a64b0a1ec3f8ed",
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/FinanceExpenseController.php": {
@@ -1565,8 +1565,8 @@
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/FinanceReportController.php": {
-    "mtime": 1791406428.1380665,
-    "ast_hash": "5e397b16b484056c22b070949f6bbdbe",
+    "mtime": 1791441996.420006,
+    "ast_hash": "94e7538b5a333ddc6043f1c62bca41fb",
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/RecurringExpenseController.php": {
@@ -1575,8 +1575,8 @@
     "semantic_hash": ""
   },
   "backend/app/Http/Requests/ExpenseCategoryRequest.php": {
-    "mtime": 1791414316.2284486,
-    "ast_hash": "39930f63f8c2458620efa0a771c7ae4c",
+    "mtime": 1791441996.420612,
+    "ast_hash": "05e762983e795719dfad6920c86b821d",
     "semantic_hash": ""
   },
   "backend/app/Http/Requests/FinanceExpenseRequest.php": {
@@ -1590,8 +1590,8 @@
     "semantic_hash": ""
   },
   "backend/app/Models/ExpenseCategory.php": {
-    "mtime": 1791406428.1380665,
-    "ast_hash": "d559060a345bb9d2292448cb3d6395da",
+    "mtime": 1791441464.6726067,
+    "ast_hash": "8b9e50e54025829b68cca4a61b447842",
     "semantic_hash": ""
   },
   "backend/app/Models/FinanceExpense.php": {
@@ -1640,8 +1640,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/Finance.vue": {
-    "mtime": 1791411049.9009218,
-    "ast_hash": "6c6d6dcf3f6591f9610b1961452d8b5a",
+    "mtime": 1791441926.6973946,
+    "ast_hash": "cce91c8c34a719b39a4f36e7d9d179c1",
     "semantic_hash": ""
   },
   "docs/PLAN_MODULO_FINANZAS.md": {
@@ -1760,8 +1760,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceCategories.vue": {
-    "mtime": 1791427787.1857302,
-    "ast_hash": "f71d1a92bab8553b7a3d6256199e8685",
+    "mtime": 1791442156.8541067,
+    "ast_hash": "e0e129270860606ca08a18962f84b7e8",
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceConfirm.vue": {
@@ -1790,8 +1790,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceSummary.vue": {
-    "mtime": 1791410828.800927,
-    "ast_hash": "f7811ae2b07dadf68abb2345bf2b2cc6",
+    "mtime": 1791442132.2760298,
+    "ast_hash": "07b0a634ace70cb1bda36a5ea4bb8b86",
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/PedidosYaImportModal.vue": {
@@ -1815,8 +1815,8 @@
     "semantic_hash": ""
   },
   "frontend/src/stores/finance.js": {
-    "mtime": 1791414375.2611241,
-    "ast_hash": "545e00da4c62334e59adfb7fca20c17b",
+    "mtime": 1791442382.390672,
+    "ast_hash": "1dfa20457b4adcedeadf08d2cdfe5cea",
     "semantic_hash": ""
   },
   "docs/AUDITORIA_FINANZAS.md": {
@@ -1872,6 +1872,76 @@
   "frontend/src/components/Finance/CategorySelect.vue": {
     "mtime": 1791414964.308046,
     "ast_hash": "1134977dd002af06cbc2c4cd29fb6e3a",
+    "semantic_hash": ""
+  },
+  "backend/app/Http/Controllers/FinanceCostController.php": {
+    "mtime": 1791441747.6996286,
+    "ast_hash": "b334ad5a4b41ba6a5818ff65330b26a7",
+    "semantic_hash": ""
+  },
+  "backend/app/Services/BaseRecipesService.php": {
+    "mtime": 1791441577.6217384,
+    "ast_hash": "d8dc1c785ee248e8bdcc2d239d6ff22a",
+    "semantic_hash": ""
+  },
+  "backend/app/Services/BreakEvenService.php": {
+    "mtime": 1791442695.3903084,
+    "ast_hash": "fa24933bba6dc08dabef1e70e70b085c",
+    "semantic_hash": ""
+  },
+  "backend/app/Services/RecipeCostService.php": {
+    "mtime": 1791442660.9583883,
+    "ast_hash": "772a25a43b399a448693181a6d1a5f2e",
+    "semantic_hash": ""
+  },
+  "backend/database/migrations/2026_10_09_000001_add_costing_fields.php": {
+    "mtime": 1791441457.184999,
+    "ast_hash": "8842fd598adce0cfa289e384286a13be",
+    "semantic_hash": ""
+  },
+  "backend/tests/Feature/BreakEvenTest.php": {
+    "mtime": 1791442405.196026,
+    "ast_hash": "23758c2e409478611e48ca3856ff6b6b",
+    "semantic_hash": ""
+  },
+  "backend/tests/Feature/Concerns/BuildsOhanaCatalog.php": {
+    "mtime": 1791441756.4204555,
+    "ast_hash": "970d356cb6b04549ea680a1737cd0e45",
+    "semantic_hash": ""
+  },
+  "backend/tests/Feature/FinanceCostApiTest.php": {
+    "mtime": 1791441778.4417503,
+    "ast_hash": "2a51f58e054371689d0642cfc04b0359",
+    "semantic_hash": ""
+  },
+  "backend/tests/Feature/RecipeCostTest.php": {
+    "mtime": 1791442779.4869766,
+    "ast_hash": "c65d27d8076896a0b2b8d5f80fa53aaf",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/Finance/BaseRecipesWizard.vue": {
+    "mtime": 1791442950.727004,
+    "ast_hash": "c0588dcf68eb9cfa49e9a563de07aa40",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/Finance/FinanceBreakEven.vue": {
+    "mtime": 1791442417.3846073,
+    "ast_hash": "92713e3efeb165872454ef08d60581f4",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/Finance/FinanceCosts.vue": {
+    "mtime": 1791441919.8137589,
+    "ast_hash": "7d7463d87a7dc002e295506d994fe9bf",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/Finance/RecipeEditor.vue": {
+    "mtime": 1791441850.9982982,
+    "ast_hash": "6913d8df5027111a3df120a009f3afe0",
+    "semantic_hash": ""
+  },
+  "docs/PLAN_COSTOS_PUNTO_EQUILIBRIO.md": {
+    "mtime": 1791442985.6927714,
+    "ast_hash": "720c8685d67123e2726fd386b19f6b1b",
     "semantic_hash": ""
   }
 }
