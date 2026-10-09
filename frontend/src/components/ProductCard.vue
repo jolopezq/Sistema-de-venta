@@ -5,6 +5,7 @@ import { productPrice, missingDeliveryPrice, CHANNEL_PEDIDOSYA } from '../utils/
 const props = defineProps({
   product: Object,
   disabled: Boolean,
+  lowStock: Boolean,
   channel: { type: String, default: 'pos' },
 });
 const emit = defineEmits(['add']);
@@ -73,6 +74,11 @@ const getImageUrl = computed(() => {
       <span class="product-price-col">
         <span class="product-price" :class="{ weight: product.is_weight_based }">{{ displayPrice }}</span>
         <span
+          v-if="lowStock && !disabled"
+          class="low-stock-tag"
+          title="El stock del sistema no alcanza para una unidad. Puedes vender igual; revisa si falta cargar una compra."
+        >stock bajo</span>
+        <span
           v-if="usesLocalPrice"
           class="local-price-tag"
           title="Este producto no tiene precio PedidosYa: se cobra el precio de mostrador"
@@ -97,6 +103,20 @@ const getImageUrl = computed(() => {
   align-items: flex-start;
   gap: 2px;
   min-width: 0;
+}
+.low-stock-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: #FEF3C7;
+  color: #7A4A00;
+  white-space: nowrap;
+}
+html.dark .low-stock-tag {
+  background: #3A2A06;
+  color: #FCD98A;
 }
 .local-price-tag {
   font-size: 10.5px;

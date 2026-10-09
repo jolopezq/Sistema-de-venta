@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Ingredient;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class IngredientRequest extends FormRequest
 {
@@ -21,9 +23,17 @@ class IngredientRequest extends FormRequest
      */
     public function rules(): array
     {
+        // Lista cerrada para que recetas, costos y compras hablen la misma unidad. Un insumo antiguo con otra
+        // unidad (p. ej. «sacos») puede seguir editándose sin cambiarla.
+        $units = ['kg', 'litros', 'unidades'];
+        $current = $this->route('ingredient');
+        if ($current && ($legacy = Ingredient::withTrashed()->whereKey($current)->value('unit'))) {
+            $units[] = $legacy;
+        }
+
         return [
             'name' => ['required', 'string', 'max:255'],
-            'unit' => ['required', 'string', 'max:50'],
+            'unit' => ['required', 'string', Rule::in(array_unique($units))],
             'ingredient_category_id' => ['nullable', 'exists:ingredient_categories,id'],
             'type' => ['nullable', 'string', 'in:perecedero,no_perecedero,material_empaque,otros'],
             'current_stock' => ['numeric', 'min:0'],
@@ -47,6 +57,7 @@ class IngredientRequest extends FormRequest
             'name.string' => 'El nombre debe ser texto.',
             'name.max' => 'El nombre no puede exceder 255 caracteres.',
             'unit.required' => 'La unidad de medida es obligatoria.',
+            'unit.in' => 'La unidad debe ser kg, litros o unidades. Las bolsas, cajas o sacos van como unidad de compra.',
             'ingredient_category_id.exists' => 'La categoría seleccionada no es válida.',
             'type.in' => 'El tipo de insumo no es válido.',
             'current_stock.numeric' => 'El stock debe ser un número.',

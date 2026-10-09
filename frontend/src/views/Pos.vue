@@ -86,21 +86,29 @@ const ingredientStockMap = computed(() => {
   return map;
 });
 
-function isProductInStock(product) {
-  if (!product.is_active) return false;
-  if (!product.recipes || product.recipes.length === 0) return true;
+/** Un producto inactivo (pausado desde el Menú) no se vende; es la forma de marcarlo «agotado» a mano. */
+function isProductAvailable(product) {
+  return Boolean(product.is_active);
+}
+
+/**
+ * Aviso de stock bajo: el stock del sistema es teórico (puede faltar cargar una compra), así que solo avisa
+ * y deja vender. Un producto sin receta, o con insumos que no llevan stock, nunca avisa.
+ */
+function hasLowStock(product) {
+  if (!product.recipes || product.recipes.length === 0) return false;
 
   const stockMap = ingredientStockMap.value;
   for (let i = 0; i < product.recipes.length; i++) {
     const recipe = product.recipes[i];
     if (recipe.quantity_required <= 0) continue;
-    
+
     const currentStock = stockMap.get(recipe.ingredient_id);
     if (currentStock !== undefined && currentStock < recipe.quantity_required) {
-      return false; // Out of stock
+      return true;
     }
   }
-  return true;
+  return false;
 }
 
 function handleConfirmModifiers({ product, modifiers, finalPrice, itemNote, allergenFlags, isTakeaway, editingCartKey, weightGrams }) {
@@ -327,7 +335,8 @@ function confirmClearCart() {
             v-for="p in filteredProducts" 
             :key="p.id" 
             :product="p"
-            :disabled="!isProductInStock(p)"
+            :disabled="!isProductAvailable(p)"
+            :low-stock="hasLowStock(p)"
             :channel="cart.channel"
             @add="handleAddToCart(p)" 
           />

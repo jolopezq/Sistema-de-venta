@@ -134,7 +134,19 @@ se renombra con la fecha de la actualización de producción.
   Control Diario; las ventas anteriores se costean con los gramos deducidos del precio.
 - Migración `2026_10_09_000001_add_costing_fields` (`tracks_stock`, `weight_grams`, `cost_behavior`).
 
+- Inventario (plan [PLAN_INVENTARIO_REORDEN.md](docs/PLAN_INVENTARIO_REORDEN.md), F0): **Conteo físico** en lugar de
+  «Ajuste» (se escribe lo que hay y el servidor calcula la diferencia contra el stock del momento);
+  movimiento `initial` al crear un insumo con stock; comando `php artisan inventory:fix-initial-cost`
+  (muestra o, con `--confirm`, corrige el CPP en 0 de insumos con stock).
+- POS: aviso **«stock bajo»** en productos y opciones cuando el stock teórico no alcanza; no bloquea la venta.
+
 ### Cambiado
+- Inventario: el stock de un insumo ya no se edita desde el formulario (cambia con ingresos, mermas, conteos
+  y ventas); el costo inicial fija el CPP; una unidad antigua se conserva al editar y las nuevas son kg,
+  litros o unidades.
+- El stock se descuenta con una sola sentencia SQL y SQLite espera hasta 5 s por el bloqueo de escritura
+  (`DB_BUSY_TIMEOUT`, `DB_TRANSACTION_MODE=IMMEDIATE`; WAL opcional con `DB_JOURNAL_MODE=wal`).
+- `inventory_movements.type`, `waste_category` y `reference_type` pasan de enum a texto (migración sin cambio de datos).
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)
 - El sobrepago en efectivo se registra como cambio, no como ingreso. (`7005e0e`)
 - Los pedidos PedidosYa (`source = 'pedidosya'`) ya no suman a las ventas del local ni al efectivo esperado,
@@ -166,6 +178,12 @@ se renombra con la fecha de la actualización de producción.
 - `scripts/audit-contrast.cjs` recorre también las pestañas de Finanzas.
 
 ### Corregido
+- Costo promedio (CPP) mal calculado con stock inicial o negativo (10 kg a Bs 24 sobre 50 kg a Bs 12 daba
+  Bs 4 en lugar de Bs 14; con stock negativo daba 24 en lugar de 18).
+- Los productos por peso (Autoservicio) descontaban 1 kg de insumo por venta en lugar de los gramos vendidos,
+  en el servidor y en el POS sin conexión.
+- Una merma con cantidad positiva o un ingreso negativo ya no se aceptan (inflaban o vaciaban el stock).
+- Prueba de caja que fallaba entre las 00:00 y las 02:00 por depender de la hora actual.
 - La sincronización descartaba notas, alérgenos, estado de preparación, número de ticket y cantidad de
   modificadores. (`852ae61`)
 - Las ventas del POS se guardaban en UTC (+4 h) en lugar de la hora de La Paz. (`35ba606`)

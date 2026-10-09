@@ -12,7 +12,6 @@ use App\Models\Option;
 use App\Models\Product;
 use App\Models\AuditLog;
 use App\Models\InventoryMovement;
-use App\Models\Ingredient;
 use App\Repositories\SaleRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\CustomerRepository;
@@ -392,11 +391,7 @@ class SaleSyncService
                     'reference_id'     => $originalMovement->reference_id,
                 ]);
 
-                $ingredient = Ingredient::find($originalMovement->ingredient_id);
-                if ($ingredient) {
-                    $ingredient->current_stock += $reversalQuantity;
-                    $ingredient->save();
-                }
+                $this->inventoryService->applyStockChange($originalMovement->ingredient_id, (float) $reversalQuantity);
             }
 
             // 2. Revertir puntos de lealtad previos
@@ -676,11 +671,7 @@ class SaleSyncService
                     'reference_id'     => $originalMovement->reference_id,
                 ]);
 
-                $ingredient = Ingredient::find($originalMovement->ingredient_id);
-                if ($ingredient) {
-                    $ingredient->current_stock += $reversalQuantity;
-                    $ingredient->save();
-                }
+                $this->inventoryService->applyStockChange($originalMovement->ingredient_id, (float) $reversalQuantity);
             }
 
             $config = LoyaltyConfig::active();

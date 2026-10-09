@@ -127,7 +127,6 @@ const getGroupIcon = (name) => {
 };
 
 const handleSingleSelect = (og, opt) => {
-  if (!isOptionInStock(opt)) return;
   const currentList = selections.value[og.id] || [];
   if (currentList.includes(opt.id)) {
     if ((og.min_selections || 0) === 0) {
@@ -146,7 +145,6 @@ const handleSingleSelect = (og, opt) => {
 };
 
 const toggleMultiSelect = (og, opt) => {
-  if (!isOptionInStock(opt)) return;
   const currentList = selections.value[og.id] || [];
   const isSelected = currentList.includes(opt.id);
 
@@ -280,14 +278,15 @@ const handleConfirm = () => {
   });
 };
 
-const isOptionInStock = (opt) => {
-  if (!opt.recipes || opt.recipes.length === 0) return true;
+// Solo avisa: el stock del sistema es teórico (puede faltar cargar una compra) y no se debe perder una venta
+const hasLowStock = (opt) => {
+  if (!opt.recipes || opt.recipes.length === 0) return false;
   for (const recipe of opt.recipes) {
     if (recipe.quantity_delta <= 0) continue;
     const ingredient = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
-    if (ingredient && ingredient.current_stock < recipe.quantity_delta) return false;
+    if (ingredient && ingredient.current_stock < recipe.quantity_delta) return true;
   }
-  return true;
+  return false;
 };
 
 const getSortedOptions = (og) => {
@@ -384,10 +383,8 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
               :key="opt.id"
               class="size-btn"
               :class="{
-                selected: isOptionSelected(og.id, opt.id),
-                'out-of-stock': !isOptionInStock(opt)
+                selected: isOptionSelected(og.id, opt.id)
               }"
-              :disabled="!isOptionInStock(opt)"
               @click="handleSingleSelect(og, opt)"
             >
               <div class="size-btn-content">
@@ -398,7 +395,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
               </div>
               <span class="size-price-badge" v-if="priceOf(opt) > 0">+Bs {{ priceOf(opt).toFixed(2) }}</span>
               <span class="size-included-badge" v-else>Incluido</span>
-              <span class="size-agotado-badge" v-if="!isOptionInStock(opt)">Agotado</span>
+              <span class="size-lowstock-badge" v-if="hasLowStock(opt)" title="El stock del sistema no alcanza. Puedes vender igual.">Stock bajo</span>
             </button>
           </div>
         </div>
@@ -451,10 +448,9 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
               class="option-chip"
               :class="{
                 selected: isOptionSelected(og.id, opt.id),
-                'out-of-stock': !isOptionInStock(opt),
-                'limit-reached': !isOptionSelected(og.id, opt.id) && getGroupSelectedCount(og.id) >= og.max_selections && isOptionInStock(opt)
+                'limit-reached': !isOptionSelected(og.id, opt.id) && getGroupSelectedCount(og.id) >= og.max_selections
               }"
-              :disabled="!isOptionInStock(opt) || (!isOptionSelected(og.id, opt.id) && getGroupSelectedCount(og.id) >= og.max_selections)"
+              :disabled="!isOptionSelected(og.id, opt.id) && getGroupSelectedCount(og.id) >= og.max_selections"
               @click="toggleMultiSelect(og, opt)"
             >
               <div class="option-chip-content">
@@ -465,6 +461,8 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
 
                 <span class="chip-name" :title="opt.name">{{ opt.name }}</span>
               </div>
+
+              <span class="chip-lowstock" v-if="hasLowStock(opt)" title="El stock del sistema no alcanza. Puedes vender igual.">stock bajo</span>
 
               <!-- Precio adicional si tiene -->
               <span
@@ -848,13 +846,20 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   white-space: nowrap;
 }
 
-.size-agotado-badge {
+.size-lowstock-badge,
+.chip-lowstock {
   font-size: 10px;
-  color: var(--danger-600);
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 6px;
-  background: var(--danger-100);
+  background: #FEF3C7;
+  color: #7A4A00;
+  white-space: nowrap;
+}
+html.dark .size-lowstock-badge,
+html.dark .chip-lowstock {
+  background: #3A2A06;
+  color: #FCD98A;
 }
 
 /* Hover no seleccionado */
@@ -1061,11 +1066,6 @@ html.dark .size-included-badge {
   cursor: not-allowed;
   transform: none !important;
   box-shadow: none !important;
-}
-.option-chip.out-of-stock {
-  opacity: 0.35;
-  filter: grayscale(1);
-  background: var(--ink-100);
 }
 .option-chip.limit-reached {
   opacity: 0.4;

@@ -322,8 +322,13 @@ export const useCartStore = defineStore('cart', {
           for (const item of this.items) {
             const product = catalog.products.find(p => p.id === item.product_id);
             if (product && product.recipes) {
+              // Producto por peso: la receta es por kilo vendido, así que se multiplica por los gramos ÷ 1000
+              // (igual que el servidor); en los demás, por unidades
+              const soldFactor = item.is_weight_based && Number(item.weight_grams) > 0
+                ? (Number(item.weight_grams) / 1000) * item.quantity
+                : item.quantity;
               for (const recipe of product.recipes) {
-                 const qtyToDeduct = recipe.quantity_required * item.quantity;
+                 const qtyToDeduct = recipe.quantity_required * soldFactor;
                  if (qtyToDeduct > 0) {
                    const ing = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
                    if (ing) {

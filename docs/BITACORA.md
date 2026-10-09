@@ -3,10 +3,10 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-08)
-- **Rama de trabajo:** `feat/inventario-reorden` (solo documentos de la auditoría; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
-- **Tests:** 175 en verde (`php artisan test`, 955 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
-- **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
+## Estado actual (2026-10-09)
+- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fase 0 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
+- **Tests:** 193 en verde (`php artisan test`, 1033 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
 
@@ -28,7 +28,13 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | Finanzas — corrección de la [auditoría](AUDITORIA_FINANZAS.md): fases 0 (bloqueantes), 1 (cálculos), 2 (interfaz) y 3 (importación crea ventas) | ✅ en rama `feat/modulo-finanzas` | `9a5f871`, `f2319e1`, `36ec4ad`, ver registro |
 | Finanzas — auditoría fase 4 (optimización) | ✅ en rama `feat/modulo-finanzas` | ver registro |
 | Finanzas — costos por receta, margen de contribución y punto de equilibrio ([plan](PLAN_COSTOS_PUNTO_EQUILIBRIO.md)) | ✅ en rama `feat/costos-punto-equilibrio` | ver registro |
-| Inventario confiable, mermas y punto de reorden ([auditoría](AUDITORIA_INVENTARIO_MERMAS.md), [plan](PLAN_INVENTARIO_REORDEN.md)) | 📋 Plan en espera de aprobación (rama `feat/inventario-reorden`) | — |
+| Inventario confiable, mermas y punto de reorden ([auditoría](AUDITORIA_INVENTARIO_MERMAS.md), [plan](PLAN_INVENTARIO_REORDEN.md)): plan aprobado el 09/10 (D1–D7) | En curso en `feat/inventario-reorden` |  |
+| ↳ F0 Correcciones de base (CPP, stock solo por movimientos, peso, validaciones, atomicidad, POS avisa) | ✅ | ver registro |
+| ↳ F1 Compras ligadas a insumos y proveedores | Pendiente | — |
+| ↳ F2 Recetas que mueven stock (composición de componentes) | Pendiente | — |
+| ↳ F3 Mermas y conteo físico | Pendiente | — |
+| ↳ F4 Punto de reorden y alertas | Pendiente | — |
+| ↳ F5 Indicadores | Pendiente | — |
 
 ## Pendientes
 
@@ -51,9 +57,21 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       pasados que se quieran ver en el Estado de Resultados (los fijos ya no se suman solos).
 - [ ] Tarifario PedidosYa: Tamaño Mediano +8 (hoy +7) y Arma tu Bowl 32 (hoy 35), según la semana 14–20/09.
 - [ ] Pedir una nueva auditoría de `feat/modulo-finanzas` (fases 0 a 4 terminadas) antes de fusionarla.
-- [ ] Inventario: responder las decisiones D1–D7 y las preguntas de [PLAN_INVENTARIO_REORDEN.md](PLAN_INVENTARIO_REORDEN.md)
-      §1 y §6 (cómo descuentan stock las ventas, compra única, avisar sin bloquear, mermas del cajero, conteo
-      semanal) y confirmar la corrección del CPP inicial de los 3 insumos (F0).
+- [x] Inventario: decisiones D1–D7 y preguntas de [PLAN_INVENTARIO_REORDEN.md](PLAN_INVENTARIO_REORDEN.md) respondidas
+      el 09/10 (ver §1 y §6 del plan).
+- [ ] Inventario (dueño): cuando termine de probar, ejecutar en la laptop `php artisan inventory:fix-initial-cost`
+      (muestra qué cambiaría) y luego con `--confirm`, con respaldo previo. Corrige el CPP en 0 de pulpa, granola y
+      banana. Hasta entonces el cálculo de costos y las compras ya usan el último costo como respaldo.
+- [ ] Inventario (dueño): pasar los gramos de pulpa, granola, etc. y los descartables de cada tamaño y receta
+      (se cargan en «Composición», F2); proveedor, unidad y lote de compra de cada insumo clave (F1/F4) y, si
+      se quiere, el consumo diario estimado para arrancar el punto de reorden.
+- [ ] Inventario: `php artisan migrate` en la Mac y en la laptop con respaldo previo
+      (`2026_10_10_000001_relax_inventory_movement_columns`: solo cambia la definición de columnas de
+      `inventory_movements`; no modifica datos).
+- [ ] Al subir a un VPS: activar WAL (`DB_JOURNAL_MODE=wal` en `.env`) y revisar que el respaldo copie
+      también `-wal`/`-shm` (el respaldo de la app usa `VACUUM INTO`, que ya es seguro). En la laptop con
+      Windows queda sin WAL por `respaldo-diario.bat`.
+- [ ] `graphify update .` en la Mac tras la Fase 0 (el entorno de la nube no tiene graphify).
 - [ ] Costos y punto de equilibrio: `php artisan migrate` en la Mac con respaldo (migración `2026_10_09_000001`);
       luego Finanzas → Costos y margen → «Cargar recetas base», cargar los precios del café (kg de café, litro de
       leche, azúcar, vasos y tapas, matcha, bombilla, siropes) y los gastos fijos reales. Revisar el costo por kg del
@@ -130,6 +148,21 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (inventario F0)** — El dueño aprobó D1–D7 y respondió las preguntas (conteo los martes; compras en
+  mercados con precios variables; gramos y descartables los cargará él; el CPP de los 3 insumos lo corrige él
+  después de probar; todas las ventas pasan ya por el sistema; la producción seguirá en la laptop hasta subir
+  a un VPS). Fase 0 hecha: CPP correcto (alta = costo; con stock ≤ 0 la compra fija el CPP; sin CPP guardado se
+  usa el último costo); el stock solo cambia por movimientos (alta crea `initial`, la edición no lo toca; Ajuste
+  pasó a «Conteo» con `counted_stock`); productos por peso descuentan por gramos ÷ 1000, también en el POS sin
+  conexión; merma/ingreso con signo validado; unidades en lista cerrada (kg, litros, unidades; una antigua se
+  conserva al editar); descuento atómico en SQL con `ROUND`, `busy_timeout` 5 s y transacciones IMMEDIATE (WAL
+  queda opcional, ver Pendientes); el POS avisa «stock bajo» sin bloquear (productos y opciones; el «agotado a
+  mano» es «Pausar producto» del Menú). Nuevo comando `inventory:fix-initial-cost` (solo escribe con
+  `--confirm`). La migración solo relaja el enum de `inventory_movements` (conserva filas e índice; probada
+  sobre una copia con 25 movimientos). Verificado: 193 tests, build, API y navegador contra una copia
+  (alta, ingreso, merma, conteo, venta de 400 g, anulación, venta desde el POS con «stock bajo»). También se
+  fijó la hora en una prueba de caja que fallaba de madrugada.
 
 - **2026-10-08 (auditoría de inventario)** — Auditoría de stock, mermas y punto de reorden
   ([informe](AUDITORIA_INVENTARIO_MERMAS.md), [plan](PLAN_INVENTARIO_REORDEN.md)). Conclusión: el stock no es

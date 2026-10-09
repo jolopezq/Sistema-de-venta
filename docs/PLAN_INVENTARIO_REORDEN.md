@@ -1,8 +1,8 @@
 # Plan — Inventario confiable, mermas y punto de reorden
 
 > Base: [AUDITORIA_INVENTARIO_MERMAS.md](AUDITORIA_INVENTARIO_MERMAS.md) (08/10/2026). Rama: `feat/inventario-reorden`,
-> que sale de `feat/costos-punto-equilibrio`. **Estado: propuesta.** No se implementa nada hasta que el dueño
-> apruebe y responda las decisiones de la §1.
+> que sale de `feat/costos-punto-equilibrio`. **Estado: aprobado el 09/10/2026** (D1 a D7 tal como se recomiendan;
+> respuestas de la §6 registradas abajo). Se implementa fase por fase, en el orden F0 → F5.
 
 **Objetivo.** Que el stock del sistema se parezca al del local, que cada merma tenga valor y motivo, y que el
 sistema avise **qué comprar, cuánto y a quién** antes de quedarse sin insumo. Compras, recetas e inventario se
@@ -10,13 +10,28 @@ conectan con Finanzas sin cargar nada dos veces.
 
 ## 1. Decisiones del dueño
 
+**Aprobadas el 09/10/2026: D1 a D7 como están recomendadas.** Precisiones del dueño que ajustan el plan:
+
+- **Conteo semanal los martes**, al terminar cada semana (no el domingo). Lo hace el administrador; el sistema
+  guarda quién lo registró. El conteo mensual completo se hace el primer martes del mes.
+- **Los insumos se compran en mercados y el precio varía:** el costo de cada compra se registra tal cual y el CPP
+  (promedio ponderado) absorbe la variación. El proveedor es opcional (puede ser «Mercado»); si no se indican días
+  de entrega, se asume 1 día hasta que el dueño los complete.
+- **Los gramos y descartables por tamaño los carga el dueño** desde la pantalla «Composición» (F2); no se
+  precargan valores.
+- **La corrección del CPP inicial de los 3 insumos no es una migración.** Queda como comando
+  (`php artisan inventory:fix-initial-cost`) que muestra qué cambiaría y solo escribe con `--confirm`. El dueño lo
+  ejecuta cuando termine de probar el sistema.
+- **Todas las ventas pasan por el sistema desde ahora.** La Mac es solo de desarrollo; la producción es la laptop
+  y al terminar se subirá a un VPS. El historial de la Mac no sirve para estimar consumo (H22).
+
 | # | Decisión | Opciones | Recomendación |
 |---|---|---|---|
 | D1 | Cómo descuentan stock las ventas | **A. Componentes con composición (sub-receta):** «Porción base açaí» = 180 g de pulpa, «Kit descartable chico» = 1 vaso + 1 tapa + 1 cuchara… Al vender se descuentan los insumos de la composición y el costo del componente sale del CPP de esos insumos. Un componente sin composición sigue como hoy (costo fijo, sin stock). **B. Insumos reales además de los componentes**, en la misma receta (como en la prueba de la auditoría): hay que cargar todo dos veces y los costos pueden no coincidir. **C. Sin descuento automático:** solo compras y conteo semanal; el consumo sale de stock inicial + compras − stock final | **A, empezando por los insumos clave:** pulpa, helado, granola, leche en polvo, leche condensada, vasos, tapas y cucharas por tamaño, y envase del Autoservicio. Mantiene la decisión de costear por porciones y no obliga a cargar todo de una vez. La **fruta fresca** se maneja con C (compra diaria y conteo), porque se compra a diario y su merma natural es alta |
 | D2 | Dónde se registra una compra | Finanzas, Inventario, o **un solo formulario** que usan ambas pantallas | **Un solo formulario «Compra»** con líneas. Una línea de insumo sube el stock y actualiza el CPP; una línea sin insumo (gas, limpieza) es solo gasto. Siempre crea el gasto en Finanzas |
 | D3 | Qué hace el POS cuando el stock teórico no alcanza | Bloquear la venta (hoy) o avisar sin bloquear | **Avisar sin bloquear.** El stock teórico puede estar mal (una compra sin cargar) y no se deben perder ventas. El dueño puede marcar a mano un producto como «agotado» |
 | D4 | Quién registra mermas | Solo admin (hoy) o también el cajero | **También el cajero**, con motivo obligatorio (derrame, caída, vencido…), desde Caja. El dueño las ve en un resumen. Los ajustes y conteos siguen siendo solo del admin |
-| D5 | Conteo físico | Semanal, mensual o ninguno | **Semanal de los insumos clave** (10 minutos al cierre del domingo) y **mensual completo** |
+| D5 | Conteo físico | Semanal, mensual o ninguno | **Semanal de los insumos clave** (10 minutos, los martes al cerrar la semana) y **mensual completo** |
 | D6 | De dónde sale el consumo para el punto de reorden | Movimientos reales de venta o consumo teórico por recetas | **Movimientos reales menos los reversos** (requiere D1). Mientras no haya 4 semanas de datos, el consumo que estime el dueño |
 | D7 | Cómo llegan las alertas | Dentro del sistema, WhatsApp, correo | **Dentro del sistema:** marca en el menú, tarjeta en Finanzas y aviso al abrir caja para el admin. Además, la **lista de compras como texto** para copiar o enviar por WhatsApp (enlace `wa.me`, sin servicios externos) |
 
@@ -93,12 +108,17 @@ Cada fase se entrega sola, en la rama, con pruebas, CHANGELOG y BITÁCORA. Verif
   caja);
 - el recorrido de stock de la auditoría (§6) con todos los pasos en ✅.
 
-### F0 · Correcciones de base (urgente) — 1 a 1,5 días
+### F0 · Correcciones de base (urgente) — 1 a 1,5 días · ✅ hecha el 09/10/2026
+
+> Ajustes respecto a lo propuesto: el CPP de los datos viejos no se corrige con una migración sino con el comando
+> `inventory:fix-initial-cost`; WAL queda opcional (`DB_JOURNAL_MODE=wal`) hasta subir al VPS; el «agotado a mano» ya
+> existe como «Pausar producto» en el Menú.
 
 - **CPP correcto (H5, H6):** el alta y la edición del costo inicial fijan el CPP. Con stock ≤ 0, una compra deja
   el CPP igual a su costo.
-  - Migración de datos: insumos con stock > 0 y CPP 0 toman `unit_cost` como CPP. **Cambia datos: pedir
-    confirmación.** En la Mac son pulpa 12, granola 5 y banana 0,5.
+  - Datos existentes: insumos con stock > 0 y CPP 0 toman `unit_cost` como CPP. **Cambia datos, por eso no es
+    una migración:** comando `inventory:fix-initial-cost` (solo muestra lo que cambiaría; escribe con
+    `--confirm`). En la Mac son pulpa 12, granola 5 y banana 0,5. Lo ejecuta el dueño después de probar.
 - **Productos por peso por gramos (H7):** el descuento usa `weight_grams` ÷ 1000 en el servidor y en el POS sin
   conexión, igual que el costeo.
 - **El stock solo cambia por movimientos (H10):**
@@ -231,7 +251,7 @@ Cada fase se entrega sola, en la rama, con pruebas, CHANGELOG y BITÁCORA. Verif
 | Exactitud del conteo | Insumos con diferencia ≤ 2 % ÷ insumos contados | ≥ 90 % |
 | Valor del inventario | Σ stock × CPP | Seguimiento |
 
-## 6. Preguntas para el dueño (bloquean el plan)
+## 6. Preguntas para el dueño — respondidas el 09/10/2026
 
 1. ¿Todas las ventas pasan por el sistema? En la base de la Mac hay ventas en solo 10 días entre el 17/08 y el
    04/10. ¿La laptop de producción tiene más?
@@ -242,3 +262,15 @@ Cada fase se entrega sola, en la rama, con pruebas, CHANGELOG y BITÁCORA. Verif
    cuchara usa cada tamaño?
 5. ¿Qué día y a qué hora puede hacerse el conteo semanal y quién lo haría?
 6. ¿Confirmas la corrección de datos de F0 (CPP inicial de los 3 insumos = su costo cargado)?
+
+**Respuestas:**
+
+1. Sí: desde ahora todas las ventas se registran. La Mac es solo de desarrollo; la producción es la laptop y, al
+   terminar, el sistema se sube a un VPS.
+2. Sí a D1–D7 (en especial: descuento por porciones, un solo formulario de compra, el POS avisa sin bloquear, el
+   cajero registra mermas y conteo semanal).
+3. Se compra en mercados y los precios varían: proveedor opcional, costo por compra y CPP. El dueño completa los
+   datos de cada insumo desde la pantalla cuando los tenga.
+4. El dueño proporcionará los gramos y descartables de cada receta; se cargan en «Composición» (F2).
+5. Martes, al terminar cada semana.
+6. Todavía no se corrigen: lo hará el dueño con el comando cuando termine de probar.

@@ -38,10 +38,15 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
+            // Con varias ventas a la vez (POS, delivery, importaciones) SQLite espera hasta 5 s por el bloqueo de
+            // escritura en lugar de fallar, y las transacciones toman el bloqueo al empezar (IMMEDIATE) para no
+            // perder un descuento de stock por un «database is locked» al subir de lectura a escritura.
+            // WAL (DB_JOURNAL_MODE=wal) queda opcional: en la laptop con Windows, `respaldo-diario.bat` copia el
+            // archivo y tendría que copiar también -wal/-shm; se activa al pasar al VPS.
+            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
+            'journal_mode' => env('DB_JOURNAL_MODE'),
             'synchronous' => null,
-            'transaction_mode' => 'DEFERRED',
+            'transaction_mode' => env('DB_TRANSACTION_MODE', 'IMMEDIATE'),
         ],
 
         'mysql' => [

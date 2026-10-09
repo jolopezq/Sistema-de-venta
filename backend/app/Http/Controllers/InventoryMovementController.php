@@ -44,15 +44,23 @@ class InventoryMovementController extends Controller
             // Usa el servicio para recalcular CPP
             $this->inventoryService->recordRestock(
                 $ingredient,
-                $validated['quantity_changed'], // En un restock debe ser positivo
+                (float) $validated['quantity_changed'], // Validado positivo
                 $validated['unit_cost'],
+                $userId
+            );
+        } elseif (isset($validated['counted_stock'])) {
+            // Conteo físico: la diferencia se calcula contra el stock del momento, no el que se veía en pantalla
+            $this->inventoryService->recordCount(
+                $ingredient,
+                (float) $validated['counted_stock'],
+                $validated['notes'] ?? null,
                 $userId
             );
         } else {
             // Mermas (waste) o ajustes (adjustment)
             $this->inventoryService->recordManualMovement(
                 $ingredient,
-                $validated['quantity_changed'],
+                (float) $validated['quantity_changed'],
                 $validated['type'],
                 $validated['waste_category'] ?? null,
                 $validated['notes'] ?? null,
