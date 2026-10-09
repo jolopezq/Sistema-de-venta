@@ -59,6 +59,9 @@ class CashRegisterSessionTest extends TestCase
 
     public function test_cashier_can_get_active_session_with_realtime_stats(): void
     {
+        // La caja abierta hace 2 h debe ser «de hoy»: a fija mediodía para que no falle de madrugada
+        $this->travelTo(now()->setTime(12, 0));
+
         $session = CashRegisterSession::create([
             'cashier_id' => $this->cashier->id,
             'opening_amount' => 200.00,
