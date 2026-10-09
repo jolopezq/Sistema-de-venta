@@ -4,8 +4,8 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-08)
-- **Rama de trabajo:** `feat/costos-punto-equilibrio` (a partir de `feat/modulo-finanzas`, que sale de `feat/precios-pedidosya`).
-- **Tests:** 171 en verde (`php artisan test`, ≈ 940 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Rama de trabajo:** `feat/inventario-reorden` (solo documentos de la auditoría; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
+- **Tests:** 175 en verde (`php artisan test`, 955 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** modo oscuro y claro con 0 textos medibles bajo WCAG AA.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -28,6 +28,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | Finanzas — corrección de la [auditoría](AUDITORIA_FINANZAS.md): fases 0 (bloqueantes), 1 (cálculos), 2 (interfaz) y 3 (importación crea ventas) | ✅ en rama `feat/modulo-finanzas` | `9a5f871`, `f2319e1`, `36ec4ad`, ver registro |
 | Finanzas — auditoría fase 4 (optimización) | ✅ en rama `feat/modulo-finanzas` | ver registro |
 | Finanzas — costos por receta, margen de contribución y punto de equilibrio ([plan](PLAN_COSTOS_PUNTO_EQUILIBRIO.md)) | ✅ en rama `feat/costos-punto-equilibrio` | ver registro |
+| Inventario confiable, mermas y punto de reorden ([auditoría](AUDITORIA_INVENTARIO_MERMAS.md), [plan](PLAN_INVENTARIO_REORDEN.md)) | 📋 Plan en espera de aprobación (rama `feat/inventario-reorden`) | — |
 
 ## Pendientes
 
@@ -50,6 +51,9 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       pasados que se quieran ver en el Estado de Resultados (los fijos ya no se suman solos).
 - [ ] Tarifario PedidosYa: Tamaño Mediano +8 (hoy +7) y Arma tu Bowl 32 (hoy 35), según la semana 14–20/09.
 - [ ] Pedir una nueva auditoría de `feat/modulo-finanzas` (fases 0 a 4 terminadas) antes de fusionarla.
+- [ ] Inventario: responder las decisiones D1–D7 y las preguntas de [PLAN_INVENTARIO_REORDEN.md](PLAN_INVENTARIO_REORDEN.md)
+      §1 y §6 (cómo descuentan stock las ventas, compra única, avisar sin bloquear, mermas del cajero, conteo
+      semanal) y confirmar la corrección del CPP inicial de los 3 insumos (F0).
 - [ ] Costos y punto de equilibrio: `php artisan migrate` en la Mac con respaldo (migración `2026_10_09_000001`);
       luego Finanzas → Costos y margen → «Cargar recetas base», cargar los precios del café (kg de café, litro de
       leche, azúcar, vasos y tapas, matcha, bombilla, siropes) y los gastos fijos reales. Revisar el costo por kg del
@@ -126,6 +130,15 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-08 (auditoría de inventario)** — Auditoría de stock, mermas y punto de reorden
+  ([informe](AUDITORIA_INVENTARIO_MERMAS.md), [plan](PLAN_INVENTARIO_REORDEN.md)). Conclusión: el stock no es
+  confiable (las ventas no descuentan insumos reales, compras e inventario no están conectados, el CPP se calcula
+  mal con stock inicial o negativo, el Autoservicio descuenta por unidad y no por gramos, sin conteo ni alertas).
+  Recorrido de 20 pasos en una copia de la base de la Mac (la real no se tocó). Se corrigieron dos fallas de la rama
+  de costos que habrían frenado las ventas: `16212b4` (POS daba por agotados los productos con recetas base) y
+  `9996d95` (componentes de costeo en Inventario; insumo eliminado que rompía la sincronización). 175 tests en verde.
+  El plan (F0 a F5, 10-15 días) espera las decisiones del dueño.
 
 - **2026-10-08 (costos)** — Costos por receta, margen de contribución y punto de equilibrio
   ([plan](PLAN_COSTOS_PUNTO_EQUILIBRIO.md); decisiones del dueño: porciones solo para costeo, fijos = gastos fijos
