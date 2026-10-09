@@ -5,6 +5,10 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 
 ## Estado actual (2026-10-09)
 - **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y **Fases 0 a 5 del plan de inventario, completo**; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
+- **Ensayo de arranque en Mac:** checklist ejecutado y validado de punta a punta (recetas base, composiciones, 2 conteos, mermas e indicadores en Finanzas; ver registro del 09/10).
+- **Destino de producción:** se prevé contratar un VPS para alojar el sistema (todavía no contratado); hasta entonces la producción sigue
+  en la laptop con Windows. La base de la Mac es de desarrollo y quedó con datos de ensayo (conteos y una merma de prueba), así que no
+  sirve como base de producción: el VPS debe partir de una copia de la base de la laptop.
 - **Tests:** 305 en verde (`php artisan test`, 1693 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
@@ -59,9 +63,10 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 - [ ] Pedir una nueva auditoría de `feat/modulo-finanzas` (fases 0 a 4 terminadas) antes de fusionarla.
 - [x] Inventario: decisiones D1–D7 y preguntas de [PLAN_INVENTARIO_REORDEN.md](PLAN_INVENTARIO_REORDEN.md) respondidas
       el 09/10 (ver §1 y §6 del plan).
-- [ ] Inventario (dueño): cuando termine de probar, ejecutar en la laptop `php artisan inventory:fix-initial-cost`
+- [ ] Inventario (dueño): cuando termine de probar, ejecutar en producción (la laptop hoy, el VPS después) `php artisan inventory:fix-initial-cost`
       (muestra qué cambiaría) y luego con `--confirm`, con respaldo previo. Corrige el CPP en 0 de pulpa, granola y
       banana. Hasta entonces el cálculo de costos y las compras ya usan el último costo como respaldo.
+      En la Mac ya no queda ningún insumo por corregir (comprobado el 09/10).
 - [ ] Inventario (dueño): pasar los gramos de pulpa, granola, etc. y los descartables de cada tamaño y receta
       (se cargan en Finanzas → Costos y margen → «Composición», desde F2: hasta que un componente tenga composición
       no descuenta stock); proveedor, unidad y lote de compra de cada insumo clave (se cargan en
@@ -81,17 +86,22 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 - [ ] Inventario (dueño): desde F1 los ingresos de stock se registran como **Compra** (Finanzas → Registrar compra o
       Inventario → Ingreso). Una compra de mercado con precios que varían se anota con lo pagado por línea; el CPP
       absorbe la variación. Las compras antiguas de Finanzas (sin líneas) siguen como gasto y no mueven stock.
-- [ ] Inventario: `php artisan migrate` en la laptop con respaldo previo
+- [ ] Inventario: `php artisan migrate` en producción (laptop hoy, VPS después) con respaldo previo
       (`2026_10_10_000001_relax_inventory_movement_columns`,
       `2026_10_10_000002_create_suppliers_and_purchase_items`,
       `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements`,
       `2026_10_11_000001_create_ingredient_compositions` y
       `2026_10_12_000001_create_inventory_counts` [F3: tablas de conteos y columna `is_key`] y
       `2026_10_13_000001_add_reorder_fields_to_ingredients` [F4: cinco columnas opcionales]: tablas y columnas
-      nuevas; ninguna modifica datos). Todas aplicadas ya en la base de la Mac el 09/10 (con respaldo `pre_migrate_reorder_20261009_035825.sqlite`); falta repetir en la laptop.
-- [ ] Al subir a un VPS: activar WAL (`DB_JOURNAL_MODE=wal` en `.env`) y revisar que el respaldo copie
+      nuevas; ninguna modifica datos). Todas aplicadas ya en la base de la Mac el 09/10 (con respaldo `pre_migrate_reorder_20261009_035825.sqlite`); falta repetirlas en producción (en la laptop las aplica el vigilante al fusionar en `main`; en el VPS, al desplegar
+      sobre la copia de la base de la laptop, siempre con respaldo previo). El 09/10 se comprobó en la Mac: 63 de 63 migraciones aplicadas.
+- [ ] Al subir al VPS (se prevé contratarlo): activar WAL (`DB_JOURNAL_MODE=wal` en `.env`) y revisar que el respaldo copie
       también `-wal`/`-shm` (el respaldo de la app usa `VACUUM INTO`, que ya es seguro). En la laptop con
       Windows queda sin WAL por `respaldo-diario.bat`.
+- [ ] **Migración a VPS (sin plan escrito):** definir proveedor y tamaño, sistema operativo, dominio y HTTPS, cómo se despliega sin el
+      vigilante de Windows (`vigilante-actualizaciones.ps1` y los `.bat` no aplican allí), dónde se guardan los respaldos fuera del
+      servidor y cómo se traspasa la base desde la laptop (con respaldo y verificación). No usar la base de la Mac como base de
+      producción. Al terminar, actualizar `AGENTS.md` (sección «Producción») y esta Bitácora.
 - [ ] `graphify update .` en la Mac tras la Fase 0 (el entorno de la nube no tiene graphify).
 - [ ] Costos y punto de equilibrio: `php artisan migrate` en la Mac con respaldo (migración `2026_10_09_000001`);
       luego Finanzas → Costos y margen → «Cargar recetas base», cargar los precios del café (kg de café, litro de
@@ -169,6 +179,22 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (producción en VPS)** — Decisión del dueño: la producción pasará de la laptop a un VPS (todavía no contratado). Se revisó
+  la base de la Mac en solo lectura: 63 de 63 migraciones aplicadas; 3 insumos con seguimiento de stock, 3 marcados clave, 3 con
+  proveedor y 3 con consumo diario estimado; 3 composiciones; 2 conteos con 6 líneas; 3 proveedores; 0 insumos con stock y CPP en 0;
+  journal en modo `delete` (sin WAL). Se anotaron el destino de producción y la migración a VPS como pendientes. Solo documentación,
+  sin cambios de código. Docs: Bitácora y plan.
+
+- **2026-10-09 (ensayo de arranque de inventario en Mac)** — Ejecutado el checklist completo de
+  `docs/Checklist de arranque del inventario.md` en la base de la Mac para validar el circuito de inventario antes de producción.
+  Respaldo atómico previo: `checklist_arranque_20261009_124500.sqlite`. Paso 1 verificado (0 migraciones pendientes);
+  Paso 2 CPP inicial verificado al día; Paso 3 recetas base aplicadas (15 componentes, 10 productos, 29 opciones) y
+  composiciones vinculadas a insumos reales (180 g pulpa en base açaí, 1 banana en mix de frutas, 50 g granola en toppings);
+  Paso 4 insumos clave verificados (`is_key`), primer conteo de partida (`is_baseline`), merma de prueba anotada (2 bananas,
+  Bs 1,00) y segundo conteo semanal comparativo (-0,2 kg pulpa, -0,05 kg granola, 0 dif banana); Paso 5 indicadores de
+  inventario (10/2026) comprobados: valor Bs 696,35, cobertura ok (8,2 a 33,2 d), 0 quiebres, merma anotada Bs 1,00, merma
+  oculta Bs 2,65 y exactitud 100 % (desvíos dentro del 2 % de tolerancia). Tests: 305 en verde. Build de Vite sin errores.
 
 - **2026-10-09 (inventario F5)** — Fase 5 hecha: indicadores de inventario e informe mensual. `InventoryIndicatorsService` arma, para
   un mes, el valor del inventario (stock × CPP, a hoy), la cobertura (de `ReorderService`; insumos clave o todos si no hay

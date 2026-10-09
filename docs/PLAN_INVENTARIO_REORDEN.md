@@ -3,6 +3,8 @@
 > Base: [AUDITORIA_INVENTARIO_MERMAS.md](AUDITORIA_INVENTARIO_MERMAS.md) (08/10/2026). Rama: `feat/inventario-reorden`,
 > que sale de `feat/costos-punto-equilibrio`. **Estado: aprobado el 09/10/2026** (D1 a D7 tal como se recomiendan;
 > respuestas de la §6 registradas abajo). Se implementa fase por fase, en el orden F0 → F5.
+> **Al 09/10/2026:** F0 a F5 hechas. La Mac es de desarrollo y allí se ensayó el checklist de arranque; la producción es hoy la
+> laptop con Windows y se prevé pasar a un VPS (aún no contratado).
 
 **Objetivo.** Que el stock del sistema se parezca al del local, que cada merma tenga valor y motivo, y que el
 sistema avise **qué comprar, cuánto y a quién** antes de quedarse sin insumo. Compras, recetas e inventario se
@@ -23,7 +25,7 @@ conectan con Finanzas sin cargar nada dos veces.
   (`php artisan inventory:fix-initial-cost`) que muestra qué cambiaría y solo escribe con `--confirm`. El dueño lo
   ejecuta cuando termine de probar el sistema.
 - **Todas las ventas pasan por el sistema desde ahora.** La Mac es solo de desarrollo; la producción es la laptop
-  y al terminar se subirá a un VPS. El historial de la Mac no sirve para estimar consumo (H22).
+  y al terminar se subirá a un VPS (el 09/10 se prevé contratarlo; hasta entonces sigue la laptop). El historial de la Mac no sirve para estimar consumo (H22).
 
 | # | Decisión | Opciones | Recomendación |
 |---|---|---|---|
