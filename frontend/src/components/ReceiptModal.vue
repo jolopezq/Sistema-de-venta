@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
   show: Boolean,
@@ -29,86 +29,75 @@ const orderFullCode = computed(() => {
 
 function getPaymentLabel(method) {
   const map = {
-    cash: '💵 Efectivo',
-    qr: '📱 QR',
-    card: '💳 Tarjeta',
-    delivery_platform: '🛵 PedidosYa',
+    cash: 'Efectivo',
+    qr: 'QR',
+    card: 'Tarjeta',
+    delivery_platform: 'PedidosYa',
   };
   return map[method] || method;
 }
+
+const money = (n) => `Bs ${Number(n || 0).toFixed(2)}`;
+const isPedidosYa = computed(() => props.sale?.source === 'pedidosya');
+
+// «Nueva venta» queda enfocado: Enter o espacio cierran y el POS vuelve a estar listo
+const newSaleBtn = ref(null);
+watch(() => props.show, (v) => { if (v) nextTick(() => newSaleBtn.value?.focus()); });
+function onKey(e) { if (props.show && e.key === 'Escape') emit('close'); }
+watch(() => props.show, (v) => {
+  if (v) window.addEventListener('keydown', onKey);
+  else window.removeEventListener('keydown', onKey);
+});
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" :class="{ active: show }" @click.self="emit('close')">
-      <div class="modal-card receipt-card">
-        <div class="modal-body text-center">
-          <div class="receipt-check">✓</div>
-          <h2 class="receipt-title">Venta confirmada</h2>
-          <div class="receipt-sent-pill">
-            <span>🍳</span> Orden enviada a preparación / Delivery
-          </div>
-
-          <div class="receipt-comanda-box">
-            <span class="comanda-label">Comanda</span>
-            <span class="comanda-number">{{ displayOrderNum }}</span>
-            <span v-if="orderFullCode" class="comanda-code">({{ orderFullCode }})</span>
-          </div>
-
-          <div class="receipt-change-box" v-if="change > 0">
-            <div class="change-label">Cambio a entregar</div>
-            <div class="change-val">Bs {{ change.toFixed(2) }}</div>
-          </div>
-
-          <div class="receipt-total-box" v-else>
-            <div class="total-label">Total pagado</div>
-            <div class="total-val">Bs {{ Number(sale?.total_amount || 0).toFixed(2) }}</div>
-          </div>
-
-          <!-- MÉTODOS DE PAGO UTILIZADOS -->
-          <div v-if="sale?.payments && sale.payments.length > 0" class="receipt-payments-box">
-            <div class="receipt-payments-title">Forma de pago</div>
-            <div class="receipt-payments-tags">
-              <span 
-                v-for="(p, idx) in sale.payments" 
-                :key="idx" 
-                class="receipt-pay-pill"
-              >
-                {{ getPaymentLabel(p.method) }}: <strong>Bs {{ Number(p.amount).toFixed(2) }}</strong>
-              </span>
-            </div>
+    <div v-if="show" class="rc-overlay" @click.self="emit('close')">
+      <div class="rc-card" role="dialog" aria-modal="true" aria-labelledby="rc-title">
+        <div class="rc-head">
+          <span class="rc-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+          </span>
+          <div>
+            <h2 id="rc-title">{{ isPedidosYa ? 'Pedido registrado' : 'Venta cobrada' }}</h2>
+            <p>Comanda <strong class="rc-order">{{ displayOrderNum }}</strong> enviada a preparación<span v-if="orderFullCode" class="rc-code">, código {{ orderFullCode }}</span>.</p>
           </div>
         </div>
 
-        <!-- LISTA RESUMEN DE PRODUCTOS -->
-        <div class="receipt-items-list">
-          <div 
-            class="receipt-item-row" 
-            v-for="(item, index) in sale?.items" 
-            :key="index"
-          >
-            <div class="item-main-row">
-              <span class="item-name">{{ Math.round(Number(item.quantity || 1)) }}x {{ item.name }}</span>
-              <span class="item-price">Bs {{ Number(item.subtotal || 0).toFixed(2) }}</span>
-            </div>
-            <div v-if="item.modifiers && item.modifiers.length > 0" class="item-mods">
-              <span v-for="(mod, idx) in item.modifiers" :key="idx">
-                {{ mod.quantity > 1 ? `${mod.quantity}x ` : '' }}{{ mod.option_name }}<span v-if="idx < item.modifiers.length - 1">, </span>
-              </span>
-            </div>
-            <div v-if="item.item_note" class="item-note">
-              Nota: {{ item.item_note }}
-            </div>
-            <div v-if="item.price_override_reason" class="item-note">
-              Precio ajustado: {{ item.price_override_reason }}
-            </div>
-          </div>
+        <!-- Lo que el cajero tiene que hacer ahora: entregar el vuelto -->
+        <div v-if="change > 0" class="rc-change" role="status">
+          <span>Entrega de vuelto</span>
+          <strong>{{ money(change) }}</strong>
         </div>
 
-        <div class="modal-foot">
-          <button class="btn btn-primary btn-new-sale" @click="emit('close')">
-            Nueva venta ➔
-          </button>
+        <dl class="rc-facts">
+          <div>
+            <dt>Total</dt>
+            <dd>{{ money(sale?.total_amount) }}</dd>
+          </div>
+          <div v-for="(p, idx) in sale?.payments || []" :key="idx">
+            <dt>{{ getPaymentLabel(p.method) }}</dt>
+            <dd>{{ money(p.amount) }}</dd>
+          </div>
+        </dl>
+
+        <ul class="rc-items">
+          <li v-for="(item, index) in sale?.items" :key="index">
+            <div class="rc-item-main">
+              <span>{{ Math.round(Number(item.quantity || 1)) }}× {{ item.name }}</span>
+              <span class="rc-num">{{ money(item.subtotal) }}</span>
+            </div>
+            <div v-if="item.modifiers && item.modifiers.length > 0" class="rc-item-sub">
+              {{ item.modifiers.map((m) => `${m.quantity > 1 ? `${m.quantity}× ` : ''}${m.option_name}`).join(', ') }}
+            </div>
+            <div v-if="item.item_note" class="rc-item-sub">Nota: {{ item.item_note }}</div>
+            <div v-if="item.price_override_reason" class="rc-item-sub">Precio ajustado: {{ item.price_override_reason }}</div>
+          </li>
+        </ul>
+
+        <div class="rc-foot">
+          <button ref="newSaleBtn" class="rc-btn" type="button" @click="emit('close')">Nueva venta</button>
         </div>
       </div>
     </div>
@@ -116,270 +105,99 @@ function getPaymentLabel(method) {
 </template>
 
 <style scoped>
-.modal-overlay {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 99999 !important;
-  background: rgba(18, 10, 26, 0.65) !important;
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  display: none;
+.rc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(32, 17, 47, 0.6);
+  display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
-  animation: fadeIn 0.15s ease-out;
 }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-overlay.active {
-  display: flex !important;
-}
-
-.receipt-card {
-  max-width: 440px;
+.rc-card {
   width: 100%;
-  background: var(--surface, #FFFFFF);
-  border-radius: 16px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-  animation: popIn 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-@keyframes popIn {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-.text-center {
-  padding-top: 24px;
-  text-align: center;
-}
-
-.receipt-check {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 12px;
-  background: #DCFCE7;
-  color: #16A34A;
-  border: 2px solid #86EFAC;
-  border-radius: 50%;
-  font-size: 28px;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.receipt-title {
-  margin: 0 0 6px;
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--ink-900, #1E293B);
-}
-
-.receipt-sent-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #EFF6FF;
-  border: 1px solid #BFDBFE;
-  color: #1D4ED8;
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 999px;
-  margin-bottom: 12px;
-}
-
-.receipt-comanda-box {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-
-.comanda-label {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--ink-500, #64748B);
-  letter-spacing: 0.04em;
-}
-
-.comanda-number {
-  font-family: 'Baloo 2', sans-serif;
-  font-size: 24px;
-  font-weight: 900;
-  color: var(--passion-text);
-  line-height: 1;
-}
-
-.comanda-code {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink-500, #64748B);
-}
-
-.receipt-change-box {
-  background: #FEF9C3;
-  border: 1px solid #FDE047;
-  border-radius: 10px;
-  padding: 10px;
-  margin: 0 20px 14px;
-}
-
-.change-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  font-weight: 800;
-  color: #854D0E;
-}
-
-.change-val {
-  font-family: 'Baloo 2', sans-serif;
-  font-size: 28px;
-  font-weight: 900;
-  color: #15803D;
-  line-height: 1.1;
-}
-
-.receipt-total-box {
-  background: var(--cream-100, #F4F1EA);
-  border: 1px solid var(--border, #E2E8F0);
-  border-radius: 10px;
-  padding: 8px;
-  margin: 0 20px 14px;
-}
-
-.receipt-payments-box {
-  margin: 0 20px 14px;
-  padding: 8px 12px;
-  background: var(--cream-50, #FAF8F5);
-  border: 1px dashed var(--border, #E2E8F0);
-  border-radius: 10px;
-}
-
-.receipt-payments-title {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  font-weight: 800;
-  color: var(--ink-500, #64748B);
-  margin-bottom: 6px;
-}
-
-.receipt-payments-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: center;
-}
-
-.receipt-pay-pill {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-800, #1E293B);
-  background: var(--surface, #FFFFFF);
-  border: 1px solid var(--border, #E2E8F0);
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-html.dark .receipt-payments-box {
-  background: rgba(30, 41, 59, 0.4);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-html.dark .receipt-pay-pill {
-  background: rgba(15, 23, 42, 0.6);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #F1F5F9;
-}
-
-.total-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  font-weight: 700;
-  color: var(--ink-500);
-}
-
-.total-val {
-  font-family: 'Baloo 2', sans-serif;
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--ink-900);
-}
-
-.receipt-items-list {
-  padding: 0 22px 10px;
-  text-align: left;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.receipt-item-row {
+  max-width: 440px;
+  max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 8px;
-  border-bottom: 1px dashed var(--border, #E2E8F0);
-  padding-bottom: 6px;
+  background: var(--surface);
+  border-radius: 18px;
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  color: var(--ink-900);
 }
+.rc-head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 20px 12px; }
+.rc-check {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lime-100);
+  color: var(--lime-700);
+}
+.rc-check svg { width: 20px; height: 20px; }
+.rc-head h2 { margin: 0; font-size: 21px; font-weight: 700; color: var(--ink-900); }
+.rc-head p { margin: 2px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ink-700); }
+.rc-order { font-family: var(--font-heading); font-size: 16px; color: var(--ink-900); }
+.rc-code { color: var(--ink-500); }
 
-.item-main-row {
+.rc-change {
+  margin: 4px 20px 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--lime-100);
+  color: var(--lime-700);
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 12px;
+}
+.rc-change span { font-size: 16px; font-weight: 700; }
+.rc-change strong {
+  font-family: var(--font-heading);
+  font-size: 34px;
+  line-height: 1;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-facts { margin: 0 20px; padding: 10px 0; display: flex; flex-wrap: wrap; gap: 6px 22px; border-top: 1px solid var(--border); }
+.rc-facts div { display: flex; flex-direction: column; }
+.rc-facts dt { font-size: 12.5px; color: var(--ink-500); }
+.rc-facts dd { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+
+.rc-items {
+  list-style: none;
+  margin: 0;
+  padding: 4px 20px 12px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+}
+.rc-items li { padding: 8px 0; border-bottom: 1px dashed var(--border); }
+.rc-items li:last-child { border-bottom: none; }
+.rc-item-main { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; font-weight: 600; }
+.rc-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc-item-sub { margin-top: 2px; font-size: 12.5px; color: var(--ink-500); line-height: 1.4; }
+
+.rc-foot { padding: 12px 20px 18px; border-top: 1px solid var(--border); }
+.rc-btn {
   width: 100%;
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--ink-900, #1E293B);
-}
-
-.item-price {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12.5px;
-}
-
-.item-mods {
-  font-size: 11px;
-  color: var(--ink-500, #64748B);
-  padding-left: 14px;
-}
-
-.item-note {
-  font-size: 11px;
-  color: #D97706;
-  padding-left: 14px;
-  font-style: italic;
-}
-
-.modal-foot {
-  padding: 14px 20px 18px;
-  background: var(--cream-50, #FAF8F5);
-  border-top: 1px solid var(--border, #E2E8F0);
-}
-
-.btn-new-sale {
-  width: 100%;
-  font-size: 14px;
-  font-weight: 800;
-  padding: 12px;
-  background: var(--passion-600, #EA580C);
-  color: #FFFFFF;
+  min-height: 50px;
   border: none;
-  border-radius: 10px;
+  border-radius: 13px;
+  background: var(--passion-500);
+  color: var(--on-accent);
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);
-  transition: all 0.15s;
 }
-
-.btn-new-sale:hover {
-  background: var(--passion-700, #C2410C);
-  transform: translateY(-1px);
-}
+.rc-btn:hover { filter: brightness(1.05); }
+.rc-btn:focus-visible { outline: 3px solid var(--acai-500); outline-offset: 2px; }
 </style>

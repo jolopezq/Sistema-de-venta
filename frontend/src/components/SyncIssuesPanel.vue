@@ -49,7 +49,7 @@ function saleTotal(sale) {
 
 function saleTime(sale) {
   if (!sale.created_at) return '';
-  return new Date(sale.created_at).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+  return new Date(sale.created_at).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 </script>
 

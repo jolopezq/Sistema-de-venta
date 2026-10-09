@@ -4,7 +4,8 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-09)
-- **Rama de trabajo:** `feat/finanzas-rediseno`, que sale de `feat/pos-cierre-caja`: etapa 2 del rediseño visual aplicada a Finanzas (Resumen nuevo y estilos base del módulo), sobre la maqueta aprobada «Finanzas: dirección y maqueta».
+- **Rama de trabajo:** `feat/pos-caja-arranque`, que sale de `feat/finanzas-rediseno`: Vender y Caja listos para empezar a usar el sistema (rediseño con la dirección de Finanzas, cobro con vuelto, buscador que funciona, gaveta como cuenta, menú con iconos propios) y venta del dueño dentro del turno abierto.
+- **Rama anterior:** `feat/finanzas-rediseno`, que sale de `feat/pos-cierre-caja`: etapa 2 del rediseño visual aplicada a Finanzas (Resumen nuevo y estilos base del módulo), sobre la maqueta aprobada «Finanzas: dirección y maqueta».
 - **Rama anterior:** `feat/pos-cierre-caja`, que sale de `feat/inventario-reorden`: prioridad 1 del [análisis del POS y del cierre de caja](https://claude.ai/code/artifact/0a10e4d8-9e98-424e-8ffe-8cc39486eaef) (turno obligatorio, ventas rechazadas visibles, revisión previa y desglose que suma).
 - **Rama anterior:** `feat/inventario-reorden` (auditoría, plan aprobado y **Fases 0 a 5 del plan de inventario, completo**; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
 - **Ensayo de arranque en Mac:** checklist ejecutado y validado de punta a punta (recetas base, composiciones, 2 conteos, mermas e indicadores en Finanzas; ver registro del 09/10).
@@ -12,7 +13,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
   en la laptop con Windows. La base de la Mac es de desarrollo y quedó con datos de ensayo (conteos y una merma de prueba), así que no
   sirve como base de producción: el VPS debe partir de una copia de la base de la laptop.
 - **Tests:** 321 en verde (`php artisan test`, 1738 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
-- **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
+- **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light), y en Vender y Caja en todos sus estados (cobro justo, con vuelto, sin alcanzar, QR, dividido, comprobante, gasto, apertura, detalle, cierre) en claro y oscuro. En la copia de prueba salen 7 avisos en Delivery y Control Diario (dependen de los datos de la copia; el botón sobre degradado de Turno ya no existe).
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
 
@@ -109,6 +110,8 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       turno pasa de medianoche; a veces se pagan insumos con la caja; categorías de egresos revisadas al cierre; conteo de
       insumos clave en día fijo (martes, por confirmar). Prioridad 1 hecha en `feat/pos-cierre-caja`.
 - [x] Venta del dueño o de un admin con el turno de un cajero abierto: entra a ese turno (una sola gaveta). Decidido el 09/10.
+- [x] Sin conexión y sin datos del turno de hoy en el equipo, el POS deja cobrar con aviso (confirmado el 09/10).
+- [x] Menú: «Vender» y «Caja» (antes «POS · Ventas» y «Caja / Turno»), decidido el 09/10.
 - [ ] POS y cierre de caja, prioridad 2: «Compra de insumos» desde Ingreso / Egreso que mueva stock y cuente una sola vez en
       Finanzas (cambio 6; hoy una compra pagada con la caja no entra al stock); egresos sin categoría en la revisión previa
       (cambio 7; los cajeros no pueden usar hoy el PATCH de Finanzas); caja olvidada visible en Turno con cierre guiado
@@ -117,11 +120,11 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       caja cerrada con los cambios posteriores aparte; «qué pedir mañana» en el reporte de cierre; historial de cajas sin
       recalcular sesión por sesión.
 - [ ] `graphify update .` en la Mac tras la rama `feat/pos-cierre-caja` (nuevo componente `SyncIssuesPanel` y cambios de flujo).
-- [ ] Rediseño visual: Finanzas → Resumen hecho en `feat/finanzas-rediseno`; las demás pestañas de Finanzas solo tomaron los
-      estilos base (títulos, encabezados de tabla, botón principal). Siguientes candidatas según la
-      [propuesta](https://claude.ai/code/artifact/0c92c842-cec0-44be-87bc-56c91315f2a2): Login y, al final, Turno y Control Diario;
-      la pantalla de venta solo con ajustes de color y tipografía. `graphify update .` en la Mac (componentes nuevos
-      `FinanceMonthHero` y `FinanceStatus`).
+- [ ] Rediseño visual: Finanzas → Resumen hecho en `feat/finanzas-rediseno`; Vender, Caja, cobro, comprobante, cierre y menú
+      lateral hechos en `feat/pos-caja-arranque`. Las demás pestañas de Finanzas solo tomaron los estilos base. Siguientes
+      candidatas según la [propuesta](https://claude.ai/code/artifact/0c92c842-cec0-44be-87bc-56c91315f2a2): Login, Control
+      Diario, Delivery, Menú e Inventario. `graphify update .` en la Mac (componentes nuevos `FinanceMonthHero`,
+      `FinanceStatus` y `StatusTag`; cambio de regla en `CashSessionResolver`).
 - [ ] `graphify update .` en la Mac tras la Fase 0 (el entorno de la nube no tiene graphify).
 - [ ] Costos y punto de equilibrio: `php artisan migrate` en la Mac con respaldo (migración `2026_10_09_000001`);
       luego Finanzas → Costos y margen → «Cargar recetas base», cargar los precios del café (kg de café, litro de
@@ -199,6 +202,17 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (Vender y Caja para empezar a usar el sistema)** — Sobre `docs/MENU_LATERAL_SISTEMA.md` y un recorrido como
+  cajero y como dueño a 1366×768: el buscador del POS no buscaba, el cobro tenía una clienta de ejemplo y un «Descuento VIP»
+  fijo, no mostraba el total y el botón de confirmar quedaba fuera de la vista, Vender/Caja/Menú compartían el ⚙️, el cajero
+  figuraba como «cashier» y el dueño quedaba bloqueado si el turno abierto era de un cajero. Decisiones del dueño: la venta
+  del admin entra al turno abierto (`CashSessionResolver`, 4 tests), menú «Vender» y «Caja», sin conexión se cobra con aviso.
+  Rediseño con la dirección de Finanzas sin mover la pantalla de venta: cobro con total arriba, billetes sugeridos y vuelto en
+  grande; comprobante con «Entrega de vuelto»; ticket que cuenta productos; Caja con el turno en una frase y la gaveta como
+  cuenta; gastos y apertura en las ventanas de Finanzas; cierre con el dueño del turno y veredicto; `StatusTag`. Verificado
+  contra una copia: 321 tests, build, contraste 0 en claro y oscuro en todos los estados de Vender y Caja, celular a 390 px y
+  flujo completo (abrir caja, vender en efectivo y QR, cocina, anular como admin, cerrar con faltante y volver a abrir).
 
 - **2026-10-09 (Finanzas: rediseño del Resumen)** — Etapa 2 del rediseño sobre la dirección aprobada (evolución: mismos tonos y
   fuentes, otra jerarquía). `FinanceMonthHero` (frase del mes, barra de cada Bs 100 con marca de pérdida, avisos de datos

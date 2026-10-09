@@ -91,7 +91,7 @@ function continueFromReview() {
 }
 
 const reviewedTime = computed(() => reviewedAt.value
-  ? reviewedAt.value.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })
+  ? reviewedAt.value.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false })
   : '');
 
 // ---------- Paso 1: conteo ----------
@@ -305,45 +305,45 @@ function handleFinish() {
       <!-- HEADER -->
       <div class="wizard-header">
         <div class="wizard-title-box">
-          <div class="wizard-badge">Arqueo de Turno</div>
-          <h2>Cierre de Caja</h2>
+          <h2>Cerrar caja</h2>
+          <!-- El turno es de quien lo abrió (un administrador puede cerrar el de un cajero) -->
           <p class="cajero-sub">
-            Cajero: <strong>{{ authStore.user?.name || resolvedSession?.cashier?.name || 'Cajero' }}</strong> · 
-            Iniciado: <strong>{{ resolvedSession?.opened_at ? new Date(resolvedSession.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--' }}</strong>
+            Turno de <strong>{{ resolvedSession?.cashier?.name || authStore.user?.name || 'Cajero' }}</strong>,
+            abierto a las <strong>{{ resolvedSession?.opened_at ? new Date(resolvedSession.opened_at).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--' }}</strong>
           </p>
         </div>
 
         <!-- STEP INDICATOR -->
         <div class="steps-nav">
           <div class="step-dot" :class="{ active: step === 0, done: step > 0 }">
-            <span>✓</span>
+            <span>{{ step > 0 ? '✓' : '1' }}</span>
             <label>Revisión</label>
           </div>
           <div class="step-line" :class="{ done: step > 0 }"></div>
           <div class="step-dot" :class="{ active: step === 1, done: step > 1 }">
-            <span>1</span>
+            <span>{{ step > 1 ? '✓' : '2' }}</span>
             <label>Conteo</label>
           </div>
           <div class="step-line" :class="{ done: step > 1 }"></div>
           <div class="step-dot" :class="{ active: step === 2, done: step > 2 }">
-            <span>2</span>
-            <label>Resumen</label>
+            <span>{{ step > 2 ? '✓' : '3' }}</span>
+            <label>Resultado</label>
           </div>
           <div class="step-line" :class="{ done: step > 2 }"></div>
           <div class="step-dot" :class="{ active: step === 3 }">
-            <span>3</span>
-            <label>Reporte</label>
+            <span>4</span>
+            <label>Comprobante</label>
           </div>
         </div>
 
-        <button v-if="step !== 3" class="close-btn" @click="emit('close')">✕</button>
+        <button v-if="step !== 3" class="close-btn" type="button" aria-label="Cerrar sin terminar el arqueo" @click="emit('close')">✕</button>
       </div>
 
       <!-- BODY -->
       <div class="wizard-body">
         <!-- ERROR MESSAGE -->
         <div v-if="errorMessage" class="error-banner">
-          ⚠️ {{ errorMessage }}
+          {{ errorMessage }}
         </div>
         <div v-if="noticeMessage" class="notice-banner" role="status">
           {{ noticeMessage }}
@@ -399,8 +399,8 @@ function handleFinish() {
         <!-- ================= PASO 1: CONTEO FÍSICO ================= -->
         <div v-if="step === 1" class="step-content">
           <div class="step-intro">
-            <h3>Paso 1: Conteo físico de dinero en gaveta</h3>
-            <p>Ingresa la cantidad de billetes y monedas que tienes en la caja registradora.</p>
+            <h3>Cuenta el efectivo de la gaveta</h3>
+            <p>Escribe cuántos billetes y monedas hay de cada valor.</p>
             <p v-if="reviewedTime && unsyncedCount === 0" class="review-ok-note">
               Revisado a las {{ reviewedTime }}: todas las ventas enviadas y cifras al día.
             </p>
@@ -414,10 +414,10 @@ function handleFinish() {
               class="denom-card"
             >
               <div class="denom-info">
-                <span class="denom-badge" :style="{ borderColor: d.color, color: d.color }">
+                <span class="denom-badge" :style="{ '--bill': d.color }">
                   {{ d.label }}
                 </span>
-                <span class="denom-type">{{ d.type }}</span>
+                <span class="denom-type">{{ d.type === 'billete' ? 'Billete' : 'Moneda' }}</span>
               </div>
 
               <div class="denom-counter">
@@ -453,13 +453,13 @@ function handleFinish() {
         <!-- ================= PASO 2: RESUMEN Y ARQUEO ================= -->
         <div v-if="step === 2" class="step-content">
           <div class="step-intro">
-            <h3>Paso 2: Resumen del turno y resultado del arqueo</h3>
-            <p>Revisa la conciliación entre el dinero teórico registrado y el efectivo contado.</p>
+            <h3>Compara lo contado con lo esperado</h3>
+            <p>Si falta dinero, anota el motivo antes de cerrar.</p>
           </div>
 
           <div class="summary-cards-grid">
             <div class="card-box">
-              <h4>💰 Efectivo en la gaveta</h4>
+              <h4>Efectivo en la gaveta</h4>
               <div class="box-row">
                 <span>Fondo de apertura:</span>
                 <strong>Bs {{ openingAmount.toFixed(2) }}</strong>
@@ -500,28 +500,28 @@ function handleFinish() {
               </div>
               <div class="box-row">
                 <span>Tickets emitidos:</span>
-                <span>{{ resolvedStats?.sales_count || 0 }} ventas</span>
+                <span>{{ resolvedStats?.sales_count || 0 }} {{ resolvedStats?.sales_count === 1 ? 'venta' : 'ventas' }}</span>
               </div>
               <div class="box-row" v-if="resolvedStats?.voided_count > 0">
                 <span>Ventas anuladas:</span>
-                <span class="text-danger">{{ resolvedStats?.voided_count }} tickets</span>
+                <span class="text-danger">{{ resolvedStats?.voided_count }} {{ resolvedStats?.voided_count === 1 ? 'ticket' : 'tickets' }}</span>
               </div>
               <!-- PedidosYa: informativo, no entra al arqueo -->
               <div class="box-row divider">
-                <span>🛵 PedidosYa <small class="pedidosya-note">(no se rinde en caja)</small>:</span>
-                <span>{{ resolvedStats?.pedidosya_count || 0 }} pedidos · Bs {{ Number(resolvedStats?.pedidosya_total || 0).toFixed(2) }}</span>
+                <span>PedidosYa <small class="pedidosya-note">(no se rinde en caja)</small>:</span>
+                <span>{{ resolvedStats?.pedidosya_count || 0 }} pedidos, Bs {{ Number(resolvedStats?.pedidosya_total || 0).toFixed(2) }}</span>
               </div>
             </div>
 
             <!-- RESULTADO DEL ARQUEO -->
             <div class="card-box highlight">
-              <h4>⚖️ Conciliación de Efectivo</h4>
+              <h4>Resultado del arqueo</h4>
               <div class="box-row">
-                <span>Efectivo teórico esperado:</span>
+                <span>Efectivo esperado:</span>
                 <strong>Bs {{ expectedCash.toFixed(2) }}</strong>
               </div>
               <div class="box-row">
-                <span>Efectivo físico contado:</span>
+                <span>Efectivo contado:</span>
                 <strong class="text-primary">Bs {{ countedTotal.toFixed(2) }}</strong>
               </div>
 
@@ -534,39 +534,39 @@ function handleFinish() {
                   faltante: difference < 0
                 }"
               >
-                <div class="diff-title">Diferencia detectada</div>
-                <div class="diff-value">
-                  {{ difference > 0 ? '+' : '' }} Bs {{ Math.abs(difference).toFixed(2) }}
-                  <span v-if="difference === 0">(Caja cuadrada exacta ✅)</span>
-                  <span v-else-if="difference > 0">(Sobrante)</span>
-                  <span v-else>(Faltante ⚠️)</span>
+                <div class="diff-title">Diferencia</div>
+                <div class="diff-value">{{ difference > 0 ? '+' : difference < 0 ? '−' : '' }}Bs {{ Math.abs(difference).toFixed(2) }}</div>
+                <div class="diff-verdict">
+                  <template v-if="difference === 0">La caja cuadra</template>
+                  <template v-else-if="difference > 0">Sobra dinero</template>
+                  <template v-else>Falta dinero</template>
                 </div>
               </div>
 
               <!-- NOTA OBLIGATORIA SI HAY FALTANTE -->
               <div v-if="difference < 0" class="diff-note-box">
                 <label class="required-label">
-                  <strong>* Motivo del faltante (Requerido):</strong>
+                  <strong>Motivo del faltante (obligatorio)</strong>
                 </label>
                 <textarea 
                   v-model="diffNote" 
-                  placeholder="Explica la causa del faltante de dinero..."
+                  placeholder="Qué pasó: un vuelto mal dado, un gasto sin registrar…"
                   rows="3"
                   class="diff-textarea"
                 ></textarea>
                 <small v-if="diffNote.trim().length < 5" class="text-danger">
-                  Ingresa al menos 5 caracteres explicando el motivo.
+                  Escribe al menos 5 caracteres.
                 </small>
               </div>
 
               <div v-else-if="difference > 0" class="diff-note-box">
                 <label>
-                  <span>Nota sobre el sobrante (Opcional):</span>
+                  <span>Nota sobre el sobrante (opcional)</span>
                 </label>
                 <input 
                   type="text" 
                   v-model="diffNote" 
-                  placeholder="Ej: Propina no registrada / redondeo"
+                  placeholder="Ej.: propina no registrada, redondeo"
                   class="diff-input"
                 />
               </div>
@@ -574,14 +574,14 @@ function handleFinish() {
 
             <!-- DISTRIBUCIÓN DEL EFECTIVO AL CIERRE -->
             <div class="card-box distribution-box">
-              <h4>💼 Distribución del Efectivo Contado</h4>
-              <p class="dist-hint">Indica cuánto dejas en caja para el siguiente turno. El resto se retira.</p>
+              <h4>Qué se hace con el efectivo</h4>
+              <p class="dist-hint review-help">Indica cuánto queda en la caja para el próximo turno. El resto se retira.</p>
               <div class="box-row">
                 <span>Efectivo contado:</span>
                 <strong>Bs {{ countedTotal.toFixed(2) }}</strong>
               </div>
               <div class="dist-input-row">
-                <label for="cash-left-input">Dejar en caja para mañana:</label>
+                <label for="cash-left-input">Queda para el próximo turno:</label>
                 <div class="dist-input-wrap">
                   <span class="dist-currency">Bs</span>
                   <input
@@ -596,12 +596,12 @@ function handleFinish() {
                 </div>
               </div>
               <div class="box-row dist-result">
-                <span>Monto a retirar:</span>
+                <span>Se retira:</span>
                 <strong :class="cashWithdrawn > 0 ? 'text-lime' : ''">
                   Bs {{ cashWithdrawn.toFixed(2) }}
                 </strong>
               </div>
-              <p v-if="distributionError" class="dist-error">⚠️ {{ distributionError }}</p>
+              <p v-if="distributionError" class="dist-error" role="alert">{{ distributionError }}</p>
             </div>
           </div>
         </div>
@@ -609,10 +609,12 @@ function handleFinish() {
         <!-- ================= PASO 3: REPORTE FINAL ================= -->
         <div v-if="step === 3" class="step-content">
           <div class="success-banner">
-            <div class="success-icon">✅</div>
+            <div class="success-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+            </div>
             <div>
-              <h3>¡Turno cerrado exitosamente!</h3>
-              <p>El arqueo de caja ha sido guardado. Puedes imprimir el comprobante térmico a continuación.</p>
+              <h3>Caja cerrada</h3>
+              <p>El arqueo quedó guardado. Puedes imprimir el comprobante.</p>
             </div>
           </div>
 
@@ -634,30 +636,30 @@ function handleFinish() {
             {{ reviewing ? 'Revisando…' : 'Volver a revisar' }}
           </button>
           <button class="btn btn-primary" :disabled="reviewBlocked" @click="continueFromReview">
-            Continuar al conteo →
+            Seguir al conteo
           </button>
         </template>
 
         <template v-else-if="step === 1">
           <button class="btn btn-ghost" @click="emit('close')">Cancelar</button>
-          <button class="btn btn-primary" @click="nextStep">Continuar a Resumen →</button>
+          <button class="btn btn-primary" @click="nextStep">Ver el resultado</button>
         </template>
 
         <template v-else-if="step === 2">
-          <button class="btn btn-ghost" @click="prevStep" :disabled="isSubmitting">← Volver al conteo</button>
+          <button class="btn btn-ghost" @click="prevStep" :disabled="isSubmitting">Volver al conteo</button>
           <button 
             class="btn btn-primary" 
             :disabled="!canProceedToClose || isSubmitting" 
             @click="handleConfirmClose"
           >
-            <span v-if="isSubmitting">Cerrando turno...</span>
-            <span v-else>Confirmar Cierre de Caja 🔒</span>
+            <span v-if="isSubmitting">Cerrando…</span>
+            <span v-else>Cerrar caja</span>
           </button>
         </template>
 
         <template v-else-if="step === 3">
-          <button class="btn btn-ghost" @click="handlePrintReport">🖨️ Imprimir Reporte</button>
-          <button class="btn btn-primary" @click="handleFinish">Finalizar y Salir</button>
+          <button class="btn btn-ghost" @click="handlePrintReport">Imprimir comprobante</button>
+          <button class="btn btn-primary" @click="handleFinish">Listo</button>
         </template>
       </div>
     </div>
@@ -703,10 +705,8 @@ function handleFinish() {
   display: inline-block;
   background: var(--passion-100);
   color: var(--passion-text);
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 12px;
+  font-weight: 700;
   padding: 3px 8px;
   border-radius: 999px;
   margin-bottom: 4px;
@@ -753,10 +753,9 @@ function handleFinish() {
 }
 
 .step-dot label {
-  font-size: 10.5px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--ink-500);
-  text-transform: uppercase;
 }
 
 .step-dot.active span {
@@ -918,20 +917,22 @@ function handleFinish() {
   align-items: center;
 }
 
+/* Cada billete conserva su color real como franja; el número va en tinta para leerse bien */
 .denom-badge {
   font-family: 'Baloo 2', sans-serif;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 15px;
-  padding: 2px 8px;
+  padding: 2px 8px 2px 12px;
   border-radius: 6px;
-  border: 1.5px solid;
+  border: 1.5px solid var(--bill);
+  box-shadow: inset 5px 0 0 var(--bill);
+  color: var(--ink-900);
 }
 
 .denom-type {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  color: var(--ink-400);
-  font-weight: 700;
+  font-size: 12px;
+  color: var(--ink-500);
+  font-weight: 500;
 }
 
 .denom-counter {
@@ -1074,18 +1075,18 @@ function handleFinish() {
 }
 
 .diff-title {
-  font-size: 11px;
-  text-transform: uppercase;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.04em;
 }
 
 .diff-value {
   font-family: 'Baloo 2', sans-serif;
-  font-size: 22px;
-  font-weight: 800;
+  font-size: 26px;
+  font-weight: 700;
   margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
+.diff-verdict { font-size: 14px; font-weight: 700; }
 
 .diff-note-box {
   margin-top: 12px;
@@ -1127,8 +1128,17 @@ function handleFinish() {
 }
 
 .success-icon {
-  font-size: 32px;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lime-100);
+  color: var(--lime-700);
 }
+.success-icon svg { width: 22px; height: 22px; }
 
 .success-banner h3 {
   margin: 0;

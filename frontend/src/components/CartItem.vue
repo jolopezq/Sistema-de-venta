@@ -7,21 +7,17 @@ defineProps({
 const emit = defineEmits(['increase', 'decrease', 'edit', 'toggle-takeaway', 'adjust-price']);
 
 /**
- * Agrupa los modificadores por grupo para mostrarlos como pills categorizadas.
- * Los grupos de tamaño van en azul, frutas en rosa, toppings en ámbar.
+ * Opciones elegidas como etiquetas neutras; el tamaño se distingue en morado porque cambia el precio y el vaso.
  */
 function getModPillClass(groupName = '') {
   const lower = groupName.toLowerCase();
   if (lower.includes('tamaño') || lower.includes('size')) return 'mod-pill mod-pill--size';
-  if (lower.includes('fruta')) return 'mod-pill mod-pill--fruit';
-  if (lower.includes('topping')) return 'mod-pill mod-pill--topping';
-  return 'mod-pill mod-pill--default';
+  return 'mod-pill';
 }
 </script>
 
 <template>
   <div class="ticket-item" @dblclick="emit('edit', item)">
-    <!-- Top row: name + price -->
     <div class="ticket-item-top">
       <div class="ticket-item-info">
         <div class="ticket-item-name">
@@ -30,44 +26,35 @@ function getModPillClass(groupName = '') {
             type="button"
             class="item-dest-chip"
             :class="item.is_takeaway ? 'item-dest-chip--takeaway' : 'item-dest-chip--dinein'"
+            :title="item.is_takeaway ? 'Tocar para servirlo en mesa' : 'Tocar para que sea para llevar'"
+            :aria-label="item.is_takeaway ? `${item.name}: para llevar. Cambiar a en mesa` : `${item.name}: en mesa. Cambiar a para llevar`"
             @click.stop="emit('toggle-takeaway', item)"
-            :title="item.is_takeaway ? 'Clic para cambiar a: Para Mesa' : 'Clic para cambiar a: Para Llevar'"
-          >
-            <span class="dest-chip-icon">{{ item.is_takeaway ? '🛍️' : '🍽️' }}</span>
-            <span class="dest-chip-text">{{ item.is_takeaway ? 'Para Llevar' : 'En Mesa' }}</span>
-          </button>
+          >{{ item.is_takeaway ? 'Para llevar' : 'En mesa' }}</button>
         </div>
 
-        <!-- Modifier pills -->
         <div v-if="item.modifiers && item.modifiers.length > 0" class="ticket-item-pills">
           <span
             v-for="(mod, idx) in item.modifiers"
             :key="idx"
             :class="getModPillClass(mod.group_name)"
           >
-            <span v-if="mod.quantity > 1" style="font-weight:800;">{{ mod.quantity }}x </span>{{ mod.option_name }}<span v-if="mod.price > 0"> +{{ (Number(mod.price) * (mod.quantity || 1)).toFixed(2) }}</span>
+            <template v-if="mod.quantity > 1">{{ mod.quantity }}× </template>{{ mod.option_name }}<template v-if="mod.price > 0"> +{{ (Number(mod.price) * (mod.quantity || 1)).toFixed(2) }}</template>
           </span>
         </div>
-        <div v-if="item.is_weight_based" class="ticket-item-mods" style="color: #86198f; font-weight: 600;">
-          ⚖️ {{ item.weight_grams || item.quantity }} g pesados
-        </div>
-        <div v-else-if="(!item.modifiers || item.modifiers.length === 0) && !item.item_note && (!item.allergen_flags || item.allergen_flags.length === 0)" class="ticket-item-mods">
-          Sin modificadores
+        <div v-if="item.is_weight_based" class="ticket-item-mods ticket-item-weight">
+          {{ item.weight_grams || item.quantity }} g pesados
         </div>
 
-        <!-- Nota especial -->
         <div v-if="item.item_note" class="ticket-item-mods ticket-item-note">
-          📝 {{ item.item_note }}
+          Nota: {{ item.item_note }}
         </div>
 
-        <!-- Precio ajustado (PedidosYa) -->
         <div v-if="item.price_override_reason" class="ticket-item-mods ticket-item-override">
-          💲 Precio ajustado: {{ item.price_override_reason }}
+          Precio ajustado: {{ item.price_override_reason }}
         </div>
 
-        <!-- Alérgenos -->
         <div v-if="item.allergen_flags && item.allergen_flags.length > 0" class="ticket-item-mods ticket-item-allergen">
-          ⚠️ {{ item.allergen_flags.join(', ') }}
+          Alergia: {{ item.allergen_flags.join(', ') }}
         </div>
       </div>
 
@@ -84,21 +71,26 @@ function getModPillClass(groupName = '') {
           class="btn-adjust-price"
           :title="item.price_override_reason ? 'Cambiar el ajuste de precio' : 'Ajustar precio (promo, precio desactualizado)'"
           @click.stop="emit('adjust-price', item)"
-        >💲 {{ item.price_override_reason ? 'Ajustado' : 'Ajustar' }}</button>
-        <!-- Botón editar — siempre visible en tablet, hover en desktop -->
-        <button
-          class="btn-edit-item"
-          title="Editar este ítem"
-          @click.stop="emit('edit', item)"
-        >✏️</button>
+        >{{ item.price_override_reason ? 'Precio ajustado' : 'Ajustar precio' }}</button>
       </div>
     </div>
 
-    <!-- Cantidad -->
-    <div class="qty-control">
-      <button @click="emit('decrease', item)">−</button>
-      <span class="qty-val">{{ item.is_weight_based ? (item.weight_grams ? item.weight_grams + 'g' : item.quantity + 'g') : item.quantity }}</span>
-      <button @click="emit('increase', item)">+</button>
+    <div class="ticket-item-actions">
+      <div class="qty-control">
+        <button type="button" :aria-label="`Quitar uno de ${item.name}`" @click="emit('decrease', item)">−</button>
+        <span class="qty-val" aria-live="polite">{{ item.is_weight_based ? (item.weight_grams ? item.weight_grams + ' g' : item.quantity + ' g') : item.quantity }}</span>
+        <button type="button" :aria-label="`Agregar otro ${item.name}`" @click="emit('increase', item)">+</button>
+      </div>
+      <button
+        type="button"
+        class="btn-edit-item"
+        :aria-label="`Editar ${item.name}`"
+        title="Editar opciones y nota"
+        @click.stop="emit('edit', item)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+        Editar
+      </button>
     </div>
   </div>
 </template>
@@ -108,6 +100,7 @@ function getModPillClass(groupName = '') {
   font-size: 11.5px;
   color: var(--ink-500);
   text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
 }
 .ticket-item-override {
   color: #8A0030;
@@ -134,40 +127,32 @@ html.dark .btn-adjust-price {
   border-color: #FF6B96;
 }
 .btn-adjust-price:focus-visible {
-  outline: 2px solid var(--acai-700);
+  outline: 2px solid var(--acai-500);
   outline-offset: 2px;
 }
-/* Pill de modificador — base */
-.mod-pill {
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 99px;
-  margin: 2px 3px 2px 0;
-  white-space: nowrap;
-  letter-spacing: 0.01em;
-}
-.mod-pill--size    { background: #dbeafe; color: #1e40af; }
-.mod-pill--fruit   { background: #fce7f3; color: #9d174d; }
-.mod-pill--topping { background: #fef3c7; color: #92400e; }
-.mod-pill--default { background: #f3f4f6; color: #374151; }
 
-/* Pills container */
+/* Opciones elegidas */
 .ticket-item-pills {
   display: flex;
   flex-wrap: wrap;
-  margin-top: 4px;
+  gap: 4px;
+  margin-top: 5px;
 }
-
-/* Info column */
-.ticket-item-info {
-  flex: 1;
-  min-width: 0;
+.mod-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+  background: var(--cream-200);
+  color: var(--ink-700);
 }
+.mod-pill--size { background: var(--acai-50); color: var(--acai-text); font-weight: 600; }
 
-/* Price + edit column */
+.ticket-item-info { flex: 1; min-width: 0; }
+
 .ticket-item-price-col {
   display: flex;
   flex-direction: column;
@@ -176,80 +161,58 @@ html.dark .btn-adjust-price {
   flex-shrink: 0;
 }
 
-/* Edit button */
+/* Cantidad a la izquierda, editar a la derecha */
+.ticket-item-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .btn-edit-item {
-  font-size: 13px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #2563eb;
-  border-radius: 6px;
-  padding: 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-700);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  line-height: 1.4;
-  transition: background 0.15s, transform 0.1s;
-  opacity: 0.75;
 }
-.btn-edit-item:hover {
-  background: #dbeafe;
-  transform: scale(1.08);
-  opacity: 1;
-}
-.ticket-item:hover .btn-edit-item {
-  opacity: 1;
-}
+.btn-edit-item svg { width: 13px; height: 13px; }
+.btn-edit-item:hover { background: var(--acai-50); color: var(--acai-text); border-color: transparent; }
+.btn-edit-item:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
 
-/* Badges inline / Interactive Destination Chip */
+/* Destino de la línea: se toca para alternar mesa ↔ para llevar */
 .item-dest-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
   border-radius: 99px;
   margin-left: 6px;
   border: 1px solid transparent;
   cursor: pointer;
-  vertical-align: middle;
-  transition: all 0.15s ease;
+  vertical-align: 1px;
   font-family: inherit;
 }
-
-.item-dest-chip:hover {
-  transform: translateY(-1px);
-  filter: brightness(0.95);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-}
-
+.item-dest-chip:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
 .item-dest-chip--takeaway {
-  background: #ffedd5;
-  color: #c2410c;
-  border-color: #fed7aa;
+  background: var(--passion-100);
+  color: var(--passion-text);
 }
-
 .item-dest-chip--dinein {
-  background: #f1f5f9;
-  color: #475569;
-  border-color: #e2e8f0;
+  background: var(--cream-200);
+  color: var(--ink-700);
 }
+.item-dest-chip:hover { border-color: currentColor; }
 
-.dest-chip-icon {
-  font-size: 11px;
-  line-height: 1;
-}
-
-html.dark .item-dest-chip--takeaway {
-  background: rgba(234, 88, 12, 0.2);
-  color: #fb923c;
-  border-color: rgba(249, 115, 22, 0.35);
-}
-
-html.dark .item-dest-chip--dinein {
-  background: #231b30;
-  color: #cbd5e1;
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-.ticket-item-note    { color: var(--passion-text); font-weight: 600; }
-.ticket-item-allergen { color: var(--warning-600, #b45309); font-weight: 600; }
+.ticket-item-weight { color: var(--acai-text); font-weight: 600; }
+.ticket-item-note { color: var(--passion-text); font-weight: 600; }
+.ticket-item-allergen { color: var(--danger-text); font-weight: 700; }
 </style>

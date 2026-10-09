@@ -1,6 +1,10 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 
+/**
+ * Cobro de una venta. Lo memorable es el vuelto: arriba el total a cobrar y, apenas se marca lo recibido,
+ * el vuelto en grande. Pensado para la laptop del local (1366×768): el botón de cobro queda siempre a la vista.
+ */
 const props = defineProps({
   show: Boolean,
   total: Number,
@@ -18,33 +22,38 @@ const pedidosYaOrderId = ref('');
 
 const emit = defineEmits(['close', 'confirm']);
 
-const customerSearch = ref('');
+const METHODS = [
+  { value: 'cash', label: 'Efectivo' },
+  { value: 'qr', label: 'QR' },
+  { value: 'card', label: 'Tarjeta' },
+];
+const methodLabel = (m) => METHODS.find((x) => x.value === m)?.label || m;
+
+// El cobro todavía no busca clientes: la venta se registra sin cliente, como hasta ahora
 const selectedCustomerId = ref(null);
+const isSubmitting = ref(false);
 const orderDestination = ref('dine_in'); // 'dine_in' | 'takeaway' | 'mixed'
 const currentMethod = ref('cash');
 const cashReceived = ref(0);
 const payments = ref([]);
 const saleNote = ref('');
 const isCashManuallyEntered = ref(false);
+const receivedInput = ref(null);
 
 const hasMixedCapability = computed(() => {
   return props.destinationDefault === 'mixed' || (props.takeawayCount > 0 && props.dineInCount > 0);
 });
-
-function selectDestination(dest) {
-  orderDestination.value = dest;
-}
 
 function selectMainMethod(method) {
   currentMethod.value = method;
   if (payments.value.length === 1) {
     payments.value[0].method = method;
   }
+  if (method === 'cash') focusReceived();
 }
 
 watch(() => props.show, (newVal) => {
   if (newVal) {
-    customerSearch.value = '';
     selectedCustomerId.value = null;
     orderDestination.value = isPedidosYa.value
       ? 'takeaway'
@@ -55,15 +64,19 @@ watch(() => props.show, (newVal) => {
     payments.value = [{ method: 'cash', amount: props.total }];
     isCashManuallyEntered.value = false;
     cashReceived.value = props.total;
+    isSubmitting.value = false;
+    if (!isPedidosYa.value) focusReceived();
   }
 });
 
 const totalPaid = computed(() => payments.value.reduce((s, p) => s + Number(p.amount), 0));
 const remaining = computed(() => Math.max(0, props.total - totalPaid.value));
+const hasCash = computed(() => payments.value.some((p) => p.method === 'cash'));
+const splitMode = computed(() => payments.value.length > 1);
 
 const change = computed(() => {
   let totalChange = 0;
-  
+
   if (totalPaid.value > props.total) {
     totalChange += (totalPaid.value - props.total);
   }
@@ -80,7 +93,23 @@ const change = computed(() => {
   return totalChange;
 });
 
-const isReady = computed(() => isPedidosYa.value || totalPaid.value >= props.total);
+/** Lo recibido en efectivo no alcanza para la parte en efectivo (p. ej. escribió 40 para un total de 44). */
+const cashShort = computed(() => {
+  const cashPayment = payments.value.find(p => p.method === 'cash');
+  if (!cashPayment || !isCashManuallyEntered.value) return 0;
+  return Math.max(0, Number(cashPayment.amount) - Number(cashReceived.value || 0));
+});
+
+const isReady = computed(() => isPedidosYa.value || (totalPaid.value >= props.total && cashShort.value === 0));
+
+/** Estado que se muestra bajo lo recibido: falta, vuelto, pago justo o qué hacer con QR / tarjeta. */
+const resultState = computed(() => {
+  if (remaining.value > 0.004) return 'short';
+  if (cashShort.value > 0.004) return 'cash-short';
+  if (change.value > 0.004) return 'change';
+  if (hasCash.value) return 'exact';
+  return payments.value[0]?.method === 'qr' ? 'qr' : 'card';
+});
 
 function addPayment() {
   const used = payments.value.map(p => p.method);
@@ -91,20 +120,24 @@ function addPayment() {
   });
 }
 
+/** Dividir: la primera parte queda en el método elegido y la segunda arranca en 0 para escribirla. */
+function startSplit() {
+  const used = payments.value.map(p => p.method);
+  const nextMethod = ['qr', 'cash', 'card'].find(m => !used.includes(m));
+  payments.value.push({ method: nextMethod, amount: 0 });
+}
+
 function removePayment(index) {
   payments.value.splice(index, 1);
   if (payments.value.length === 0) {
     payments.value.push({ method: currentMethod.value, amount: props.total });
   }
-}
-
-const isSubmitting = ref(false);
-
-watch(() => props.show, (newVal) => {
-  if (newVal) {
-    isSubmitting.value = false;
+  if (payments.value.length === 1) {
+    // De vuelta a un solo método: cubre el total completo
+    payments.value[0].amount = props.total;
+    currentMethod.value = payments.value[0].method;
   }
-});
+}
 
 function handleConfirm() {
   if (!isReady.value || isSubmitting.value) return;
@@ -165,209 +198,244 @@ watch(cashNeededAmount, (newVal) => {
   }
 });
 
+/** Billetes bolivianos que alcanzan para la parte en efectivo: los tres más chicos. */
+const billSuggestions = computed(() => [10, 20, 50, 100, 200].filter((b) => b > cashNeededAmount.value + 0.004).slice(0, 3));
+
 function setSuggestedCash(amount, isExact = false) {
   cashReceived.value = isExact ? cashNeededAmount.value : amount;
   isCashManuallyEntered.value = !isExact;
 }
+
+function onReceivedInput() {
+  isCashManuallyEntered.value = true;
+}
+
+function focusReceived() {
+  nextTick(() => {
+    const el = receivedInput.value;
+    if (el) { el.focus(); el.select(); }
+  });
+}
+
+function close() {
+  if (!isSubmitting.value) emit('close');
+}
+
+function onKey(e) {
+  if (props.show && e.key === 'Escape') close();
+}
+watch(() => props.show, (v) => {
+  if (v) window.addEventListener('keydown', onKey);
+  else window.removeEventListener('keydown', onKey);
+});
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
+
+const money = (n) => `Bs ${Number(n || 0).toFixed(2)}`;
+const itemsText = computed(() => (props.itemsCount === 1 ? '1 producto' : `${props.itemsCount} productos`));
+const confirmLabel = computed(() => {
+  if (isSubmitting.value) return 'Guardando…';
+  if (isPedidosYa.value) return 'Registrar pedido';
+  return `Cobrar ${money(props.total)}`;
+});
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" :class="{ active: show }">
-      <div class="modal-card">
-        <div class="modal-head">
-          <h2>{{ isPedidosYa ? '🛵 Registrar pedido PedidosYa' : 'Cobrar venta' }}</h2>
-          <button class="modal-close" @click="emit('close')">✕</button>
+    <div v-if="show" class="co-overlay" @click.self="close">
+      <div class="co-card" role="dialog" aria-modal="true" aria-labelledby="co-title">
+        <div class="co-head">
+          <h2 id="co-title">{{ isPedidosYa ? 'Registrar pedido de PedidosYa' : 'Cobrar' }}</h2>
+          <button class="co-close" type="button" aria-label="Cerrar sin cobrar" :disabled="isSubmitting" @click="close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
         </div>
 
-        <div class="modal-body">
-          <!-- PedidosYa: lo cobra la plataforma, no pasa por la caja -->
-          <template v-if="isPedidosYa">
-            <div class="pya-box">
-              <div class="pya-total">
-                <span>Total PedidosYa</span>
-                <strong>Bs {{ Number(total || 0).toFixed(2) }}</strong>
-              </div>
-              <p class="pya-hint">Cobrado por la plataforma. No entra al efectivo ni al arqueo de caja.</p>
-            </div>
-            <label class="pya-label" for="pya-order-id">Nº de pedido PedidosYa (opcional)</label>
-            <input
-              id="pya-order-id"
-              class="search-input"
-              v-model="pedidosYaOrderId"
-              placeholder="Ej: 4521"
-              inputmode="numeric"
-              autocomplete="off"
-            />
-          </template>
-
-          <template v-else>
-          <!-- Cliente -->
-          <div class="customer-search">
-            <input
-              class="search-input"
-              v-model="customerSearch"
-              placeholder="🔍 Buscar cliente por CI o celular..."
-            />
-            <div class="customer-found" v-if="selectedCustomerId">
-              <div>
-                <div class="name">María Fernanda Rojas</div>
-                <div class="pts">⭐ 320 puntos acumulados · Cliente VIP</div>
-              </div>
-              <span class="badge badge-vip">VIP</span>
-            </div>
-          </div>
-
-          <!-- Tipo de Destino del Pedido (Mesa vs Para Llevar vs Mixto) -->
-          <div class="destination-section">
-            <div class="dest-section-header">
-              <label class="dest-section-label">Destino del pedido</label>
-              <span v-if="hasMixedCapability" class="dest-badge-status">
-                {{ dineInCount }} Mesa · {{ takeawayCount }} Llevar
-              </span>
-            </div>
-            <div class="destination-grid" :class="{ 'destination-grid--3': hasMixedCapability }">
-              <button 
-                type="button" 
-                class="dest-btn" 
-                :class="{ active: orderDestination === 'dine_in' }"
-                @click="selectDestination('dine_in')"
-              >
-                <span class="dest-icon">🍽️</span>
-                <div class="dest-text-col">
-                  <span class="dest-title">Consumir en Mesa</span>
-                  <span class="dest-desc">Servir todo en local</span>
-                </div>
-                <span v-if="orderDestination === 'dine_in'" class="dest-badge">✓</span>
-              </button>
-
-              <button 
-                type="button" 
-                class="dest-btn" 
-                :class="{ active: orderDestination === 'takeaway' }"
-                @click="selectDestination('takeaway')"
-              >
-                <span class="dest-icon">🛍️</span>
-                <div class="dest-text-col">
-                  <span class="dest-title">Para Llevar</span>
-                  <span class="dest-desc">Empacar todo para llevar</span>
-                </div>
-                <span v-if="orderDestination === 'takeaway'" class="dest-badge">✓</span>
-              </button>
-
-              <button 
-                v-if="hasMixedCapability"
-                type="button" 
-                class="dest-btn dest-btn--mixed" 
-                :class="{ active: orderDestination === 'mixed' }"
-                @click="selectDestination('mixed')"
-              >
-                <span class="dest-icon">🔀</span>
-                <div class="dest-text-col">
-                  <span class="dest-title">Pedido Mixto</span>
-                  <span class="dest-desc">{{ dineInCount }} Mesa + {{ takeawayCount }} Llevar</span>
-                </div>
-                <span v-if="orderDestination === 'mixed'" class="dest-badge">✓</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Métodos de pago -->
-          <label style="font-size:12px;font-weight:700;color:var(--ink-700);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:8px;">Método de pago</label>
-          <div class="pay-methods">
-            <button 
-              type="button" 
-              class="pay-method" 
-              :class="{ selected: (payments.length === 1 ? payments[0].method : currentMethod) === 'cash' }" 
-              @click="selectMainMethod('cash')"
-            >💵 Efectivo</button>
-            <button 
-              type="button" 
-              class="pay-method" 
-              :class="{ selected: (payments.length === 1 ? payments[0].method : currentMethod) === 'card' }" 
-              @click="selectMainMethod('card')"
-            >💳 Tarjeta</button>
-            <button 
-              type="button" 
-              class="pay-method" 
-              :class="{ selected: (payments.length === 1 ? payments[0].method : currentMethod) === 'qr' }" 
-              @click="selectMainMethod('qr')"
-            >📱 QR</button>
-          </div>
-
-          <!-- Líneas de pago -->
-          <div class="pay-line" v-for="(payment, index) in payments" :key="index">
-            <select v-model="payment.method" class="pay-method-select">
-              <option value="cash">💵 Efectivo</option>
-              <option value="qr">📱 QR</option>
-              <option value="card">💳 Tarjeta</option>
-            </select>
-            <span style="display:flex;align-items:center;gap:10px;">
-              <input
-                type="number"
-                v-model="payment.amount"
-                class="pay-amount-input"
-                min="0" step="0.1"
-              />
-              <button @click="removePayment(index)" class="pay-remove-btn" title="Eliminar método" v-if="payments.length > 1">✕</button>
+        <div class="co-body">
+          <div class="co-total" :class="{ pya: isPedidosYa }">
+            <span class="co-total-label">{{ isPedidosYa ? 'Total PedidosYa' : 'Total a cobrar' }}</span>
+            <strong class="co-total-amount">{{ money(total) }}</strong>
+            <span class="co-total-sub">
+              {{ itemsText }}<template v-if="isPedidosYa">. Lo cobra la plataforma: no entra al efectivo ni al arqueo.</template>
             </span>
           </div>
 
-          <button class="add-payment-link" @click="addPayment">+ Agregar otro método de pago</button>
-
-          <!-- Efectivo recibido -->
-          <div class="received-box" v-if="payments.some(p => p.method === 'cash')">
-            <label class="received-label">Monto recibido en efectivo</label>
-            <!-- Sugerencias de billete -->
-            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-              <button v-for="bill in [50, 100, 200]" :key="bill"
-                class="size-chip"
-                :class="{ active: cashReceived == bill }"
-                @click="setSuggestedCash(bill)"
-                style="cursor:pointer;"
-              >Bs {{ bill }}</button>
-              <button class="size-chip" :class="{ active: cashReceived == cashNeededAmount }" @click="setSuggestedCash(cashNeededAmount, true)" style="cursor:pointer;">Exacto</button>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-weight:700;color:var(--ink-500);">Bs</span>
+          <!-- PedidosYa: lo cobra la plataforma, no pasa por la caja -->
+          <template v-if="isPedidosYa">
+            <div class="co-row">
+              <label class="co-row-label" for="co-pya-id">Nº de pedido</label>
               <input
-                class="search-input pay-cash-received-input"
-                v-model="cashReceived"
-                @input="isCashManuallyEntered = true"
-                type="number"
+                id="co-pya-id"
+                v-model="pedidosYaOrderId"
+                class="co-input"
+                placeholder="Opcional, ej. 4521"
+                inputmode="numeric"
+                autocomplete="off"
+                @keydown.enter.prevent="handleConfirm"
               />
             </div>
-          </div>
-          
-          <div class="payment-status">
-            <div v-if="remaining > 0" class="status-missing">
-              ⚠️ Falta por cubrir: Bs {{ remaining.toFixed(2) }}
-            </div>
-            <div v-else-if="change > 0" class="status-change">
-              💰 Cambio a devolver: Bs {{ change.toFixed(2) }}
-            </div>
-            <div v-else class="status-covered">
-              ✓ Monto cubierto exacto
-            </div>
-          </div>
           </template>
 
-          <!-- Nota Global -->
-          <div style="margin-top:20px;">
-            <label style="font-size:12px;font-weight:700;color:var(--ink-700);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:8px;">Nota de venta (Opcional)</label>
-            <textarea 
-              v-model="saleNote" 
-              placeholder="Ej: Cliente apurado, entregar en puerta..."
-              class="search-input"
-              style="width:100%;resize:vertical;min-height:60px;padding:12px;border-radius:8px;"
-            ></textarea>
+          <template v-else>
+            <!-- Cómo paga -->
+            <div class="co-row">
+              <span id="co-method-label" class="co-row-label">Cómo paga</span>
+              <div class="co-row-control">
+                <div v-if="!splitMode" class="co-seg" role="radiogroup" aria-labelledby="co-method-label">
+                  <button
+                    v-for="m in METHODS"
+                    :key="m.value"
+                    type="button"
+                    role="radio"
+                    class="co-seg-btn"
+                    :class="{ active: payments[0]?.method === m.value }"
+                    :aria-checked="payments[0]?.method === m.value"
+                    @click="selectMainMethod(m.value)"
+                  >{{ m.label }}</button>
+                </div>
+                <div v-else class="co-split">
+                  <div v-for="(payment, index) in payments" :key="index" class="co-split-line">
+                    <select v-model="payment.method" class="co-input co-split-method" :aria-label="`Método del pago ${index + 1}`">
+                      <option v-for="m in METHODS" :key="m.value" :value="m.value">{{ m.label }}</option>
+                    </select>
+                    <span class="co-money-input sm">
+                      <span aria-hidden="true">Bs</span>
+                      <input
+                        v-model="payment.amount"
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        inputmode="decimal"
+                        :aria-label="`Monto del pago ${index + 1}`"
+                        @focus="$event.target.select()"
+                      />
+                    </span>
+                    <button type="button" class="co-icon-btn" :aria-label="`Quitar el pago ${index + 1}`" @click="removePayment(index)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                </div>
+                <button v-if="!splitMode" type="button" class="co-link" @click="startSplit">Dividir el pago</button>
+                <button v-else-if="payments.length < 3" type="button" class="co-link" @click="addPayment">Agregar otro método</button>
+              </div>
+            </div>
+
+            <!-- Lo que entrega el cliente -->
+            <div v-if="hasCash" class="co-row">
+              <label class="co-row-label" for="co-received">Recibe</label>
+              <div class="co-row-control">
+                <div class="co-received">
+                  <span class="co-money-input">
+                    <span aria-hidden="true">Bs</span>
+                    <input
+                      id="co-received"
+                      ref="receivedInput"
+                      v-model="cashReceived"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      inputmode="decimal"
+                      @input="onReceivedInput"
+                      @focus="$event.target.select()"
+                      @keydown.enter.prevent="handleConfirm"
+                    />
+                  </span>
+                  <div class="co-bills" role="group" aria-label="Billete recibido">
+                    <button
+                      v-for="bill in billSuggestions"
+                      :key="bill"
+                      type="button"
+                      class="co-bill"
+                      :class="{ active: isCashManuallyEntered && Number(cashReceived) === bill }"
+                      @click="setSuggestedCash(bill)"
+                    >Bs {{ bill }}</button>
+                    <button
+                      type="button"
+                      class="co-bill"
+                      :class="{ active: !isCashManuallyEntered || Number(cashReceived) === cashNeededAmount }"
+                      @click="setSuggestedCash(cashNeededAmount, true)"
+                    >Justo</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Resultado: vuelto, falta o qué hacer -->
+            <div class="co-result" :class="resultState" role="status" aria-live="polite">
+              <template v-if="resultState === 'change'">
+                <span class="co-result-label">Vuelto</span>
+                <strong :key="change.toFixed(2)" class="co-result-amount">{{ money(change) }}</strong>
+              </template>
+              <template v-else-if="resultState === 'short'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6" /><path d="M12 16.5v.5" /></svg>
+                <span>Falta cubrir <strong>{{ money(remaining) }}</strong>: completa los montos.</span>
+              </template>
+              <template v-else-if="resultState === 'cash-short'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6" /><path d="M12 16.5v.5" /></svg>
+                <span>Lo recibido no alcanza: faltan <strong>{{ money(cashShort) }}</strong> en efectivo.</span>
+              </template>
+              <template v-else-if="resultState === 'exact'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                <span>Pago justo, sin vuelto.</span>
+              </template>
+              <template v-else-if="resultState === 'qr'">
+                <span>Muestra el QR y cobra cuando veas el pago recibido.</span>
+              </template>
+              <template v-else>
+                <span>Pasa la tarjeta y cobra cuando salga aprobada.</span>
+              </template>
+            </div>
+
+            <!-- Destino del pedido -->
+            <div class="co-row">
+              <span id="co-dest-label" class="co-row-label">Se sirve</span>
+              <div class="co-seg co-seg-sm" role="radiogroup" aria-labelledby="co-dest-label">
+                <button
+                  type="button"
+                  role="radio"
+                  class="co-seg-btn"
+                  :class="{ active: orderDestination === 'dine_in' }"
+                  :aria-checked="orderDestination === 'dine_in'"
+                  @click="orderDestination = 'dine_in'"
+                >En mesa</button>
+                <button
+                  type="button"
+                  role="radio"
+                  class="co-seg-btn"
+                  :class="{ active: orderDestination === 'takeaway' }"
+                  :aria-checked="orderDestination === 'takeaway'"
+                  @click="orderDestination = 'takeaway'"
+                >Para llevar</button>
+                <button
+                  v-if="hasMixedCapability"
+                  type="button"
+                  role="radio"
+                  class="co-seg-btn"
+                  :class="{ active: orderDestination === 'mixed' }"
+                  :aria-checked="orderDestination === 'mixed'"
+                  :title="`${dineInCount} en mesa y ${takeawayCount} para llevar`"
+                  @click="orderDestination = 'mixed'"
+                >Mixto</button>
+              </div>
+            </div>
+          </template>
+
+          <div class="co-row">
+            <label class="co-row-label" for="co-note">Nota</label>
+            <input
+              id="co-note"
+              v-model="saleNote"
+              class="co-input"
+              maxlength="250"
+              placeholder="Opcional: el cliente espera afuera, sin hielo…"
+              autocomplete="off"
+            />
           </div>
         </div>
 
-        <div class="modal-foot">
-          <button class="btn btn-ghost" :disabled="isSubmitting" @click="emit('close')">Cancelar</button>
-          <button class="btn btn-success" :disabled="!isReady || isSubmitting" @click="handleConfirm">
-            {{ isSubmitting ? '⏳ Procesando...' : (isPedidosYa ? 'Registrar pedido' : 'Confirmar venta') }}
+        <div class="co-foot">
+          <button class="co-btn co-btn-ghost" type="button" :disabled="isSubmitting" @click="close">Cancelar</button>
+          <button class="co-btn co-btn-primary" type="button" :disabled="!isReady || isSubmitting" @click="handleConfirm">
+            {{ confirmLabel }}
           </button>
         </div>
       </div>
@@ -376,261 +444,295 @@ function setSuggestedCash(amount, isExact = false) {
 </template>
 
 <style scoped>
-.modal-overlay {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 99999 !important;
-  background: rgba(18, 10, 26, 0.65) !important;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  display: none;
+.co-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(32, 17, 47, 0.6);
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 16px;
 }
-.modal-overlay.active {
-  display: flex !important;
-}
-
-.destination-section {
-  margin-bottom: 18px;
-}
-
-.dest-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.dest-section-label {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--ink-700, #334155);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-
-.dest-badge-status {
-  font-size: 11px;
-  font-weight: 800;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: #f5f3ff;
-  color: #7c3aed;
-  border: 1px solid #ddd6fe;
-}
-
-.destination-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.destination-grid--3 {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.dest-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1.5px solid var(--border, #E2E8F0);
-  background: var(--surface, #FFFFFF);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.15s ease;
-  position: relative;
-}
-
-.dest-btn:hover {
-  border-color: var(--passion-300, #FDBA74);
-  background: #FFF7ED;
-}
-
-.dest-btn.active {
-  border-color: var(--passion-text);
-  background: #FFF7ED;
-  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.15);
-}
-
-.dest-btn--mixed:hover {
-  border-color: #c4b5fd;
-  background: #faf5ff;
-}
-
-.dest-btn--mixed.active {
-  border-color: #8b5cf6;
-  background: #faf5ff;
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.18);
-}
-
-.dest-btn--mixed.active .dest-badge {
-  color: #8b5cf6;
-}
-
-.dest-icon {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.dest-text-col {
+.co-card {
+  width: 100%;
+  max-width: 520px;
+  max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
+  background: var(--surface);
+  border-radius: 18px;
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  color: var(--ink-900);
+}
+.co-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px 0;
+}
+.co-head h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--ink-900); }
+.co-close,
+.co-icon-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-500);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.co-close:hover,
+.co-icon-btn:hover { background: var(--cream-200); color: var(--ink-900); }
+.co-close svg,
+.co-icon-btn svg { width: 16px; height: 16px; }
+
+/* El cuerpo es lo único que se desplaza: el botón de cobro nunca queda fuera de la vista */
+.co-body {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.dest-title {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--ink-900, #0F172A);
-  line-height: 1.2;
+/* Total a cobrar */
+.co-total {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--acai-50);
 }
-
-.dest-btn.active .dest-title {
-  color: var(--passion-700, #C2410C);
-}
-
-.dest-desc {
-  font-size: 10.5px;
-  color: var(--ink-500, #64748B);
-}
-
-.dest-badge {
-  font-size: 14px;
-  font-weight: 900;
-  color: var(--passion-text);
-}
-
-html.dark .dest-btn {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-html.dark .dest-btn:hover {
-  background: rgba(234, 88, 12, 0.15);
-  border-color: rgba(234, 88, 12, 0.4);
-}
-html.dark .dest-btn.active {
-  background: rgba(234, 88, 12, 0.25);
-  border-color: #F97316;
-}
-html.dark .dest-btn--mixed:hover {
-  background: rgba(139, 92, 246, 0.18);
-  border-color: rgba(139, 92, 246, 0.45);
-}
-html.dark .dest-btn--mixed.active {
-  background: rgba(139, 92, 246, 0.3);
-  border-color: #a78bfa;
-}
-html.dark .dest-badge-status {
-  background: rgba(139, 92, 246, 0.2);
-  color: #c4b5fd;
-  border-color: rgba(139, 92, 246, 0.4);
-}
-html.dark .dest-title {
-  color: #F1F5F9;
-}
-html.dark .dest-desc {
-  color: #94A3B8;
-}
-
-.payment-status {
-  margin-top: 16px;
+.co-total.pya { background: #FFE4EC; }
+html.dark .co-total.pya { background: #3D1424; }
+.co-total-label { font-size: 14px; font-weight: 600; color: var(--acai-text); }
+.co-total.pya .co-total-label { color: #8A0030; }
+html.dark .co-total.pya .co-total-label { color: #FFB3C9; }
+.co-total-amount {
+  grid-row: span 2;
+  font-family: var(--font-heading);
+  font-size: 34px;
   font-weight: 700;
+  line-height: 1;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.co-total-sub { font-size: 12.5px; color: var(--ink-700); line-height: 1.4; }
+
+/* Filas etiqueta | control */
+.co-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+.co-row-label {
+  padding-top: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+.co-row-control { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+
+/* Control segmentado: una sola opción marcada, con relleno morado y texto en peso mayor */
+.co-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--cream-200);
+}
+.co-seg-btn {
+  min-height: 38px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-700);
+  font-family: inherit;
   font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
 }
-.status-missing {
-  color: var(--danger-600);
-  background: var(--danger-50);
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--danger-200);
-}
-.status-change {
-  color: var(--warning-700);
-  background: var(--warning-50);
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--warning-200);
-}
-.status-covered {
-  color: var(--success-600);
-  background: var(--success-50);
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--success-200);
-}
-html.dark .status-missing {
-  background: rgba(220, 38, 38, 0.2);
-  border-color: rgba(220, 38, 38, 0.4);
-  color: #fca5a5;
-}
-html.dark .status-change {
-  background: rgba(234, 179, 8, 0.2);
-  border-color: rgba(234, 179, 8, 0.4);
-  color: #fde047;
-}
-html.dark .status-covered {
-  background: rgba(22, 163, 74, 0.2);
-  border-color: rgba(22, 163, 74, 0.4);
-  color: #86efac;
+.co-seg-btn:hover { color: var(--ink-900); }
+.co-seg-btn.active { background: var(--acai-700); color: #FFFFFF; font-weight: 700; }
+html.dark .co-seg-btn.active { background: var(--acai-500); }
+.co-seg-sm .co-seg-btn { min-height: 34px; padding: 0 13px; font-size: 13.5px; }
+.co-seg-btn:focus-visible,
+.co-bill:focus-visible,
+.co-link:focus-visible,
+.co-close:focus-visible,
+.co-icon-btn:focus-visible,
+.co-btn:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
+
+.co-link {
+  border: none;
+  background: none;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--acai-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }
 
-.pay-method-select {
-  padding: 6px 10px;
-  border-radius: 8px;
+/* Pago dividido */
+.co-split { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.co-split-line { display: flex; align-items: center; gap: 6px; }
+.co-split-method { width: 120px; flex-shrink: 0; }
+
+/* Montos en Bs */
+.co-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 8px 11px;
   border: 1.5px solid var(--border);
+  border-radius: 10px;
   background: var(--surface);
   color: var(--ink-900);
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+  font-size: 14px;
 }
-
-.pay-method-select:focus {
-  border-color: var(--acai-500);
-  box-shadow: 0 0 0 3px rgba(116, 72, 166, 0.2);
-}
-
-html.dark .pay-method-select {
-  background: var(--surface, #1e293b);
-  border-color: var(--border, rgba(255, 255, 255, 0.15));
-  color: #f1f5f9;
-}
-.pya-box {
-  background: var(--surface-alt);
+.co-input:focus { outline: none; border-color: var(--acai-500); box-shadow: 0 0 0 3px var(--acai-50); }
+.co-money-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 0 12px;
   border: 1.5px solid var(--border);
   border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
+  background: var(--surface);
 }
-.pya-total {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-weight: 700;
-  color: var(--ink-700);
-}
-.pya-total strong {
-  font-size: 22px;
+.co-money-input:focus-within { border-color: var(--acai-500); box-shadow: 0 0 0 3px var(--acai-50); }
+.co-money-input > span { font-weight: 600; color: var(--ink-500); }
+.co-money-input input {
+  width: 110px;
+  border: none;
+  outline: none;
+  background: transparent;
   color: var(--ink-900);
-}
-.pya-hint {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--ink-500);
-}
-.pya-label {
-  font-size: 12px;
+  font-family: var(--font-heading);
+  font-size: 22px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.co-money-input.sm { min-height: 40px; }
+.co-money-input.sm input { width: 80px; font-size: 17px; }
+
+.co-received { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.co-bills { display: flex; flex-wrap: wrap; gap: 6px; }
+.co-bill {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink-900);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.co-bill:hover { border-color: var(--acai-300); }
+.co-bill.active { border-color: var(--acai-700); background: var(--acai-50); color: var(--acai-text); font-weight: 700; }
+
+/* Resultado del cobro */
+.co-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  background: var(--cream-100);
   color: var(--ink-700);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  display: block;
-  margin-bottom: 8px;
+}
+.co-result svg { width: 17px; height: 17px; flex-shrink: 0; }
+.co-result.change {
+  justify-content: space-between;
+  min-height: 62px;
+  background: var(--lime-100);
+  color: var(--lime-700);
+}
+.co-result-label { font-size: 16px; font-weight: 700; }
+.co-result-amount {
+  font-family: var(--font-heading);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  animation: co-pop .18s ease-out;
+}
+.co-result.exact { background: var(--lime-100); color: var(--lime-700); font-weight: 600; }
+.co-result.short,
+.co-result.cash-short { background: var(--danger-100); color: var(--danger-text); font-weight: 600; }
+.co-result.qr,
+.co-result.card { background: var(--acai-50); color: var(--acai-text); font-weight: 600; }
+@keyframes co-pop {
+  from { transform: scale(.92); opacity: .6; }
+  to { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .co-result-amount { animation: none; }
+}
+
+/* Pie: siempre visible */
+.co-foot {
+  display: flex;
+  gap: 10px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.co-btn {
+  min-height: 50px;
+  padding: 0 18px;
+  border-radius: 13px;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.co-btn:disabled { cursor: not-allowed; }
+.co-btn-ghost { flex: 0 0 auto; background: transparent; color: var(--ink-900); border: 1.5px solid var(--border); }
+.co-btn-ghost:hover:not(:disabled) { background: var(--cream-200); }
+.co-btn-primary {
+  flex: 1;
+  border: none;
+  background: var(--passion-500);
+  color: var(--on-accent);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.co-btn-primary:hover:not(:disabled) { filter: brightness(1.05); }
+.co-btn-primary:disabled { background: var(--cream-200); color: var(--ink-500); }
+
+@media (max-width: 520px) {
+  .co-overlay { padding: 0; align-items: flex-end; }
+  .co-card { max-height: 100vh; border-radius: 18px 18px 0 0; }
+  .co-row { grid-template-columns: 1fr; gap: 6px; }
+  .co-row-label { padding-top: 0; }
+  .co-total-amount { font-size: 28px; }
 }
 </style>

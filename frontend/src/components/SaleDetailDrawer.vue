@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
+import StatusTag from './StatusTag.vue';
 import { useTurnoStore } from '../stores/turno';
 import { useAuthStore } from '../stores/auth';
 
@@ -24,15 +25,16 @@ function formatDate(dateStr) {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   });
 }
 
 function getPaymentLabel(method) {
   const map = {
-    cash: '💵 Efectivo',
-    qr: '📱 QR / Transferencia',
-    card: '💳 Tarjeta de Débito/Crédito',
-    delivery_platform: '🛵 PedidosYa / Delivery Platform',
+    cash: 'Efectivo',
+    qr: 'QR o transferencia',
+    card: 'Tarjeta',
+    delivery_platform: 'PedidosYa',
   };
   return map[method] || method;
 }
@@ -66,25 +68,23 @@ async function handleConfirmVoid() {
       <div class="drawer-header">
         <div>
           <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;">
-            <div class="sale-status-badge" :class="sale.status">
-              {{ sale.status === 'completed' ? '✅ Completada' : '❌ Anulada' }}
-            </div>
-            <span v-if="sale.source === 'pedidosya'" class="source-tag-pya">🛵 PedidosYa</span>
-            <span v-else-if="sale.is_takeaway" class="source-tag-takeaway">🥡 Para Llevar</span>
-            <span v-else class="source-tag-dinein">🍽️ En Mesa</span>
-            <span v-if="sale.edited_by" class="source-tag-edited">✏️ Editado</span>
+            <StatusTag :tone="sale.status === 'completed' ? 'ok' : 'err'" :label="sale.status === 'completed' ? 'Completada' : 'Anulada'" />
+            <span v-if="sale.source === 'pedidosya'" class="source-tag-pya">PedidosYa</span>
+            <span v-else-if="sale.is_takeaway" class="source-tag-takeaway">Para llevar</span>
+            <span v-else class="source-tag-dinein">En mesa</span>
+            <span v-if="sale.edited_by" class="source-tag-edited">Editada</span>
           </div>
           <h3>Ticket #{{ sale.order_number || (sale.id ? sale.id.substring(0, 8).toUpperCase() : '---') }}</h3>
-          <p class="drawer-subtitle">{{ formatDate(sale.created_at) }} · Atendido por: <strong>{{ sale.cashier?.name || 'Cajero' }}</strong></p>
+          <p class="drawer-subtitle">{{ formatDate(sale.created_at) }}, atendió <strong>{{ sale.cashier?.name || 'Cajero' }}</strong></p>
         </div>
-        <button class="btn-close" @click="emit('close')">✕</button>
+        <button class="btn-close" type="button" aria-label="Cerrar el detalle" @click="emit('close')">✕</button>
       </div>
 
       <!-- DRAWER BODY -->
       <div class="drawer-body">
         <!-- ANULACIÓN ALERTA SI APLICA -->
         <div v-if="sale.status === 'voided'" class="voided-alert">
-          <div class="void-title">⚠️ Venta Anulada</div>
+          <div class="void-title">Venta anulada</div>
           <div class="void-info">
             <span>Motivo: <strong>"{{ sale.void_reason || 'Sin motivo' }}"</strong></span>
             <span v-if="sale.voided_by_user">Anulada por: <strong>{{ sale.voided_by_user.name }}</strong></span>
@@ -93,7 +93,7 @@ async function handleConfirmVoid() {
 
         <!-- DATOS DEL CLIENTE -->
         <div class="info-card" v-if="sale.customer">
-          <h4>👤 Cliente</h4>
+          <h4>Cliente</h4>
           <div class="row">
             <span>Nombre:</span>
             <strong>{{ sale.customer.name }}</strong>
@@ -106,7 +106,7 @@ async function handleConfirmVoid() {
 
         <!-- ITEMS DETALLADOS -->
         <div class="info-card">
-          <h4>🛍️ Productos Comprados ({{ sale.items?.length || 0 }})</h4>
+          <h4>Productos ({{ sale.items?.length || 0 }})</h4>
           <div class="items-list">
             <div 
               v-for="item in (sale.items || [])" 
@@ -115,10 +115,10 @@ async function handleConfirmVoid() {
             >
               <div class="item-top">
                 <div class="item-name-box">
-                  <span class="item-qty">{{ Number(item.quantity) }}x</span>
+                  <span class="item-qty">{{ Number(item.quantity) }}×</span>
                   <strong class="item-name">{{ item.name || item.product?.name }}</strong>
                   <span v-if="item.is_takeaway" class="takeaway-tag">Para llevar</span>
-                  <span v-else class="dinein-tag">Para mesa</span>
+                  <span v-else class="dinein-tag">En mesa</span>
                 </div>
                 <div class="item-price">Bs {{ Number(item.subtotal).toFixed(2) }}</div>
               </div>
@@ -138,16 +138,16 @@ async function handleConfirmVoid() {
 
               <!-- NOTA DEL ITEM -->
               <div v-if="item.item_note" class="item-note">
-                📝 <em>{{ item.item_note }}</em>
+                Nota: <em>{{ item.item_note }}</em>
               </div>
               <div v-if="item.price_override_reason" class="item-note">
-                💲 Precio ajustado: <em>{{ item.price_override_reason }}</em>
+                Precio ajustado: <em>{{ item.price_override_reason }}</em>
               </div>
 
               <!-- ALÉRGENOS -->
               <div v-if="item.allergen_flags && item.allergen_flags.length > 0" class="item-allergens">
                 <span v-for="a in item.allergen_flags" :key="a" class="allergen-pill">
-                  ⚠️ {{ a }}
+                  Alergia: {{ a }}
                 </span>
               </div>
             </div>
@@ -156,7 +156,7 @@ async function handleConfirmVoid() {
 
         <!-- METODOS DE PAGO -->
         <div class="info-card">
-          <h4>💳 Formas de Pago</h4>
+          <h4>Forma de pago</h4>
           <div v-if="sale.payments && sale.payments.length > 0" class="payments-list">
             <div v-for="(p, index) in sale.payments" :key="p.id || index" class="payment-row">
               <span>{{ getPaymentLabel(p.method) }}</span>
@@ -164,7 +164,7 @@ async function handleConfirmVoid() {
             </div>
           </div>
           <div v-else class="payment-row">
-            <span>💵 Efectivo</span>
+            <span>Efectivo</span>
             <strong>Bs {{ Number(sale.total_amount).toFixed(2) }}</strong>
           </div>
         </div>
@@ -172,15 +172,15 @@ async function handleConfirmVoid() {
         <!-- TOTALES -->
         <div class="totals-card">
           <div class="row" v-if="sale.notes" style="margin-bottom: 8px;">
-            <span>Notas / Recargo:</span>
-            <strong style="color: #475569; font-size: 12px;">💬 {{ sale.notes }}</strong>
+            <span>Nota:</span>
+            <strong class="sale-note">{{ sale.notes }}</strong>
           </div>
           <div class="row" v-if="sale.edit_reason" style="margin-bottom: 8px;">
-            <span>Motivo de Registro/Edición:</span>
-            <span style="color: #64748b; font-size: 11.5px; font-style: italic;">"{{ sale.edit_reason }}"</span>
+            <span>Motivo del registro o la corrección:</span>
+            <span class="sale-edit-reason">«{{ sale.edit_reason }}»</span>
           </div>
           <div class="row">
-            <span>Subtotal:</span>
+            <span>Subtotal</span>
             <span>Bs {{ Number(sale.subtotal || sale.total_amount).toFixed(2) }}</span>
           </div>
           <div class="row" v-if="sale.discount_amount > 0">
@@ -188,7 +188,7 @@ async function handleConfirmVoid() {
             <span class="text-danger">− Bs {{ Number(sale.discount_amount).toFixed(2) }}</span>
           </div>
           <div class="row total-main">
-            <span>TOTAL:</span>
+            <span>Total</span>
             <strong class="total-number">Bs {{ Number(sale.total_amount).toFixed(2) }}</strong>
           </div>
         </div>
@@ -204,14 +204,14 @@ async function handleConfirmVoid() {
             @click="emit('edit', sale)"
             title="Editar productos, precios, origen y pagos (Super Admin)"
           >
-            ✏️ Editar Orden
+            Corregir venta
           </button>
           <button 
             v-if="sale.status === 'completed'" 
             class="btn btn-danger-outline" 
             @click="showVoidModal = true"
           >
-            🗑️ Anular Venta
+            Anular venta
           </button>
         </div>
         <button class="btn btn-ghost" @click="emit('close')">Cerrar</button>
@@ -221,21 +221,20 @@ async function handleConfirmVoid() {
     <!-- MODAL DE CONFIRMACIÓN DE ANULACIÓN -->
     <div v-if="showVoidModal" class="void-modal-overlay" @click.self="showVoidModal = false">
       <div class="void-modal">
-        <h3>Anular Venta #{{ sale.id ? sale.id.substring(0, 8).toUpperCase() : '' }}</h3>
+        <h3>Anular la venta #{{ sale.order_number || (sale.id ? sale.id.substring(0, 8).toUpperCase() : '') }}</h3>
         <p class="void-warning">
-          Esta acción revertirá los ingredientes al stock y restará los ingresos de la caja. 
-          Esta operación no se puede deshacer.
+          Los insumos vuelven al stock y el cobro sale de la caja. No se puede deshacer.
         </p>
 
         <div v-if="voidError" class="void-error">
-          ⚠️ {{ voidError }}
+          {{ voidError }}
         </div>
 
         <div class="field">
-          <label><strong>* Motivo de la anulación (Requerido):</strong></label>
+          <label><strong>Motivo de la anulación (obligatorio)</strong></label>
           <textarea 
             v-model="voidReason" 
-            placeholder="Ej: Error de cobro del cajero / Producto no elaborado..."
+            placeholder="Ej.: se cobró dos veces, el producto no se preparó"
             rows="3"
             class="void-input"
           ></textarea>
@@ -248,8 +247,8 @@ async function handleConfirmVoid() {
             :disabled="!voidReason.trim() || isVoiding"
             @click="handleConfirmVoid"
           >
-            <span v-if="isVoiding">Anulando...</span>
-            <span v-else>Confirmar Anulación</span>
+            <span v-if="isVoiding">Anulando…</span>
+            <span v-else>Anular venta</span>
           </button>
         </div>
       </div>
@@ -421,8 +420,8 @@ async function handleConfirmVoid() {
 }
 
 .takeaway-tag {
-  background: var(--gold-100);
-  color: #8A6A00;
+  background: var(--passion-100);
+  color: var(--passion-text);
   font-size: 10px;
   font-weight: 700;
   padding: 2px 6px;
@@ -430,18 +429,15 @@ async function handleConfirmVoid() {
 }
 
 .dinein-tag {
-  background: #F1F5F9;
-  color: #475569;
+  background: var(--cream-200);
+  color: var(--ink-700);
   font-size: 10px;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 6px;
 }
 
-html.dark .dinein-tag {
-  background: #251c33;
-  color: #CBD5E1;
-}
+
 
 .item-price {
   font-family: 'Baloo 2', sans-serif;
@@ -566,45 +562,21 @@ html.dark .dinein-tag {
   border-color: #f59e0b;
 }
 
-.source-tag-pya {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.source-tag-takeaway {
-  background: #fdf2f8;
-  color: #db2777;
-  border: 1px solid #fbcfe8;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.source-tag-dinein {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
+/* Etiquetas del pedido: canal y destino con los colores del sistema (el de PedidosYa es el de la plataforma) */
+.source-tag-pya,
+.source-tag-takeaway,
+.source-tag-dinein,
 .source-tag-edited {
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
 }
+.source-tag-pya { background: #FFE4EC; color: #8A0030; }
+html.dark .source-tag-pya { background: #3D1424; color: #FFB3C9; }
+.source-tag-takeaway { background: var(--passion-100); color: var(--passion-text); }
+.source-tag-dinein { background: var(--cream-200); color: var(--ink-700); }
+.source-tag-edited { background: var(--gold-100); color: var(--gold-text); }
 
 .btn-danger {
   background: var(--danger-600);
@@ -687,4 +659,6 @@ html.dark .dinein-tag {
   gap: 10px;
   margin-top: 16px;
 }
+.sale-note { color: var(--ink-700); font-size: 12.5px; }
+.sale-edit-reason { color: var(--ink-500); font-size: 12px; font-style: italic; }
 </style>

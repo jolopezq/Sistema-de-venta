@@ -184,6 +184,13 @@ input::placeholder, textarea::placeholder {
   opacity: 0.85;
 }
 h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
+/* Montos en Bs (cobro, apertura, gastos): sin flechitas de número, se escriben o se eligen con un botón */
+.co-money-input input,.tn-money-input input,.ce-money-input input{-moz-appearance:textfield;appearance:textfield;}
+.co-money-input input::-webkit-inner-spin-button,.co-money-input input::-webkit-outer-spin-button,
+.tn-money-input input::-webkit-inner-spin-button,.tn-money-input input::-webkit-outer-spin-button,
+.ce-money-input input::-webkit-inner-spin-button,.ce-money-input input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+/* Texto solo para lectores de pantalla */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
 .mono{font-family:'JetBrains Mono',monospace;}
 
 /* ---------- shared UI atoms ---------- */
@@ -202,6 +209,7 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
   transition:transform .1s ease, filter .15s ease;
 }
 .btn:active{transform:scale(0.97);}
+.btn:focus-visible{outline:3px solid var(--acai-500);outline-offset:2px;}
 .btn-primary{background:var(--passion-500);color: var(--on-accent);}
 .btn-primary:hover{filter:brightness(1.05);}
 .btn-success{background:var(--lime-500);color: var(--on-accent);}
@@ -316,6 +324,7 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
   background:var(--surface);border:2px solid var(--border);color:var(--ink-700);cursor:pointer;
 }
 .cat-tab.active{background:var(--acai-700);border-color:var(--acai-700);color:white;}
+.cat-tab:focus-visible{outline:2px solid var(--acai-500);outline-offset:2px;}
 .size-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;font-size:12px;color:var(--ink-500);font-weight:600;}
 .size-chip{padding:6px 12px;border-radius:999px;border:1.5px solid var(--border);background:var(--surface);color:var(--ink-700);font-weight:700;}
 .size-chip.active{background:var(--acai-700);border-color:var(--acai-700);color:white;}
@@ -337,10 +346,9 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
   display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;flex-shrink:0;
 }
 .product-img-badge{
-  position:absolute;bottom:6px;left:6px;font-size:10px;font-weight:700;padding:3px 8px;
+  position:absolute;bottom:6px;left:6px;font-size:11px;font-weight:600;padding:3px 8px;
   border-radius:999px;background:rgba(32,17,47,0.85);color:#ffffff;
-  backdrop-filter:blur(4px);box-shadow:0 2px 4px rgba(0,0,0,0.25);
-  letter-spacing:0.02em;pointer-events:none;z-index:2;
+  pointer-events:none;z-index:2;
 }
 .product-name{
   font-family:var(--font-heading);font-weight:700;font-size:14px;color:var(--ink-900);line-height:1.25;margin-top:2px;
@@ -348,7 +356,7 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
 }
 .product-row{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:4px;}
 .product-price{font-weight:700;font-size:13.5px;color:var(--ink-700);}
-.product-price.weight{color:var(--ink-soft);font-size:11.5px;font-weight:700;text-transform:uppercase;}
+.product-price.weight{color:var(--ink-700);font-size:12px;font-weight:700;}
 .add-btn{
   width:32px;height:32px;border-radius:9px;background:var(--passion-500);color: var(--on-accent);border:none;
   font-size:18px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;
@@ -364,9 +372,10 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
 .ticket-item-name{font-weight:700;font-size:14px;color:var(--ink-900);}
 .ticket-item-mods{font-size:11.5px;color:var(--ink-500);margin-top:3px;line-height:1.4;}
 .qty-control{display:flex;align-items:center;gap:8px;margin-top:8px;}
-.qty-control button{width:24px;height:24px;border-radius:7px;border:1px solid var(--border);background:var(--cream-200);font-weight:800;cursor:pointer;}
+.qty-control button{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--cream-200);color:var(--ink-900);font-size:15px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
+.qty-control button:focus-visible{outline:2px solid var(--acai-500);outline-offset:1px;}
 .qty-control .qty-val{font-weight:700;font-size:13px;min-width:16px;text-align:center;}
-.ticket-item-price{font-weight:800;font-size:14px;color:var(--ink-900);}
+.ticket-item-price{font-weight:800;font-size:14px;color:var(--ink-900);font-variant-numeric:tabular-nums;white-space:nowrap;}
 .ticket-summary{padding:16px 20px;border-top:1px solid var(--border);background:var(--cream-50);}
 .sum-row{display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-700);margin-bottom:6px;}
 .sum-row.total{font-size:19px;font-weight:800;color:var(--ink-900);margin-top:8px;}
@@ -407,7 +416,7 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
   .ticket-item-name { font-size: 13px; }
   .ticket-item-mods { font-size: 11px; margin-top: 2px; }
   .qty-control { margin-top: 5px; gap: 6px; }
-  .qty-control button { width: 22px; height: 22px; font-size: 12px; }
+  .qty-control button { width: 28px; height: 28px; font-size: 14px; }
   .qty-control .qty-val { font-size: 12px; }
   .ticket-item-price { font-size: 13px; }
   .ticket-summary { padding: 10px 14px; }

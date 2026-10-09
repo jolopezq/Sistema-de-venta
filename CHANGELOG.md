@@ -250,6 +250,11 @@ se renombra con la fecha de la actualización de producción.
   diarias del POS escaladas al total del Estado de Resultados). El bloque lo dice en una frase («Cubriste los costos fijos
   el 8 de octubre») con la barra de los días del mes; el detalle (márgenes por canal, costo por recetas frente al real y
   merma) queda en «Ver de dónde sale».
+- Vender: el **buscador funciona** (antes no filtraba): busca por nombre o descripción en todo el menú, sin distinguir
+  tildes ni mayúsculas, dice cuántos productos encontró y ofrece «Ver todo el menú» si no hay ninguno.
+- Caja: la **gaveta como una cuenta** que se lee de izquierda a derecha (fondo + ventas en efectivo + ingresos − gastos en
+  efectivo = lo que debería haber), con QR, tarjeta y PedidosYa en una línea aparte. En celular la cuenta se lee como lista.
+- `StatusTag`: estado con icono y texto (completada, anulada, abierto) para Vender y Caja, igual que `FinanceStatus`.
 
 ### Cambiado
 - Venta del dueño o de un admin **con el turno de un cajero abierto**: entra a ese turno (el local tiene una sola gaveta).
@@ -257,6 +262,30 @@ se renombra con la fecha de la actualización de producción.
   compartida de admin, la venta va al turno abierto en ese momento. Antes el POS bloqueaba al dueño con «No hay un turno
   abierto» y Caja le mostraba el turno del cajero sin forma de abrir otro. Un cajero sigue sin vender en el turno de otro
   cajero. 4 tests nuevos.
+- Rediseño de **Vender y Caja** con la dirección visual de Finanzas (evolución de la identidad de Ohana), sin cambiar la
+  disposición de la pantalla de venta:
+  - **Cobro**: arriba el total a cobrar; billetes sugeridos según el monto (los tres más chicos que alcanzan) y «Justo»;
+    el **vuelto** en grande apenas se marca lo recibido; aviso si lo recibido no alcanza; con QR o tarjeta, qué hacer antes
+    de cobrar; «Dividir el pago» en vez de dos controles de método; Enter cobra y Escape cierra. El botón dice el monto
+    («Cobrar Bs 44.00») y queda siempre a la vista en la laptop de 1366×768 (antes había que desplazarse para confirmar).
+  - **Comprobante**: «Entrega de vuelto» en grande, comanda y pagos; «Nueva venta» queda enfocado.
+  - **Ticket**: cuenta productos (no líneas), botón «Cobrar Bs X», «Editar» con texto, botones de cantidad más grandes,
+    opciones en etiquetas neutras (el tamaño en morado) y aviso de error legible si la venta no se guarda.
+  - **Caja**: el turno en una frase («Tu turno» o «Turno de Cajero Test», abierto desde las 13:45), acciones con nombre
+    («Anotar merma», «Registrar gasto o ingreso», «Cerrar caja» en maracuyá), historial con período en control
+    segmentado, horas en 24 h y estados con icono. «Registrar gasto o ingreso» y «Abrir caja» usan las ventanas de Finanzas
+    (las mismas de «Anotar merma»); la de gastos ya no sale siempre en oscuro.
+  - **Cierre de caja**: título «Cerrar caja» con el dueño del turno (antes mostraba al usuario conectado aunque fuera un
+    admin cerrando el turno de un cajero), pasos numerados del 1 al 4, diferencia con veredicto («La caja cuadra», «Falta
+    dinero») y billetes con su color como franja.
+  - Menú lateral: **Vender** y **Caja** (antes «POS · Ventas» y «Caja / Turno»), con su propio icono: Vender, Caja y Menú
+    mostraban el mismo ⚙️ porque los nombres de icono no coincidían. Secciones sin mayúsculas, opción activa marcada, el
+    rol del cajero dice «Cajero» (antes «cashier») y el nombre usa dos líneas. Los botones de rendimiento y tema quedan solo
+    en la barra superior.
+  - Sin emojis como iconos en Vender, Caja, cobro, comprobante, opciones del producto, detalle de venta y cierre; sin
+    rótulos en mayúsculas; cifras tabulares. Productos sin foto (o con la foto perdida) muestran su inicial en vez de un
+    ícono roto.
+- `scripts/audit-contrast.cjs` usa los nombres nuevos del menú y del cobro.
 - Finanzas, todas las pestañas: título y encabezados de bloque más grandes, encabezados de tabla sin mayúsculas, cifras
   tabulares y botón principal en maracuyá como el resto del POS (antes açaí, que queda para «lo que te queda»). El Resumen
   ya no tiene las cuatro tarjetas de cifras ni la tarjeta «Para que el resultado sea real»: su contenido pasó al resultado
@@ -316,6 +345,12 @@ se renombra con la fecha de la actualización de producción.
 - `scripts/audit-contrast.cjs` recorre también las pestañas de Finanzas.
 
 ### Corregido
+- Cobro: se quitaron el buscador de clientes que no buscaba, la clienta de ejemplo («María Fernanda Rojas, VIP») escrita en
+  el código y la fila fija «Descuento VIP − Bs 0.00» del ticket. La venta se sigue registrando sin cliente.
+- Si una venta no se puede guardar, el cobro se cierra y el ticket queda intacto con un aviso para el cajero; antes quedaba
+  la ventana en «Procesando…» y se mostraba el error técnico completo.
+- Caja: un cajero ya no pide la lista de usuarios al entrar (403); el editor de ventas pasadas solo se monta para admins.
+- Indicador de red: «1 venta por enviar» (antes «🔄 1 pendientes»).
 - Sincronización: una venta que no pasaba la validación hacía fallar todo el lote (422) y frenaba la cola entera. Ahora se
   reenvía venta por venta y solo queda retenida la que falla. La cola de cocina sigue mostrando las ventas rechazadas.
 - Asistente de cierre: los botones deshabilitados («Continuar», «Confirmar cierre») se veían activos, había colores sin

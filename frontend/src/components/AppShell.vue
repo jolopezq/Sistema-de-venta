@@ -26,10 +26,28 @@ const userRole = computed(() => {
   const map = {
     super_admin: 'Super Admin',
     admin: 'Administrador',
+    cashier: 'Cajero',
     cajero: 'Cajero',
+    kitchen: 'Cocina',
   };
   return map[auth.user?.role] || auth.user?.role || '';
 });
+
+/**
+ * Iconos del menú (trazo de 24 px, sin librerías externas). Las claves son las que usa `navItems`:
+ * si se agrega una opción, se agrega aquí su icono (antes Vender, Caja y Menú caían en un ⚙️ genérico).
+ */
+const NAV_ICONS = {
+  cart: '<path d="M5.5 8h13l-1.2 12H6.7z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
+  cash: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5"/><path d="M18 9.5v5"/>',
+  delivery: '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+  catalog: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>',
+  inventory: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  retroactive: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M17 14l-4 4-2-2"/>',
+  finance: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  audit: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+};
 
 const navItems = computed(() => {
   const role = auth.user?.role;
@@ -41,8 +59,8 @@ const navItems = computed(() => {
     {
       label: 'Operación',
       items: [
-        { name: 'POS · Ventas', route: '/pos', show: !isKitchen, icon: 'cart' },
-        { name: 'Caja / Turno', route: '/turno', show: !isKitchen, icon: 'cash' },
+        { name: 'Vender', route: '/pos', show: !isKitchen, icon: 'cart' },
+        { name: 'Caja', route: '/turno', show: !isKitchen, icon: 'cash' },
         { name: 'Delivery', route: '/delivery', always: true, icon: 'delivery' },
         { name: 'Menú', route: '/menu', show: isAdmin, icon: 'catalog' },
         { name: 'Inventario', route: '/inventario', show: isAdmin, icon: 'inventory', badge: reorder.count },
@@ -52,7 +70,7 @@ const navItems = computed(() => {
       label: 'Sistema',
       show: isAdmin,
       items: [
-        { name: 'Control Diario / Ventas', route: '/admin/ventas-retroactivas', show: isAdmin, icon: 'retroactive' },
+        { name: 'Control diario', route: '/admin/ventas-retroactivas', show: isAdmin, icon: 'retroactive' },
         { name: 'Finanzas', route: '/finanzas', show: isSuperAdmin, icon: 'finance' },
         { name: 'Usuarios', route: '/users', show: isSuperAdmin, icon: 'users' },
         { name: 'Auditoría', route: '/audit-logs', show: isSuperAdmin, icon: 'audit' },
@@ -85,72 +103,18 @@ async function handleLogout() {
       <nav class="oh-nav">
         <template v-for="section in navItems" :key="section.label">
           <template v-if="section.show !== false">
-            <div class="oh-nav-label">{{ section.label }}</div>
+            <div class="oh-nav-label" role="presentation">{{ section.label }}</div>
             <template v-for="item in section.items" :key="item.route">
               <a
                 v-if="item.always || item.show !== false"
                 :class="{ active: isActive(item.route) }"
+                :aria-current="isActive(item.route) ? 'page' : undefined"
+                :title="item.name"
+                :href="item.route"
                 @click.prevent="router.push(item.route)"
-                href="#"
               >
-                <!-- ICONOS SVG EN LÍNEA PARA NO DEPENDER DE LIBRERÍAS EXTERNAS -->
-                <svg v-if="item.icon === 'pos'" class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
-                  <rect x="9" y="9" width="6" height="6"></rect>
-                  <line x1="9" y1="1" x2="9" y2="4"></line>
-                  <line x1="15" y1="1" x2="15" y2="4"></line>
-                  <line x1="9" y1="20" x2="9" y2="23"></line>
-                  <line x1="15" y1="20" x2="15" y2="23"></line>
-                  <line x1="20" y1="9" x2="23" y2="9"></line>
-                  <line x1="20" y1="14" x2="23" y2="14"></line>
-                  <line x1="1" y1="9" x2="4" y2="9"></line>
-                  <line x1="1" y1="14" x2="4" y2="14"></line>
-                </svg>
-                <svg v-else-if="item.icon === 'turno'" class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-                <svg v-else-if="item.icon === 'delivery'" class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="1" y="3" width="15" height="13"></rect>
-                  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-                  <circle cx="5.5" cy="18.5" r="2.5"></circle>
-                  <circle cx="18.5" cy="18.5" r="2.5"></circle>
-                </svg>
-                <svg v-else-if="item.icon === 'menu'" class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 3h18v18H3z"></path>
-                  <path d="M3 9h18"></path>
-                  <path d="M9 21V9"></path>
-                </svg>
-                <svg v-else-if="item.icon === 'inventory'" class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                </svg>
-                <svg v-else-if="item.icon === 'users'" class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="9" cy="7" r="4"></circle>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
-                <svg v-else-if="item.icon === 'audit'" class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-                <svg v-else-if="item.icon === 'retroactive'" class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="16" y1="2" x2="16" y2="6"></line>
-                  <line x1="8" y1="2" x2="8" y2="6"></line>
-                  <line x1="3" y1="10" x2="21" y2="10"></line>
-                  <path d="M17 14l-4 4-2-2"></path>
-                </svg>
-                <svg v-else-if="item.icon === 'finance'" class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="1" x2="12" y2="23"></line>
-                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg>
-                <span v-else class="menu-icon-emoji">⚙️</span>
+                <!-- eslint-disable-next-line vue/no-v-html -- iconos fijos definidos arriba, sin datos del usuario -->
+                <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="NAV_ICONS[item.icon] || NAV_ICONS.catalog"></svg>
                 <span>{{ item.name }}</span>
                 <b v-if="item.badge" class="nav-badge" :title="`${item.badge} por reponer en Inventario`" :aria-label="`${item.badge} por reponer`">{{ item.badge > 99 ? '99+' : item.badge }}</b>
               </a>
@@ -163,39 +127,11 @@ async function handleLogout() {
       <div class="oh-sidebar-foot">
         <div class="oh-avatar-sm">{{ userInitials }}</div>
         <div class="oh-sidebar-foot-info">
-          <div class="name">{{ auth.user?.name || 'Usuario' }}</div>
+          <div class="name" :title="auth.user?.name">{{ auth.user?.name || 'Usuario' }}</div>
           <div class="role">{{ userRole }}</div>
         </div>
-        <!-- Performance Toggle Button -->
-        <button 
-          class="oh-perf-btn" 
-          :class="{ active: theme.isPerfLite }" 
-          @click="theme.togglePerfLite()" 
-          :title="theme.isPerfLite ? 'Modo Alto Rendimiento Activo (Optimizado para Toshiba A10)' : 'Cambiar a Modo Alto Rendimiento'"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-          </svg>
-        </button>
-
-        <button class="oh-theme-btn" @click="theme.toggleTheme()" title="Cambiar tema">
-          <svg v-if="theme.isDark" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-          </svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-        </button>
-        <button class="oh-logout-btn" @click="handleLogout" title="Cerrar sesión">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button class="oh-logout-btn" type="button" @click="handleLogout" title="Cerrar sesión" aria-label="Cerrar sesión">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
             <polyline points="16 17 21 12 16 7"/>
             <line x1="21" y1="12" x2="9" y2="12"/>
@@ -209,22 +145,31 @@ async function handleLogout() {
       <!-- Top bar: title + network indicator -->
       <div class="oh-shell-topbar">
         <div class="topbar-actions">
-          <button 
-            class="oh-perf-btn-top" 
-            :class="{ active: theme.isPerfLite }" 
-            @click="theme.togglePerfLite()" 
-            :title="theme.isPerfLite ? 'Modo Rendimiento Ligero Activado (60 FPS)' : 'Activar Modo Rendimiento Ligero'"
+          <button
+            type="button"
+            class="oh-perf-btn-top"
+            :class="{ active: theme.isPerfLite }"
+            :aria-pressed="theme.isPerfLite"
+            aria-label="Modo liviano para equipos lentos"
+            @click="theme.togglePerfLite()"
+            :title="theme.isPerfLite ? 'Modo liviano activo: sin desenfoques ni sombras pesadas' : 'Activar el modo liviano para equipos lentos'"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
             </svg>
             <span class="perf-tag" v-if="theme.isPerfLite">60 FPS</span>
           </button>
-          <button class="oh-theme-btn-top" @click="theme.toggleTheme()" title="Cambiar tema">
-            <svg v-if="theme.isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button
+            type="button"
+            class="oh-theme-btn-top"
+            :aria-label="theme.isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+            :title="theme.isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+            @click="theme.toggleTheme()"
+          >
+            <svg v-if="theme.isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
             </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="12" cy="12" r="5"></circle>
               <line x1="12" y1="1" x2="12" y2="3"></line>
               <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -336,17 +281,18 @@ async function handleLogout() {
   text-align: center;
 }
 .oh-nav a:hover { background: rgba(255,255,255,0.07); color: #fff; }
-.oh-nav a.active { background: rgba(255,255,255,0.12); color: #fff; }
+/* Opción activa: fondo más claro y una marca maracuyá a la izquierda (el color no va solo: también cambia el peso) */
+.oh-nav a.active { background: rgba(255,255,255,0.12); color: #fff; font-weight: 600; box-shadow: inset 3px 0 0 var(--passion-500); }
 .oh-nav a.active svg { opacity: 1; }
+.oh-nav a:focus-visible { outline: 2px solid var(--passion-400); outline-offset: 1px; }
 
 .oh-nav-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1.3px;
-  color: #9E7FA2;
-  margin: 8px 0 2px 10px;
-  font-weight: 600;
+  font-size: 12px;
+  color: #B79DBB;
+  margin: 10px 0 2px 10px;
+  font-weight: 500;
 }
+.oh-nav-label:first-child { margin-top: 0; }
 
 /* Footer */
 .oh-sidebar-foot {
@@ -371,12 +317,16 @@ async function handleLogout() {
   flex-shrink: 0;
 }
 .oh-sidebar-foot-info { flex: 1; min-width: 0; }
-.oh-sidebar-foot-info .name { font-size: 12.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.oh-sidebar-foot-info .role { font-size: 10.5px; color: #C8AECC; }
+/* El nombre ocupa hasta dos líneas antes de cortarse («Super Admin Dueño» no cabe en una) */
+.oh-sidebar-foot-info .name {
+  font-size: 12.5px; font-weight: 600; color: #fff; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+}
+.oh-sidebar-foot-info .role { font-size: 11px; color: #C8AECC; }
 
-.oh-logout-btn, .oh-theme-btn, .oh-perf-btn {
-  width: 28px;
-  height: 28px;
+.oh-logout-btn {
+  width: 32px;
+  height: 32px;
   border: none;
   background: rgba(255,255,255,0.08);
   border-radius: 6px;
@@ -388,9 +338,9 @@ async function handleLogout() {
   flex-shrink: 0;
   transition: background .15s ease, color .15s ease;
 }
-.oh-logout-btn:hover, .oh-theme-btn:hover, .oh-perf-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
-.oh-logout-btn svg, .oh-theme-btn svg, .oh-perf-btn svg { width: 14px; height: 14px; }
-.oh-perf-btn.active { background: rgba(251, 120, 16, 0.25); color: #FF9640; }
+.oh-logout-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+.oh-logout-btn:focus-visible { outline: 2px solid var(--passion-400); outline-offset: 1px; }
+.oh-logout-btn svg { width: 15px; height: 15px; }
 
 /* ---- MAIN ---- */
 .oh-shell-main {
@@ -433,6 +383,7 @@ async function handleLogout() {
   transition: all .15s ease;
 }
 .oh-theme-btn-top { width: 32px; padding: 0; }
+.oh-theme-btn-top:focus-visible, .oh-perf-btn-top:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
 .oh-theme-btn-top:hover, .oh-perf-btn-top:hover {
   background: var(--border-local);
   color: var(--ink-900);
@@ -468,12 +419,12 @@ async function handleLogout() {
     gap: 8px;
   }
   .oh-nav a svg { width: 14px; height: 14px; }
-  .oh-nav-label { font-size: 9px; margin: 4px 0 2px 6px; }
+  .oh-nav-label { font-size: 11.5px; margin: 6px 0 2px 8px; }
   .oh-avatar-sm { width: 24px; height: 24px; font-size: 10px; }
   .oh-sidebar-foot-info .name { font-size: 11.5px; }
-  .oh-sidebar-foot-info .role { font-size: 9.5px; }
+  .oh-sidebar-foot-info .role { font-size: 10.5px; }
   .oh-sidebar-foot { padding: 8px 6px; gap: 6px; }
-  .oh-logout-btn, .oh-theme-btn, .oh-perf-btn { width: 24px; height: 24px; }
+  .oh-logout-btn { width: 28px; height: 28px; }
   .oh-shell-topbar { min-height: 38px; padding: 6px 14px; }
   .oh-theme-btn-top, .oh-perf-btn-top { height: 28px; }
 }

@@ -118,15 +118,6 @@ const isCompactModal = computed(() => {
   return multiCount === 0 && (singleCount <= 2 || totalOptions <= 4);
 });
 
-const getGroupIcon = (name) => {
-  const lower = (name || '').toLowerCase();
-  if (lower.includes('tamaño') || lower.includes('size')) return '🥣';
-  if (lower.includes('fruta')) return '🍓';
-  if (lower.includes('topping')) return '🍫';
-  if (lower.includes('salsa') || lower.includes('sirope')) return '🍯';
-  return '✨';
-};
-
 const handleSingleSelect = (og, opt) => {
   const currentList = selections.value[og.id] || [];
   if (currentList.includes(opt.id)) {
@@ -197,7 +188,7 @@ const isValid = computed(() => {
 
 const confirmButtonText = computed(() => {
   if (isEditMode.value) {
-    return '✅ Actualizar en Carrito';
+    return 'Guardar cambios';
   }
   if (!isValid.value && filteredGroups.value) {
     for (const og of filteredGroups.value) {
@@ -205,16 +196,16 @@ const confirmButtonText = computed(() => {
       const count = getGroupSelectedCount(og.id);
       if (count < minReq) {
         if ((og.name || '').toLowerCase().includes('tamaño') || (og.name || '').toLowerCase().includes('size')) {
-          return '🥣 Elige un tamaño';
+          return 'Elige un tamaño';
         }
         if ((og.name || '').toLowerCase().includes('fruta')) {
-          return '🍓 Elige al menos 1 fruta';
+          return 'Elige al menos una fruta';
         }
-        return `⚠️ Elige ${og.name}`;
+        return `Elige ${(og.name || '').toLowerCase()}`;
       }
     }
   }
-  return 'Agregar al Carrito';
+  return 'Agregar al pedido';
 });
 
 const extrasPrice = computed(() => {
@@ -314,11 +305,10 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
       <div class="modal-header" :class="{ 'header-edit-mode': isEditMode }">
         <div class="header-left">
           <h3>
-            <span v-if="isEditMode" class="edit-mode-prefix">✏️ Editando: </span>{{ product?.name }}
+            <span v-if="isEditMode" class="edit-mode-prefix">Editar: </span>{{ product?.name }}
           </h3>
-          <span class="base-price-badge">{{ isPedidosYa ? '🛵 PedidosYa' : 'Base' }}: Bs {{ basePrice.toFixed(2) }}</span>
-          <span v-if="extrasPrice > 0" class="extras-badge">+Extras: Bs {{ extrasPrice.toFixed(2) }}</span>
-          <span v-if="isEditMode" class="edit-badge">Modo Edición</span>
+          <span class="base-price-badge">{{ isPedidosYa ? 'PedidosYa' : 'Base' }}: Bs {{ basePrice.toFixed(2) }}</span>
+          <span v-if="extrasPrice > 0" class="extras-badge">Extras: Bs {{ extrasPrice.toFixed(2) }}</span>
         </div>
         <div class="header-right">
           <div class="total-chip">
@@ -336,10 +326,9 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
         <div v-if="product?.is_weight_based" class="section-block weight-modal-block">
           <div class="section-header">
             <div class="title-with-icon">
-              <span class="group-icon">⚖️</span>
-              <span class="section-title">Peso del Producto</span>
+              <span class="section-title">Peso</span>
             </div>
-            <span class="section-badge badge-required">Venta por Peso</span>
+            <span class="section-badge badge-required">Por peso</span>
           </div>
 
           <div class="weight-config-row">
@@ -366,11 +355,10 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
         <div v-for="og in singleSelectGroups" :key="og.id" class="section-block size-block">
           <div class="section-header">
             <div class="title-with-icon">
-              <span class="group-icon">{{ getGroupIcon(og.name) }}</span>
               <span class="section-title">{{ og.name }}</span>
             </div>
             <span class="section-badge" :class="{ 'badge-required': og.min_selections > 0 }">
-              {{ og.min_selections > 0 ? 'Obligatorio' : 'Opcional (Elige 1)' }}
+              {{ og.min_selections > 0 ? 'Obligatorio' : 'Opcional, elige 1' }}
             </span>
             <span v-if="errorMessages[og.id]" class="error-inline">{{ errorMessages[og.id] }}</span>
           </div>
@@ -402,13 +390,12 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
         <div v-for="og in multiSelectGroups" :key="og.id" class="section-block">
           <div class="section-header">
             <div class="title-with-icon">
-              <span class="group-icon">{{ getGroupIcon(og.name) }}</span>
               <span class="section-title">{{ og.name }}</span>
             </div>
 
             <!-- Regla / Instrucción destacada -->
             <span class="rule-hint" :class="{ 'rule-hint--required': getMinRequired(og) > 0 }">
-              {{ getMinRequired(og) > 0 ? `Mín. ${getMinRequired(og)} • ` : '' }}Máx. {{ og.max_selections }}
+              {{ getMinRequired(og) > 0 ? `Elige de ${getMinRequired(og)} a ${og.max_selections}` : `Hasta ${og.max_selections}` }}
             </span>
 
             <!-- Contador dinámico interactivo -->
@@ -480,11 +467,11 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
         <div class="footer-left-group">
           <!-- Nota Especial -->
           <div class="footer-note-box">
-            <span class="footer-note-icon">📝</span>
             <input
               v-model="itemNote"
               type="text"
-              placeholder="Nota especial (ej. sin fresa, leche deslactosada...)"
+              placeholder="Nota para cocina: sin fresa, leche deslactosada…"
+              aria-label="Nota para cocina"
               class="footer-note-input"
             />
           </div>
@@ -498,8 +485,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
               @click="isTakeaway = false"
               title="Consumir en mesa / local"
             >
-              <span class="segment-icon">🍽️</span>
-              <span class="segment-text">Para mesa</span>
+              <span class="segment-text">En mesa</span>
               <span class="segment-check" v-if="!isTakeaway">✓</span>
             </button>
             <button
@@ -509,7 +495,6 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
               @click="isTakeaway = true"
               title="Empacar para llevar"
             >
-              <span class="segment-icon">🛍️</span>
               <span class="segment-text">Para llevar</span>
               <span class="segment-check" v-if="isTakeaway">✓</span>
             </button>
@@ -517,7 +502,8 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
         </div>
 
         <button class="btn-confirm" :class="{ 'btn-confirm--edit': isEditMode }" :disabled="!isValid" @click="handleConfirm">
-          {{ confirmButtonText }} • Bs {{ product?.is_weight_based ? totalPrice.toFixed(0) : totalPrice.toFixed(2) }}
+          <span>{{ confirmButtonText }}</span>
+          <span class="btn-confirm-price">Bs {{ product?.is_weight_based ? totalPrice.toFixed(0) : totalPrice.toFixed(2) }}</span>
         </button>
       </div>
 
@@ -611,7 +597,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   box-shadow: 0 2px 8px rgba(32, 17, 47, 0.35);
   transition: transform 0.2s;
 }
-.total-label { font-size: 11px; color: rgba(255,255,255,0.75); font-weight: 700; text-transform: uppercase; }
+.total-label { font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 600; }
 .total-value { font-size: 15px; font-weight: 900; color: #ffffff; }
 .close-btn {
   background: var(--surface-hover);
@@ -660,11 +646,10 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   font-size: 15px;
 }
 .section-title {
-  font-size: 13px;
-  font-weight: 800;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
   color: var(--ink-900);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .rule-hint {
   font-size: 11px;
@@ -714,8 +699,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
   color: white;
   padding: 1px 6px;
   border-radius: 8px;
-  font-size: 9px;
-  text-transform: uppercase;
+  font-size: 11px;
   margin-left: 4px;
 }
 
@@ -1252,7 +1236,10 @@ html.dark .chip-indicator {
   box-shadow: 0 3px 10px rgba(230, 78, 57, 0.25);
   white-space: nowrap;
   flex-shrink: 0;
+  gap: 14px;
 }
+.btn-confirm-price { font-variant-numeric: tabular-nums; }
+.btn-confirm:focus-visible { outline: 3px solid var(--acai-500); outline-offset: 2px; }
 
 html.dark .footer-note-box {
   background: #251c33;
@@ -1412,7 +1399,7 @@ html.dark .dest-segment-btn--takeaway.active {
   background: linear-gradient(to right, #eff6ff, transparent);
 }
 .edit-mode-prefix {
-  color: #2563eb;
+  color: var(--acai-text);
   font-size: 0.9em;
 }
 .edit-badge {

@@ -53,14 +53,37 @@ function goOpenTurno() {
   router.push({ path: '/turno', query: { abrir: '1' } });
 }
 
+// Búsqueda por nombre o descripción, sin distinguir tildes ni mayúsculas («acai» encuentra «Açaí»)
+const search = ref('');
+const normalize = (text) => String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+const searchTerm = computed(() => normalize(search.value));
+
+function clearSearch() {
+  search.value = '';
+}
+
+function selectCategory(id) {
+  activeCategoryId.value = id;
+  // Al elegir una categoría se deja de buscar: lo que se ve es esa categoría completa
+  search.value = '';
+}
+
 const filteredProducts = computed(() => {
   // En modo PedidosYa solo se ofrecen los productos marcados como disponibles en la plataforma
   const channelProducts = cart.channel === CHANNEL_PEDIDOSYA
     ? catalog.products.filter(isAvailableOnPedidosYa)
     : catalog.products;
+  // Al buscar se busca en todo el catálogo, no solo en la categoría elegida
+  if (searchTerm.value) {
+    return channelProducts.filter((p) => normalize(`${p.name} ${p.description || ''}`).includes(searchTerm.value));
+  }
   if (activeCategoryId.value === null) return channelProducts;
   return channelProducts.filter(p => p.category_id === activeCategoryId.value);
 });
+
+/** Unidades en el ticket (dos capuchinos cuentan 2; un producto por peso cuenta 1). */
+const ticketUnits = computed(() => cart.items.reduce((n, i) => n + (i.is_weight_based ? 1 : Number(i.quantity) || 0), 0));
+const formatMoney = (n) => `Bs ${Number(n || 0).toFixed(2)}`;
 
 const showModifierModal = ref(false);
 const selectedProduct = ref(null);
@@ -200,7 +223,8 @@ const completedSale = ref(null);
 const posErrorMessage = ref(null);
 
 function handleCheckout() {
-  if (turno.sellBlocked) return;
+  if (turno.sellBlocked || cart.items.length === 0) return;
+  posErrorMessage.value = null;
   showCheckout.value = true;
 }
 
@@ -235,11 +259,15 @@ async function handleConfirmCheckout(checkoutData) {
         // no-op
       }
     } else {
-      posErrorMessage.value = "Error: cart.checkout devolvió null";
+      showCheckout.value = false;
+      posErrorMessage.value = 'El equipo no devolvió la venta guardada.';
     }
   } catch (err) {
+    // El detalle técnico queda en la consola; al cajero se le dice qué pasó y qué hacer.
+    // Se cierra el cobro para que vea el aviso junto al ticket, que sigue intacto.
     console.error(err);
-    posErrorMessage.value = err.message + "\n" + err.stack;
+    showCheckout.value = false;
+    posErrorMessage.value = err?.message || 'Error desconocido.';
   }
 }
 
@@ -340,47 +368,64 @@ function confirmClearCart() {
 
 <template>
   <div class="pos-layout">
-    <!-- Body -->
     <div class="pos-body">
-      <!-- Catalog -->
+      <!-- Catálogo -->
       <div class="pos-catalog">
-        <div v-if="catalog.errorMessage" style="background:var(--danger-100);color:var(--danger-600);padding:12px 16px;border-radius:10px;margin-bottom:14px;font-weight:600;">
-          ⚠️ {{ catalog.errorMessage }}
+        <div v-if="catalog.errorMessage" class="pos-alert" role="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5" /><path d="M12 16.5v.5" /></svg>
+          {{ catalog.errorMessage }}
         </div>
 
         <div class="search-row">
-          <input class="search-input" placeholder="🔍 Buscar producto por nombre..." />
+          <label class="pos-search">
+            <span class="sr-only">Buscar producto</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            <input
+              v-model="search"
+              class="search-input"
+              type="search"
+              placeholder="Buscar producto"
+              autocomplete="off"
+              @keydown.esc="clearSearch"
+            />
+            <button v-if="search" class="pos-search-clear" type="button" aria-label="Borrar la búsqueda" @click="clearSearch">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+          </label>
         </div>
 
         <CategoryFilter
           :categories="catalog.categories"
-          :activeCategoryId="activeCategoryId"
-          @select="activeCategoryId = $event"
+          :activeCategoryId="searchTerm ? undefined : activeCategoryId"
+          @select="selectCategory"
         />
 
+        <p v-if="searchTerm" class="pos-search-result" role="status">
+          {{ filteredProducts.length === 1 ? '1 producto' : `${filteredProducts.length} productos` }} con «{{ search.trim() }}» en todo el menú
+        </p>
+
         <div class="product-grid">
-          <ProductCard 
-            v-for="p in filteredProducts" 
-            :key="p.id" 
+          <ProductCard
+            v-for="p in filteredProducts"
+            :key="p.id"
             :product="p"
             :disabled="!isProductAvailable(p)"
             :low-stock="hasLowStock(p)"
             :channel="cart.channel"
-            @add="handleAddToCart(p)" 
+            @add="handleAddToCart(p)"
           />
-          <div v-if="filteredProducts.length === 0" style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--ink-500);font-weight:600;">
-            {{ isPedidosYa ? 'No hay productos disponibles en PedidosYa.' : 'No hay productos disponibles.' }}
+          <div v-if="filteredProducts.length === 0" class="pos-empty-grid">
+            <template v-if="searchTerm">
+              Ningún producto se llama así.
+              <button type="button" class="pos-link" @click="clearSearch">Ver todo el menú</button>
+            </template>
+            <template v-else>{{ isPedidosYa ? 'No hay productos disponibles en PedidosYa.' : 'No hay productos disponibles.' }}</template>
           </div>
         </div>
       </div>
 
       <!-- Ticket -->
       <div class="pos-ticket" :class="{ 'pos-ticket--pedidosya': isPedidosYa }">
-        <div v-if="posErrorMessage" style="background:#fee2e2;color:#991b1b;padding:12px;margin:10px;border-radius:6px;font-family:monospace;white-space:pre-wrap;font-size:12px;user-select:text;border:1px solid #ef4444;">
-          <strong>Error de Sistema:</strong><br/>
-          {{ posErrorMessage }}
-        </div>
-
         <!-- Selector de canal -->
         <div class="channel-switch" role="radiogroup" aria-label="Canal de venta">
           <button
@@ -390,7 +435,7 @@ function confirmClearCart() {
             :class="{ active: !isPedidosYa }"
             :aria-checked="!isPedidosYa"
             @click="requestChannel('pos')"
-          >🏪 Local</button>
+          >Local</button>
           <button
             type="button"
             role="radio"
@@ -398,29 +443,27 @@ function confirmClearCart() {
             :class="{ active: isPedidosYa }"
             :aria-checked="isPedidosYa"
             @click="requestChannel('pedidosya')"
-          >🛵 PedidosYa</button>
+          >PedidosYa</button>
         </div>
         <div v-if="isPedidosYa" class="pya-banner" role="status">
-          <strong>Pedido PedidosYa</strong>: precios de plataforma. No entra al arqueo de caja.
+          Pedido de PedidosYa: precios de la plataforma. No entra al arqueo de caja.
           <div v-if="itemsWithoutDeliveryPrice.length" class="pya-banner-warn">
-            ⚠️ Sin precio PedidosYa (se cobra el precio local): {{ itemsWithoutDeliveryPrice.join(', ') }}
+            Sin precio PedidosYa, se cobra el precio local: {{ itemsWithoutDeliveryPrice.join(', ') }}
           </div>
         </div>
 
         <div class="ticket-header">
           <div class="ticket-header-title">
-            <h3>Ticket actual</h3>
-            <span v-if="cart.items.length > 0" class="ticket-count-badge">{{ cart.items.length }}</span>
+            <h3>Ticket</h3>
+            <span v-if="ticketUnits > 0" class="ticket-count">{{ ticketUnits === 1 ? '1 producto' : `${ticketUnits} productos` }}</span>
           </div>
           <button
             v-if="cart.items.length > 0"
             type="button"
             class="btn-clear-ticket"
-            title="Vaciar ticket completo"
             @click="handleClearCart"
           >
-            <span class="clear-icon">✕</span>
-            <span class="clear-label">Limpiar</span>
+            Vaciar
           </button>
         </div>
 
@@ -436,45 +479,48 @@ function confirmClearCart() {
             @edit="handleEditCartItem"
             @toggle-takeaway="handleToggleTakeaway"
           />
-          <div v-if="cart.items.length === 0" style="text-align:center;padding:3rem 1rem;color:var(--ink-500);font-weight:600;font-size:14px;">
-            El carrito está vacío
-          </div>
+          <p v-if="cart.items.length === 0" class="ticket-empty">
+            Toca un producto para empezar el pedido.
+          </p>
+        </div>
+
+        <div v-if="posErrorMessage" class="pos-sale-error" role="alert">
+          <strong>No se pudo guardar la venta.</strong>
+          El ticket sigue aquí: revísalo y vuelve a cobrar. Si se repite, avisa al administrador.
+          <span class="pos-sale-error-detail">Detalle: {{ posErrorMessage }}</span>
         </div>
 
         <div class="ticket-summary">
-          <div class="sum-row">
-            <span>Subtotal</span>
-            <span>Bs {{ Number(cart.subtotal).toFixed(2) }}</span>
-          </div>
-          <div class="sum-row" v-if="!isPedidosYa">
-            <span>Descuento VIP</span>
-            <span>− Bs 0.00</span>
-          </div>
           <div class="sum-row total">
             <span>Total</span>
-            <span class="amt">Bs {{ Number(cart.total).toFixed(2) }}</span>
+            <span class="amt">{{ formatMoney(cart.total) }}</span>
           </div>
         </div>
 
         <div class="ticket-footer">
           <template v-if="turno.sellBlocked">
             <p class="turno-required" role="status">
-              No hay un turno abierto. Ábrelo para cobrar: así cada venta entra al arqueo de su caja.
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              <span>No hay turno abierto. Abre la caja para cobrar: así cada venta entra al arqueo.</span>
             </p>
             <button class="btn btn-primary" type="button" @click="goOpenTurno">
-              Abrir turno
+              Abrir caja
             </button>
           </template>
           <template v-else>
             <p v-if="sessionUnknownOffline" class="turno-required unknown" role="status">
-              Sin conexión no se pudo comprobar el turno. Si no está abierto, ábrelo apenas vuelva la conexión.
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6" /><path d="M12 16.5v.5" /></svg>
+              <span>Sin conexión no se pudo comprobar el turno. Puedes cobrar; si no está abierto, ábrelo apenas vuelva la conexión.</span>
             </p>
             <button
-              class="btn btn-success"
+              class="btn btn-primary btn-charge"
+              type="button"
               :disabled="cart.items.length === 0"
               @click="handleCheckout"
             >
-              {{ isPedidosYa ? 'Registrar pedido PedidosYa' : 'Cobrar venta' }}
+              <template v-if="cart.items.length === 0">Cobrar</template>
+              <template v-else-if="isPedidosYa">Registrar pedido de {{ formatMoney(cart.total) }}</template>
+              <template v-else>Cobrar {{ formatMoney(cart.total) }}</template>
             </button>
           </template>
         </div>
@@ -488,7 +534,7 @@ function confirmClearCart() {
       :destinationDefault="cart.orderDestinationSummary"
       :takeawayCount="cart.takeawayItemsCount"
       :dineInCount="cart.dineInItemsCount"
-      :itemsCount="cart.items.length"
+      :itemsCount="ticketUnits"
       :channel="cart.channel"
       @close="showCheckout = false"
       @confirm="handleConfirmCheckout"
@@ -520,13 +566,13 @@ function confirmClearCart() {
       v-if="pendingChannel"
       class="clear-modal-backdrop"
       @click.self="pendingChannel = null"
+      @keydown.esc="pendingChannel = null"
     >
-      <div class="clear-modal-card">
-        <div class="clear-modal-icon">{{ pendingChannel === 'pedidosya' ? '🛵' : '🏪' }}</div>
-        <h3 class="clear-modal-title">¿Cambiar a {{ pendingChannel === 'pedidosya' ? 'PedidosYa' : 'venta Local' }}?</h3>
+      <div class="clear-modal-card" role="alertdialog" aria-modal="true" aria-labelledby="pos-channel-title">
+        <h3 id="pos-channel-title" class="clear-modal-title">¿Cambiar a {{ pendingChannel === 'pedidosya' ? 'PedidosYa' : 'venta local' }}?</h3>
         <p class="clear-modal-desc">
-          Los precios cambian según el canal. Se vaciará el ticket actual
-          (<strong>{{ cart.items.length }} {{ cart.items.length === 1 ? 'producto' : 'productos' }}</strong>) para no mezclar precios.
+          Los precios cambian según el canal. Se vaciará el ticket
+          (<strong>{{ ticketUnits === 1 ? '1 producto' : `${ticketUnits} productos` }}</strong>) para no mezclar precios.
         </p>
         <div class="clear-modal-actions">
           <button type="button" class="btn-modal-cancel" @click="pendingChannel = null">No, mantener</button>
@@ -535,35 +581,21 @@ function confirmClearCart() {
       </div>
     </div>
 
-    <!-- Modal de Confirmación Estilizado para Vaciar Ticket -->
+    <!-- Confirmación para vaciar el ticket -->
     <div
       v-if="showClearConfirmModal"
       class="clear-modal-backdrop"
       @click.self="showClearConfirmModal = false"
+      @keydown.esc="showClearConfirmModal = false"
     >
-      <div class="clear-modal-card">
-        <div class="clear-modal-icon">
-          🗑️
-        </div>
-        <h3 class="clear-modal-title">¿Vaciar el ticket actual?</h3>
+      <div class="clear-modal-card" role="alertdialog" aria-modal="true" aria-labelledby="pos-clear-title">
+        <h3 id="pos-clear-title" class="clear-modal-title">¿Vaciar el ticket?</h3>
         <p class="clear-modal-desc">
-          Se eliminarán los <strong>{{ cart.items.length }} {{ cart.items.length === 1 ? 'producto' : 'productos' }}</strong> agregados al pedido por un total de <strong>Bs {{ Number(cart.total).toFixed(2) }}</strong>.
+          Se quitan <strong>{{ ticketUnits === 1 ? '1 producto' : `${ticketUnits} productos` }}</strong> por un total de <strong>{{ formatMoney(cart.total) }}</strong>.
         </p>
         <div class="clear-modal-actions">
-          <button
-            type="button"
-            class="btn-modal-cancel"
-            @click="showClearConfirmModal = false"
-          >
-            No, mantener
-          </button>
-          <button
-            type="button"
-            class="btn-modal-delete"
-            @click="confirmClearCart"
-          >
-            🗑️ Sí, vaciar ticket
-          </button>
+          <button type="button" class="btn-modal-cancel" @click="showClearConfirmModal = false">No, mantener</button>
+          <button type="button" class="btn-modal-delete" @click="confirmClearCart">Vaciar ticket</button>
         </div>
       </div>
     </div>
@@ -571,12 +603,9 @@ function confirmClearCart() {
 </template>
 
 <style scoped>
-/* 
-  All classes (.pos-header, .pos-brand, .pos-body, .pos-catalog, .pos-ticket,
-  .ticket-header, .ticket-items, .ticket-summary, .ticket-footer, .sum-row,
-  .product-grid, .search-row, .search-input, .size-legend, .size-chip, 
-  .sync-pill, .cashier-chip, .logo-chip, .avatar)
-  are defined in the global style.css extracted exactly from the prototype.
+/*
+  Las clases de la grilla y del ticket (.pos-body, .pos-catalog, .pos-ticket, .ticket-*, .product-grid,
+  .search-row, .search-input, .sum-row) son globales en style.css; aquí va lo propio de la pantalla de venta.
 */
 .pos-layout {
   display: flex;
@@ -587,6 +616,73 @@ function confirmClearCart() {
   background: var(--cream-100);
 }
 
+.pos-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--danger-100);
+  color: var(--danger-text);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.pos-alert svg { width: 17px; height: 17px; flex-shrink: 0; }
+
+/* Buscador con icono dibujado (no emoji) y botón para borrar */
+.pos-search { position: relative; flex: 1; display: flex; align-items: center; }
+.pos-search > svg {
+  position: absolute;
+  left: 13px;
+  width: 17px;
+  height: 17px;
+  color: var(--ink-500);
+  pointer-events: none;
+}
+.pos-search .search-input { padding-left: 38px; padding-right: 40px; width: 100%; color: var(--ink-900); }
+.pos-search .search-input::-webkit-search-cancel-button { display: none; }
+.pos-search-clear {
+  position: absolute;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-500);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pos-search-clear:hover { background: var(--cream-200); color: var(--ink-900); }
+.pos-search-clear svg { width: 15px; height: 15px; }
+.pos-search-result { margin: -4px 0 10px; font-size: 13px; color: var(--ink-500); }
+.pos-empty-grid {
+  grid-column: 1 / -1;
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--ink-500);
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.pos-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--acai-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* Canal de venta */
 .channel-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -599,8 +695,8 @@ function confirmClearCart() {
   border: 1.5px solid var(--border);
   background: var(--surface);
   color: var(--ink-700);
-  font-family: inherit;
-  font-size: 14px;
+  font-family: var(--font-heading);
+  font-size: 14.5px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -609,13 +705,14 @@ function confirmClearCart() {
   background: var(--acai-700);
   color: #fff;
 }
+/* PedidosYa conserva el rojo de la plataforma para que no se confunda con una venta del local */
 .channel-btn--pya.active {
   border-color: #C2003F;
   background: #C2003F;
   color: #fff;
 }
 .channel-btn:focus-visible {
-  outline: 2px solid var(--acai-700);
+  outline: 2px solid var(--acai-500);
   outline-offset: 2px;
 }
 .pya-banner {
@@ -648,201 +745,77 @@ html.dark .pya-banner {
 }
 .ticket-header-title {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
+  gap: 10px;
 }
 .ticket-header-title h3 {
   margin: 0;
-  font-size: 17px;
-  font-weight: 800;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--ink-900);
 }
-.ticket-count-badge {
-  background: #fee2e2;
-  color: #B91C1C;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 2px 7px;
-  border-radius: 99px;
+.ticket-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-500);
+  font-variant-numeric: tabular-nums;
 }
 .btn-clear-ticket {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: #fef2f2;
-  color: #B91C1C;
-  border: 1px solid #fecaca;
-  padding: 5px 10px;
+  background: transparent;
+  color: var(--ink-700);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
   border-radius: 8px;
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
-  line-height: 1;
 }
 .btn-clear-ticket:hover {
-  background: #fee2e2;
-  border-color: #f87171;
-  color: #b91c1c;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.15);
-}
-.btn-clear-ticket:active {
-  transform: translateY(0);
-}
-.clear-icon {
-  font-size: 12px;
-  font-weight: 900;
-}
-.clear-label {
-  font-size: 12px;
-}
-html.dark .ticket-count-badge {
   background: var(--danger-100);
-  color: var(--danger-600);
+  border-color: transparent;
+  color: var(--danger-text);
 }
-html.dark .btn-clear-ticket {
-  background: var(--danger-100);
-  color: var(--danger-600);
-  border-color: rgba(255, 107, 107, 0.35);
-}
-html.dark .btn-clear-ticket:hover {
-  background: #5c1c1c;
-  border-color: var(--danger-500);
-  color: #FFC4C4;
-}
+.btn-clear-ticket:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
 
-/* ── MODAL DE CONFIRMACIÓN CUSTOM (VACIAR TICKET) ── */
-.clear-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-  padding: 16px;
-  animation: modal-fade-in 0.2s ease-out;
-}
-
-.clear-modal-card {
-  background: var(--surface, #ffffff);
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 20px;
-  max-width: 400px;
-  width: 100%;
-  padding: 28px 24px 22px;
+.ticket-empty {
+  margin: 0;
+  padding: 3rem 1rem;
   text-align: center;
-  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
-  animation: card-pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.clear-modal-icon {
-  width: 58px;
-  height: 58px;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
-  color: #dc2626;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  margin: 0 auto 16px;
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
-}
-
-.clear-modal-title {
-  margin: 0 0 8px;
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--ink-900, #0f172a);
-  font-family: 'Baloo 2', sans-serif;
-  letter-spacing: -0.01em;
-}
-
-.clear-modal-desc {
-  font-size: 13.5px;
-  color: var(--ink-600, #475569);
+  color: var(--ink-500);
+  font-size: 14px;
   line-height: 1.5;
-  margin: 0 0 24px;
 }
 
-.clear-modal-desc strong {
-  color: var(--ink-900, #0f172a);
-  font-weight: 700;
-}
+.ticket-summary .sum-row.total { margin: 0; align-items: baseline; }
+.ticket-summary .sum-row.total .amt { font-size: 22px; font-variant-numeric: tabular-nums; }
 
-.clear-modal-actions {
-  display: flex;
-  gap: 10px;
+/* El botón de cobro lleva el monto: lo que dice es exactamente lo que se cobra */
+.btn-charge { font-variant-numeric: tabular-nums; }
+.ticket-footer .btn-charge:disabled {
+  background: var(--cream-200);
+  color: var(--ink-500);
+  cursor: not-allowed;
 }
+.ticket-footer .btn:focus-visible { outline: 3px solid var(--acai-500); outline-offset: 2px; }
 
-.btn-modal-cancel {
-  flex: 1;
-  background: var(--surface-hover, #f1f5f9);
-  color: var(--ink-700, #334155);
-  border: 1px solid var(--border, #cbd5e1);
-  padding: 11px 16px;
-  border-radius: 12px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
+.pos-sale-error {
+  margin: 0 14px 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-100);
+  color: var(--danger-text);
+  font-size: 13px;
+  line-height: 1.45;
 }
+.pos-sale-error strong { display: block; }
+.pos-sale-error-detail { display: block; margin-top: 4px; font-size: 12px; opacity: .9; word-break: break-word; }
 
-.btn-modal-cancel:hover {
-  background: #e2e8f0;
-  color: var(--ink-900, #0f172a);
-  transform: translateY(-1px);
-}
-
-.btn-modal-delete {
-  flex: 1.2;
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: #ffffff;
-  border: none;
-  padding: 11px 18px;
-  border-radius: 12px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.btn-modal-delete:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.45);
-}
-
-.btn-modal-delete:active,
-.btn-modal-cancel:active {
-  transform: translateY(0);
-}
-
-@keyframes modal-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes card-pop-in {
-  from { opacity: 0; transform: scale(0.92) translateY(8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-/* Aviso de turno obligatorio sobre el botón de cobro */
+/* Aviso de turno obligatorio sobre el botón de cobro: icono y texto, el color no va solo */
 .turno-required {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   margin: 0 0 10px;
   padding: 10px 12px;
   border-radius: 10px;
@@ -850,10 +823,72 @@ html.dark .btn-clear-ticket:hover {
   color: var(--danger-text);
   font-size: 13px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.4;
 }
+.turno-required svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; }
 .turno-required.unknown {
   background: var(--gold-100);
   color: var(--gold-text);
 }
+
+/* ── Confirmaciones (vaciar ticket, cambiar de canal) ── */
+.clear-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(32, 17, 47, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 16px;
+}
+.clear-modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  max-width: 400px;
+  width: 100%;
+  padding: 22px 22px 18px;
+  box-shadow: var(--shadow-pop);
+}
+.clear-modal-title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+.clear-modal-desc {
+  font-size: 14px;
+  color: var(--ink-700);
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+.clear-modal-desc strong { color: var(--ink-900); font-weight: 700; }
+.clear-modal-actions { display: flex; gap: 10px; }
+.btn-modal-cancel,
+.btn-modal-delete {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-modal-cancel {
+  background: transparent;
+  color: var(--ink-900);
+  border: 1px solid var(--border);
+}
+.btn-modal-cancel:hover { background: var(--cream-200); }
+.btn-modal-delete {
+  background: var(--danger-600);
+  color: #FFFFFF;
+  border: none;
+}
+html.dark .btn-modal-delete { color: var(--on-accent); }
+.btn-modal-delete:hover { filter: brightness(1.06); }
+.btn-modal-cancel:focus-visible,
+.btn-modal-delete:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
 </style>

@@ -49,11 +49,11 @@ const AUDIT = () => {
   await page.waitForTimeout(1500); await snap('02_pos');
   const card = page.locator('.product-card, [class*="product-card"]').first();
   if (await card.count()) { await card.click(); await snap('03_pos_modal_producto');
-    const add = page.getByText('Agregar al Carrito', { exact: false }).first(); if (await add.count()) { await add.click(); }
+    const add = page.getByText('Agregar al pedido', { exact: false }).first(); if (await add.count()) { await add.click(); }
     await page.waitForTimeout(500); await snap('03b_pos_carrito');
-    const cobrar = page.getByText('Cobrar venta', { exact: false }).first(); if (await cobrar.count()) { await cobrar.click(); await snap('03c_checkout'); await page.mouse.click(874, 93); await page.waitForTimeout(600); }
+    const cobrar = page.locator('.btn-charge').first(); if (await cobrar.count() && await cobrar.isEnabled()) { await cobrar.click(); await snap('03c_checkout'); await page.keyboard.press('Escape'); await page.waitForTimeout(600); }
   }
-  for (const [n, label] of [['04_turno', 'Caja / Turno'], ['05_delivery', 'Delivery'], ['06_menu', 'Menú'], ['07_inventario', 'Inventario'], ['08_control_diario', 'Control Diario'], ['09_usuarios', 'Usuarios'], ['10_auditoria', 'Auditoría']]) {
+  for (const [n, label] of [['04_turno', 'Caja'], ['05_delivery', 'Delivery'], ['06_menu', 'Menú'], ['07_inventario', 'Inventario'], ['08_control_diario', 'Control diario'], ['09_usuarios', 'Usuarios'], ['10_auditoria', 'Auditoría']]) {
     try { await nav(label); await snap(n); } catch (e) { console.log('no se pudo abrir', n, e.message.slice(0,120)); }
   }
   // Finanzas (solo super_admin): cada pestaña
