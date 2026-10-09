@@ -184,6 +184,29 @@ se renombra con la fecha de la actualización de producción.
 - Finanzas → Punto de equilibrio: el costo real (compras del mes) frente al de las recetas se reparte en merma anotada,
   merma oculta y compras que siguen en stock y otros (`cost_gap`).
 - Migración `2026_10_12_000001_create_inventory_counts` (tablas nuevas y la columna `is_key`; no modifica datos).
+- Inventario (plan, F4): **punto de reorden y compras sugeridas**. Para cada insumo con stock el sistema calcula, con las
+  ventas reales (menos los reversos de anulaciones y ediciones), el consumo diario de los últimos 28 días con ventas, el
+  stock de seguridad (`1,65 × desvío × √días de entrega`; con menos de 28 días, días de seguridad × consumo), el punto de
+  reorden y la cantidad a pedir para cubrir los días objetivo, redondeada a unidades de compra (bolsa, caja) y al pedido
+  mínimo del proveedor, y limitada por la vida útil en los perecederos. Con 8 semanas de historia proyecta por día de la
+  semana. Estados: OK, Reordenar, Crítico, Agotado, Compra diaria, Sin datos y Sin control, más aviso de vencimiento.
+  `GET /api/inventory/reorder` y `/api/inventory/reorder/summary` (solo admin); las alertas se calculan al consultar, no
+  se guardan.
+- Arranque sin historial: mientras no hay 28 días de ventas se usa el consumo diario estimado por el dueño (o, con 3 a 27
+  días, el promedio de lo vendido) y el stock mínimo hace de punto de reorden manual (nunca baja el calculado). Cada insumo
+  indica si usa datos reales o una estimación. Un insumo cuenta sus días desde que se usó por primera vez.
+- Inventario → **«Compras sugeridas»**: lista agrupada por proveedor (días de entrega, días de pedido, teléfono) con
+  cantidades ajustables, estimado en Bs, y para cada grupo «Copiar», «WhatsApp» (enlace `wa.me`, sin servicios externos) y
+  «Registrar compra» (abre el formulario de compra con proveedor y líneas ya puestos; el importe lo escribe quien compra).
+  «Imprimir» y «Copiar todo» para la lista completa. La compra diaria (fruta) va en su propio grupo.
+- Inventario: columna **Reposición** con el estado de cada insumo, el punto de reorden y los días que alcanza el stock; el
+  formulario del insumo suma «Reposición y vencimiento» (cómo se repone, consumo diario estimado, punto de reorden manual,
+  días de cobertura, días de seguridad, vida útil y fecha de vencimiento).
+- Marca con el número de insumos por reponer en el menú «Inventario» (admin), tarjeta «Reposición del inventario» en
+  Finanzas → Resumen y aviso «Antes de abrir» (agotados, críticos y por vencer) al administrador, una vez por turno, al
+  abrir caja o al entrar a Caja con el turno ya abierto.
+- Migración `2026_10_13_000001_add_reorder_fields_to_ingredients` (cinco columnas opcionales: `reorder_policy`,
+  `target_days`, `safety_days`, `shelf_life_days` y `daily_estimate`; no modifica datos).
 
 ### Cambiado
 - Inventario (F3): los movimientos de venta, merma y conteo guardan el costo promedio del momento (`unit_cost`,

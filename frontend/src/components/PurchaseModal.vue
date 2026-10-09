@@ -12,11 +12,15 @@ import './Finance/finance.css';
  *
  * - `expenseId`: edita esa compra (se revierte y se vuelve a aplicar en el servidor).
  * - `ingredientId`: abre una compra nueva con esa línea ya puesta (botón «Ingreso» de Inventario).
+ * - `prefill`: abre una compra nueva con el proveedor y las líneas de la lista de compras sugeridas
+ *   (`{ supplier, lines: [{ ingredient_id, quantity }] }`, cantidades en la unidad de compra). El importe
+ *   pagado queda vacío: lo escribe quien registra la compra.
  */
 const props = defineProps({
   expenseId: { type: Number, default: null },
   ingredientId: { type: Number, default: null },
   defaultDate: { type: String, default: '' },
+  prefill: { type: Object, default: null },
 });
 const emit = defineEmits(['close', 'saved']);
 
@@ -119,6 +123,14 @@ onMounted(async () => {
         factor: Number(it.factor) || 1,
         total: Number(it.total),
       }));
+    } else if (props.prefill?.lines?.length) {
+      lines.value = props.prefill.lines
+        .filter((l) => ingredientById.value[l.ingredient_id])
+        .map((l) => ({ ...emptyLine(l.ingredient_id), quantity: Number(l.quantity) }));
+      if (!lines.value.length) lines.value = [emptyLine()];
+      // El proveedor de la lista; si es de un insumo suelto se deja el que propone la línea
+      const sup = options.suppliers.find((s) => s.name === props.prefill.supplier);
+      if (sup) form.supplier = sup.name;
     } else {
       lines.value = [emptyLine(props.ingredientId ?? OTHER)];
       const ing = props.ingredientId ? ingredientById.value[props.ingredientId] : null;

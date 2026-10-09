@@ -1,12 +1,21 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useFinanceStore, formatBs, formatPercent } from '../../stores/finance';
+import { useReorderStore } from '../../stores/reorder';
+import { formatQty, REORDER_STATUS } from '../../utils/inventoryLabels';
 import FinanceStatementTable from './FinanceStatementTable.vue';
 import FinanceBreakEven from './FinanceBreakEven.vue';
 
 /** Pestaña Resumen: avisos de datos faltantes, indicadores, Estado de Resultados y canal PedidosYa. */
 const finance = useFinanceStore();
 const emit = defineEmits(['navigate']);
+
+// Reposición del inventario (F4): lo que conviene pedir hoy, calculado por el servidor al momento
+const router = useRouter();
+const reorder = useReorderStore();
+onMounted(() => reorder.fetchSummary());
+const stock = computed(() => reorder.summary);
 
 const pnl = computed(() => finance.pnl);
 const warnings = computed(() => pnl.value?.warnings || []);
@@ -94,6 +103,28 @@ const kpis = computed(() => {
           </div>
           <div v-else class="fin-card-body fin-small fin-muted">
             Compras, egresos de caja, gastos fijos y semanas de PedidosYa del mes están cargados.
+          </div>
+        </div>
+
+        <div v-if="stock" class="fin-card">
+          <div class="fin-card-head">
+            <div>
+              <h3>Reposición del inventario</h3>
+              <p v-if="stock.to_reorder">{{ stock.to_reorder }} {{ stock.to_reorder === 1 ? 'insumo por reponer' : 'insumos por reponer' }}<template v-if="stock.estimated_cost > 0"> · unos {{ formatBs(stock.estimated_cost) }}</template></p>
+              <p v-else>Nada por reponer ahora</p>
+            </div>
+            <span class="fin-badge" :class="stock.critical || stock.out ? 'err' : stock.to_reorder ? 'warn' : 'ok'">{{ stock.critical || stock.out ? 'Urgente' : stock.to_reorder ? 'Reordenar' : 'Al día' }}</span>
+          </div>
+          <div class="fin-card-body">
+            <div v-if="stock.urgent?.length" class="fin-pairs">
+              <div v-for="u in stock.urgent.slice(0, 4)" :key="u.id" class="fin-pair">
+                <span>{{ u.name }} <span class="fin-small fin-muted">({{ REORDER_STATUS[u.status]?.label || 'Vencido' }})</span></span>
+                <strong class="fin-num">{{ formatQty(u.stock) }} {{ u.unit }}</strong>
+              </div>
+            </div>
+            <p v-if="stock.expiring" class="fin-small fin-muted">{{ stock.expiring }} {{ stock.expiring === 1 ? 'insumo vence' : 'insumos vencen' }} pronto o ya {{ stock.expiring === 1 ? 'venció' : 'vencieron' }}.</p>
+            <p v-if="stock.no_data" class="fin-small fin-muted">{{ stock.no_data }} {{ stock.no_data === 1 ? 'insumo sin datos' : 'insumos sin datos' }} para calcular su reposición.</p>
+            <button class="fin-btn fin-btn-secondary fin-btn-sm" type="button" @click="router.push({ path: '/inventario', query: { compras: '1' } })">Ver compras sugeridas</button>
           </div>
         </div>
 

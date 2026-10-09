@@ -64,6 +64,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/ingredients/{ingredient}/movements', [InventoryMovementController::class, 'index']);
 
         // Conteo físico y reporte de mermas (F3 del plan de inventario)
+        Route::get('/inventory/reorder', [\App\Http\Controllers\InventoryReorderController::class, 'index']);
+        Route::get('/inventory/reorder/summary', [\App\Http\Controllers\InventoryReorderController::class, 'summary']);
         Route::get('/inventory/waste/report', [\App\Http\Controllers\InventoryWasteController::class, 'report']);
         Route::get('/inventory/counts/sheet', [\App\Http\Controllers\InventoryCountController::class, 'sheet']);
         Route::get('/inventory/counts', [\App\Http\Controllers\InventoryCountController::class, 'index']);

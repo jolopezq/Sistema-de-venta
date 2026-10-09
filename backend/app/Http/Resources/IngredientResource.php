@@ -33,6 +33,11 @@ class IngredientResource extends JsonResource
             'purchase_unit' => $this->purchase_unit,
             'purchase_factor' => (float) ($this->purchase_factor ?: 1),
             'lot_size' => $this->lot_size !== null ? (float) $this->lot_size : null,
+            'reorder_policy' => $this->reorder_policy ?: 'reorder',
+            'target_days' => $this->target_days,
+            'safety_days' => $this->safety_days !== null ? (float) $this->safety_days : null,
+            'shelf_life_days' => $this->shelf_life_days,
+            'daily_estimate' => $this->daily_estimate !== null ? (float) $this->daily_estimate : null,
             'category' => $this->whenLoaded('category'),
         ];
     }

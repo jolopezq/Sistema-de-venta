@@ -211,7 +211,33 @@ Cada fase se entrega sola, en la rama, con pruebas, CHANGELOG y BITÁCORA. Verif
   «merma registrada» y «merma oculta».
 - **Pruebas:** costo guardado en la merma, conteo que genera ajustes, cajero puede mermar pero no ajustar.
 
-### F4 · Punto de reorden y alertas — 2 a 3 días
+### F4 · Punto de reorden y alertas — 2 a 3 días · ✅ hecha el 09/10/2026
+
+> Ajustes respecto a lo propuesto:
+> - **H19 sin tipo nuevo:** el consumo se calcula con los movimientos `sale` y los `adjustment` cuya referencia es una
+>   línea de venta (`sale_item` / `sale_item_option`). Así sirve también para las anulaciones que ya existen, sin migrar
+>   datos. Cada reverso se resta del **día de la venta original**, y el consumo se fecha con el de la venta (no con el día
+>   en que se cargó o se sincronizó).
+> - **Punto de reorden manual = `minimum_stock`:** ese campo ya existía (y ya marcaba «stock bajo»). Hace de piso: nunca
+>   baja el punto calculado. Con solo el manual y sin consumo, la cantidad sugerida repone hasta el doble de ese punto.
+> - **Datos nuevos en `ingredients`:** `reorder_policy` (reorder / daily / none), `target_days` (T, por defecto 7),
+>   `safety_days` (por defecto 2), `shelf_life_days` y `daily_estimate` (consumo diario estimado, en la unidad del insumo).
+>   La unidad y el factor de compra, el proveedor y el pedido mínimo (`lot_size`, que es un mínimo, no un múltiplo) ya
+>   existían desde F1.
+> - **Origen del consumo diario (`basis`):** con 28 días con ventas, datos reales (`real`, con desvío); con menos, el
+>   estimado del dueño si lo cargó (`estimate`) y, si no, el promedio de lo vendido a partir de 3 días (`partial`); sin
+>   nada, solo el punto manual (`manual`) o ninguno (`none`). Con menos de 28 días el stock de seguridad son los días de
+>   seguridad × consumo. Los días de cada insumo cuentan desde su primer consumo, así uno que entró a una receta hace una
+>   semana no se diluye con las semanas anteriores.
+> - **Por día de la semana** cuando hay 28 días con ventas y 8 semanas entre la primera venta y ayer: lo que se espera en
+>   los días hasta que llega el pedido sale de la media de cada día de la semana (un día en que el local no abre proyecta 0).
+> - **Pedidos en camino:** no existen, porque una compra entra al stock al registrarla (F1). La fórmula queda lista con 0.
+> - **Compra diaria:** no genera alertas de reorden; aparece en su propio grupo de la lista con la cantidad para un día.
+> - **Un insumo sin consumo ni punto manual** no es un quiebre aunque tenga stock 0: queda «Sin datos». Con stock negativo
+>   siempre es «Agotado / revisar».
+> - **El aviso al abrir caja** sale una vez por turno, se recuerda en el navegador por turno, y no se marca si no se pudo
+>   consultar (sin conexión).
+
 
 - **Campos:** los de la §2.1 en `ingredients`, más el consumo estimado del dueño.
 - **`ReorderService`:**

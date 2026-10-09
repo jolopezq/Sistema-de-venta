@@ -36,7 +36,15 @@ class Ingredient extends Model
         'purchase_unit',
         'purchase_factor',
         'lot_size',
+        'reorder_policy',
+        'target_days',
+        'safety_days',
+        'shelf_life_days',
+        'daily_estimate',
     ];
+
+    /** Cómo se controla la reposición: por punto de reorden, compra diaria (fruta) o sin control. */
+    public const REORDER_POLICIES = ['reorder', 'daily', 'none'];
 
     protected function casts(): array
     {
@@ -49,6 +57,10 @@ class Ingredient extends Model
             'is_key' => 'boolean',
             'purchase_factor' => 'decimal:4',
             'lot_size' => 'decimal:4',
+            'target_days' => 'integer',
+            'safety_days' => 'decimal:2',
+            'shelf_life_days' => 'integer',
+            'daily_estimate' => 'decimal:4',
             'expiration_date' => 'date',
             'min_shelf_date' => 'date',
         ];

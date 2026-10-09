@@ -1,6 +1,10 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { apiFetch } from '../services/api';
+import { useReorderStore } from '../stores/reorder';
+import { REORDER_STATUS, EXPIRY_LABEL, expiryText, formatQty } from '../utils/inventoryLabels';
+import ReorderModal from '../components/Inventory/ReorderModal.vue';
 import PurchaseModal from '../components/PurchaseModal.vue';
 import WasteModal from '../components/Inventory/WasteModal.vue';
 import CountModal from '../components/Inventory/CountModal.vue';
@@ -19,11 +23,50 @@ const showSuppliersModal = ref(false);
 // Compra de insumos (formulario compartido con Finanzas)
 const purchaseOpen = ref(false);
 const purchaseIngredientId = ref(null);
+const purchasePrefill = ref(null);
 const notice = ref('');
 let noticeTimer = null;
 
 function openPurchase(ing = null) {
   purchaseIngredientId.value = ing ? ing.id : null;
+  purchasePrefill.value = null;
+  purchaseOpen.value = true;
+}
+
+// Reposición (F4): estado de cada insumo y lista de compras sugeridas
+const route = useRoute();
+const router = useRouter();
+const reorderStore = useReorderStore();
+const reorderOpen = ref(false);
+const reorderById = ref({});
+const reorderSummary = ref(null);
+
+async function fetchReorder() {
+  try {
+    const report = await apiFetch('/inventory/reorder');
+    reorderById.value = Object.fromEntries(report.items.map((i) => [i.id, i]));
+    reorderSummary.value = report.summary;
+    reorderStore.setFromReport(report);
+  } catch (e) {
+    // Sin conexión la lista funciona igual; solo faltan las insignias de reposición
+  }
+}
+
+function reorderOf(ing) {
+  return reorderById.value[ing.id] || null;
+}
+
+/** Hay que reponer: agotado, crítico o bajo su punto de reorden. Sin informe, vale el antiguo stock mínimo. */
+function needsRestock(ing) {
+  const r = reorderOf(ing);
+  if (r) return ['out', 'critical', 'reorder'].includes(r.status);
+  return parseFloat(ing.current_stock) <= parseFloat(ing.minimum_stock);
+}
+
+function openPurchaseFromReorder(payload) {
+  reorderOpen.value = false;
+  purchaseIngredientId.value = null;
+  purchasePrefill.value = payload;
   purchaseOpen.value = true;
 }
 
@@ -86,6 +129,12 @@ const ingredientForm = ref({
   purchase_unit: '',
   purchase_factor: 1,
   lot_size: '',
+  reorder_policy: 'reorder',
+  daily_estimate: '',
+  target_days: '',
+  safety_days: '',
+  shelf_life_days: '',
+  expiration_date: '',
 });
 
 const categoryForm = ref({
@@ -110,6 +159,11 @@ const supplierErrors = ref({});
 onMounted(async () => {
   await Promise.all([fetchCategories(), fetchSuppliers()]);
   await fetchIngredients();
+  // El aviso de apertura de caja y la tarjeta de Finanzas llegan aquí con ?compras=1
+  if (route.query.compras) {
+    reorderOpen.value = true;
+    router.replace({ path: route.path });
+  }
 });
 
 async function fetchSuppliers() {
@@ -198,6 +252,7 @@ async function fetchIngredients() {
   } finally {
     loading.value = false;
   }
+  fetchReorder();
 }
 
 function openIngredientModal(ing = null) {
@@ -212,6 +267,12 @@ function openIngredientModal(ing = null) {
       purchase_unit: ing.purchase_unit ?? '',
       purchase_factor: ing.purchase_factor ?? 1,
       lot_size: ing.lot_size ?? '',
+      reorder_policy: ing.reorder_policy || 'reorder',
+      daily_estimate: ing.daily_estimate ?? '',
+      target_days: ing.target_days ?? '',
+      safety_days: ing.safety_days ?? '',
+      shelf_life_days: ing.shelf_life_days ?? '',
+      expiration_date: ing.expiration_date ?? '',
     };
   } else {
     isEditing.value = false;
@@ -229,6 +290,12 @@ function openIngredientModal(ing = null) {
       purchase_unit: '',
       purchase_factor: 1,
       lot_size: '',
+      reorder_policy: 'reorder',
+      daily_estimate: '',
+      target_days: '',
+      safety_days: '',
+      shelf_life_days: '',
+      expiration_date: '',
     };
   }
   showIngredientModal.value = true;
@@ -356,6 +423,10 @@ async function saveIngredient() {
         <p>Control de insumos, abastecimiento y mermas.</p>
       </div>
       <div class="header-actions">
+        <button class="btn-ghost btn-outline" @click="reorderOpen = true">
+          📋 Compras sugeridas
+          <span v-if="reorderSummary && reorderSummary.to_reorder" class="rp-count" :title="`${reorderSummary.to_reorder} por reponer`">{{ reorderSummary.to_reorder }}</span>
+        </button>
         <button class="btn-ghost" @click="openSuppliersModal()">🚚 Proveedores</button>
         <button class="btn-ghost" @click="openCategoryModal()">📂 Categorías</button>
         <button class="btn-ghost" @click="reportOpen = true">📊 Mermas del mes</button>
@@ -391,14 +462,14 @@ async function saveIngredient() {
             <th>Insumo</th>
             <th>Categoría / Tipo</th>
             <th>Stock Actual</th>
-            <th>Stock Mín.</th>
+            <th>Reposición</th>
             <th>Costo Unit.</th>
             <th>CPP</th>
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="ing in ingredients" :key="ing.id" :class="{ 'low-stock': parseFloat(ing.current_stock) <= parseFloat(ing.minimum_stock) }">
+          <tr v-for="ing in ingredients" :key="ing.id" :class="{ 'low-stock': needsRestock(ing) }">
             <td class="fw-bold">
               {{ ing.name }}
               <br><small class="text-muted">Unidad: {{ ing.unit }}<template v-if="ing.supplier"> · {{ ing.supplier.name }}</template></small>
@@ -407,11 +478,21 @@ async function saveIngredient() {
               <span class="badge cat-badge" v-if="ing.category">{{ ing.category.name }}</span>
               <span class="badge type-badge" v-if="ing.type">{{ ing.type }}</span>
             </td>
-            <td class="fw-bold" :class="{'text-danger': parseFloat(ing.current_stock) <= parseFloat(ing.minimum_stock)}">
+            <td class="fw-bold" :class="{'text-danger': needsRestock(ing)}">
               {{ ing.current_stock }}
-              <span v-if="parseFloat(ing.current_stock) <= parseFloat(ing.minimum_stock)" title="Stock bajo" style="margin-left:4px">⚠️</span>
+              <span v-if="needsRestock(ing)" title="Hay que reponer" style="margin-left:4px">⚠️</span>
             </td>
-            <td>{{ ing.minimum_stock }}</td>
+            <td class="rp-cell">
+              <template v-if="reorderOf(ing)">
+                <span class="rp-chip" :class="REORDER_STATUS[reorderOf(ing).status].tone" :title="REORDER_STATUS[reorderOf(ing).status].hint">{{ REORDER_STATUS[reorderOf(ing).status].label }}</span>
+                <span v-if="reorderOf(ing).expiry.level" class="rp-chip" :class="reorderOf(ing).expiry.level === 'expired' ? 'err' : 'warn'" :title="expiryText(reorderOf(ing).expiry)">{{ EXPIRY_LABEL[reorderOf(ing).expiry.level] }}</span>
+                <small v-if="['out', 'critical', 'reorder', 'ok'].includes(reorderOf(ing).status) && reorderOf(ing).reorder_point > 0" class="text-muted rp-note">
+                  reorden en {{ formatQty(reorderOf(ing).reorder_point, 2) }}<template v-if="reorderOf(ing).days_of_stock !== null"> · alcanza {{ formatQty(reorderOf(ing).days_of_stock, 1) }} d</template>
+                </small>
+                <small v-else-if="reorderOf(ing).status === 'nodata'" class="text-muted rp-note">completa su consumo estimado en Editar</small>
+              </template>
+              <span v-else class="text-muted">—</span>
+            </td>
             <td>Bs {{ ing.unit_cost }}</td>
             <td>Bs {{ ing.weighted_avg_cost }}</td>
             <td class="actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -581,6 +662,7 @@ async function saveIngredient() {
     <PurchaseModal
       v-if="purchaseOpen"
       :ingredient-id="purchaseIngredientId"
+      :prefill="purchasePrefill"
       @close="purchaseOpen = false"
       @saved="onPurchaseSaved"
     />
@@ -627,11 +709,6 @@ async function saveIngredient() {
             <span v-if="formErrors.type" class="error-text">{{ formErrors.type[0] }}</span>
           </div>
         </div>
-        <div class="form-group">
-          <label>Stock Mínimo (Alertas)</label>
-          <input v-model="ingredientForm.minimum_stock" type="number" step="0.01" :class="{'has-error': formErrors.minimum_stock}" />
-          <span v-if="formErrors.minimum_stock" class="error-text">{{ formErrors.minimum_stock[0] }}</span>
-        </div>
         <label class="key-check">
           <input v-model="ingredientForm.is_key" type="checkbox" />
           <span>Insumo clave <small>(entra en el conteo semanal)</small></span>
@@ -677,12 +754,65 @@ async function saveIngredient() {
             <span v-if="formErrors.lot_size" class="error-text">{{ formErrors.lot_size[0] }}</span>
           </div>
         </div>
+        <div class="form-section">Reposición y vencimiento</div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label>Cómo se repone</label>
+            <select v-model="ingredientForm.reorder_policy" :class="{'has-error': formErrors.reorder_policy}">
+              <option value="reorder">Por punto de reorden</option>
+              <option value="daily">Compra diaria (fruta)</option>
+              <option value="none">Sin control</option>
+            </select>
+            <span v-if="formErrors.reorder_policy" class="error-text">{{ formErrors.reorder_policy[0] }}</span>
+          </div>
+          <div class="form-group flex-1">
+            <label>Consumo diario estimado ({{ ingredientForm.unit }})</label>
+            <input v-model="ingredientForm.daily_estimate" type="number" step="any" min="0" placeholder="Hasta tener 4 semanas de ventas" :class="{'has-error': formErrors.daily_estimate}" />
+            <span v-if="formErrors.daily_estimate" class="error-text">{{ formErrors.daily_estimate[0] }}</span>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label>Punto de reorden manual ({{ ingredientForm.unit }})</label>
+            <input v-model="ingredientForm.minimum_stock" type="number" step="0.01" min="0" :class="{'has-error': formErrors.minimum_stock}" />
+            <span class="field-hint">Opcional: con 0 lo calcula el sistema. Si lo pones, nunca baja del cálculo.</span>
+            <span v-if="formErrors.minimum_stock" class="error-text">{{ formErrors.minimum_stock[0] }}</span>
+          </div>
+          <div class="form-group flex-1">
+            <label>Días de cobertura al pedir</label>
+            <input v-model="ingredientForm.target_days" type="number" step="1" min="1" max="365" placeholder="7" :class="{'has-error': formErrors.target_days}" />
+            <span v-if="formErrors.target_days" class="error-text">{{ formErrors.target_days[0] }}</span>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label>Días de seguridad</label>
+            <input v-model="ingredientForm.safety_days" type="number" step="any" min="0" max="60" placeholder="2" :class="{'has-error': formErrors.safety_days}" />
+            <span class="field-hint">Colchón mientras hay pocas ventas.</span>
+            <span v-if="formErrors.safety_days" class="error-text">{{ formErrors.safety_days[0] }}</span>
+          </div>
+          <div class="form-group flex-1">
+            <label>Vida útil (días)</label>
+            <input v-model="ingredientForm.shelf_life_days" type="number" step="1" min="1" placeholder="Opcional" :class="{'has-error': formErrors.shelf_life_days}" />
+            <span class="field-hint">Limita cuánto se sugiere comprar.</span>
+            <span v-if="formErrors.shelf_life_days" class="error-text">{{ formErrors.shelf_life_days[0] }}</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Vence el</label>
+          <input v-model="ingredientForm.expiration_date" type="date" :class="{'has-error': formErrors.expiration_date}" />
+          <span class="field-hint">Del lote que está en el estante: avisa 2 días antes (o el 20 % de la vida útil).</span>
+          <span v-if="formErrors.expiration_date" class="error-text">{{ formErrors.expiration_date[0] }}</span>
+        </div>
         <div class="modal-actions">
           <button class="btn-ghost" @click="showIngredientModal = false">Cancelar</button>
           <button class="btn-primary" @click="saveIngredient">Guardar</button>
         </div>
       </div>
     </div>
+
+    <!-- Compras sugeridas (F4) -->
+    <ReorderModal v-if="reorderOpen" @close="reorderOpen = false" @purchase="openPurchaseFromReorder" />
 
     <!-- Mermas, conteo físico, historial y reporte (F3) -->
     <WasteModal v-if="wasteOpen" :ingredient-id="wasteIngredientId" @close="wasteOpen = false" @saved="fetchIngredients" />
@@ -732,6 +862,8 @@ async function saveIngredient() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
   margin-bottom: 24px;
 }
 .inventory-header h2 {
@@ -969,6 +1101,35 @@ async function saveIngredient() {
 }
 
 .btn-outline { border-color: var(--border); }
+.rp-count {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--passion-600);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+.rp-cell { white-space: normal; }
+.rp-chip {
+  display: inline-block;
+  padding: 2px 9px;
+  margin: 0 4px 2px 0;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.rp-chip.ok { background: var(--lime-100); color: var(--lime-700); }
+.rp-chip.warn { background: var(--gold-100); color: var(--gold-text); }
+.rp-chip.err { background: var(--danger-100); color: var(--danger-text); }
+.rp-chip.info { background: var(--teal-100); color: var(--teal-700); }
+.rp-chip.acai { background: var(--acai-50); color: var(--acai-text); }
+.rp-note { display: block; font-size: 11.5px; }
 .key-check {
   display: flex;
   align-items: center;

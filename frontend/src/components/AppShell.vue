@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { useReorderStore } from '../stores/reorder';
 import { useThemeStore } from '../stores/theme';
 import NetworkIndicator from './NetworkIndicator.vue';
 
@@ -9,6 +10,12 @@ const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
 const theme = useThemeStore();
+const reorder = useReorderStore();
+
+// Marca del menú «Inventario»: insumos por reponer (solo administradores; el servidor calcula las alertas al momento)
+const canSeeReorder = computed(() => ['admin', 'super_admin'].includes(auth.user?.role));
+onMounted(() => { if (canSeeReorder.value) reorder.fetchSummary(); });
+watch(() => route.path, () => { if (canSeeReorder.value) reorder.fetchSummary(); });
 
 const userInitials = computed(() => {
   const name = auth.user?.name || '';
@@ -38,7 +45,7 @@ const navItems = computed(() => {
         { name: 'Caja / Turno', route: '/turno', show: !isKitchen, icon: 'cash' },
         { name: 'Delivery', route: '/delivery', always: true, icon: 'delivery' },
         { name: 'Menú', route: '/menu', show: isAdmin, icon: 'catalog' },
-        { name: 'Inventario', route: '/inventario', show: isAdmin, icon: 'inventory' },
+        { name: 'Inventario', route: '/inventario', show: isAdmin, icon: 'inventory', badge: reorder.count },
       ],
     },
     {
@@ -145,6 +152,7 @@ async function handleLogout() {
                 </svg>
                 <span v-else class="menu-icon-emoji">⚙️</span>
                 <span>{{ item.name }}</span>
+                <b v-if="item.badge" class="nav-badge" :title="`${item.badge} por reponer en Inventario`" :aria-label="`${item.badge} por reponer`">{{ item.badge > 99 ? '99+' : item.badge }}</b>
               </a>
             </template>
           </template>
@@ -313,7 +321,20 @@ async function handleLogout() {
   cursor: pointer;
   transition: background .15s ease, color .15s ease;
 }
+.oh-nav a { position: relative; }
 .oh-nav a svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .85; }
+.nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--passion-500);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
 .oh-nav a:hover { background: rgba(255,255,255,0.07); color: #fff; }
 .oh-nav a.active { background: rgba(255,255,255,0.12); color: #fff; }
 .oh-nav a.active svg { opacity: 1; }
@@ -470,5 +491,10 @@ async function handleLogout() {
   .oh-nav a { justify-content: center; }
   .oh-sidebar-foot { justify-content: center; }
   .oh-logout-btn { margin: 0 auto; }
+}
+
+/* Con el menú de solo iconos la marca se pega a la esquina del icono */
+@media (max-width: 767px) {
+  .nav-badge { position: absolute; top: 2px; right: 2px; margin: 0; min-width: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
 }
 </style>

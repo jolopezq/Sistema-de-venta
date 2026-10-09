@@ -9,7 +9,9 @@ import CashSessionReport from '../components/CashSessionReport.vue';
 import AdminSaleEditor from '../components/AdminSaleEditor.vue';
 import CashExpenseModal from '../components/CashExpenseModal.vue';
 import WasteModal from '../components/Inventory/WasteModal.vue';
+import ReorderNotice from '../components/Inventory/ReorderNotice.vue';
 import { useNetworkStore } from '../stores/network';
+import { useReorderStore } from '../stores/reorder';
 
 const router = useRouter();
 const turnoStore = useTurnoStore();
@@ -21,6 +23,8 @@ const editingSaleForAdmin = ref(null);
 const isCashExpenseModalOpen = ref(false);
 const isWasteModalOpen = ref(false);
 const network = useNetworkStore();
+const reorder = useReorderStore();
+const isReorderNoticeOpen = ref(false);
 
 function openRetroactiveSaleModal() {
   editingSaleForAdmin.value = null;
@@ -33,6 +37,23 @@ function openEditSaleModal(sale) {
 }
 
 const isAdmin = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'super_admin');
+
+/**
+ * Aviso de reposición (F4): al administrador, una vez por turno, al abrir caja o al entrar a Caja con el turno ya
+ * abierto. Se recuerda por turno; si no se pudo consultar (sin conexión) no se marca y se intenta de nuevo.
+ */
+async function checkReorderNotice() {
+  const session = turnoStore.activeSession;
+  if (!isAdmin.value || !session) return;
+  const key = 'reorder_notice_session';
+  try {
+    if (localStorage.getItem(key) === String(session.id)) return;
+  } catch (e) { /* sin almacenamiento: se avisa y listo */ }
+  const summary = await reorder.fetchSummary({ force: true });
+  if (!summary) return;
+  try { localStorage.setItem(key, String(session.id)); } catch (e) { /* idem */ }
+  if (summary.to_reorder || summary.expiring) isReorderNoticeOpen.value = true;
+}
 
 // Modal de Apertura de Caja
 const openingAmountInput = ref(200);
@@ -75,6 +96,8 @@ onMounted(async () => {
   // Si hay un arqueo en progreso guardado en localStorage, abrir wizard automáticamente
   if (localStorage.getItem('cashClose_inProgress') && turnoStore.hasActiveSession) {
     turnoStore.isWizardOpen = true;
+  } else {
+    checkReorderNotice();
   }
 });
 
@@ -121,6 +144,7 @@ async function handleOpenSession() {
   try {
     await turnoStore.openSession(openingAmountInput.value);
     turnoStore.isOpeningModalOpen = false;
+    checkReorderNotice();
   } catch (err) {
     openingError.value = err.message || 'Error al abrir caja.';
   } finally {
@@ -656,6 +680,7 @@ async function handleRefresh() {
 
     <!-- MODAL DE EGRESOS -->
     <WasteModal v-if="isWasteModalOpen" @close="isWasteModalOpen = false" />
+    <ReorderNotice v-if="isReorderNoticeOpen" @close="isReorderNoticeOpen = false" />
 
     <CashExpenseModal
       :visible="isCashExpenseModalOpen"

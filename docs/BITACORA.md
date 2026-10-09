@@ -4,8 +4,8 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-09)
-- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fases 0, 1, 2 y 3 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
-- **Tests:** 254 en verde (`php artisan test`, 1449 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fases 0, 1, 2, 3 y 4 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
+- **Tests:** 284 en verde (`php artisan test`, 1593 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -33,7 +33,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | ↳ F1 Compras ligadas a insumos y proveedores | ✅ | ver registro |
 | ↳ F2 Recetas que mueven stock (composición de componentes) | ✅ | ver registro |
 | ↳ F3 Mermas y conteo físico | ✅ | ver registro |
-| ↳ F4 Punto de reorden y alertas | Pendiente | — |
+| ↳ F4 Punto de reorden y alertas | ✅ | ver registro |
 | ↳ F5 Indicadores | Pendiente | — |
 
 ## Pendientes
@@ -71,6 +71,11 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       Inventario → Editar → «Insumo clave» y hacer el **primer conteo** (Inventario → «Conteo», idealmente un martes al
       cerrar). Ese primer conteo ordena el stock de partida y no cuenta como merma oculta; la merma oculta se mide desde el
       segundo conteo de cada insumo. Las mermas de antes de F3 no tienen valor en Bs (se avisa en el reporte).
+- [ ] Inventario (dueño, F4): para que el punto de reorden sea útil, en Inventario → Editar de cada insumo cargar su
+      **consumo diario estimado** (hasta tener 4 semanas de ventas), los **días de cobertura** al pedir, la **vida útil** de los
+      perecederos y, en la fruta, «Compra diaria». Poner el **proveedor** (con sus días de entrega y teléfono, en
+      «Proveedores») permite agrupar la lista y mandar el pedido por WhatsApp. El stock mínimo que ya existe vale como punto
+      de reorden manual. Las alertas empiezan a ser confiables con 28 días de ventas que descuenten stock real.
 - [ ] Inventario (dueño): desde F1 los ingresos de stock se registran como **Compra** (Finanzas → Registrar compra o
       Inventario → Ingreso). Una compra de mercado con precios que varían se anota con lo pagado por línea; el CPP
       absorbe la variación. Las compras antiguas de Finanzas (sin líneas) siguen como gasto y no mueven stock.
@@ -79,8 +84,10 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       `2026_10_10_000002_create_suppliers_and_purchase_items`,
       `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements`,
       `2026_10_11_000001_create_ingredient_compositions` y
-      `2026_10_12_000001_create_inventory_counts` [F3: tablas de conteos y columna `is_key`]: tablas y columnas
-      nuevas; ninguna modifica datos). Ya aplicadas todas en la base de la Mac el 09/10; falta repetirlo en la laptop.
+      `2026_10_12_000001_create_inventory_counts` [F3: tablas de conteos y columna `is_key`] y
+      `2026_10_13_000001_add_reorder_fields_to_ingredients` [F4: cinco columnas opcionales]: tablas y columnas
+      nuevas; ninguna modifica datos). Todas menos la de F4 ya están aplicadas en la base de la Mac (09/10); falta la de F4
+      en la Mac y repetir todas en la laptop.
 - [ ] Al subir a un VPS: activar WAL (`DB_JOURNAL_MODE=wal` en `.env`) y revisar que el respaldo copie
       también `-wal`/`-shm` (el respaldo de la app usa `VACUUM INTO`, que ya es seguro). En la laptop con
       Windows queda sin WAL por `respaldo-diario.bat`.
@@ -161,6 +168,23 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (inventario F4)** — Fase 4 hecha: punto de reorden, compras sugeridas y alertas. `ReorderService` calcula por
+  insumo el consumo diario real (movimientos `sale` y reversos `adjustment` de líneas de venta, H19 sin tipo nuevo: cada reverso
+  se resta del día de la venta original y el consumo se fecha con la venta), el stock de seguridad (`1,65 × desvío × √L` con 28
+  días con ventas; con menos, días de seguridad × consumo), el punto de reorden, la cantidad sugerida (redondeada a unidades de
+  compra y pedido mínimo, limitada por la vida útil) y el estado (OK, Reordenar, Crítico, Agotado, Compra diaria, Sin datos, Sin
+  control) más el vencimiento. Sin historial usa el consumo estimado del dueño o el punto manual (`minimum_stock`, que hace de
+  piso). Con 8 semanas proyecta por día de la semana; cada insumo cuenta sus días desde su primer consumo. Cinco columnas nuevas
+  en `ingredients`. Endpoints `GET /inventory/reorder` y `/summary` (solo admin; las alertas no se guardan). Pantallas:
+  Inventario → «Compras sugeridas» (por proveedor, cantidades ajustables, copiar, WhatsApp `wa.me`, imprimir, registrar compra
+  con el formulario de F1 ya precargado), columna «Reposición» y campos nuevos en Editar insumo, marca en el menú, tarjeta en
+  Finanzas → Resumen y aviso «Antes de abrir» al administrador una vez por turno. El cajero nunca consulta estas alertas.
+  Decisión: pedidos en camino no existen (la compra entra al stock al registrarla). Verificado: 284 tests (30 nuevos, con las
+  cifras del ejemplo del plan §2.3), build, contraste 0 en 24 estados nuevos (claro y oscuro, 1440 y 390 px; el único aviso, el
+  botón «Venta Retroactiva» de Turno en oscuro, ya existía), y en el navegador contra una copia con datos sembrados: chips en la
+  lista, lista de compras agrupada con cantidad ajustada y copiada, compra precargada, aviso de apertura una sola vez por
+  turno, tarjeta de Finanzas con su enlace, y venta + anulación sin romper el informe.
 
 - **2026-10-09 (inventario F3)** — Fase 3 hecha: mermas con costo y motivo, conteo físico y reporte. Los movimientos de venta,
   merma y conteo guardan el CPP del momento (`InventoryService::costColumns`; `null` si el insumo no tiene costo) y el reverso
