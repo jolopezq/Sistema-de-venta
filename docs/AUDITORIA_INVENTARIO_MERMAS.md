@@ -98,8 +98,8 @@ Severidad: **crítico** (detiene ventas o deja datos falsos), **alto** (decision
 | H17 | Proveedores | Medio · **corregido F1** | El proveedor es texto en Finanzas; Inventario no lo pide | No se puede calcular cuándo pedir sin días de entrega | Tabla de proveedores con días de entrega y lote mínimo (F1) |
 | H18 | Inventario | Bajo | `GET /ingredients/{id}/movements` sin paginar (`InventoryMovementController.php:26-29`) y sin pantalla | No se puede revisar qué pasó con un insumo | Historial en la pantalla, paginado (F3) |
 | H19 | Movimientos | Bajo | Reversos de ventas y ajustes manuales usan el mismo tipo `adjustment` | Para medir consumo hay que distinguirlos por `reference_type` | Tipo propio `sale_reversal` o filtrar por referencia (F4) |
-| H20 | POS | Bajo | `Pos.vue:89-104` mira solo la receta del producto, no la del tamaño | Un Ohana (3 porciones) se ofrece aunque solo alcance para un chico | Contar opciones al avisar (F2) |
-| H21 | Mantenimiento | Bajo | Descuento repetido en `cart.js:320-355` y en el servidor | Un cambio de reglas hay que hacerlo en dos lados | Que el catálogo envíe la receta ya expandida (F2) |
+| H20 | POS | Bajo · **corregido F2** | `Pos.vue:89-104` mira solo la receta del producto, no la del tamaño | Un Ohana (3 porciones) se ofrece aunque solo alcance para un chico | Contar opciones al avisar (F2) |
+| H21 | Mantenimiento | Bajo · **corregido F2** | Descuento repetido en `cart.js:320-355` y en el servidor | Un cambio de reglas hay que hacerlo en dos lados | Que el catálogo envíe la receta ya expandida (F2) |
 | H22 | Datos | Medio | Solo 10 días con ventas entre el 17/08 y el 04/10 (78 ventas; 2 días con 1 venta parecen pruebas) | Sin historial confiable no hay consumo promedio estadístico | Confirmar si todas las ventas se registran. Arranque con consumo estimado por el dueño (Plan §2.4) |
 | H23 | Pruebas | Medio | Ningún test cubre ingreso de compra/CPP, mermas, ajustes, productos por peso ni stock negativo | Estos errores pasaron sin detectarse | Agregar las pruebas en cada fase |
 

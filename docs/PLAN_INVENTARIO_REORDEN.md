@@ -163,7 +163,12 @@ Cada fase se entrega sola, en la rama, con pruebas, CHANGELOG y BITÁCORA. Verif
 - **Riesgo:** compras viejas sin líneas. Quedan como gasto, y el stock inicial se pone en orden con el primer
   conteo (F3).
 
-### F2 · Recetas que mueven stock (componentes con composición) — 2 a 3 días
+### F2 · Recetas que mueven stock (componentes con composición) — 2 a 3 días · ✅ hecha el 09/10/2026
+
+> Ajustes respecto a lo propuesto: el catálogo envía `stock_recipe` (receta ya expandida) además de `recipes`, y el POS
+> cae a `recipes` si tiene un catálogo guardado antes de esta versión; en un producto por peso solo escalan con los
+> kilos las filas en kg (como el costeo), el resto va una vez por unidad; la composición la edita solo el dueño
+> (pestaña Costos y margen de Finanzas).
 
 - **Modelo:** tabla `ingredient_compositions` (componente de costeo → insumo real, cantidad).
 - **Ventas:** `InventoryService` expande el componente en sus insumos al vender, sin pasar de un nivel.

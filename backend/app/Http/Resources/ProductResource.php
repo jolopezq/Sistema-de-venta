@@ -36,6 +36,8 @@ class ProductResource extends JsonResource
                 return $this->excludedOptions->pluck('id');
             }),
             'recipes' => $this->whenLoaded('recipes'),
+            // Receta de stock ya expandida: [{ingredient_id, quantity, per_kg}] (solo en el catálogo del POS)
+            'stock_recipe' => $this->when(array_key_exists('stock_recipe', $this->resource->getAttributes()), fn () => $this->resource->getAttribute('stock_recipe')),
         ];
     }
 }

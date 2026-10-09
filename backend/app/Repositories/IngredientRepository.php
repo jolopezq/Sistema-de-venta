@@ -91,6 +91,11 @@ class IngredientRepository
         if ($inUse > 0) {
             throw new \Exception("No se puede eliminar: lo usan {$inUse} " . ($inUse === 1 ? 'receta' : 'recetas') . '. Quítalo primero de las recetas (Finanzas → Costos y margen).');
         }
+        // Un insumo que forma parte de la composición de un componente dejaría de descontarse sin avisar
+        $composed = $ingredient->usedInCompositions()->count();
+        if ($composed > 0) {
+            throw new \Exception("No se puede eliminar: forma parte de la composición de {$composed} " . ($composed === 1 ? 'componente' : 'componentes') . '. Quítalo primero de la composición (Finanzas → Costos y margen).');
+        }
         $ingredient->delete();
     }
 }

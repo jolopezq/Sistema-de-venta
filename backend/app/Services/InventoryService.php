@@ -204,38 +204,49 @@ class InventoryService
     /**
      * Descuenta stock de los insumos basándose en la receta del producto vendido.
      *
-     * En un producto por peso la receta se expresa por kilo vendido (p. ej. 1 kg de helado por kg), así que
-     * se multiplica por los gramos ÷ 1000 de la línea, igual que el costeo. En los demás, por unidades.
+     * Una fila de la receta puede ser un insumo con stock o un componente de costeo con composición («Porción
+     * base açaí»): este se expande en los insumos reales que consume (un solo nivel). Un componente sin
+     * composición no mueve stock.
+     *
+     * En un producto por peso, las filas en kg (la receta se expresa por kilo vendido: 1 kg de helado por kg)
+     * se multiplican por los gramos ÷ 1000 de la línea, igual que el costeo; las demás (envase, cucharilla) van
+     * una vez por unidad vendida.
      *
      * Se invoca desde SaleSyncService, que ya tiene su transacción; las anidadas usan savepoints.
      */
     public function deductFromRecipe(Product $product, float $quantitySold, int $userId, SaleItem $saleItem): void
     {
         $grams = $saleItem->soldGrams($product);
-        $factor = $grams !== null ? ($grams / 1000) * $quantitySold : $quantitySold;
+        $kilosFactor = $grams !== null ? ($grams / 1000) * $quantitySold : $quantitySold;
+        $composition = new CompositionService();
 
-        DB::transaction(function () use ($product, $factor, $userId, $saleItem) {
+        DB::transaction(function () use ($product, $quantitySold, $kilosFactor, $grams, $userId, $saleItem, $composition) {
             foreach ($product->recipes as $recipe) {
-                $deduction = round($recipe->quantity_required * $factor, 4);
-                $ingredient = $recipe->ingredient;
-
-                // Componente de costo (porción de açaí, mix de frutas…): solo costea, no mueve stock.
-                // Un insumo eliminado no debe impedir guardar una venta ya cobrada.
-                if (!$ingredient || $ingredient->tracks_stock === false || abs($deduction) < self::EPSILON) {
+                // Un insumo eliminado no debe impedir guardar una venta ya cobrada
+                $source = $recipe->ingredient;
+                if (!$source) {
                     continue;
                 }
 
-                $this->applyStockChange($ingredient->id, -$deduction);
+                $factor = $grams !== null && $source->unit === 'kg' ? $kilosFactor : $quantitySold;
+                foreach ($composition->stockUsage($source, (float) $recipe->quantity_required * $factor) as $ingredientId => $quantity) {
+                    $deduction = round($quantity, 4);
+                    if (abs($deduction) < self::EPSILON) {
+                        continue;
+                    }
 
-                InventoryMovement::create([
-                    'ingredient_id'    => $ingredient->id,
-                    'quantity_changed' => -$deduction,
-                    'type'             => 'sale',
-                    'notes'            => "Venta deducida (UUID: {$saleItem->sale->id})",
-                    'performed_by'     => $userId,
-                    'reference_type'   => 'sale_item',
-                    'reference_id'     => $saleItem->id,
-                ]);
+                    $this->applyStockChange($ingredientId, -$deduction);
+
+                    InventoryMovement::create([
+                        'ingredient_id'    => $ingredientId,
+                        'quantity_changed' => -$deduction,
+                        'type'             => 'sale',
+                        'notes'            => "Venta deducida (UUID: {$saleItem->sale->id})" . ($source->id !== $ingredientId ? " · «{$source->name}»" : ''),
+                        'performed_by'     => $userId,
+                        'reference_type'   => 'sale_item',
+                        'reference_id'     => $saleItem->id,
+                    ]);
+                }
             }
         });
     }
@@ -254,7 +265,9 @@ class InventoryService
         int $userId,
         SaleItem $saleItem
     ): void {
-        DB::transaction(function () use ($saleItemOptions, $qtySold, $userId, $saleItem) {
+        $composition = new CompositionService();
+
+        DB::transaction(function () use ($saleItemOptions, $qtySold, $userId, $saleItem, $composition) {
             foreach ($saleItemOptions as $saleItemOption) {
                 $option = \App\Models\Option::with('recipes.ingredient')->find($saleItemOption->option_id);
                 if (!$option || $option->recipes->isEmpty()) {
@@ -262,29 +275,33 @@ class InventoryService
                 }
 
                 foreach ($option->recipes as $optRecipe) {
-                    $deduction = round($optRecipe->quantity_delta * $qtySold * $saleItemOption->quantity, 4);
-                    $ingredient = $optRecipe->ingredient;
+                    $source = $optRecipe->ingredient;
+                    $required = (float) $optRecipe->quantity_delta * $qtySold * $saleItemOption->quantity;
 
-                    if (!$ingredient || $ingredient->tracks_stock === false || abs($deduction) < self::EPSILON) {
-                        continue; // Componente de costo o insumo eliminado: no mueve stock
+                    // Componente sin composición o insumo eliminado: no mueve stock
+                    foreach ($composition->stockUsage($source, $required) as $ingredientId => $quantity) {
+                        $deduction = round($quantity, 4);
+                        if (abs($deduction) < self::EPSILON) {
+                            continue;
+                        }
+
+                        $this->applyStockChange($ingredientId, -$deduction);
+
+                        InventoryMovement::create([
+                            'ingredient_id'    => $ingredientId,
+                            'quantity_changed' => -$deduction,
+                            'type'             => 'sale',
+                            'notes'            => sprintf(
+                                'Opción "%s" del producto "%s" (Venta: %s)',
+                                $saleItemOption->option_name_snapshot,
+                                $saleItem->product->name ?? '?',
+                                $saleItem->sale->id
+                            ) . ($source->id !== $ingredientId ? " · «{$source->name}»" : ''),
+                            'performed_by'     => $userId,
+                            'reference_type'   => 'sale_item_option',
+                            'reference_id'     => $saleItemOption->id,
+                        ]);
                     }
-
-                    $this->applyStockChange($ingredient->id, -$deduction);
-
-                    InventoryMovement::create([
-                        'ingredient_id'    => $ingredient->id,
-                        'quantity_changed' => -$deduction,
-                        'type'             => 'sale',
-                        'notes'            => sprintf(
-                            'Opción "%s" del producto "%s" (Venta: %s)',
-                            $saleItemOption->option_name_snapshot,
-                            $saleItem->product->name ?? '?',
-                            $saleItem->sale->id
-                        ),
-                        'performed_by'     => $userId,
-                        'reference_type'   => 'sale_item_option',
-                        'reference_id'     => $saleItemOption->id,
-                    ]);
                 }
             }
         });

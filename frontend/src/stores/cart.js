@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { db } from '../db/database';
+import { stockUsage } from '../utils/stockRecipe';
 
 /**
  * Genera el cart_key único para un ítem dado su configuración.
@@ -13,6 +14,21 @@ function buildCartKey(productId, modifiers = [], itemNote = '', allergenFlags = 
   const allergensHash = allergenFlags.length > 0 ? [...allergenFlags].sort().join(',') : '';
   const takeawayHash = isTakeaway ? '-takeaway' : '';
   return `${productId}-${modifiersHash}-${notesHash}-${allergensHash}${takeawayHash}`;
+}
+
+/**
+ * Suma (sign = 1) o resta (sign = -1) al stock local lo que consume una línea de venta, en memoria y en
+ * IndexedDB. Se redondea a 4 decimales como el servidor.
+ */
+async function adjustLocalStock(catalog, usage, sign) {
+  for (const [ingredientId, quantity] of usage) {
+    if (!quantity) continue;
+    const ing = catalog.ingredients.find(i => i.id === ingredientId);
+    if (ing && typeof ing.current_stock === 'number') {
+      ing.current_stock = Math.round((ing.current_stock + sign * quantity) * 10000) / 10000;
+      await db.ingredients.put(JSON.parse(JSON.stringify(ing)));
+    }
+  }
 }
 
 function generateUUID() {
@@ -318,48 +334,11 @@ export const useCartStore = defineStore('cart', {
       const catalog = useCatalogStore();
       
       try {
+        // Las filas de stock vienen ya expandidas en el catálogo (componentes → insumos reales)
         await db.transaction('rw', db.ingredients, async () => {
           for (const item of this.items) {
             const product = catalog.products.find(p => p.id === item.product_id);
-            if (product && product.recipes) {
-              // Producto por peso: la receta es por kilo vendido, así que se multiplica por los gramos ÷ 1000
-              // (igual que el servidor); en los demás, por unidades
-              const soldFactor = item.is_weight_based && Number(item.weight_grams) > 0
-                ? (Number(item.weight_grams) / 1000) * item.quantity
-                : item.quantity;
-              for (const recipe of product.recipes) {
-                 const qtyToDeduct = recipe.quantity_required * soldFactor;
-                 if (qtyToDeduct > 0) {
-                   const ing = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
-                   if (ing) {
-                     ing.current_stock -= qtyToDeduct;
-                     await db.ingredients.put(JSON.parse(JSON.stringify(ing)));
-                   }
-                 }
-              }
-            }
-            
-            if (item.modifiers && product && product.option_groups) {
-              for (const modifier of item.modifiers) {
-                let opt = null;
-                for (const og of product.option_groups) {
-                  opt = og.options.find(o => o.id === modifier.option_id);
-                  if (opt) break;
-                }
-                if (opt && opt.recipes) {
-                  for (const recipe of opt.recipes) {
-                    const qtyToDeduct = recipe.quantity_required * (modifier.quantity || 1) * item.quantity;
-                    if (qtyToDeduct !== 0) { // Modificadores pueden devolver stock (ej: Sin algo)
-                      const ing = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
-                      if (ing) {
-                        ing.current_stock -= qtyToDeduct;
-                        await db.ingredients.put(JSON.parse(JSON.stringify(ing)));
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            await adjustLocalStock(catalog, stockUsage(product, item), -1);
           }
         });
       } catch (err) {
@@ -400,39 +379,7 @@ export const useCartStore = defineStore('cart', {
           await db.transaction('rw', db.ingredients, async () => {
             for (const item of sale.items) {
               const product = (catalog.products || []).find(p => p.id === item.product_id);
-              if (product && product.recipes) {
-                for (const recipe of product.recipes) {
-                  const qty = (recipe.quantity_required || 0) * (item.quantity || 1);
-                  if (qty > 0) {
-                    const ing = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
-                    if (ing && typeof ing.current_stock === 'number') {
-                      ing.current_stock += qty;
-                      await db.ingredients.put(JSON.parse(JSON.stringify(ing)));
-                    }
-                  }
-                }
-              }
-              if (item.modifiers && product && product.option_groups) {
-                for (const modifier of item.modifiers) {
-                  let opt = null;
-                  for (const og of product.option_groups || []) {
-                    opt = (og.options || []).find(o => o.id === modifier.option_id);
-                    if (opt) break;
-                  }
-                  if (opt && opt.recipes) {
-                    for (const recipe of opt.recipes) {
-                      const qty = (recipe.quantity_required || 0) * (modifier.quantity || 1) * (item.quantity || 1);
-                      if (qty !== 0) {
-                        const ing = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
-                        if (ing && typeof ing.current_stock === 'number') {
-                          ing.current_stock += qty;
-                          await db.ingredients.put(JSON.parse(JSON.stringify(ing)));
-                        }
-                      }
-                    }
-                  }
-                }
-              }
+              await adjustLocalStock(catalog, stockUsage(product, item), 1);
             }
           });
         }

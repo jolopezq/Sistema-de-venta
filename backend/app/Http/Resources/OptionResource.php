@@ -22,6 +22,8 @@ class OptionResource extends JsonResource
             'is_default' => $this->is_default,
             'sort_order' => $this->sort_order,
             'recipes' => $this->whenLoaded('recipes'),
+            // Ajuste de stock ya expandido: [{ingredient_id, quantity}], con cantidades negativas si devuelve stock
+            'stock_recipe' => $this->when(array_key_exists('stock_recipe', $this->resource->getAttributes()), fn () => $this->resource->getAttribute('stock_recipe')),
         ];
     }
 }

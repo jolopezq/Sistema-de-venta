@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ingredient;
+use App\Models\IngredientComposition;
 use App\Models\Option;
 use App\Models\OptionRecipe;
 use App\Models\PedidosYaSettlement;
 use App\Models\Product;
 use App\Models\Recipe;
 use App\Services\BaseRecipesService;
+use App\Services\CompositionService;
 use App\Services\RecipeCostService;
 use App\Services\SalePricingService;
 use App\Support\NameKey;
@@ -29,11 +31,13 @@ class FinanceCostController extends Controller
     public function __construct(
         protected RecipeCostService $costs,
         protected BaseRecipesService $baseRecipes,
+        protected CompositionService $composition,
     ) {}
 
     public function index(): JsonResponse
     {
         $this->costs->refresh();
+        $this->composition->refresh();
         $platformRate = $this->platformRate();
 
         $ingredients = Ingredient::orderBy('name')->get();
@@ -47,10 +51,14 @@ class FinanceCostController extends Controller
                 'name'         => $i->name,
                 'unit'         => $i->unit,
                 'unit_cost'    => (float) $i->unit_cost,
-                'cost'         => $i->costPerUnit(),
+                'cost'         => $this->composition->unitCost($i)[0],
                 'from_purchases' => (float) $i->weighted_avg_cost > 0,
                 'tracks_stock' => $i->tracks_stock !== false,
                 'used_in'      => (int) ($recipeUse[$i->id] ?? 0) + (int) ($optionUse[$i->id] ?? 0),
+                'composition'  => $this->compositionRows($i),
+                // Falta el costo de algún insumo de la composición (sin compras ni costo cargado)
+                'composition_complete' => $i->tracks_stock !== false || !$this->composition->hasComposition($i->id)
+                    || !$this->composition->unitCost($i)[1],
             ])
             ->sortBy([['used_in', 'desc'], ['name', 'asc']])
             ->values();
@@ -85,7 +93,7 @@ class FinanceCostController extends Controller
 
         return response()->json([
             'components'      => $components,
-            'ingredients'     => $ingredients->map(fn ($i) => ['id' => $i->id, 'name' => $i->name, 'unit' => $i->unit, 'cost' => $i->costPerUnit(), 'tracks_stock' => $i->tracks_stock !== false])->values(),
+            'ingredients'     => $ingredients->map(fn ($i) => ['id' => $i->id, 'name' => $i->name, 'unit' => $i->unit, 'cost' => $this->composition->unitCost($i)[0], 'tracks_stock' => $i->tracks_stock !== false])->values(),
             'products'        => $productRows,
             'option_groups'   => $groupRows,
             'platform_rate'   => $platformRate,
@@ -124,12 +132,86 @@ class FinanceCostController extends Controller
 
         $ingredient->update($data);
 
-        return response()->json([
-            'message'   => (float) $ingredient->weighted_avg_cost > 0
-                ? 'Costo guardado. Este insumo tiene compras registradas: el costeo usa su costo promedio.'
-                : 'Costo guardado.',
-            'component' => $ingredient,
+        $message = (float) $ingredient->weighted_avg_cost > 0
+            ? 'Costo guardado. Este insumo tiene compras registradas: el costeo usa su costo promedio.'
+            : 'Costo guardado.';
+        if ($ingredient->composition()->exists()) {
+            $message = 'Guardado. Este componente tiene composición: su costo sale del costo promedio de sus insumos, no del que se cargó aquí.';
+        }
+
+        return response()->json(['message' => $message, 'component' => $ingredient]);
+    }
+
+    /**
+     * Composición de un componente de costeo: qué insumos reales consume una unidad (cantidad en la unidad del
+     * insumo: 0,18 = 180 g de pulpa). Reemplaza la anterior; sin filas, el componente vuelve a su costo manual y
+     * deja de mover stock. No recalcula las ventas pasadas: lo descontado antes queda como se registró.
+     */
+    public function updateComposition(Request $request, Ingredient $ingredient): JsonResponse
+    {
+        if ($ingredient->tracks_stock !== false) {
+            throw ValidationException::withMessages([
+                'ingredient' => "«{$ingredient->name}» lleva su propio stock; solo los componentes de costeo tienen composición.",
+            ]);
+        }
+
+        $data = $request->validate([
+            'rows'                 => ['present', 'array', 'max:40'],
+            'rows.*.ingredient_id' => ['required', 'integer', 'exists:ingredients,id'],
+            'rows.*.quantity'      => ['required', 'numeric', 'gt:0', 'max:100000'],
+        ], [
+            'rows.*.quantity.gt'       => 'Las cantidades deben ser mayores a 0.',
+            'rows.*.ingredient_id.required' => 'Elige el insumo de cada fila.',
         ]);
+
+        // Un mismo insumo dos veces se suma en una fila
+        $rows = collect($data['rows'])
+            ->groupBy('ingredient_id')
+            ->map(fn ($g, $id) => ['ingredient_id' => (int) $id, 'quantity' => round($g->sum('quantity'), 4)])
+            ->values();
+
+        // Un solo nivel: el destino es siempre un insumo con stock (no otro componente ni uno eliminado)
+        foreach ($rows as $i => $row) {
+            $target = Ingredient::find($row['ingredient_id']);
+            if (!$target || $target->tracks_stock === false) {
+                $name = $target?->name ?? 'ese insumo';
+                throw ValidationException::withMessages([
+                    "rows.$i.ingredient_id" => "«{$name}» no lleva stock: la composición se arma con insumos reales (Inventario).",
+                ]);
+            }
+        }
+
+        DB::transaction(function () use ($ingredient, $rows) {
+            IngredientComposition::where('component_id', $ingredient->id)->get()->each->delete();
+            foreach ($rows as $row) {
+                IngredientComposition::create(['component_id' => $ingredient->id] + $row);
+            }
+        });
+
+        $this->costs->refresh();
+        $this->composition->refresh();
+        [$cost, $missing] = $this->composition->unitCost($ingredient->fresh());
+
+        return response()->json([
+            'message'   => $rows->isEmpty()
+                ? "«{$ingredient->name}» sin composición: usa su costo cargado y no descuenta stock."
+                : "Composición de «{$ingredient->name}» guardada. Desde ahora cada venta descuenta esos insumos.",
+            'component' => [
+                'id'                   => $ingredient->id,
+                'composition'          => $this->compositionRows($ingredient),
+                'cost'                 => round($cost, 4),
+                'composition_complete' => $rows->isEmpty() || !$missing,
+            ],
+        ]);
+    }
+
+    /** @return array<int, array{ingredient_id: int, quantity: float}> */
+    private function compositionRows(Ingredient $component): array
+    {
+        return $this->composition->compositionOf($component->id)
+            ->map(fn ($r) => ['ingredient_id' => $r->ingredient_id, 'quantity' => (float) $r->quantity])
+            ->values()
+            ->all();
     }
 
     public function updateProductRecipe(Request $request, Product $product): JsonResponse

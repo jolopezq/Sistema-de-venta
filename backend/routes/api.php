@@ -120,6 +120,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/costs', [\App\Http\Controllers\FinanceCostController::class, 'index']);
             Route::post('/costs/components', [\App\Http\Controllers\FinanceCostController::class, 'storeComponent']);
             Route::put('/costs/components/{ingredient}', [\App\Http\Controllers\FinanceCostController::class, 'updateComponent']);
+            Route::put('/costs/components/{ingredient}/composition', [\App\Http\Controllers\FinanceCostController::class, 'updateComposition']);
             Route::put('/costs/products/{product}/recipe', [\App\Http\Controllers\FinanceCostController::class, 'updateProductRecipe']);
             Route::put('/costs/options/{option}/recipe', [\App\Http\Controllers\FinanceCostController::class, 'updateOptionRecipe']);
             Route::get('/costs/base-recipes', [\App\Http\Controllers\FinanceCostController::class, 'baseRecipesPreview']);

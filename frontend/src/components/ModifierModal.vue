@@ -2,6 +2,7 @@
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { useCatalogStore } from '../stores/catalog';
 import { productPrice, optionPrice, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
+import { optionLowStock } from '../utils/stockRecipe';
 
 const catalog = useCatalogStore();
 
@@ -278,16 +279,13 @@ const handleConfirm = () => {
   });
 };
 
-// Solo avisa: el stock del sistema es teórico (puede faltar cargar una compra) y no se debe perder una venta
-const hasLowStock = (opt) => {
-  if (!opt.recipes || opt.recipes.length === 0) return false;
-  for (const recipe of opt.recipes) {
-    if (recipe.quantity_delta <= 0) continue;
-    const ingredient = catalog.ingredients.find(i => i.id === recipe.ingredient_id);
-    if (ingredient && ingredient.current_stock < recipe.quantity_delta) return true;
-  }
-  return false;
-};
+// Solo avisa: el stock del sistema es teórico (puede faltar cargar una compra) y no se debe perder una venta.
+// Cuenta lo que pide el producto base más el ajuste de la opción, así un tamaño grande avisa aunque alcance para el chico.
+const hasLowStock = (opt) => optionLowStock(
+  props.product,
+  opt,
+  (ingredientId) => catalog.ingredients.find(i => i.id === ingredientId)?.current_stock,
+);
 
 const getSortedOptions = (og) => {
   if (!og || !og.options) return [];

@@ -10,6 +10,7 @@ import ReceiptModal from '../components/ReceiptModal.vue';
 import ModifierModal from '../components/ModifierModal.vue';
 import PriceOverrideModal from '../components/PriceOverrideModal.vue';
 import { productPrice, missingDeliveryPrice, isAvailableOnPedidosYa, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
+import { productStockRows } from '../utils/stockRecipe';
 
 const catalog = useCatalogStore();
 const cart = useCartStore();
@@ -96,15 +97,13 @@ function isProductAvailable(product) {
  * y deja vender. Un producto sin receta, o con insumos que no llevan stock, nunca avisa.
  */
 function hasLowStock(product) {
-  if (!product.recipes || product.recipes.length === 0) return false;
-
   const stockMap = ingredientStockMap.value;
-  for (let i = 0; i < product.recipes.length; i++) {
-    const recipe = product.recipes[i];
-    if (recipe.quantity_required <= 0) continue;
+  // Receta de stock ya expandida por el servidor: los componentes con composición llegan como sus insumos reales
+  for (const row of productStockRows(product)) {
+    if (row.quantity <= 0) continue;
 
-    const currentStock = stockMap.get(recipe.ingredient_id);
-    if (currentStock !== undefined && currentStock < recipe.quantity_required) {
+    const currentStock = stockMap.get(row.ingredient_id);
+    if (currentStock !== undefined && currentStock < row.quantity) {
       return true;
     }
   }

@@ -154,6 +154,18 @@ se renombra con la fecha de la actualización de producción.
   `/api/suppliers`. Cada insumo guarda proveedor habitual, unidad y factor de compra y pedido mínimo (Editar insumo).
 - Migraciones `2026_10_10_000002_create_suppliers_and_purchase_items` y
   `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements` (tablas y columnas nuevas; no modifican datos).
+- Inventario (plan, F2): **composición de los componentes de costeo** (Finanzas → Costos y margen → Componentes de costo →
+  «Composición»). Una porción como «Porción base açaí» o «Kit descartable chico» dice qué insumos reales consume
+  (180 g de pulpa; 1 vaso + 1 tapa), en g, ml o unidades. Al vender, el sistema descuenta esos insumos (un solo nivel) y
+  anular una venta devuelve cada movimiento tal como se registró; cambiar una composición no recalcula las ventas
+  pasadas. El costo del componente pasa a ser la suma de sus insumos a su costo promedio, así que cambia solo cuando
+  cambia el CPP; un componente sin composición sigue como antes (costo cargado, sin stock). `PUT
+  /api/finance/costs/components/{id}/composition` (solo dueño).
+- El catálogo del POS envía la receta de stock ya expandida (`stock_recipe` en productos y opciones); el POS, también sin
+  conexión, solo suma y resta (`frontend/src/utils/stockRecipe.js`). El aviso de «stock bajo» de una opción cuenta lo que
+  pide el producto base más el ajuste, así un tamaño Ohana avisa aunque alcance para el chico.
+- No se puede eliminar un insumo que forma parte de la composición de un componente.
+- Migración `2026_10_11_000001_create_ingredient_compositions` (solo crea la tabla; no modifica datos).
 
 ### Cambiado
 - Inventario: el stock de un insumo ya no se edita desde el formulario (cambia con ingresos, mermas, conteos
@@ -162,6 +174,11 @@ se renombra con la fecha de la actualización de producción.
 - El stock se descuenta con una sola sentencia SQL y SQLite espera hasta 5 s por el bloqueo de escritura
   (`DB_BUSY_TIMEOUT`, `DB_TRANSACTION_MODE=IMMEDIATE`; WAL opcional con `DB_JOURNAL_MODE=wal`).
 - `inventory_movements.type`, `waste_category` y `reference_type` pasan de enum a texto (migración sin cambio de datos).
+- En un producto por peso, las filas de la receta en kg se multiplican por los kilos vendidos y las demás (envase,
+  cucharilla) van una vez por unidad, igual que el costeo; antes el descuento multiplicaba todas por los kilos.
+- POS: el descuento y la restauración del stock local usan la misma regla que el servidor; se corrige que un ajuste de
+  opción con receta dejara `NaN` en el stock local (leía `quantity_required` en vez de `quantity_delta`) y que anular un
+  ticket pendiente de un producto por peso devolviera una unidad en vez de los kilos.
 - Inventario: los ingresos de stock ya no se registran como movimiento suelto; `POST /api/inventory/movements`
   solo acepta `waste` y `adjustment` (conteo). Todo ingreso entra por una Compra, para que Inventario y Finanzas
   cuadren. Un gasto con líneas no se edita como gasto simple (se edita como compra); al eliminarlo desde

@@ -4,6 +4,7 @@ import { apiFetch } from '../../services/api';
 import { useFinanceStore, formatBs, formatPercent, errorText, UNIT_DISPLAY } from '../../stores/finance';
 import RecipeEditor from './RecipeEditor.vue';
 import BaseRecipesWizard from './BaseRecipesWizard.vue';
+import CompositionEditor from './CompositionEditor.vue';
 
 /**
  * Pestaña Costos y margen: cuánto cuesta cada producto según su receta y cuánto deja en el local y en PedidosYa
@@ -43,6 +44,13 @@ function editOption(o) {
 }
 async function onSaved() {
   editing.value = null;
+  await Promise.all([finance.loadCosts(), finance.loadBreakEven()]);
+}
+
+// ---------- Composición de un componente (qué insumos reales consume) ----------
+const composing = ref(null);
+async function onComposed() {
+  composing.value = null;
   await Promise.all([finance.loadCosts(), finance.loadBreakEven()]);
 }
 
@@ -204,21 +212,26 @@ function recipeText(recipe) {
     <div class="fin-card-head">
       <div>
         <h3>Componentes de costo</h3>
-        <p>Cambia un costo y se recalculan todas las recetas que lo usan. Los «solo costeo» no mueven el stock de Inventario.</p>
+        <p>
+          Cambia un costo y se recalculan todas las recetas que lo usan. Un componente con <strong>composición</strong> descuenta
+          sus insumos del inventario al vender y se costea por su costo promedio; sin composición solo costea.
+        </p>
       </div>
     </div>
     <div class="fin-table-wrap">
       <table class="fin-table stack">
         <thead>
-          <tr><th>Componente</th><th class="right">Usado en</th><th class="right">Costo (Bs)</th></tr>
+          <tr><th>Componente</th><th class="right">Usado en</th><th class="right">Costo (Bs)</th><th class="actions"><span class="sr-only">Acciones</span></th></tr>
         </thead>
         <tbody>
           <tr v-for="c in data.components" :key="c.id">
             <td data-label="Componente">
               <span class="fin-cell-main">{{ c.name }}</span>
-              <span v-if="!c.tracks_stock" class="fin-badge" style="margin-left: 6px">Solo costeo</span>
-              <span v-if="c.cost <= 0" class="fin-badge warn" style="margin-left: 4px">Sin costo</span>
-              <div v-if="c.from_purchases" class="fin-cell-sub">Costo promedio de las compras registradas en Inventario</div>
+              <span v-if="!c.tracks_stock && c.composition.length" class="fin-badge ok" style="margin-left: 6px">Descuenta stock</span>
+              <span v-else-if="!c.tracks_stock" class="fin-badge" style="margin-left: 6px">Solo costeo</span>
+              <span v-if="c.cost <= 0 || !c.composition_complete" class="fin-badge warn" style="margin-left: 4px">{{ c.composition.length && c.cost > 0 ? 'Falta costo de un insumo' : 'Sin costo' }}</span>
+              <div v-if="c.composition.length" class="fin-cell-sub">{{ recipeText(c.composition) }} {{ UNIT_DISPLAY[c.unit]?.costLabel }}</div>
+              <div v-else-if="c.from_purchases" class="fin-cell-sub">Costo promedio de las compras registradas en Inventario</div>
             </td>
             <td data-label="Usado en" class="right fin-num">{{ c.used_in }} {{ c.used_in === 1 ? 'receta' : 'recetas' }}</td>
             <td data-label="Costo" class="right">
@@ -228,13 +241,18 @@ function recipeText(recipe) {
                   min="0"
                   step="0.01"
                   class="fin-input fin-input-sm fin-num"
-                  :value="c.from_purchases ? c.cost : c.unit_cost"
-                  :disabled="c.from_purchases || savingComponent === c.id"
+                  :value="c.from_purchases || c.composition.length ? c.cost : c.unit_cost"
+                  :disabled="c.from_purchases || c.composition.length > 0 || savingComponent === c.id"
                   :aria-label="`Costo de ${c.name}`"
                   @change="saveCost(c, $event.target.value)"
                 />
                 <span class="fin-small fin-muted">{{ UNIT_DISPLAY[c.unit]?.costLabel }}</span>
               </span>
+            </td>
+            <td class="actions">
+              <button v-if="!c.tracks_stock" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="composing = c">
+                {{ c.composition.length ? 'Composición' : 'Agregar composición' }}
+              </button>
             </td>
           </tr>
         </tbody>
@@ -242,6 +260,7 @@ function recipeText(recipe) {
     </div>
   </div>
 
+  <CompositionEditor v-if="composing" :component="composing" @close="composing = null" @saved="onComposed" />
   <RecipeEditor v-if="editing" :target="editing" @close="editing = null" @saved="onSaved" />
   <BaseRecipesWizard v-if="wizardOpen" @close="wizardOpen = false" @applied="onApplied" />
 </template>

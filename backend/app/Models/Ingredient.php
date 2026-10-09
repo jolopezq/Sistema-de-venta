@@ -79,6 +79,18 @@ class Ingredient extends Model
         return $this->hasMany(OptionRecipe::class);
     }
 
+    /** Insumos reales que consume una unidad de este componente de costeo (vacía si no tiene composición). */
+    public function composition(): HasMany
+    {
+        return $this->hasMany(IngredientComposition::class, 'component_id');
+    }
+
+    /** Composiciones de componentes que usan este insumo. */
+    public function usedInCompositions(): HasMany
+    {
+        return $this->hasMany(IngredientComposition::class, 'ingredient_id');
+    }
+
     /**
      * Costo de una unidad (kg, litro o unidad) para costear recetas: el costo promedio (CPP) si hubo compras
      * registradas; si no, el último costo cargado.

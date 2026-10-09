@@ -4,8 +4,8 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-09)
-- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fases 0 y 1 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
-- **Tests:** 213 en verde (`php artisan test`, 1155 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fases 0, 1 y 2 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
+- **Tests:** 229 en verde (`php artisan test`, 1235 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -31,7 +31,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | Inventario confiable, mermas y punto de reorden ([auditoría](AUDITORIA_INVENTARIO_MERMAS.md), [plan](PLAN_INVENTARIO_REORDEN.md)): plan aprobado el 09/10 (D1–D7) | En curso en `feat/inventario-reorden` |  |
 | ↳ F0 Correcciones de base (CPP, stock solo por movimientos, peso, validaciones, atomicidad, POS avisa) | ✅ | ver registro |
 | ↳ F1 Compras ligadas a insumos y proveedores | ✅ | ver registro |
-| ↳ F2 Recetas que mueven stock (composición de componentes) | Pendiente | — |
+| ↳ F2 Recetas que mueven stock (composición de componentes) | ✅ | ver registro |
 | ↳ F3 Mermas y conteo físico | Pendiente | — |
 | ↳ F4 Punto de reorden y alertas | Pendiente | — |
 | ↳ F5 Indicadores | Pendiente | — |
@@ -63,7 +63,8 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       (muestra qué cambiaría) y luego con `--confirm`, con respaldo previo. Corrige el CPP en 0 de pulpa, granola y
       banana. Hasta entonces el cálculo de costos y las compras ya usan el último costo como respaldo.
 - [ ] Inventario (dueño): pasar los gramos de pulpa, granola, etc. y los descartables de cada tamaño y receta
-      (se cargan en «Composición», F2); proveedor, unidad y lote de compra de cada insumo clave (se cargan en
+      (se cargan en Finanzas → Costos y margen → «Composición», desde F2: hasta que un componente tenga composición
+      no descuenta stock); proveedor, unidad y lote de compra de cada insumo clave (se cargan en
       Inventario → Editar insumo, desde F1) y, si se quiere, el consumo diario estimado para arrancar el punto de
       reorden (F4).
 - [ ] Inventario (dueño): desde F1 los ingresos de stock se registran como **Compra** (Finanzas → Registrar compra o
@@ -71,9 +72,11 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       absorbe la variación. Las compras antiguas de Finanzas (sin líneas) siguen como gasto y no mueven stock.
 - [ ] Inventario: `php artisan migrate` en la Mac y en la laptop con respaldo previo
       (`2026_10_10_000001_relax_inventory_movement_columns`: solo cambia la definición de columnas de
-      `inventory_movements`; `2026_10_10_000002_create_suppliers_and_purchase_items` y
-      `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements`: tablas y columnas nuevas; ninguna
-      modifica datos).
+      `inventory_movements`; `2026_10_10_000002_create_suppliers_and_purchase_items`,
+      `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements` y
+      `2026_10_11_000001_create_ingredient_compositions`: tablas y columnas nuevas; ninguna modifica datos).
+      Ya aplicadas en la base de la Mac el 09/10 (con las de finanzas y costos que estaban pendientes), salvo la
+      de composición; falta repetirlo en la laptop.
 - [ ] Al subir a un VPS: activar WAL (`DB_JOURNAL_MODE=wal` en `.env`) y revisar que el respaldo copie
       también `-wal`/`-shm` (el respaldo de la app usa `VACUUM INTO`, que ya es seguro). En la laptop con
       Windows queda sin WAL por `respaldo-diario.bat`.
@@ -154,6 +157,21 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (inventario F2)** — Fase 2 hecha: las recetas por porciones ya mueven stock. Nueva tabla
+  `ingredient_compositions` (componente de costeo → insumo real, cantidad en la unidad del insumo) y `CompositionService`,
+  la única que sabe expandir un componente en sus insumos (un solo nivel); lo usan la venta (`InventoryService`), el
+  costeo (`RecipeCostService`: el costo del componente es Σ cantidad × CPP del insumo, incompleto si a un insumo le falta
+  costo) y el catálogo (`stock_recipe` ya expandido en productos y opciones). Un componente sin composición no mueve
+  stock y conserva su costo. Anular revierte los movimientos originales, así cambiar una composición no toca las ventas
+  pasadas. Pantalla «Composición» en Costos y margen (g/ml/unidades, costo resultante en vivo, aviso de que lo anterior no
+  se recalcula) y botón en cada componente. POS: un solo módulo con la regla (`utils/stockRecipe.js`) para el aviso, el
+  descuento y la restauración sin conexión; el aviso de una opción suma el producto base más su ajuste (H20) y se
+  corrigieron dos fallas del descuento local (NaN con opciones y kilos al anular). En productos por peso solo las filas en
+  kg escalan con los kilos (como el costeo). Decisión: la composición la edita solo el dueño (está en Finanzas).
+  Verificado: 229 tests (16 nuevos), build, y en el navegador contra una copia: composición armada desde la pantalla
+  (180 g de pulpa = Bs 2,98), venta de un bowl Mediano desde el POS → −252 g de pulpa en el stock local y en el servidor,
+  anular lo devolvió, y el aviso por tamaño (Mediano sin aviso, Grande y Ohana con aviso con 0,3 kg).
 
 - **2026-10-09 (inventario F1)** — Fase 1 hecha: las compras ahora mueven stock y costo. Una compra es un gasto de
   Finanzas con líneas (`finance_expense_items`); cada línea con insumo suma stock, actualiza el CPP y deja un

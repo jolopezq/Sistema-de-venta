@@ -17,6 +17,9 @@ use Illuminate\Support\Collection;
  * Costo de un producto = Σ (cantidad de su receta × costo del componente) + Σ ajustes de las opciones elegidas.
  * En los productos por peso (Autoservicio) las líneas en kg se multiplican por los kg vendidos; las demás
  * (envase, cucharilla) van una vez por unidad. Una receta está "completa" cuando todos sus componentes tienen costo.
+ *
+ * El costo de un componente con composición (plan de inventario, F2) es la suma de sus insumos reales a su costo
+ * promedio, así que cambia solo cuando cambia el CPP; sin composición, es el costo que se le cargó.
  */
 class RecipeCostService
 {
@@ -26,10 +29,17 @@ class RecipeCostService
     private ?Collection $ingredients = null;
     private ?Collection $recipesByProduct = null;
     private ?Collection $recipesByOption = null;
+    private CompositionService $composition;
+
+    public function __construct(?CompositionService $composition = null)
+    {
+        $this->composition = $composition ?? new CompositionService();
+    }
 
     /** Vuelve a leer recetas y costos (después de editarlos). */
     public function refresh(): void
     {
+        $this->composition->refresh();
         $this->ingredients = Ingredient::withTrashed()->get()->keyBy('id');
         $this->recipesByProduct = Recipe::all()->groupBy('product_id');
         $this->recipesByOption = OptionRecipe::all()->groupBy('option_id');
@@ -280,9 +290,9 @@ class RecipeCostService
         if (!$ingredient) {
             return [0.0, $qty != 0.0];
         }
-        $unitCost = $ingredient->costPerUnit();
+        [$unitCost, $missingCost] = $this->composition->unitCost($ingredient);
 
-        return [$qty * $unitCost, $qty != 0.0 && $unitCost <= 0];
+        return [$qty * $unitCost, $qty != 0.0 && $missingCost];
     }
 
     private function worse(string $a, string $b): string
