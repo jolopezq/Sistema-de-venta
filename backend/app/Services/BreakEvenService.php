@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ExpenseCategory;
 use App\Models\RecurringExpense;
+use App\Models\Sale;
 use Carbon\Carbon;
 
 /**
@@ -82,6 +83,8 @@ class BreakEvenService
                 'projection'       => $projection,
                 'projected_profit' => round($projection * $margin['percent'] / 100 - $fixed['total'], 2),
                 'reach_day'        => $sales >= $amount ? null : ($pace > 0 ? (int) ceil($amount / $pace) : null),
+                // Día del mes en que las ventas acumuladas cubrieron el punto de equilibrio (solo si se alcanzó)
+                'reached_day'      => $sales >= $amount ? $this->reachedDay($start, $amount, $sales) : null,
                 'closed'           => $closed,
                 'status'           => match (true) {
                     $sales >= $amount  => 'reached',
@@ -114,6 +117,39 @@ class BreakEvenService
             'progress'   => $progress,
             'warnings'   => $this->warnings($margin, $basedOn, $fixed),
         ];
+    }
+
+    /**
+     * Primer día del mes en que las ventas acumuladas llegaron al punto de equilibrio.
+     *
+     * Las ventas del Estado de Resultados mezclan lo cobrado en el local con lo neto de PedidosYa (estado de cuenta),
+     * que no tiene fecha por día. Se reparte ese total según cómo se vendió cada día en el POS: las ventas diarias se
+     * escalan para que su suma sea igual a las ventas del mes. Sin ventas en el POS no hay forma de saber el día.
+     */
+    private function reachedDay(Carbon $start, float $amount, float $monthSales): ?int
+    {
+        $daily = Sale::where('status', 'completed')
+            ->whereBetween('created_at', [$start->copy()->startOfMonth(), $start->copy()->endOfMonth()])
+            ->selectRaw('DATE(created_at) as day, SUM(total_amount) as total')
+            ->groupBy('day')
+            ->orderBy('day')
+            ->pluck('total', 'day');
+
+        $posTotal = (float) $daily->sum();
+        if ($posTotal <= 0) {
+            return null;
+        }
+
+        $scale = $monthSales / $posTotal;
+        $accumulated = 0.0;
+        foreach ($daily as $day => $total) {
+            $accumulated += (float) $total * $scale;
+            if ($accumulated + 0.005 >= $amount) {
+                return (int) substr((string) $day, 8, 2);
+            }
+        }
+
+        return null;
     }
 
     /**

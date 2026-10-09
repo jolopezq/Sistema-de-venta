@@ -239,8 +239,23 @@ se renombra con la fecha de la actualización de producción.
 - Ventas **rechazadas a la vista**: tras 3 rechazos seguidos una venta pasa a «rechazada» con su motivo, deja de reintentarse
   sola y aparece en Turno (panel con «Reintentar envío»), en el indicador de red («N rechazadas») y en la revisión del cierre.
   Los motivos de validación de la sincronización están en español.
+- Finanzas → **Resumen rediseñado** (dirección visual del 09/10: evolución de la identidad de Ohana, aprobada sobre la
+  maqueta «Finanzas: dirección y maqueta»). El resultado del mes se lee como una frase («Septiembre cerró con Bs 9.094 de
+  utilidad», «Octubre va con…», en pérdida o sin ventas), con la barra de qué queda de cada Bs 100 vendidos (los costos en
+  tonos neutros y lo que queda en açaí; con pérdida, una marca muestra hasta dónde llegaron las ventas). Pegado al resultado
+  va lo que falta cargar para que sea definitivo, cada aviso con su botón. Debajo: Estado de resultados y PedidosYa a la
+  izquierda, punto de equilibrio y reposición a la derecha, y los indicadores de inventario como tabla, del que está peor al
+  que está mejor, con estados de icono y texto. Mientras carga otro mes, el resultado avisa «Actualizando…».
+- Punto de equilibrio: `progress.reached_day`, el día en que las ventas acumuladas cubrieron los costos fijos (las ventas
+  diarias del POS escaladas al total del Estado de Resultados). El bloque lo dice en una frase («Cubriste los costos fijos
+  el 8 de octubre») con la barra de los días del mes; el detalle (márgenes por canal, costo por recetas frente al real y
+  merma) queda en «Ver de dónde sale».
 
 ### Cambiado
+- Finanzas, todas las pestañas: título y encabezados de bloque más grandes, encabezados de tabla sin mayúsculas, cifras
+  tabulares y botón principal en maracuyá como el resto del POS (antes açaí, que queda para «lo que te queda»). El Resumen
+  ya no tiene las cuatro tarjetas de cifras ni la tarjeta «Para que el resultado sea real»: su contenido pasó al resultado
+  del mes.
 - Arqueo: el asistente de cierre, la tarjeta «Efectivo en gaveta» de Turno y el reporte impreso muestran solo efectivo
   (fondo + ventas + ingresos − egresos en efectivo = esperado) y los egresos con QR o tarjeta aparte. Antes se restaban los
   egresos totales y se omitían los ingresos extra, así que las filas no sumaban el esperado.

@@ -117,6 +117,33 @@ class BreakEvenTest extends TestCase
         $this->assertEqualsWithDelta(280 * 0.671 - 2500, $r['progress']['projected_profit'], 0.5);
     }
 
+    public function test_reached_day_is_the_first_day_sales_cover_the_break_even(): void
+    {
+        $this->applyBaseRecipes();
+        // Margen 67,1 % y fijos de 100 → equilibrio en Bs 149,03
+        RecurringExpense::create(['name' => 'Alquiler', 'expense_category_id' => $this->rent->id, 'amount' => 100, 'frequency' => 'monthly', 'start_month' => '2026-08', 'is_active' => true]);
+        $this->sale('2026-08-03 15:00:00', 'pos', 'Classic Bowl', 5, 28); // acumulado 140: todavía no
+        $this->sale('2026-08-10 11:00:00', 'pos', 'Classic Bowl', 5, 28); // acumulado 280: se cubre el día 10
+        $this->sale('2026-08-20 18:00:00', 'pos', 'Classic Bowl', 5, 28);
+
+        $r = $this->breakEven(8);
+
+        $this->assertEquals('reached', $r['progress']['status']);
+        $this->assertSame(10, $r['progress']['reached_day']);
+    }
+
+    public function test_reached_day_is_null_when_the_break_even_is_not_reached(): void
+    {
+        $this->applyBaseRecipes();
+        $this->sale('2026-08-05 15:00:00', 'pos', 'Classic Bowl', 10, 28);
+        RecurringExpense::create(['name' => 'Alquiler', 'expense_category_id' => $this->rent->id, 'amount' => 2500, 'frequency' => 'monthly', 'start_month' => '2026-08', 'is_active' => true]);
+
+        $r = $this->breakEven(8);
+
+        $this->assertEquals('missed', $r['progress']['status']);
+        $this->assertNull($r['progress']['reached_day']);
+    }
+
     public function test_generated_recurring_expenses_are_not_counted_twice(): void
     {
         $this->applyBaseRecipes();

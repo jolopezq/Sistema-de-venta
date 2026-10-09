@@ -94,11 +94,11 @@ const sign = (n) => (Number(n) < 0 ? 'neg' : '');
   <div class="fin-card">
     <div class="fin-card-head">
       <div>
-        <h2>Estado de Resultados</h2>
-        <p>{{ pnl.period?.month_name }} · montos en Bs y % sobre las ventas</p>
+        <h2>Estado de resultados</h2>
+        <p>Montos en Bs y porcentaje sobre las ventas del mes.</p>
       </div>
       <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="toggleAll">
-        {{ allOpen ? 'Contraer detalle' : 'Ver todo el detalle' }}
+        {{ allOpen ? 'Ocultar el detalle' : 'Ver cada línea' }}
       </button>
     </div>
 
@@ -107,8 +107,8 @@ const sign = (n) => (Number(n) < 0 ? 'neg' : '');
         <thead>
           <tr>
             <th scope="col">Concepto</th>
-            <th scope="col">Bs</th>
-            <th scope="col">%</th>
+            <th scope="col">Monto</th>
+            <th scope="col">%<span class="fin-th-long"> de ventas</span></th>
           </tr>
         </thead>
         <tbody>

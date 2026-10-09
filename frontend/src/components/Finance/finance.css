@@ -12,6 +12,21 @@
   background: var(--cream-50);
   color: var(--ink-900);
   font-family: var(--font-sans);
+  /* Dirección visual de Finanzas (evolución de la identidad de Ohana): la banda del resultado del mes, el açaí de
+     «lo que te queda» y los tonos neutros de lo que se gasta, de claro a oscuro */
+  --fin-band: var(--acai-50);
+  --fin-keep: var(--acai-700);
+  --fin-seg-1: #D3CBDA;
+  --fin-seg-2: #B5ABC0;
+  --fin-seg-3: #968AA3;
+  --fin-seg-4: #7B6F88;
+}
+html.dark .fin-page {
+  --fin-keep: var(--acai-300);
+  --fin-seg-1: #3D3644;
+  --fin-seg-2: #51485B;
+  --fin-seg-3: #675C72;
+  --fin-seg-4: #7E7289;
 }
 
 /* ---------- Encabezado ---------- */
@@ -26,13 +41,13 @@
 }
 .fin-page .fin-head h1 {
   font-family: var(--font-heading);
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.15;
   color: var(--ink-900);
 }
-.fin-page .fin-head p { margin: 2px 0 0; font-size: 13px; color: var(--ink-500); }
+.fin-page .fin-head p { margin: 2px 0 0; font-size: 14px; color: var(--ink-500); }
 
 .fin-page .fin-period {
   display: inline-flex;
@@ -94,17 +109,17 @@
   gap: 7px;
   border: none;
   background: transparent;
-  padding: 12px 12px 11px;
+  padding: 13px 12px 12px;
   font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14.5px;
+  font-weight: 500;
   color: var(--ink-500);
   border-bottom: 3px solid transparent;
   cursor: pointer;
   white-space: nowrap;
 }
 .fin-page .fin-tab:hover { color: var(--ink-900); }
-.fin-page .fin-tab.active { color: var(--acai-text); border-bottom-color: var(--acai-500); }
+.fin-page .fin-tab.active { color: var(--acai-text); border-bottom-color: var(--acai-500); font-weight: 600; }
 .fin-page .fin-count {
   min-width: 20px;
   padding: 1px 7px;
@@ -140,11 +155,12 @@
 .fin-page .fin-card-head h3 {
   margin: 0;
   font-family: var(--font-heading);
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 700;
+  line-height: 1.25;
   color: var(--ink-900);
 }
-.fin-page .fin-card-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-500); }
+.fin-page .fin-card-head p { margin: 2px 0 0; font-size: 13px; color: var(--ink-500); }
 .fin-page .fin-card-body { padding: 16px 18px; }
 .fin-page .fin-card-foot {
   padding: 12px 18px;
@@ -212,38 +228,37 @@
 .fin-page .fin-warning-text { flex: 1; min-width: 0; }
 
 /* ---------- Estado de resultados ---------- */
-.fin-page .fin-statement { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.fin-page .fin-statement { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .fin-page .fin-statement th {
   text-align: right;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .06em;
+  font-size: 12.5px;
+  font-weight: 500;
   color: var(--ink-500);
-  padding: 10px 18px;
+  padding: 10px 20px;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 .fin-page .fin-statement th:first-child { text-align: left; }
-.fin-page .fin-statement td { padding: 9px 18px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.fin-page .fin-statement td { padding: 11px 20px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .fin-page .fin-statement td.amount,
 .fin-page .fin-statement td.pct { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fin-page .fin-statement td.pct { color: var(--ink-500); width: 76px; }
-.fin-page .fin-statement tr.section td { font-weight: 700; color: var(--ink-900); }
+.fin-page .fin-statement tr.section td { font-weight: 500; color: var(--ink-900); }
 .fin-page .fin-statement tr.child td { color: var(--ink-700); font-size: 13px; }
 .fin-page .fin-statement tr.child td:first-child { padding-left: 38px; }
 .fin-page .fin-statement tr.item td { color: var(--ink-500); font-size: 12.5px; }
 .fin-page .fin-statement tr.item td:first-child { padding-left: 58px; }
 .fin-page .fin-statement tr.subtotal td {
   font-weight: 700;
-  background: var(--cream-200);
   color: var(--ink-900);
+  border-top: 1px solid var(--ink-300);
 }
 .fin-page .fin-statement tr.total td {
-  font-family: var(--font-heading);
-  font-size: 16px;
+  font-size: 15.5px;
   font-weight: 700;
-  background: var(--acai-50);
+  background: var(--fin-band);
   color: var(--acai-text);
+  border-top: 2px solid var(--fin-keep);
   border-bottom: none;
 }
 .fin-page .fin-statement tr.total td.pct { color: var(--acai-text); }
@@ -269,10 +284,8 @@
 .fin-page .fin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .fin-page .fin-table th {
   text-align: left;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .06em;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--ink-500);
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
@@ -342,7 +355,7 @@
 }
 .fin-page .fin-btn:disabled { opacity: .55; cursor: not-allowed; }
 .fin-page .fin-btn svg { width: 15px; height: 15px; }
-.fin-page .fin-btn-primary { background: var(--acai-500); color: #FFFFFF; }
+.fin-page .fin-btn-primary { background: var(--passion-500); color: var(--on-accent); }
 .fin-page .fin-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .fin-page .fin-btn-secondary { background: var(--cream-200); color: var(--ink-900); }
 .fin-page .fin-btn-secondary:hover:not(:disabled) { background: var(--surface-hover); }
@@ -351,6 +364,25 @@
 .fin-page .fin-btn-danger { background: var(--danger-600); color: #FFFFFF; }
 html.dark .fin-page .fin-btn-danger { color: var(--on-accent); }
 .fin-page .fin-btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+.fin-page .fin-btn-lg { min-height: 44px; padding: 0 18px; font-size: 14px; border-radius: 12px; }
+
+/* ---------- Estados con icono (en meta, cerca, fuera, informativo) ---------- */
+.fin-page .fin-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--cream-200);
+  color: var(--ink-700);
+}
+.fin-page .fin-status svg { width: 13px; height: 13px; flex-shrink: 0; }
+.fin-page .fin-status.ok { background: var(--lime-100); color: var(--lime-700); }
+.fin-page .fin-status.warn { background: var(--gold-100); color: var(--gold-text); }
+.fin-page .fin-status.err { background: var(--danger-100); color: var(--danger-text); }
 .fin-page .fin-btn-link {
   border: none;
   background: none;
@@ -637,3 +669,8 @@ html.dark .fin-page .fin-toast.error { background: var(--danger-100); color: var
   .fin-page .fin-section-options { grid-template-columns: 1fr; }
 }
 .fin-page .fin-behavior { width: auto; min-width: 110px; }
+
+/* Encabezado largo que en celular se acorta («% de ventas» → «%») */
+@media (max-width: 760px) {
+  .fin-page .fin-th-long { display: none; }
+}

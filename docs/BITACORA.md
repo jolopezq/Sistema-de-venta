@@ -4,13 +4,14 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-09)
-- **Rama de trabajo:** `feat/pos-cierre-caja`, que sale de `feat/inventario-reorden`: prioridad 1 del [análisis del POS y del cierre de caja](https://claude.ai/code/artifact/0a10e4d8-9e98-424e-8ffe-8cc39486eaef) (turno obligatorio, ventas rechazadas visibles, revisión previa y desglose que suma).
+- **Rama de trabajo:** `feat/finanzas-rediseno`, que sale de `feat/pos-cierre-caja`: etapa 2 del rediseño visual aplicada a Finanzas (Resumen nuevo y estilos base del módulo), sobre la maqueta aprobada «Finanzas: dirección y maqueta».
+- **Rama anterior:** `feat/pos-cierre-caja`, que sale de `feat/inventario-reorden`: prioridad 1 del [análisis del POS y del cierre de caja](https://claude.ai/code/artifact/0a10e4d8-9e98-424e-8ffe-8cc39486eaef) (turno obligatorio, ventas rechazadas visibles, revisión previa y desglose que suma).
 - **Rama anterior:** `feat/inventario-reorden` (auditoría, plan aprobado y **Fases 0 a 5 del plan de inventario, completo**; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
 - **Ensayo de arranque en Mac:** checklist ejecutado y validado de punta a punta (recetas base, composiciones, 2 conteos, mermas e indicadores en Finanzas; ver registro del 09/10).
 - **Destino de producción:** se prevé contratar un VPS para alojar el sistema (todavía no contratado); hasta entonces la producción sigue
   en la laptop con Windows. La base de la Mac es de desarrollo y quedó con datos de ensayo (conteos y una merma de prueba), así que no
   sirve como base de producción: el VPS debe partir de una copia de la base de la laptop.
-- **Tests:** 315 en verde (`php artisan test`, 1720 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Tests:** 317 en verde (`php artisan test`, 1726 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -115,6 +116,11 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       caja cerrada con los cambios posteriores aparte; «qué pedir mañana» en el reporte de cierre; historial de cajas sin
       recalcular sesión por sesión.
 - [ ] `graphify update .` en la Mac tras la rama `feat/pos-cierre-caja` (nuevo componente `SyncIssuesPanel` y cambios de flujo).
+- [ ] Rediseño visual: Finanzas → Resumen hecho en `feat/finanzas-rediseno`; las demás pestañas de Finanzas solo tomaron los
+      estilos base (títulos, encabezados de tabla, botón principal). Siguientes candidatas según la
+      [propuesta](https://claude.ai/code/artifact/0c92c842-cec0-44be-87bc-56c91315f2a2): Login y, al final, Turno y Control Diario;
+      la pantalla de venta solo con ajustes de color y tipografía. `graphify update .` en la Mac (componentes nuevos
+      `FinanceMonthHero` y `FinanceStatus`).
 - [ ] `graphify update .` en la Mac tras la Fase 0 (el entorno de la nube no tiene graphify).
 - [ ] Costos y punto de equilibrio: `php artisan migrate` en la Mac con respaldo (migración `2026_10_09_000001`);
       luego Finanzas → Costos y margen → «Cargar recetas base», cargar los precios del café (kg de café, litro de
@@ -192,6 +198,17 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (Finanzas: rediseño del Resumen)** — Etapa 2 del rediseño sobre la dirección aprobada (evolución: mismos tonos y
+  fuentes, otra jerarquía). `FinanceMonthHero` (frase del mes, barra de cada Bs 100 con marca de pérdida, avisos de datos
+  faltantes con su acción, «Actualizando…»), `FinanceBreakEven` compacto en la columna lateral con el día de equilibrio
+  (`BreakEvenService::reachedDay`, ventas diarias del POS escaladas al total del mes; 2 tests nuevos) y el detalle a un clic,
+  `FinanceInventoryIndicators` como tabla ordenada por estado, `FinanceStatus` (estado con icono y texto) y PedidosYa como
+  panel debajo del Estado de resultados. `finance.css`: tokens de la dirección (`--fin-band`, `--fin-keep`, `--fin-seg-1…4`,
+  claro y oscuro), títulos, encabezados de tabla sin mayúsculas y botón principal en maracuyá. Verificado contra una copia con
+  gastos de ejemplo (octubre en curso con equilibrio el día 8, septiembre en pérdida, agosto con equilibrio el 23, julio sin
+  ventas, noviembre futuro): 317 tests, build, contraste 0 en claro y oscuro (Resumen, las otras 5 pestañas y el modal de
+  compra) y celular a 390 px.
 
 - **2026-10-09 (POS: cierre de caja confiable, prioridad 1)** — Sobre el análisis del POS y las decisiones del dueño:
   `active()` informa `sales_session_id` (la caja que recibiría una venta, con `CashSessionResolver`) y el POS bloquea el cobro
