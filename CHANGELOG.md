@@ -209,6 +209,9 @@ se renombra con la fecha de la actualización de producción.
 - Finanzas: en las ventanas con tablas (asistente de recetas) la tabla se encogía hasta desaparecer.
 - Control Diario: al editar una venta por peso, los gramos se precargaban con la cantidad (1 g) en lugar de los
   gramos vendidos.
+- POS: tras «Cargar recetas base», todos los productos con receta aparecían sin stock y no se podían vender (el
+  catálogo enviaba los componentes de costeo, con stock 0, como insumos). El catálogo del POS ahora solo envía los
+  insumos que llevan stock.
 
 ### Seguridad
 - Permisos por rol aplicados en el backend; cocina sin acceso a ventas ni caja. (`938c31b`)

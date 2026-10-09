@@ -28,7 +28,9 @@ class CatalogController extends Controller
         return response()->json([
             'categories'  => CategoryResource::collection($this->categories->allOrdered()),
             'products'    => ProductResource::collection($this->products->allActive()),
-            'ingredients' => Ingredient::select('id', 'name', 'unit', 'current_stock')->get(),
+            // Solo insumos con stock: los componentes de costeo (porciones, kits) tienen stock 0 y el POS
+            // bloquearía los productos que los usan en su receta
+            'ingredients' => Ingredient::where('tracks_stock', true)->select('id', 'name', 'unit', 'current_stock')->get(),
             // TODO: Agregar 'customers' cuando el módulo CRM esté implementado
         ]);
     }

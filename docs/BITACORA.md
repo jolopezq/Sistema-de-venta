@@ -136,7 +136,9 @@ Formato: fecha — resumen — commits. Lo más reciente arriba.
   equilibrio» en el Resumen y tipo de costo en Categorías. Los componentes de costeo no mueven stock
   (`ingredients.tracks_stock`). Los gramos de las ventas por peso se guardan (`sale_items.weight_grams`).
   Corregido además: respuestas atrasadas al cambiar de mes rápido, tablas que se encogían dentro de las ventanas y
-  los gramos precargados al editar una venta por peso en Control Diario.
+  los gramos precargados al editar una venta por peso en Control Diario. Después, en la auditoría de inventario, se
+  encontró que el POS daba por agotados los productos con recetas base (componentes de costeo con stock 0 en el
+  catálogo): corregido filtrando el catálogo por `tracks_stock`.
   Probado en una copia de la base de la Mac (migrada; la real **no**): flujo en el navegador (asistente, editor,
   resumen, categorías) en claro/oscuro a 1440 y 390 px con contraste 0, y flujo de venta por API (abrir caja →
   vender Autoservicio 400 g + Classic Bowl → cocina → anular → cerrar caja sin diferencia; los componentes de

@@ -144,4 +144,19 @@ class FinanceCostApiTest extends TestCase
             $this->actingAs($user)->postJson('/api/finance/costs/base-recipes', [])->assertForbidden();
         }
     }
+
+    public function test_pos_catalog_does_not_send_costing_components_so_products_stay_sellable(): void
+    {
+        $this->wizard();
+        $real = Ingredient::create(['name' => 'Pulpa de açaí', 'unit' => 'kg', 'current_stock' => 5, 'unit_cost' => 25]);
+
+        $catalog = $this->actingAs($this->owner)->getJson('/api/catalog')->assertOk()->json();
+
+        $ids = collect($catalog['ingredients'])->pluck('id');
+        $this->assertTrue($ids->contains($real->id));
+        // Ningún componente de costeo (stock 0) llega al POS: si llegara, el POS daría los bowls por agotados
+        $this->assertFalse($ids->intersect(Ingredient::where('tracks_stock', false)->pluck('id'))->isNotEmpty());
+        $classic = collect($catalog['products'])->firstWhere('name', 'Classic Bowl');
+        $this->assertNotEmpty($classic['recipes']);
+    }
 }
