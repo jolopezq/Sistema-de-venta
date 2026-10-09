@@ -26,12 +26,16 @@ class InventoryMovement extends Model
         'performed_by',
         'reference_type',
         'reference_id',
+        'unit_cost',
+        'total_cost',
     ];
 
     protected function casts(): array
     {
         return [
             'quantity_changed' => 'decimal:4',
+            'unit_cost' => 'decimal:4',
+            'total_cost' => 'decimal:2',
         ];
     }
 

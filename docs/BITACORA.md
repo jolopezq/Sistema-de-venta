@@ -4,8 +4,8 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-09)
-- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fase 0 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
-- **Tests:** 193 en verde (`php artisan test`, 1033 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fases 0 y 1 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
+- **Tests:** 213 en verde (`php artisan test`, 1155 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -30,7 +30,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | Finanzas — costos por receta, margen de contribución y punto de equilibrio ([plan](PLAN_COSTOS_PUNTO_EQUILIBRIO.md)) | ✅ en rama `feat/costos-punto-equilibrio` | ver registro |
 | Inventario confiable, mermas y punto de reorden ([auditoría](AUDITORIA_INVENTARIO_MERMAS.md), [plan](PLAN_INVENTARIO_REORDEN.md)): plan aprobado el 09/10 (D1–D7) | En curso en `feat/inventario-reorden` |  |
 | ↳ F0 Correcciones de base (CPP, stock solo por movimientos, peso, validaciones, atomicidad, POS avisa) | ✅ | ver registro |
-| ↳ F1 Compras ligadas a insumos y proveedores | Pendiente | — |
+| ↳ F1 Compras ligadas a insumos y proveedores | ✅ | ver registro |
 | ↳ F2 Recetas que mueven stock (composición de componentes) | Pendiente | — |
 | ↳ F3 Mermas y conteo físico | Pendiente | — |
 | ↳ F4 Punto de reorden y alertas | Pendiente | — |
@@ -63,11 +63,17 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       (muestra qué cambiaría) y luego con `--confirm`, con respaldo previo. Corrige el CPP en 0 de pulpa, granola y
       banana. Hasta entonces el cálculo de costos y las compras ya usan el último costo como respaldo.
 - [ ] Inventario (dueño): pasar los gramos de pulpa, granola, etc. y los descartables de cada tamaño y receta
-      (se cargan en «Composición», F2); proveedor, unidad y lote de compra de cada insumo clave (F1/F4) y, si
-      se quiere, el consumo diario estimado para arrancar el punto de reorden.
+      (se cargan en «Composición», F2); proveedor, unidad y lote de compra de cada insumo clave (se cargan en
+      Inventario → Editar insumo, desde F1) y, si se quiere, el consumo diario estimado para arrancar el punto de
+      reorden (F4).
+- [ ] Inventario (dueño): desde F1 los ingresos de stock se registran como **Compra** (Finanzas → Registrar compra o
+      Inventario → Ingreso). Una compra de mercado con precios que varían se anota con lo pagado por línea; el CPP
+      absorbe la variación. Las compras antiguas de Finanzas (sin líneas) siguen como gasto y no mueven stock.
 - [ ] Inventario: `php artisan migrate` en la Mac y en la laptop con respaldo previo
       (`2026_10_10_000001_relax_inventory_movement_columns`: solo cambia la definición de columnas de
-      `inventory_movements`; no modifica datos).
+      `inventory_movements`; `2026_10_10_000002_create_suppliers_and_purchase_items` y
+      `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements`: tablas y columnas nuevas; ninguna
+      modifica datos).
 - [ ] Al subir a un VPS: activar WAL (`DB_JOURNAL_MODE=wal` en `.env`) y revisar que el respaldo copie
       también `-wal`/`-shm` (el respaldo de la app usa `VACUUM INTO`, que ya es seguro). En la laptop con
       Windows queda sin WAL por `respaldo-diario.bat`.
@@ -148,6 +154,21 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (inventario F1)** — Fase 1 hecha: las compras ahora mueven stock y costo. Una compra es un gasto de
+  Finanzas con líneas (`finance_expense_items`); cada línea con insumo suma stock, actualiza el CPP y deja un
+  movimiento `restock` con costo y total (unidad de compra × factor = unidades de stock; costo unitario = pagado ÷
+  unidades). Editar o eliminar revierte con `purchase_reversal` y rehace el CPP repasando los movimientos; si hay
+  ingresos antiguos sin costo, el stock se corrige y el CPP se deja igual con un aviso (devuelto en `warnings`). El
+  ingreso suelto de stock desapareció de `/inventory/movements` (solo merma y conteo): todo entra por Compra, así
+  Inventario y Finanzas cuadran sin doble carga. Proveedores (tabla propia, creados al vuelo por nombre sin
+  duplicar), con días de entrega para F4; el insumo guarda proveedor, unidad/factor de compra y pedido mínimo.
+  Decisión: las rutas de compras y proveedores están fuera de `/finance` (que es solo del dueño) para que el admin
+  pueda registrar compras desde Inventario; el cajero no. Un mismo `PurchaseModal` sirve a Finanzas e Inventario.
+  Verificado: 213 tests (19 nuevos de compras y proveedores), build, y en el navegador contra una copia (compra de
+  2 bolsas de 2 kg + gas desde Inventario → stock +4 kg, costo Bs 22,50/kg; la compra aparece en Finanzas con la
+  etiqueta «Compra · 2 líneas» y se abre para editar; proveedor creado una sola vez), en claro/oscuro y a 1440 y
+  390 px, sin errores en consola.
 
 - **2026-10-09 (inventario F0)** — El dueño aprobó D1–D7 y respondió las preguntas (conteo los martes; compras en
   mercados con precios variables; gramos y descartables los cargará él; el CPP de los 3 insumos lo corrige él

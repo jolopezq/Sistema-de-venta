@@ -26,10 +26,10 @@ class InventoryMovementRequest extends FormRequest
             'quantity_changed' => ['required_without:counted_stock', 'nullable', 'numeric', 'not_in:0'],
             // Conteo físico: lo que hay; el sistema calcula la diferencia con su stock del momento
             'counted_stock' => ['nullable', 'numeric', 'min:0', 'prohibited_unless:type,adjustment'],
-            'type' => ['required', 'in:waste,restock,adjustment'],
+            // Los ingresos de mercadería son Compras (POST /purchases): crean también el gasto en Finanzas
+            'type' => ['required', 'in:waste,adjustment'],
             'waste_category' => ['nullable', 'string', 'required_if:type,waste', 'in:expired,damaged,spillage'],
             'notes' => ['nullable', 'string'],
-            'unit_cost' => ['nullable', 'numeric', 'min:0', 'required_if:type,restock'],
         ];
     }
 
@@ -43,9 +43,6 @@ class InventoryMovementRequest extends FormRequest
             $quantity = (float) $this->input('quantity_changed');
             if ($this->input('type') === 'waste' && $quantity > 0) {
                 $validator->errors()->add('quantity_changed', 'Una merma resta stock: la cantidad debe ser negativa.');
-            }
-            if ($this->input('type') === 'restock' && $quantity < 0) {
-                $validator->errors()->add('quantity_changed', 'Un ingreso suma stock: la cantidad debe ser positiva.');
             }
         });
     }
@@ -62,12 +59,9 @@ class InventoryMovementRequest extends FormRequest
             'quantity_changed.numeric' => 'La cantidad debe ser un número.',
             'quantity_changed.not_in' => 'La cantidad no puede ser cero.',
             'type.required' => 'El tipo de movimiento es obligatorio.',
-            'type.in' => 'El tipo de movimiento seleccionado no es válido.',
+            'type.in' => 'El tipo de movimiento no es válido. Los ingresos de mercadería se registran como Compra.',
             'waste_category.in' => 'El motivo de la merma no es válido.',
             'waste_category.required_if' => 'La categoría de merma es obligatoria cuando el movimiento es una merma.',
-            'unit_cost.numeric' => 'El costo unitario debe ser un número.',
-            'unit_cost.min' => 'El costo unitario no puede ser negativo.',
-            'unit_cost.required_if' => 'El costo unitario es obligatorio para un ingreso de compra.',
         ];
     }
 }

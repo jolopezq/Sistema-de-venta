@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\FinanceExpenseRequest;
 use App\Models\FinanceExpense;
+use App\Services\PurchaseService;
 use App\Support\NameKey;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -14,7 +15,7 @@ class FinanceExpenseController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = FinanceExpense::with(['category', 'user:id,name', 'recurringExpense:id,name,frequency']);
+        $query = FinanceExpense::with(['category', 'user:id,name', 'recurringExpense:id,name,frequency'])->withCount('items');
 
         if ($request->filled('category_id')) {
             $query->where('expense_category_id', $request->category_id);
@@ -119,11 +120,14 @@ class FinanceExpenseController extends Controller
 
     public function show(FinanceExpense $financeExpense): JsonResponse
     {
-        return response()->json($financeExpense->load(['category', 'user:id,name']));
+        return response()->json($financeExpense->load(['category', 'user:id,name', 'items.ingredient:id,name,unit']));
     }
 
     public function update(FinanceExpenseRequest $request, FinanceExpense $financeExpense): JsonResponse
     {
+        if ($financeExpense->items()->exists()) {
+            return response()->json(['message' => 'Es una compra con insumos: edítala desde el formulario de Compra para que el stock se corrija.'], 422);
+        }
         $data = $request->validated();
         if (!$financeExpense->recurring_expense_id && array_key_exists('supplier', $data)) {
             $data['supplier'] = $this->canonicalSupplier($data['supplier']);
@@ -136,8 +140,14 @@ class FinanceExpenseController extends Controller
         ]);
     }
 
-    public function destroy(FinanceExpense $financeExpense): JsonResponse
+    public function destroy(FinanceExpense $financeExpense, PurchaseService $purchases): JsonResponse
     {
+        // Una compra con insumos devuelve su stock al eliminarse
+        if ($financeExpense->items()->exists()) {
+            $warnings = $purchases->delete($financeExpense, Auth::id());
+
+            return response()->json(['message' => 'Compra eliminada y stock devuelto.', 'warnings' => $warnings]);
+        }
         $financeExpense->delete();
 
         return response()->json([

@@ -40,10 +40,14 @@ class InventoryStockTest extends TestCase
         return Ingredient::findOrFail($id);
     }
 
+    /** Un ingreso de mercadería es una Compra de una línea: también crea el gasto en Finanzas. */
     private function restock(Ingredient $ingredient, float $qty, float $cost)
     {
-        return $this->actingAs($this->owner)->postJson('/api/inventory/movements', [
-            'ingredient_id' => $ingredient->id, 'type' => 'restock', 'quantity_changed' => $qty, 'unit_cost' => $cost,
+        return $this->actingAs($this->owner)->postJson('/api/purchases', [
+            'date' => '2026-10-09',
+            'expense_category_id' => \App\Models\ExpenseCategory::where('section', 'cost_of_sales')->value('id'),
+            'payment_method' => 'cash',
+            'items' => [['ingredient_id' => $ingredient->id, 'quantity' => $qty, 'total' => round($qty * $cost, 2)]],
         ]);
     }
 
@@ -171,11 +175,21 @@ class InventoryStockTest extends TestCase
         $this->assertEquals(48.0, (float) $pulpa->fresh()->current_stock);
     }
 
+    public function test_a_restock_through_the_movements_endpoint_is_no_longer_accepted(): void
+    {
+        $pulpa = $this->createIngredient();
+
+        $this->actingAs($this->owner)->postJson('/api/inventory/movements', [
+            'ingredient_id' => $pulpa->id, 'type' => 'restock', 'quantity_changed' => 5, 'unit_cost' => 12,
+        ])->assertUnprocessable()->assertJsonValidationErrors('type');
+        $this->assertEquals(50.0, (float) $pulpa->fresh()->current_stock);
+    }
+
     public function test_a_restock_with_negative_quantity_is_rejected(): void
     {
         $pulpa = $this->createIngredient();
 
-        $this->restock($pulpa, -5, 12)->assertUnprocessable()->assertJsonValidationErrors('quantity_changed');
+        $this->restock($pulpa, -5, 12)->assertUnprocessable()->assertJsonValidationErrors('items.0.quantity');
     }
 
     public function test_units_are_a_closed_list_but_old_units_can_still_be_edited(): void

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Traits\Auditable;
 
 class FinanceExpense extends Model
@@ -15,6 +16,7 @@ class FinanceExpense extends Model
         'date',
         'expense_category_id',
         'supplier',
+        'supplier_id',
         'amount',
         'payment_method',
         'receipt_number',
@@ -41,6 +43,17 @@ class FinanceExpense extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Líneas de la compra (vacío en un gasto simple). */
+    public function items(): HasMany
+    {
+        return $this->hasMany(FinanceExpenseItem::class);
+    }
+
+    public function supplierRecord(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class, 'supplier_id');
     }
 
     /** Gasto fijo que generó este gasto (vacío si se registró a mano). */

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
 import { apiFetch } from '../services/api';
+import PurchaseModal from '../components/PurchaseModal.vue';
 
 const ingredients = ref([]);
 const categories = ref([]);
@@ -10,6 +11,32 @@ const error = ref(null);
 const showMovementModal = ref(false);
 const showIngredientModal = ref(false);
 const showCategoryModal = ref(false);
+const showSuppliersModal = ref(false);
+
+// Compra de insumos (formulario compartido con Finanzas)
+const purchaseOpen = ref(false);
+const purchaseIngredientId = ref(null);
+const notice = ref('');
+let noticeTimer = null;
+
+function openPurchase(ing = null) {
+  purchaseIngredientId.value = ing ? ing.id : null;
+  purchaseOpen.value = true;
+}
+
+function showNotice(message) {
+  notice.value = message;
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => { notice.value = ''; }, 6000);
+}
+
+async function onPurchaseSaved({ warnings }) {
+  purchaseOpen.value = false;
+  showNotice('Compra registrada: el stock y el costo ya están al día.');
+  if (warnings?.length) alertAction(`El costo promedio de ${warnings.join(', ')} no se pudo recalcular y se dejó como estaba.`);
+  // Una compra con proveedor nuevo lo crea al guardar: se recarga también la lista de proveedores
+  await Promise.all([fetchIngredients(), fetchSuppliers()]);
+}
 
 const formErrors = ref({});
 
@@ -21,11 +48,10 @@ const filterCategoryId = ref('');
 
 // Forms
 const movementForm = ref({
-  type: 'restock',
+  type: 'waste',
   quantity_changed: 0,
   counted_stock: 0,
-  unit_cost: 0,
-  waste_category: '',
+  waste_category: 'expired',
   notes: ''
 });
 
@@ -37,6 +63,10 @@ const ingredientForm = ref({
   minimum_stock: 0,
   unit_cost: 0,
   current_stock: 0,
+  supplier_id: '',
+  purchase_unit: '',
+  purchase_factor: 1,
+  lot_size: '',
 });
 
 const categoryForm = ref({
@@ -53,10 +83,73 @@ const legacyUnit = computed(() => {
 const isEditingCategory = ref(false);
 const selectedCategory = ref(null);
 
+const suppliers = ref([]);
+const supplierForm = ref({ name: '', phone: '', delivery_days: 1, order_days: '', notes: '', is_active: true });
+const editingSupplier = ref(null);
+const supplierErrors = ref({});
+
 onMounted(async () => {
-  await fetchCategories();
+  await Promise.all([fetchCategories(), fetchSuppliers()]);
   await fetchIngredients();
 });
+
+async function fetchSuppliers() {
+  try {
+    const res = await apiFetch('/suppliers');
+    suppliers.value = res.data || res;
+  } catch (e) {
+    console.error('Error fetching suppliers', e);
+  }
+}
+
+function openSuppliersModal() {
+  fetchSuppliers();
+  newSupplier();
+  showSuppliersModal.value = true;
+}
+
+function newSupplier() {
+  editingSupplier.value = null;
+  supplierErrors.value = {};
+  supplierForm.value = { name: '', phone: '', delivery_days: 1, order_days: '', notes: '', is_active: true };
+}
+
+function editSupplier(sup) {
+  editingSupplier.value = sup;
+  supplierErrors.value = {};
+  supplierForm.value = {
+    name: sup.name, phone: sup.phone || '', delivery_days: sup.delivery_days, order_days: sup.order_days || '',
+    notes: sup.notes || '', is_active: !!sup.is_active,
+  };
+}
+
+async function saveSupplier() {
+  supplierErrors.value = {};
+  try {
+    const url = editingSupplier.value ? `/suppliers/${editingSupplier.value.id}` : '/suppliers';
+    await apiFetch(url, {
+      method: editingSupplier.value ? 'PUT' : 'POST',
+      body: JSON.stringify({ ...supplierForm.value, delivery_days: Number(supplierForm.value.delivery_days) || 0 }),
+    });
+    newSupplier();
+    await Promise.all([fetchSuppliers(), fetchIngredients()]);
+  } catch (e) {
+    if (e.validationErrors) supplierErrors.value = e.validationErrors;
+    else alertAction(e.message || 'Error al guardar el proveedor');
+  }
+}
+
+function deleteSupplier(sup) {
+  confirmAction(`¿Eliminar al proveedor «${sup.name}»?`, async () => {
+    try {
+      await apiFetch(`/suppliers/${sup.id}`, { method: 'DELETE' });
+      if (editingSupplier.value?.id === sup.id) newSupplier();
+      await fetchSuppliers();
+    } catch (e) {
+      alertAction(e.message || 'No se pudo eliminar el proveedor.');
+    }
+  });
+}
 
 // Watch filters to trigger fetch
 watch([filterSearch, filterCategoryId], () => {
@@ -88,14 +181,14 @@ async function fetchIngredients() {
   }
 }
 
-function openMovementModal(ing, type = 'restock') {
+function openMovementModal(ing, type = 'waste') {
+  formErrors.value = {};
   selectedIngredient.value = ing;
   movementForm.value = {
     type,
     quantity_changed: 0,
     counted_stock: Number(ing.current_stock) || 0,
-    unit_cost: ing.unit_cost || 0,
-    waste_category: '',
+    waste_category: 'expired',
     notes: ''
   };
   showMovementModal.value = true;
@@ -106,7 +199,14 @@ function openIngredientModal(ing = null) {
   if (ing) {
     isEditing.value = true;
     selectedIngredient.value = ing;
-    ingredientForm.value = { ...ing };
+    ingredientForm.value = {
+      ...ing,
+      ingredient_category_id: ing.ingredient_category_id ?? '',
+      supplier_id: ing.supplier_id ?? '',
+      purchase_unit: ing.purchase_unit ?? '',
+      purchase_factor: ing.purchase_factor ?? 1,
+      lot_size: ing.lot_size ?? '',
+    };
   } else {
     isEditing.value = false;
     selectedIngredient.value = null;
@@ -118,6 +218,10 @@ function openIngredientModal(ing = null) {
       minimum_stock: 0,
       unit_cost: 0,
       current_stock: 0,
+      supplier_id: '',
+      purchase_unit: '',
+      purchase_factor: 1,
+      lot_size: '',
     };
   }
   showIngredientModal.value = true;
@@ -249,8 +353,7 @@ async function saveMovement() {
         ingredient_id: selectedIngredient.value.id,
         ...(isCount ? { counted_stock: parseFloat(movementForm.value.counted_stock) } : { quantity_changed: qty }),
         type: movementForm.value.type,
-        unit_cost: movementForm.value.unit_cost,
-        waste_category: movementForm.value.waste_category,
+        ...(movementForm.value.type === 'waste' ? { waste_category: movementForm.value.waste_category } : {}),
         notes: movementForm.value.notes
       })
     });
@@ -274,7 +377,9 @@ async function saveMovement() {
         <p>Control de insumos, abastecimiento y mermas.</p>
       </div>
       <div class="header-actions">
+        <button class="btn-ghost" @click="openSuppliersModal()">🚚 Proveedores</button>
         <button class="btn-ghost" @click="openCategoryModal()">📂 Categorías</button>
+        <button class="btn-ghost btn-outline" @click="openPurchase()">🛒 Registrar compra</button>
         <button class="btn-primary" @click="openIngredientModal()">+ Nuevo Insumo</button>
       </div>
     </div>
@@ -292,6 +397,8 @@ async function saveMovement() {
         </select>
       </div>
     </div>
+
+    <div v-if="notice" class="inv-notice" role="status">{{ notice }}</div>
 
     <div v-if="loading" class="loading">Cargando inventario...</div>
     <div v-else-if="error" class="error">{{ error }}</div>
@@ -312,7 +419,7 @@ async function saveMovement() {
           <tr v-for="ing in ingredients" :key="ing.id" :class="{ 'low-stock': parseFloat(ing.current_stock) <= parseFloat(ing.minimum_stock) }">
             <td class="fw-bold">
               {{ ing.name }}
-              <br><small class="text-muted">Unidad: {{ ing.unit }}</small>
+              <br><small class="text-muted">Unidad: {{ ing.unit }}<template v-if="ing.supplier"> · {{ ing.supplier.name }}</template></small>
             </td>
             <td>
               <span class="badge cat-badge" v-if="ing.category">{{ ing.category.name }}</span>
@@ -326,7 +433,7 @@ async function saveMovement() {
             <td>Bs {{ ing.unit_cost }}</td>
             <td>Bs {{ ing.weighted_avg_cost }}</td>
             <td class="actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <button class="btn-action-labeled" @click="openMovementModal(ing, 'restock')" title="Comprar / Ingresar Stock">
+              <button class="btn-action-labeled" @click="openPurchase(ing)" title="Registrar una compra de este insumo (sube el stock y actualiza el costo)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
                 Ingreso
               </button>
@@ -411,6 +518,87 @@ async function saveMovement() {
       </div>
     </div>
 
+    <!-- Modal Proveedores (CRUD) -->
+    <div v-if="showSuppliersModal" class="modal-backdrop">
+      <div class="modal-content" style="max-width: 720px;">
+        <h3>Proveedores</h3>
+        <p class="text-muted">Quién te vende y cuántos días tarda en entregar; se usa para calcular cuándo pedir.</p>
+        <div class="categories-layout">
+          <div class="categories-list">
+            <table class="oh-table" style="margin-bottom: 16px;">
+              <thead>
+                <tr>
+                  <th>Proveedor</th>
+                  <th>Entrega</th>
+                  <th style="width: 80px;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="sup in suppliers" :key="sup.id" :class="{ 'row-inactive': !sup.is_active }">
+                  <td>
+                    {{ sup.name }}
+                    <br><small class="text-muted">{{ sup.ingredients_count }} insumos · {{ sup.expenses_count }} compras<template v-if="!sup.is_active"> · inactivo</template></small>
+                  </td>
+                  <td>{{ sup.delivery_days === 0 ? 'Mismo día' : `${sup.delivery_days} d` }}</td>
+                  <td class="actions">
+                    <button class="btn-ghost" style="padding: 4px;" :aria-label="`Editar ${sup.name}`" @click="editSupplier(sup)">✏️</button>
+                    <button class="btn-ghost" style="padding: 4px;" :aria-label="`Eliminar ${sup.name}`" @click="deleteSupplier(sup)">🗑️</button>
+                  </td>
+                </tr>
+                <tr v-if="suppliers.length === 0">
+                  <td colspan="3" class="empty-state">Aún no hay proveedores. Se crean solos al registrar una compra con proveedor, o aquí.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="categories-form">
+            <h4>{{ editingSupplier ? 'Editar proveedor' : 'Nuevo proveedor' }}</h4>
+            <div class="form-group">
+              <label>Nombre</label>
+              <input v-model="supplierForm.name" type="text" maxlength="150" :class="{'has-error': supplierErrors.name}" />
+              <span v-if="supplierErrors.name" class="error-text">{{ supplierErrors.name[0] }}</span>
+            </div>
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label>Teléfono</label>
+                <input v-model="supplierForm.phone" type="text" maxlength="30" />
+              </div>
+              <div class="form-group flex-1">
+                <label>Días de entrega</label>
+                <input v-model="supplierForm.delivery_days" type="number" min="0" max="60" :class="{'has-error': supplierErrors.delivery_days}" />
+                <span v-if="supplierErrors.delivery_days" class="error-text">{{ supplierErrors.delivery_days[0] }}</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Días de pedido (opcional)</label>
+              <input v-model="supplierForm.order_days" type="text" maxlength="100" placeholder="Ej.: lunes y jueves" />
+            </div>
+            <div class="form-group">
+              <label>Notas (opcional)</label>
+              <input v-model="supplierForm.notes" type="text" maxlength="1000" />
+            </div>
+            <label class="check-row"><input v-model="supplierForm.is_active" type="checkbox" /> Activo (aparece al comprar)</label>
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+              <button class="btn-primary flex-1" @click="saveSupplier">{{ editingSupplier ? 'Actualizar' : 'Crear' }}</button>
+              <button v-if="editingSupplier" class="btn-ghost" @click="newSupplier()">Cancelar</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions" style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px;">
+          <button class="btn-ghost" @click="showSuppliersModal = false">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compra de insumos (el mismo formulario que Finanzas) -->
+    <PurchaseModal
+      v-if="purchaseOpen"
+      :ingredient-id="purchaseIngredientId"
+      @close="purchaseOpen = false"
+      @saved="onPurchaseSaved"
+    />
+
     <!-- Modal Insumo -->
     <div v-if="showIngredientModal" class="modal-backdrop">
       <div class="modal-content">
@@ -471,6 +659,34 @@ async function saveMovement() {
             <span v-if="formErrors.unit_cost" class="error-text">{{ formErrors.unit_cost[0] }}</span>
           </div>
         </div>
+        <div class="form-section">Datos de compra (opcional)</div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label>Proveedor habitual</label>
+            <select v-model="ingredientForm.supplier_id" :class="{'has-error': formErrors.supplier_id}">
+              <option value="">Sin proveedor fijo</option>
+              <option v-for="sup in suppliers.filter((x) => x.is_active || x.id === ingredientForm.supplier_id)" :key="sup.id" :value="sup.id">{{ sup.name }}</option>
+            </select>
+            <span v-if="formErrors.supplier_id" class="error-text">{{ formErrors.supplier_id[0] }}</span>
+          </div>
+          <div class="form-group flex-1">
+            <label>Se compra en</label>
+            <input v-model="ingredientForm.purchase_unit" type="text" maxlength="30" placeholder="bolsa, caja, kg…" :class="{'has-error': formErrors.purchase_unit}" />
+            <span v-if="formErrors.purchase_unit" class="error-text">{{ formErrors.purchase_unit[0] }}</span>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label>{{ ingredientForm.unit }} por {{ ingredientForm.purchase_unit || 'unidad de compra' }}</label>
+            <input v-model="ingredientForm.purchase_factor" type="number" step="any" min="0" :class="{'has-error': formErrors.purchase_factor}" />
+            <span v-if="formErrors.purchase_factor" class="error-text">{{ formErrors.purchase_factor[0] }}</span>
+          </div>
+          <div class="form-group flex-1">
+            <label>Pedido mínimo ({{ ingredientForm.unit }})</label>
+            <input v-model="ingredientForm.lot_size" type="number" step="any" min="0" placeholder="Opcional" :class="{'has-error': formErrors.lot_size}" />
+            <span v-if="formErrors.lot_size" class="error-text">{{ formErrors.lot_size[0] }}</span>
+          </div>
+        </div>
         <div class="modal-actions">
           <button class="btn-ghost" @click="showIngredientModal = false">Cancelar</button>
           <button class="btn-primary" @click="saveIngredient">Guardar</button>
@@ -482,8 +698,7 @@ async function saveMovement() {
     <div v-if="showMovementModal" class="modal-backdrop">
       <div class="modal-content">
         <h3>
-          <span v-if="movementForm.type === 'restock'">📦 Ingreso de Compra</span>
-          <span v-else-if="movementForm.type === 'waste'">🗑️ Registrar Merma</span>
+          <span v-if="movementForm.type === 'waste'">🗑️ Registrar Merma</span>
           <span v-else>⚖️ Conteo físico</span>
         </h3>
         <p class="text-muted mb-4">{{ selectedIngredient?.name }}</p>
@@ -498,12 +713,6 @@ async function saveMovement() {
           <label>Cantidad ({{ selectedIngredient?.unit }})</label>
           <input v-model="movementForm.quantity_changed" type="number" step="0.01" min="0" :class="{'has-error': formErrors.quantity_changed}" />
           <span v-if="formErrors.quantity_changed" class="error-text">{{ formErrors.quantity_changed[0] }}</span>
-        </div>
-
-        <div v-if="movementForm.type === 'restock'" class="form-group">
-          <label>Costo Unitario de Compra (Bs)</label>
-          <input v-model="movementForm.unit_cost" type="number" step="0.01" :class="{'has-error': formErrors.unit_cost}" />
-          <span v-if="formErrors.unit_cost" class="error-text">{{ formErrors.unit_cost[0] }}</span>
         </div>
 
         <div v-if="movementForm.type === 'waste'" class="form-group">
@@ -804,4 +1013,28 @@ async function saveMovement() {
   border-color: #BAE6FD;
   background: #E0F2FE;
 }
+
+.btn-outline { border-color: var(--border); }
+.form-section {
+  margin: 4px 0 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+.inv-notice {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--lime-100);
+  color: var(--lime-700);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.row-inactive td { color: var(--ink-500); }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-700); }
+.check-row input { width: auto; }
 </style>

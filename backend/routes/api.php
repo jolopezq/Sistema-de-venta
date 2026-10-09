@@ -63,6 +63,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/option-recipes/{optionRecipe}', [OptionRecipeController::class, 'destroy']);
         Route::post('/inventory/movements', [InventoryMovementController::class, 'store']);
 
+        // Compras de insumos (un gasto de Finanzas con líneas) y proveedores
+        Route::get('/purchases/options', [\App\Http\Controllers\PurchaseController::class, 'options']);
+        Route::apiResource('purchases', \App\Http\Controllers\PurchaseController::class)
+            ->only(['show', 'store', 'update', 'destroy'])
+            ->parameters(['purchases' => 'financeExpense']);
+        Route::apiResource('suppliers', \App\Http\Controllers\SupplierController::class)->only(['index', 'store', 'update', 'destroy']);
+
         Route::put('/loyalty-config', [LoyaltyConfigController::class, 'update']);
         Route::post('/sales/{sale}/void', [SaleController::class, 'voidSale']);
     });

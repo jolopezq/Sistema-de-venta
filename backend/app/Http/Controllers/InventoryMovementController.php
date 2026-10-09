@@ -40,15 +40,7 @@ class InventoryMovementController extends Controller
         $ingredient = Ingredient::findOrFail($validated['ingredient_id']);
         $userId = $request->user()->id;
 
-        if ($validated['type'] === 'restock') {
-            // Usa el servicio para recalcular CPP
-            $this->inventoryService->recordRestock(
-                $ingredient,
-                (float) $validated['quantity_changed'], // Validado positivo
-                $validated['unit_cost'],
-                $userId
-            );
-        } elseif (isset($validated['counted_stock'])) {
+        if (isset($validated['counted_stock'])) {
             // Conteo físico: la diferencia se calcula contra el stock del momento, no el que se veía en pantalla
             $this->inventoryService->recordCount(
                 $ingredient,

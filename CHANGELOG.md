@@ -139,6 +139,21 @@ se renombra con la fecha de la actualización de producción.
   movimiento `initial` al crear un insumo con stock; comando `php artisan inventory:fix-initial-cost`
   (muestra o, con `--confirm`, corrige el CPP en 0 de insumos con stock).
 - POS: aviso **«stock bajo»** en productos y opciones cuando el stock teórico no alcanza; no bloquea la venta.
+- Inventario (plan, F1): **compras ligadas a insumos y proveedores**. Una compra es un gasto de Finanzas con líneas
+  (`finance_expense_items`): cada línea con insumo sube el stock, actualiza el costo promedio (CPP) y deja un
+  movimiento `restock` con su costo; las líneas sin insumo (gas, limpieza) cuentan solo como gasto. Se escribe lo
+  pagado por línea y el sistema calcula el costo por unidad; si se compra en bolsas o cajas se indica cuántos kg
+  o unidades trae cada una. Al **editar o eliminar** una compra el stock y el CPP se rehacen (movimiento
+  `purchase_reversal`); si algún insumo tiene ingresos antiguos sin costo, el stock se corrige y el CPP se deja
+  como estaba con un aviso. El estado de resultados no cuenta la compra dos veces.
+- Un mismo formulario de compra en Finanzas → «Registrar compra» (y editar desde la lista, con la etiqueta
+  «Compra · N líneas») e Inventario → «Ingreso» / «Registrar compra». Lo pueden usar admin y dueño
+  (`GET /api/purchases/options`, `/api/purchases`).
+- **Proveedores** (Inventario → «Proveedores»): nombre, teléfono, días de entrega y de pedido, notas. Se crean
+  solos al escribir un proveedor nuevo en una compra (sin duplicar por mayúsculas, tildes ni espacios);
+  `/api/suppliers`. Cada insumo guarda proveedor habitual, unidad y factor de compra y pedido mínimo (Editar insumo).
+- Migraciones `2026_10_10_000002_create_suppliers_and_purchase_items` y
+  `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements` (tablas y columnas nuevas; no modifican datos).
 
 ### Cambiado
 - Inventario: el stock de un insumo ya no se edita desde el formulario (cambia con ingresos, mermas, conteos
@@ -147,6 +162,10 @@ se renombra con la fecha de la actualización de producción.
 - El stock se descuenta con una sola sentencia SQL y SQLite espera hasta 5 s por el bloqueo de escritura
   (`DB_BUSY_TIMEOUT`, `DB_TRANSACTION_MODE=IMMEDIATE`; WAL opcional con `DB_JOURNAL_MODE=wal`).
 - `inventory_movements.type`, `waste_category` y `reference_type` pasan de enum a texto (migración sin cambio de datos).
+- Inventario: los ingresos de stock ya no se registran como movimiento suelto; `POST /api/inventory/movements`
+  solo acepta `waste` y `adjustment` (conteo). Todo ingreso entra por una Compra, para que Inventario y Finanzas
+  cuadren. Un gasto con líneas no se edita como gasto simple (se edita como compra); al eliminarlo desde
+  Finanzas se devuelve el stock.
 - El arqueo de caja suma las ventas por sesión en lugar de por rango de horas (sin doble conteo). (`35ba606`)
 - El sobrepago en efectivo se registra como cambio, no como ingreso. (`7005e0e`)
 - Los pedidos PedidosYa (`source = 'pedidosya'`) ya no suman a las ventas del local ni al efectivo esperado,

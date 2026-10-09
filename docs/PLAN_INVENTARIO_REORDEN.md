@@ -135,7 +135,12 @@ Cada fase se entrega sola, en la rama, con pruebas, CHANGELOG y BITÁCORA. Verif
   stock insuficiente.
 - **Riesgo:** el cambio a WAL afecta los respaldos; probarlo con `respaldo-diario.bat` antes de producción.
 
-### F1 · Compras ligadas a insumos y proveedores — 2 a 3 días
+### F1 · Compras ligadas a insumos y proveedores — 2 a 3 días · ✅ hecha el 09/10/2026
+
+> Ajustes respecto a lo propuesto: las rutas `/purchases` y `/suppliers` están fuera de `/finance` (solo dueño) para
+> que el admin compre desde Inventario; al editar o eliminar una compra el CPP se rehace repasando los movimientos
+> (si hay ingresos antiguos sin costo se corrige el stock y se avisa); `POST /inventory/movements` ya no acepta
+> `restock`: todo ingreso entra por una Compra. Las compras antiguas de Finanzas siguen como gasto simple.
 
 - **Modelo:**
   - tabla `suppliers` (nombre, teléfono, días de entrega, días de pedido, notas);

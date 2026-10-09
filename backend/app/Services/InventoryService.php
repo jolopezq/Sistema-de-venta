@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\FinanceExpenseItem;
 use App\Models\Ingredient;
 use App\Models\InventoryMovement;
 use App\Models\Product;
@@ -35,39 +36,115 @@ class InventoryService
     }
 
     /**
-     * Registra un abastecimiento (restock) recalculando el Costo Promedio Ponderado (CPP).
+     * Entrada de mercadería por una línea de compra: sube el stock y recalcula el Costo Promedio Ponderado (CPP).
      *
      * CPP = (stock × CPP vigente + cantidad × costo nuevo) ÷ stock total. El CPP vigente es el promedio
      * guardado o, si todavía no hay compras, el último costo cargado. Con stock en cero o negativo (se
      * vendió sin cargar la compra) no hay inventario que promediar: el CPP pasa a ser el costo de la compra.
      *
-     * La operación es atómica: si falla la actualización del insumo o el registro del movimiento, ambos
-     * hacen rollback.
+     * Se invoca dentro de la transacción de PurchaseService.
      */
-    public function recordRestock(Ingredient $ingredient, float $quantity, float $newUnitCost, int $userId): void
+    public function receivePurchaseItem(FinanceExpenseItem $item, int $userId, string $label): void
     {
-        DB::transaction(function () use ($ingredient, $quantity, $newUnitCost, $userId) {
-            $current = Ingredient::lockForUpdate()->findOrFail($ingredient->id);
-            $stock = (float) $current->current_stock;
+        $current = Ingredient::lockForUpdate()->findOrFail($item->ingredient_id);
+        $stock = (float) $current->current_stock;
+        $quantity = (float) $item->stock_quantity;
+        $unitCost = (float) $item->unit_cost;
 
-            $newCpp = $stock > 0
-                ? (($stock * $current->costPerUnit()) + ($quantity * $newUnitCost)) / ($stock + $quantity)
-                : $newUnitCost;
+        $newCpp = $stock > 0
+            ? (($stock * $current->costPerUnit()) + ($quantity * $unitCost)) / ($stock + $quantity)
+            : $unitCost;
 
-            $current->unit_cost = $newUnitCost;
-            $current->weighted_avg_cost = round($newCpp, 4);
-            $current->save();
+        $current->unit_cost = $unitCost;
+        $current->weighted_avg_cost = round($newCpp, 4);
+        $current->save();
 
-            $this->applyStockChange($current->id, $quantity);
+        $this->applyStockChange($current->id, $quantity);
 
-            InventoryMovement::create([
-                'ingredient_id'    => $current->id,
-                'quantity_changed' => $quantity,
-                'type'             => 'restock',
-                'notes'            => 'Ingreso de mercadería (CPP actualizado)',
-                'performed_by'     => $userId,
-            ]);
-        });
+        InventoryMovement::create([
+            'ingredient_id'    => $current->id,
+            'quantity_changed' => $quantity,
+            'type'             => 'restock',
+            'notes'            => $label,
+            'performed_by'     => $userId,
+            'reference_type'   => 'purchase_item',
+            'reference_id'     => $item->id,
+            'unit_cost'        => $unitCost,
+            'total_cost'       => round($quantity * $unitCost, 2),
+        ]);
+    }
+
+    /**
+     * Deshace la entrada de una línea de compra (al editar o eliminar la compra): resta lo ingresado y deja
+     * un movimiento `purchase_reversal` ligado a la línea. El CPP se recalcula después con recalculateCost().
+     */
+    public function reversePurchaseItem(FinanceExpenseItem $item, int $userId, string $label): void
+    {
+        $quantity = (float) $item->stock_quantity;
+        $this->applyStockChange($item->ingredient_id, -$quantity);
+
+        InventoryMovement::create([
+            'ingredient_id'    => $item->ingredient_id,
+            'quantity_changed' => -$quantity,
+            'type'             => 'purchase_reversal',
+            'notes'            => $label,
+            'performed_by'     => $userId,
+            'reference_type'   => 'purchase_item',
+            'reference_id'     => $item->id,
+            'unit_cost'        => $item->unit_cost,
+            'total_cost'       => round($quantity * (float) $item->unit_cost, 2),
+        ]);
+    }
+
+    /**
+     * Recalcula el CPP repitiendo, en orden, los movimientos del insumo sin las compras ya revertidas.
+     * Es la forma exacta de «quitar» una compra de un promedio móvil. Devuelve false si no se puede (movimientos
+     * antiguos sin costo, o stock que no coincide con la suma de sus movimientos): el CPP queda como estaba.
+     */
+    public function recalculateCost(Ingredient $ingredient): bool
+    {
+        $movements = InventoryMovement::where('ingredient_id', $ingredient->id)
+            ->orderBy('created_at')->orderBy('id')
+            ->get(['id', 'type', 'quantity_changed', 'unit_cost', 'reference_type', 'reference_id']);
+
+        $reversedItems = $movements->where('type', 'purchase_reversal')->pluck('reference_id')->all();
+        $stock = 0.0;
+        $cpp = 0.0;
+        $lastCost = null;
+
+        foreach ($movements as $m) {
+            $quantity = (float) $m->quantity_changed;
+
+            if ($m->type === 'purchase_reversal') {
+                continue; // anula a su compra: ninguna de las dos cuenta
+            }
+            if ($m->type === 'restock' && $m->reference_type === 'purchase_item' && in_array($m->reference_id, $reversedItems, true)) {
+                continue;
+            }
+
+            if ($m->type === 'initial' || $m->type === 'restock') {
+                if ($m->unit_cost === null) {
+                    return false;
+                }
+                $cost = (float) $m->unit_cost;
+                $cpp = $stock > 0 ? (($stock * $cpp) + ($quantity * $cost)) / ($stock + $quantity) : $cost;
+                $lastCost = $cost;
+            }
+            $stock += $quantity;
+        }
+
+        $fresh = Ingredient::findOrFail($ingredient->id);
+        if (abs($stock - (float) $fresh->current_stock) > 0.001) {
+            return false;
+        }
+
+        $fresh->weighted_avg_cost = round($cpp, 4);
+        if ($lastCost !== null) {
+            $fresh->unit_cost = $lastCost;
+        }
+        $fresh->save();
+
+        return true;
     }
 
     /**
@@ -94,6 +171,8 @@ class InventoryService
                     'notes'            => 'Stock inicial',
                     'performed_by'     => $userId,
                     'reference_type'   => 'manual',
+                    'unit_cost'        => $cost,
+                    'total_cost'       => round($initial * $cost, 2),
                 ]);
             }
 

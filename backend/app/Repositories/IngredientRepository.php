@@ -19,7 +19,7 @@ class IngredientRepository
     public function all(array $filters = []): Collection
     {
         // Inventario muestra lo que lleva stock; los componentes de costeo se manejan en Finanzas → Costos y margen
-        $query = Ingredient::with('category')->where('tracks_stock', true)->orderBy('name');
+        $query = Ingredient::with(['category', 'supplier:id,name'])->where('tracks_stock', true)->orderBy('name');
 
         if (!empty($filters['category_id'])) {
             $query->where('ingredient_category_id', $filters['category_id']);

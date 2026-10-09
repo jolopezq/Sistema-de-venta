@@ -26,6 +26,12 @@ class IngredientResource extends JsonResource
             'min_shelf_date' => $this->min_shelf_date?->toDateString(),
             'ingredient_category_id' => $this->ingredient_category_id,
             'type' => $this->type,
+            'tracks_stock' => (bool) $this->tracks_stock,
+            'supplier_id' => $this->supplier_id,
+            'supplier' => $this->whenLoaded('supplier', fn () => $this->supplier ? ['id' => $this->supplier->id, 'name' => $this->supplier->name] : null),
+            'purchase_unit' => $this->purchase_unit,
+            'purchase_factor' => (float) ($this->purchase_factor ?: 1),
+            'lot_size' => $this->lot_size !== null ? (float) $this->lot_size : null,
             'category' => $this->whenLoaded('category'),
         ];
     }

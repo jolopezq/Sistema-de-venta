@@ -6,6 +6,7 @@ import {
 } from '../../stores/finance';
 import FinanceModal from './FinanceModal.vue';
 import CategorySelect from './CategorySelect.vue';
+import PurchaseModal from '../PurchaseModal.vue';
 
 /**
  * Pestaña Compras y gastos: lo pagado fuera de la caja (finance_expenses) y los egresos de caja del mes,
@@ -26,6 +27,29 @@ const categoryFilter = computed({
 });
 const filterCategories = computed(() => finance.categories.filter((c) => !sectionFilter.value || c.section === sectionFilter.value));
 const sectionTotals = computed(() => finance.expenseTotals.by_section || {});
+
+// ---------- Compra de insumos (líneas con stock y costo) ----------
+const purchaseOpen = ref(false);
+const purchaseId = ref(null);
+
+function openPurchase(id = null) {
+  purchaseId.value = id;
+  purchaseOpen.value = true;
+}
+
+async function onPurchaseSaved({ edited, warnings }) {
+  purchaseOpen.value = false;
+  finance.notify(edited ? 'Compra actualizada.' : 'Compra registrada: el stock y el costo ya están al día.');
+  warnForCosts(warnings);
+  await Promise.all([finance.loadExpenses(), finance.loadPnl(), finance.loadRecurring(), finance.loadCosts()]);
+}
+
+/** Si no se pudo rehacer el costo promedio de algún insumo (movimientos antiguos sin costo), se avisa. */
+function warnForCosts(warnings) {
+  if (warnings?.length) {
+    finance.notify(`El stock se ajustó, pero el costo promedio de ${warnings.join(', ')} se dejó como estaba: revísalo en Inventario.`, 'error');
+  }
+}
 
 // ---------- Formulario de gasto ----------
 const modalOpen = ref(false);
@@ -60,6 +84,8 @@ function openNew() {
 }
 
 function openEdit(item) {
+  // Una compra con líneas se edita en su propio formulario
+  if (item.items_count > 0) { openPurchase(item.id); return; }
   editing.value = item;
   Object.assign(form, {
     date: String(item.date).slice(0, 10),
@@ -132,17 +158,20 @@ async function save() {
 
 async function remove(item) {
   const generated = !!item.recurring_expense_id;
+  const isPurchase = item.items_count > 0;
   const ok = await finance.confirm({
-    title: 'Eliminar gasto',
+    title: isPurchase ? 'Eliminar compra' : 'Eliminar gasto',
     message: `${item.supplier || item.category?.name || 'Gasto'} · ${formatBs(item.amount)} del ${formatDay(item.date)}.`
+      + (isPurchase ? '\nSe devolverá el stock que entró con esta compra y se recalculará el costo de los insumos.' : '')
       + (generated ? '\nEs un gasto fijo generado: no se volverá a proponer este mes (puedes recuperarlo en Gastos fijos).' : ''),
     confirmLabel: 'Eliminar',
     danger: true,
   });
   if (!ok) return;
   try {
-    await apiFetch(`/finance/expenses/${item.id}`, { method: 'DELETE' });
-    finance.notify('Gasto eliminado.');
+    const res = await apiFetch(`/finance/expenses/${item.id}`, { method: 'DELETE' });
+    finance.notify(isPurchase ? 'Compra eliminada y stock devuelto.' : 'Gasto eliminado.');
+    warnForCosts(res?.warnings);
     await Promise.all([finance.loadExpenses(), finance.loadPnl(), finance.loadRecurring()]);
   } catch (err) {
     finance.notify(errorText(err, 'No se pudo eliminar.'), 'error');
@@ -181,7 +210,7 @@ async function classify(movement, categoryId) {
 
 // ---------- Acciones que llegan desde el Resumen ----------
 function handleIntent(intent) {
-  if (intent === 'new-expense') openNew();
+  if (intent === 'new-expense') openPurchase();
   if (intent === 'cash') {
     onlyUnclassified.value = unclassifiedCount.value > 0;
     cashSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -200,10 +229,13 @@ watch(() => props.intent, handleIntent);
         <h2>Compras y gastos pagados fuera de caja</h2>
         <p>Lo que se pagó desde la caja del turno ya está abajo, en Egresos de caja: no lo registres dos veces.</p>
       </div>
-      <button class="fin-btn fin-btn-primary" type="button" @click="openNew">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14" /></svg>
-        Registrar compra o gasto
-      </button>
+      <div class="fin-row">
+        <button class="fin-btn fin-btn-secondary" type="button" @click="openNew">Registrar gasto</button>
+        <button class="fin-btn fin-btn-primary" type="button" @click="openPurchase()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14" /></svg>
+          Registrar compra
+        </button>
+      </div>
     </div>
 
     <div class="fin-card-body fin-row">
@@ -248,6 +280,7 @@ watch(() => props.intent, handleIntent);
             <td data-label="Concepto">
               <span class="fin-cell-main">{{ item.supplier || 'Sin proveedor' }}</span>
               <span v-if="item.recurring_expense_id" class="fin-badge acai" style="margin-left: 6px">Gasto fijo</span>
+              <span v-if="item.items_count > 0" class="fin-badge info" style="margin-left: 6px">Compra · {{ item.items_count }} {{ item.items_count === 1 ? 'línea' : 'líneas' }}</span>
               <div v-if="item.notes || item.receipt_number" class="fin-cell-sub">
                 {{ item.notes }}<template v-if="item.receipt_number"> · Recibo {{ item.receipt_number }}</template>
               </div>
@@ -334,6 +367,14 @@ watch(() => props.intent, handleIntent);
       <strong class="fin-num" style="color: var(--ink-900)">Total {{ formatBs(finance.cashMovements.total) }}</strong>
     </div>
   </div>
+
+  <PurchaseModal
+    v-if="purchaseOpen"
+    :expense-id="purchaseId"
+    :default-date="defaultDate()"
+    @close="purchaseOpen = false"
+    @saved="onPurchaseSaved"
+  />
 
   <!-- Modal de gasto -->
   <FinanceModal

@@ -31,6 +31,10 @@ class Ingredient extends Model
         'ingredient_category_id',
         'type',
         'tracks_stock',
+        'supplier_id',
+        'purchase_unit',
+        'purchase_factor',
+        'lot_size',
     ];
 
     protected function casts(): array
@@ -41,6 +45,8 @@ class Ingredient extends Model
             'unit_cost' => 'decimal:4',
             'weighted_avg_cost' => 'decimal:4',
             'tracks_stock' => 'boolean',
+            'purchase_factor' => 'decimal:4',
+            'lot_size' => 'decimal:4',
             'expiration_date' => 'date',
             'min_shelf_date' => 'date',
         ];
@@ -51,6 +57,11 @@ class Ingredient extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(IngredientCategory::class, 'ingredient_category_id');
+    }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     public function recipes(): HasMany
