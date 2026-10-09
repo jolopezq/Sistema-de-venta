@@ -58,10 +58,14 @@ class IngredientController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(int $id): Response
+    public function destroy(int $id): Response|\Illuminate\Http\JsonResponse
     {
         $ingredient = $this->ingredients->find($id);
-        $this->ingredients->delete($ingredient);
+        try {
+            $this->ingredients->delete($ingredient);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
         return response()->noContent();
     }
 }

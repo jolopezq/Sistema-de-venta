@@ -67,8 +67,9 @@ class InventoryService
                 $deduction = $recipe->quantity_required * $quantitySold;
                 $ingredient = $recipe->ingredient;
 
-                // Componente de costo (porción de açaí, mix de frutas…): solo costea, no mueve stock
-                if ($ingredient && $ingredient->tracks_stock === false) {
+                // Componente de costo (porción de açaí, mix de frutas…): solo costea, no mueve stock.
+                // Un insumo eliminado no debe impedir guardar una venta ya cobrada.
+                if (!$ingredient || $ingredient->tracks_stock === false) {
                     continue;
                 }
 
@@ -124,8 +125,8 @@ class InventoryService
                     $deduction = $optRecipe->quantity_delta * $qtySold * $saleItemOption->quantity;
                     $ingredient = $optRecipe->ingredient;
 
-                    if ($ingredient && $ingredient->tracks_stock === false) {
-                        continue; // Componente de costo: no mueve stock
+                    if (!$ingredient || $ingredient->tracks_stock === false) {
+                        continue; // Componente de costo o insumo eliminado: no mueve stock
                     }
 
                     // Descontar (o devolver si es negativo) stock

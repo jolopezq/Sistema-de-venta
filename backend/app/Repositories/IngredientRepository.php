@@ -18,7 +18,8 @@ class IngredientRepository
      */
     public function all(array $filters = []): Collection
     {
-        $query = Ingredient::with('category')->orderBy('name');
+        // Inventario muestra lo que lleva stock; los componentes de costeo se manejan en Finanzas → Costos y margen
+        $query = Ingredient::with('category')->where('tracks_stock', true)->orderBy('name');
 
         if (!empty($filters['category_id'])) {
             $query->where('ingredient_category_id', $filters['category_id']);
@@ -83,6 +84,12 @@ class IngredientRepository
     {
         if ($ingredient->current_stock > 0) {
             throw new \Exception('No se puede eliminar un insumo con stock disponible. Ajuste el stock a cero primero.');
+        }
+        // Un insumo eliminado que sigue en una receta hace fallar la venta de ese producto
+        $inUse = $ingredient->recipes()->whereHas('product')->count()
+            + $ingredient->optionRecipes()->whereHas('option')->count();
+        if ($inUse > 0) {
+            throw new \Exception("No se puede eliminar: lo usan {$inUse} " . ($inUse === 1 ? 'receta' : 'recetas') . '. Quítalo primero de las recetas (Finanzas → Costos y margen).');
         }
         $ingredient->delete();
     }

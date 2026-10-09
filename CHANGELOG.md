@@ -212,6 +212,11 @@ se renombra con la fecha de la actualización de producción.
 - POS: tras «Cargar recetas base», todos los productos con receta aparecían sin stock y no se podían vender (el
   catálogo enviaba los componentes de costeo, con stock 0, como insumos). El catálogo del POS ahora solo envía los
   insumos que llevan stock.
+- Inventario: los componentes de costeo aparecían en la lista de insumos como «stock bajo» y se podían eliminar
+  (stock 0); al eliminar uno, toda venta de un producto que lo usaba fallaba al sincronizar (error 500 que
+  frenaba la cola del POS). Ahora Inventario solo lista lo que lleva stock, no se puede eliminar un insumo que
+  está en una receta vigente (aviso 422 con cuántas recetas lo usan) y una venta se guarda aunque su receta tenga
+  un insumo ya eliminado.
 
 ### Seguridad
 - Permisos por rol aplicados en el backend; cocina sin acceso a ventas ni caja. (`938c31b`)

@@ -138,7 +138,8 @@ Formato: fecha — resumen — commits. Lo más reciente arriba.
   Corregido además: respuestas atrasadas al cambiar de mes rápido, tablas que se encogían dentro de las ventanas y
   los gramos precargados al editar una venta por peso en Control Diario. Después, en la auditoría de inventario, se
   encontró que el POS daba por agotados los productos con recetas base (componentes de costeo con stock 0 en el
-  catálogo): corregido filtrando el catálogo por `tracks_stock`.
+  catálogo): corregido filtrando el catálogo por `tracks_stock`. También: Inventario ya no lista los componentes de
+  costeo, no se elimina un insumo en uso y una receta con un insumo eliminado no rompe la sincronización.
   Probado en una copia de la base de la Mac (migrada; la real **no**): flujo en el navegador (asistente, editor,
   resumen, categorías) en claro/oscuro a 1440 y 390 px con contraste 0, y flujo de venta por API (abrir caja →
   vender Autoservicio 400 g + Classic Bowl → cocina → anular → cerrar caja sin diferencia; los componentes de
