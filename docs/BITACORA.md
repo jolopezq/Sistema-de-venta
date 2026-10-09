@@ -74,14 +74,13 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 - [ ] Inventario (dueño): desde F1 los ingresos de stock se registran como **Compra** (Finanzas → Registrar compra o
       Inventario → Ingreso). Una compra de mercado con precios que varían se anota con lo pagado por línea; el CPP
       absorbe la variación. Las compras antiguas de Finanzas (sin líneas) siguen como gasto y no mueven stock.
-- [ ] Inventario: `php artisan migrate` en la Mac y en la laptop con respaldo previo
-      (`2026_10_10_000001_relax_inventory_movement_columns`: solo cambia la definición de columnas de
-      `inventory_movements`; `2026_10_10_000002_create_suppliers_and_purchase_items`,
-      `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements` y
-      `2026_10_11_000001_create_ingredient_compositions` y `2026_10_12_000001_create_inventory_counts` (F3: tablas de
-      conteos y la columna `is_key`): tablas y columnas nuevas; ninguna modifica datos).
-      Ya aplicadas en la base de la Mac el 09/10 (con las de finanzas y costos que estaban pendientes), salvo la
-      de composición; falta repetirlo en la laptop.
+- [ ] Inventario: `php artisan migrate` en la laptop con respaldo previo
+      (`2026_10_10_000001_relax_inventory_movement_columns`,
+      `2026_10_10_000002_create_suppliers_and_purchase_items`,
+      `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements`,
+      `2026_10_11_000001_create_ingredient_compositions` y
+      `2026_10_12_000001_create_inventory_counts` [F3: tablas de conteos y columna `is_key`]: tablas y columnas
+      nuevas; ninguna modifica datos). Ya aplicadas todas en la base de la Mac el 09/10; falta repetirlo en la laptop.
 - [ ] Al subir a un VPS: activar WAL (`DB_JOURNAL_MODE=wal` en `.env`) y revisar que el respaldo copie
       también `-wal`/`-shm` (el respaldo de la app usa `VACUUM INTO`, que ya es seguro). En la laptop con
       Windows queda sin WAL por `respaldo-diario.bat`.
