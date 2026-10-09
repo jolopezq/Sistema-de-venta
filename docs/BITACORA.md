@@ -11,7 +11,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 - **Destino de producción:** se prevé contratar un VPS para alojar el sistema (todavía no contratado); hasta entonces la producción sigue
   en la laptop con Windows. La base de la Mac es de desarrollo y quedó con datos de ensayo (conteos y una merma de prueba), así que no
   sirve como base de producción: el VPS debe partir de una copia de la base de la laptop.
-- **Tests:** 317 en verde (`php artisan test`, 1726 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Tests:** 321 en verde (`php artisan test`, 1738 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -108,6 +108,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       bloquear el cobro sin turno; bloquear el cierre con ventas pendientes (un admin puede forzarlo con motivo); ningún
       turno pasa de medianoche; a veces se pagan insumos con la caja; categorías de egresos revisadas al cierre; conteo de
       insumos clave en día fijo (martes, por confirmar). Prioridad 1 hecha en `feat/pos-cierre-caja`.
+- [x] Venta del dueño o de un admin con el turno de un cajero abierto: entra a ese turno (una sola gaveta). Decidido el 09/10.
 - [ ] POS y cierre de caja, prioridad 2: «Compra de insumos» desde Ingreso / Egreso que mueva stock y cuente una sola vez en
       Finanzas (cambio 6; hoy una compra pagada con la caja no entra al stock); egresos sin categoría en la revisión previa
       (cambio 7; los cajeros no pueden usar hoy el PATCH de Finanzas); caja olvidada visible en Turno con cierre guiado

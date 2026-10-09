@@ -60,6 +60,27 @@ class CashCloseSafetyTest extends TestCase
             ->assertJsonPath('sales_session_id', $adminSession->id);
     }
 
+    public function test_admin_without_own_session_sells_into_the_open_cashier_session(): void
+    {
+        // Una sola gaveta: lo que cobra el dueño durante el turno de un cajero entra a ese turno
+        $cashierSession = $this->openSession($this->cashier);
+
+        $this->actingAs($this->admin)->getJson('/api/cash-sessions/active')
+            ->assertOk()
+            ->assertJsonPath('session.id', $cashierSession->id)
+            ->assertJsonPath('sales_session_id', $cashierSession->id);
+    }
+
+    public function test_cashier_does_not_sell_into_another_cashiers_session(): void
+    {
+        $other = User::factory()->create(['role' => 'cashier']);
+        $this->openSession($other);
+
+        $this->actingAs($this->cashier)->getJson('/api/cash-sessions/active')
+            ->assertOk()
+            ->assertJsonPath('sales_session_id', null);
+    }
+
     public function test_no_sales_session_when_no_cash_register_is_open(): void
     {
         // Una caja olvidada de ayer no recibe ventas de hoy

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CashRegisterSession;
+use App\Models\User;
 use Carbon\CarbonInterface;
 
 /**
@@ -12,8 +13,12 @@ use Carbon\CarbonInterface;
  * hasta el fin del día en que se abrió (las sesiones olvidadas abiertas no
  * absorben ventas de días posteriores).
  *
- * Prioridad: la sesión del propio cajero; si no tiene, la caja compartida de
- * un admin/super_admin. Entre varias candidatas gana la abierta más reciente.
+ * Prioridad:
+ *  1. la sesión del propio cajero;
+ *  2. si no tiene, la caja compartida de un admin/super_admin;
+ *  3. si quien vende es admin/super_admin y no tiene caja propia, el turno que esté abierto en ese momento
+ *     (el local tiene una sola gaveta: lo que cobra el dueño durante el turno de un cajero entra a ese turno).
+ * Entre varias candidatas gana la abierta más reciente.
  */
 class CashSessionResolver
 {
@@ -31,7 +36,22 @@ class CashSessionResolver
             ->orderByDesc('opened_at')
             ->get();
 
-        return $candidates->firstWhere('cashier_id', $cashierId)
-            ?? $candidates->first(fn ($s) => in_array($s->cashier?->role, ['admin', 'super_admin'], true));
+        $own = $candidates->firstWhere('cashier_id', $cashierId);
+        if ($own) {
+            return $own;
+        }
+
+        $shared = $candidates->first(fn ($s) => in_array($s->cashier?->role, ['admin', 'super_admin'], true));
+        if ($shared) {
+            return $shared;
+        }
+
+        if ($candidates->isEmpty() || !$cashierId) {
+            return null;
+        }
+
+        $sellerIsAdmin = in_array(User::whereKey($cashierId)->value('role'), ['admin', 'super_admin'], true);
+
+        return $sellerIsAdmin ? $candidates->first() : null;
     }
 }

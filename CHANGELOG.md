@@ -252,6 +252,11 @@ se renombra con la fecha de la actualización de producción.
   merma) queda en «Ver de dónde sale».
 
 ### Cambiado
+- Venta del dueño o de un admin **con el turno de un cajero abierto**: entra a ese turno (el local tiene una sola gaveta).
+  `CashSessionResolver` agrega un tercer paso: si quien vende es admin o super_admin y no tiene caja propia ni hay una caja
+  compartida de admin, la venta va al turno abierto en ese momento. Antes el POS bloqueaba al dueño con «No hay un turno
+  abierto» y Caja le mostraba el turno del cajero sin forma de abrir otro. Un cajero sigue sin vender en el turno de otro
+  cajero. 4 tests nuevos.
 - Finanzas, todas las pestañas: título y encabezados de bloque más grandes, encabezados de tabla sin mayúsculas, cifras
   tabulares y botón principal en maracuyá como el resto del POS (antes açaí, que queda para «lo que te queda»). El Resumen
   ya no tiene las cuatro tarjetas de cifras ni la tarjeta «Para que el resultado sea real»: su contenido pasó al resultado

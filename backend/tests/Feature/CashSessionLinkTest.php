@@ -57,6 +57,26 @@ class CashSessionLinkTest extends TestCase
         $this->assertSame($adminSession->id, Sale::find($id)->cash_register_session_id);
     }
 
+    public function test_admin_sale_goes_into_the_open_cashier_session_and_counts_in_its_arqueo(): void
+    {
+        $cashierSession = $this->openSession($this->cashier, now()->subHours(2));
+
+        $id = $this->syncSale(now()->subHour(), $this->admin);
+
+        $this->assertSame($cashierSession->id, Sale::find($id)->cash_register_session_id);
+        $this->actingAs($this->cashier)->getJson("/api/cash-sessions/{$cashierSession->id}")->assertJsonPath('stats.cash_sales', 30);
+    }
+
+    public function test_admin_sale_prefers_the_admins_own_session(): void
+    {
+        $this->openSession($this->cashier, now()->subHours(2));
+        $adminSession = $this->openSession($this->admin, now()->subHours(3));
+
+        $id = $this->syncSale(now()->subHour(), $this->admin);
+
+        $this->assertSame($adminSession->id, Sale::find($id)->cash_register_session_id);
+    }
+
     public function test_session_left_open_yesterday_does_not_absorb_todays_sales(): void
     {
         $this->openSession($this->cashier, now()->subDay());
@@ -128,11 +148,11 @@ class CashSessionLinkTest extends TestCase
         ]);
     }
 
-    private function syncSale(Carbon $at): string
+    private function syncSale(Carbon $at, ?User $seller = null): string
     {
         $id = (string) Str::uuid();
 
-        $this->actingAs($this->cashier)->postJson('/api/sales/sync', ['sales' => [[
+        $this->actingAs($seller ?? $this->cashier)->postJson('/api/sales/sync', ['sales' => [[
             'id' => $id,
             'subtotal' => 30,
             'total_amount' => 30,
