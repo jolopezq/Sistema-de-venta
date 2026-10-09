@@ -1,12 +1,56 @@
 import { defineStore } from 'pinia';
 import { apiFetch } from '../services/api';
 import { db } from '../db/database';
+import { useAuthStore } from './auth';
 
 function formatLocalDate(d = new Date()) {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * Copia del día de la caja que recibiría una venta, para saber sin conexión si se puede cobrar.
+ * Solo vale para hoy y para el mismo usuario.
+ */
+const SALES_SESSION_CACHE = 'pos_sales_session';
+
+function readSalesSessionCache(userId) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(SALES_SESSION_CACHE) || 'null');
+    if (!cached || cached.date !== formatLocalDate()) return undefined;
+    if (userId && cached.userId && cached.userId !== userId) return undefined;
+    return cached.salesSessionId ?? null;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeSalesSessionCache(userId, salesSessionId) {
+  try {
+    localStorage.setItem(SALES_SESSION_CACHE, JSON.stringify({
+      userId: userId ?? null,
+      date: formatLocalDate(),
+      salesSessionId: salesSessionId ?? null,
+      checkedAt: new Date().toISOString(),
+    }));
+  } catch {
+    // Sin almacenamiento: el POS vuelve a consultar al servidor
+  }
+}
+
+/** Clave del arqueo en progreso: el conteo guardado pertenece a una sesión concreta. */
+export const CASH_CLOSE_PROGRESS_KEY = 'cashClose_inProgress';
+
+export function readCashCloseProgress(sessionId) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CASH_CLOSE_PROGRESS_KEY) || 'null');
+    if (!saved || !sessionId || saved.sessionId !== sessionId) return null;
+    return saved;
+  } catch {
+    return null;
+  }
 }
 
 export const useTurnoStore = defineStore('turno', {
@@ -50,6 +94,10 @@ export const useTurnoStore = defineStore('turno', {
     salesLoading: false,
     error: null,
     suggestedForNext: 0,
+    // Caja que recibiría una venta ahora (la propia o la compartida de un admin); null = ninguna
+    salesSessionId: null,
+    // 'server' = consultada ahora, 'cache' = copia de hoy (sin conexión), 'unknown' = sin dato
+    salesSessionSource: 'unknown',
   }),
 
   getters: {
@@ -77,6 +125,12 @@ export const useTurnoStore = defineStore('turno', {
      * Solo visible y editable por admin y super_admin.
      */
     suggestedOpeningAmount: (state) => Number(state.suggestedForNext ?? 0),
+
+    /**
+     * Se bloquea el cobro cuando se sabe que no hay caja abierta: la venta no entraría a ningún arqueo.
+     * Sin conexión y sin dato de hoy no se bloquea (el local no puede quedarse sin vender), pero el POS avisa.
+     */
+    sellBlocked: (state) => state.salesSessionSource !== 'unknown' && !state.salesSessionId,
   },
 
   actions: {
@@ -86,13 +140,25 @@ export const useTurnoStore = defineStore('turno', {
     async fetchActiveSession() {
       this.loading = true;
       this.error = null;
+      const userId = useAuthStore().user?.id ?? null;
       try {
         const data = await apiFetch('/cash-sessions/active');
         this.activeSession = data.session;
         this.sessionStats = data.stats;
+        this.salesSessionId = data.sales_session_id ?? null;
+        this.salesSessionSource = 'server';
+        writeSalesSessionCache(userId, this.salesSessionId);
       } catch (err) {
         console.error('Error al obtener sesión activa:', err);
         this.error = err.message;
+        // Sin conexión: se usa la copia de hoy, si existe
+        const cached = readSalesSessionCache(userId);
+        if (cached === undefined) {
+          this.salesSessionSource = 'unknown';
+        } else {
+          this.salesSessionId = cached;
+          this.salesSessionSource = 'cache';
+        }
       } finally {
         this.loading = false;
       }
@@ -116,6 +182,10 @@ export const useTurnoStore = defineStore('turno', {
           this.sessionStats = data.stats;
           this.suggestedForNext = data.suggested_for_next ?? 0;
           this.isOpeningModalOpen = false;
+          // Desde ahora las ventas de este usuario entran a esta caja
+          this.salesSessionId = data.session?.id ?? null;
+          this.salesSessionSource = 'server';
+          writeSalesSessionCache(useAuthStore().user?.id ?? null, this.salesSessionId);
         }
         // Refrescar ventas
         await this.fetchSales(1);
@@ -144,10 +214,17 @@ export const useTurnoStore = defineStore('turno', {
 
         if (this.activeSession && this.activeSession.id === sId) {
           this.activeSession = data.session;
-          this.closingReport = data.report;
+        }
+        // El reporte se muestra también al cerrar una caja de otro día (Control Diario)
+        this.closingReport = data.report;
+        if (this.salesSessionId === sId) {
+          // La caja cerrada ya no recibe ventas; la próxima consulta dirá si hay otra abierta
+          this.salesSessionId = null;
+          this.salesSessionSource = 'server';
+          writeSalesSessionCache(useAuthStore().user?.id ?? null, null);
         }
         // Limpiar progreso guardado de arqueo en localStorage
-        localStorage.removeItem('cashClose_inProgress');
+        localStorage.removeItem(CASH_CLOSE_PROGRESS_KEY);
         return data;
       } catch (err) {
         this.error = err.message;

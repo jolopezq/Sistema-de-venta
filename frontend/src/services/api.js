@@ -56,6 +56,8 @@ export async function apiFetch(endpoint, options = {}) {
       const errData = await response.json();
       errorMessage = errData.message || errorMessage;
       errorObj.message = errorMessage;
+      // Cuerpo completo de la respuesta (p. ej. las cifras nuevas de un cierre de caja rechazado con 409)
+      errorObj.data = errData;
       
       if (errData.errors) {
         errorObj.validationErrors = errData.errors;

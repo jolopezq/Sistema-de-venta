@@ -1,7 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useCatalogStore } from '../stores/catalog';
 import { useCartStore } from '../stores/cart';
+import { useTurnoStore } from '../stores/turno';
+import { useNetworkStore } from '../stores/network';
 import CategoryFilter from '../components/CategoryFilter.vue';
 import ProductCard from '../components/ProductCard.vue';
 import CartItem from '../components/CartItem.vue';
@@ -14,10 +17,22 @@ import { productStockRows } from '../utils/stockRecipe';
 
 const catalog = useCatalogStore();
 const cart = useCartStore();
+const turno = useTurnoStore();
+const network = useNetworkStore();
+const router = useRouter();
 
 const activeCategoryId = ref(null);
 
+// Turno obligatorio para cobrar: una venta sin caja abierta no entra a ningún arqueo y descuadra el cierre.
+// Se consulta al entrar, cada 5 minutos y al volver la conexión (sin conexión vale la copia de hoy).
+let sessionTimer = null;
+const refreshSalesSession = () => turno.fetchActiveSession();
+
 onMounted(async () => {
+  refreshSalesSession();
+  sessionTimer = setInterval(() => { if (network.isOnline) refreshSalesSession(); }, 5 * 60 * 1000);
+  window.addEventListener('online', refreshSalesSession);
+
   // Offline-First: carga el catálogo local primero para mostrar la interfaz rápido
   if (catalog.categories.length === 0) {
     await catalog.loadFromLocal();
@@ -26,6 +41,17 @@ onMounted(async () => {
   // los productos/categorías más recientes creados en el Menú.
   catalog.fetchAndCache();
 });
+
+onUnmounted(() => {
+  clearInterval(sessionTimer);
+  window.removeEventListener('online', refreshSalesSession);
+});
+
+const sessionUnknownOffline = computed(() => turno.salesSessionSource === 'unknown' && !network.isOnline);
+
+function goOpenTurno() {
+  router.push({ path: '/turno', query: { abrir: '1' } });
+}
 
 const filteredProducts = computed(() => {
   // En modo PedidosYa solo se ofrecen los productos marcados como disponibles en la plataforma
@@ -173,7 +199,10 @@ const showReceipt = ref(false);
 const completedSale = ref(null);
 const posErrorMessage = ref(null);
 
-function handleCheckout() { showCheckout.value = true; }
+function handleCheckout() {
+  if (turno.sellBlocked) return;
+  showCheckout.value = true;
+}
 
 async function handleConfirmCheckout(checkoutData) {
   posErrorMessage.value = null;
@@ -428,13 +457,26 @@ function confirmClearCart() {
         </div>
 
         <div class="ticket-footer">
-          <button
-            class="btn btn-success"
-            :disabled="cart.items.length === 0"
-            @click="handleCheckout"
-          >
-            {{ isPedidosYa ? 'Registrar pedido PedidosYa' : 'Cobrar venta' }}
-          </button>
+          <template v-if="turno.sellBlocked">
+            <p class="turno-required" role="status">
+              No hay un turno abierto. Ábrelo para cobrar: así cada venta entra al arqueo de su caja.
+            </p>
+            <button class="btn btn-primary" type="button" @click="goOpenTurno">
+              Abrir turno
+            </button>
+          </template>
+          <template v-else>
+            <p v-if="sessionUnknownOffline" class="turno-required unknown" role="status">
+              Sin conexión no se pudo comprobar el turno. Si no está abierto, ábrelo apenas vuelva la conexión.
+            </p>
+            <button
+              class="btn btn-success"
+              :disabled="cart.items.length === 0"
+              @click="handleCheckout"
+            >
+              {{ isPedidosYa ? 'Registrar pedido PedidosYa' : 'Cobrar venta' }}
+            </button>
+          </template>
         </div>
       </div>
     </div>
@@ -797,5 +839,21 @@ html.dark .btn-clear-ticket:hover {
 @keyframes card-pop-in {
   from { opacity: 0; transform: scale(0.92) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Aviso de turno obligatorio sobre el botón de cobro */
+.turno-required {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-100);
+  color: var(--danger-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.turno-required.unknown {
+  background: var(--gold-100);
+  color: var(--gold-text);
 }
 </style>

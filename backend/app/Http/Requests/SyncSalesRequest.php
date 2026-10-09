@@ -79,6 +79,15 @@ class SyncSalesRequest extends FormRequest
             'sales.*.total_amount.numeric' => 'El monto total debe ser un número.',
             'sales.*.items.required' => 'Los ítems de la venta son obligatorios.',
             'sales.*.payments.required' => 'Los pagos de la venta son obligatorios.',
+            // El POS muestra estos motivos en Turno cuando el servidor rechaza una venta: van en español y sin jerga
+            'sales.*.items.min' => 'La venta no tiene productos.',
+            'sales.*.items.*.product_id.required' => 'Una línea de la venta no tiene producto.',
+            'sales.*.items.*.product_id.exists' => 'Un producto de la venta ya no existe en el catálogo.',
+            'sales.*.items.*.quantity.min' => 'Una línea de la venta tiene cantidad cero.',
+            'sales.*.payments.min' => 'La venta no tiene pagos.',
+            'sales.*.payments.*.method.in' => 'La venta tiene un método de pago no válido.',
+            'sales.*.payments.*.amount.min' => 'Un pago de la venta es negativo.',
+            'sales.*.created_at.date' => 'La fecha de la venta no es válida.',
         ];
     }
 }

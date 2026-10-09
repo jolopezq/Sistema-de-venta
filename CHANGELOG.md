@@ -225,8 +225,26 @@ se renombra con la fecha de la actualización de producción.
   clave, quiebres con sus fechas, merma por insumo y la merma oculta de los conteos, conteos con más diferencia y dónde está
   el valor del inventario), listo para **imprimir** (A4, sin depender de la pantalla). Las metas son iniciales y están
   fijas en el servidor (`InventoryIndicatorsService::TARGETS`).
+- Caja ([análisis del POS](https://claude.ai/code/artifact/0a10e4d8-9e98-424e-8ffe-8cc39486eaef), prioridad 1):
+  **turno obligatorio para cobrar**. `GET /api/cash-sessions/active` devuelve `sales_session_id`, la caja que recibiría una
+  venta ahora (la propia o la compartida de un admin, con la misma regla de `CashSessionResolver`). Sin caja, el POS cambia
+  «Cobrar venta» por un aviso y «Abrir turno», que lleva a Turno con el formulario de apertura abierto. Sin conexión usa la
+  copia del día; si no hay dato de hoy deja vender y avisa, para que el local no se quede sin vender.
+- Caja: **revisión previa al cierre** (paso «Revisión» del asistente). Envía las ventas del dispositivo, trae las cifras al
+  día y no deja cerrar mientras haya ventas pendientes o rechazadas. Un admin puede cerrar igual escribiendo el motivo, que
+  queda en la nota del cierre y en la auditoría (`cash_close_forced`).
+- Caja: `POST /api/cash-sessions/{id}/close` acepta `expected_seen` (el esperado que vio el cajero: si el servidor calcula
+  otro, responde 409 con las cifras nuevas y el asistente las muestra para confirmar otra vez), `unsynced_sales` y
+  `force_reason` (cajero: 422; admin: motivo de al menos 5 caracteres).
+- Ventas **rechazadas a la vista**: tras 3 rechazos seguidos una venta pasa a «rechazada» con su motivo, deja de reintentarse
+  sola y aparece en Turno (panel con «Reintentar envío»), en el indicador de red («N rechazadas») y en la revisión del cierre.
+  Los motivos de validación de la sincronización están en español.
 
 ### Cambiado
+- Arqueo: el asistente de cierre, la tarjeta «Efectivo en gaveta» de Turno y el reporte impreso muestran solo efectivo
+  (fondo + ventas + ingresos − egresos en efectivo = esperado) y los egresos con QR o tarjeta aparte. Antes se restaban los
+  egresos totales y se omitían los ingresos extra, así que las filas no sumaban el esperado.
+- El arqueo en progreso guardado en el navegador queda ligado a su caja: uno abandonado ya no aparece al cerrar otra caja.
 - Inventario (F3): los movimientos de venta, merma y conteo guardan el costo promedio del momento (`unit_cost`,
   `total_cost`; vacío si el insumo no tiene costo). El reverso de una venta anulada o editada conserva el valor del
   movimiento original.
@@ -278,6 +296,11 @@ se renombra con la fecha de la actualización de producción.
 - `scripts/audit-contrast.cjs` recorre también las pestañas de Finanzas.
 
 ### Corregido
+- Sincronización: una venta que no pasaba la validación hacía fallar todo el lote (422) y frenaba la cola entera. Ahora se
+  reenvía venta por venta y solo queda retenida la que falla. La cola de cocina sigue mostrando las ventas rechazadas.
+- Asistente de cierre: los botones deshabilitados («Continuar», «Confirmar cierre») se veían activos, había colores sin
+  definir (`--lime-800`, `--danger-700`) y el distintivo «Arqueo de turno» quedaba bajo AA. En celular, el encabezado del
+  asistente y los botones de Turno ya no se cortan.
 - Costo promedio (CPP) mal calculado con stock inicial o negativo (10 kg a Bs 24 sobre 50 kg a Bs 12 daba
   Bs 4 en lugar de Bs 14; con stock negativo daba 24 en lugar de 18).
 - Los productos por peso (Autoservicio) descontaban 1 kg de insumo por venta en lugar de los gramos vendidos,

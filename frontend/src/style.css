@@ -279,6 +279,7 @@ h1,h2,h3,.display{font-family:'Baloo 2',sans-serif;}
 .pos-header-right{display:flex;align-items:center;gap:16px;font-size:13px;}
 .sync-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.08);padding:7px 12px;border-radius:999px;}
 .sync-pill .count{background:rgba(255,255,255,0.15);padding:1px 7px;border-radius:999px;font-weight:700;font-size:11px;}
+.sync-pill .count.failed{background:var(--danger-600);color:#fff;}
 .cashier-chip{display:flex;align-items:center;gap:8px;}
 .cashier-chip .avatar{width:26px;height:26px;border-radius:50%;background:var(--gold-500);color:var(--ink-900);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;}
 .pos-body {

@@ -6,6 +6,8 @@ use App\Models\CashRegisterSession;
 use App\Models\CashMovement;
 use App\Models\Sale;
 use App\Models\SalePayment;
+use App\Services\AuditLogger;
+use App\Services\CashSessionResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,18 +42,25 @@ class CashRegisterSessionController extends Controller
                 ->first();
         }
 
+        // Caja que recibiría una venta de este usuario ahora mismo, con la misma regla que se aplica al
+        // guardar la venta (su propia caja o la caja compartida de un admin). El POS la usa para no cobrar
+        // sin caja: una venta sin caja no entra a ningún arqueo.
+        $salesSession = app(CashSessionResolver::class)->resolve($userId, now());
+
         if (!$session) {
             return response()->json([
-                'session' => null,
-                'stats'   => null,
+                'session'          => null,
+                'stats'            => null,
+                'sales_session_id' => $salesSession?->id,
             ]);
         }
 
         $stats = $this->calculateSessionStats($session);
 
         return response()->json([
-            'session' => $session,
-            'stats'   => $stats,
+            'session'          => $session,
+            'stats'            => $stats,
+            'sales_session_id' => $salesSession?->id,
         ]);
     }
 
@@ -162,6 +171,11 @@ class CashRegisterSessionController extends Controller
             'cash_left_for_next' => 'required|numeric|min:0',
             'bill_breakdown'     => 'nullable|array',
             'diff_note'          => 'nullable|string|max:1000',
+            // Efectivo esperado que el cajero vio al contar: si cambió, no se cierra a ciegas
+            'expected_seen'      => 'nullable|numeric',
+            // Ventas del dispositivo que aún no llegaron al servidor (pendientes o rechazadas)
+            'unsynced_sales'     => 'nullable|integer|min:0',
+            'force_reason'       => 'nullable|string|max:500',
         ]);
 
         // Validar que withdrawn + left_for_next == actual_closing (tolerancia ±0.01)
@@ -172,15 +186,54 @@ class CashRegisterSessionController extends Controller
             ], 422);
         }
 
+        // Con ventas sin sincronizar el arqueo saldría incompleto: el cajero no cierra; un admin puede
+        // forzar el cierre dejando el motivo, que queda en la nota de diferencia y en la auditoría.
+        $unsynced    = (int) ($validated['unsynced_sales'] ?? 0);
+        $forceReason = trim((string) ($validated['force_reason'] ?? ''));
+        if ($unsynced > 0) {
+            if (!$request->user()->isAdmin()) {
+                return response()->json([
+                    'message' => "Hay {$unsynced} " . ($unsynced === 1 ? 'venta' : 'ventas') . ' de este dispositivo sin sincronizar. '
+                        . 'Sincronízalas antes de cerrar o pide a un administrador que cierre la caja.',
+                ], 422);
+            }
+            if (mb_strlen($forceReason) < 5) {
+                return response()->json([
+                    'message' => 'Para cerrar con ventas sin sincronizar escribe el motivo (al menos 5 caracteres).',
+                ], 422);
+            }
+        }
+
         $stats = $this->calculateSessionStats($cashSession);
 
         $expectedClosing = $stats['expected_cash'];
+
+        if (isset($validated['expected_seen']) && abs((float) $validated['expected_seen'] - $expectedClosing) > 0.005) {
+            return response()->json([
+                'message' => 'Las cifras de la caja cambiaron mientras contabas (entró una venta o un movimiento). '
+                    . 'Revisa el efectivo esperado y confirma otra vez.',
+                'stats'   => $stats,
+            ], 409);
+        }
+
         $actualClosing   = (float) $validated['actual_closing'];
         $difference      = round($actualClosing - $expectedClosing, 2);
 
         $diffNote = $validated['diff_note'] ?? null;
         if ($difference < 0 && empty($diffNote)) {
             $diffNote = 'Faltante de Bs ' . number_format(abs($difference), 2) . ' registrado en cierre.';
+        }
+
+        if ($unsynced > 0) {
+            $forcedNote = "Cierre forzado con {$unsynced} " . ($unsynced === 1 ? 'venta' : 'ventas') . " sin sincronizar: {$forceReason}";
+            $diffNote   = trim($forcedNote . ($diffNote ? "\n" . $diffNote : ''));
+            AuditLogger::log(
+                'cash_close_forced',
+                'Sales',
+                "Caja #{$cashSession->id} cerrada por {$request->user()->name} con {$unsynced} "
+                    . ($unsynced === 1 ? 'venta' : 'ventas') . " sin sincronizar. Motivo: {$forceReason}",
+                $request->user()->id
+            );
         }
 
         $cashSession->update([

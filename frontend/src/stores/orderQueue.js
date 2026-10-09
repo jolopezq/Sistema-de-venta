@@ -43,7 +43,8 @@ export const useOrderQueueStore = defineStore('orderQueue', {
 
         // Integrar de inmediato ventas locales pendientes de IndexedDB que aún no se reflejen en backend
         try {
-          const pendingSales = await db.sales.where('sync_status').equals('pending').toArray();
+          // También las rechazadas por el servidor: ya se cobraron y la cocina debe verlas igual
+          const pendingSales = await db.sales.where('sync_status').anyOf('pending', 'failed').toArray();
           if (pendingSales && pendingSales.length > 0) {
             const serverIds = new Set(serverOrders.map(o => String(o.id)));
             const localOrders = pendingSales

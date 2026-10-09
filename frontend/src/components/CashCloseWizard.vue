@@ -1,12 +1,15 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useTurnoStore } from '../stores/turno';
+import { useTurnoStore, readCashCloseProgress, CASH_CLOSE_PROGRESS_KEY } from '../stores/turno';
 import { useAuthStore } from '../stores/auth';
+import { useNetworkStore } from '../stores/network';
 import CashSessionReport from './CashSessionReport.vue';
+import SyncIssuesPanel from './SyncIssuesPanel.vue';
 
 const emit = defineEmits(['close', 'closed']);
 const turnoStore = useTurnoStore();
 const authStore = useAuthStore();
+const network = useNetworkStore();
 
 /**
  * Props opcionales para sesión específica (histórica).
@@ -17,14 +20,81 @@ const props = defineProps({
   stats:   { type: Object, default: null },
 });
 
+// Cifras traídas por el propio asistente (revisión previa o respuesta 409 del cierre): mandan sobre las de afuera
+const freshStats = ref(null);
+
 // Resolución de sesión y stats: usar props si existen, sino caer al store
 const resolvedSession = computed(() => props.session || turnoStore.activeSession);
-const resolvedStats   = computed(() => props.stats   || turnoStore.sessionStats);
+const resolvedStats   = computed(() => freshStats.value || props.stats || turnoStore.sessionStats);
 
-const step = ref(1); // 1: Conteo, 2: Resumen/Arqueo, 3: Reporte
+const isAdmin = computed(() => ['admin', 'super_admin'].includes(authStore.user?.role));
+
+// 0: Revisión previa, 1: Conteo, 2: Resumen/Arqueo, 3: Reporte
+const step = ref(0);
 const isSubmitting = ref(false);
 const errorMessage = ref('');
+const noticeMessage = ref('');
 
+// ---------- Paso 0: revisión previa ----------
+// Antes de contar: enviar las ventas del dispositivo y traer las cifras al día. Una venta sin enviar
+// tiene su efectivo en la gaveta pero no en el esperado, y haría aparecer un sobrante falso.
+const reviewing = ref(false);
+const reviewError = ref('');
+const reviewedAt = ref(null);
+const forceReason = ref('');
+let resumeStep = 1;
+
+const unsyncedCount = computed(() => network.unsyncedCount);
+const reviewBlocked = computed(() => {
+  if (reviewing.value || reviewError.value) return true;
+  if (unsyncedCount.value === 0) return false;
+  return !isAdmin.value || forceReason.value.trim().length < 5;
+});
+
+async function refreshStats() {
+  const sessionId = resolvedSession.value?.id;
+  if (props.session) {
+    const data = await turnoStore.fetchSessionShow(sessionId);
+    if (!data?.stats) throw new Error('No se pudieron traer las cifras de la caja.');
+    freshStats.value = data.stats;
+  } else {
+    await turnoStore.fetchActiveSession();
+    if (turnoStore.error || !turnoStore.sessionStats) throw new Error('No se pudieron traer las cifras de la caja.');
+    freshStats.value = turnoStore.sessionStats;
+  }
+}
+
+async function runReview({ autoAdvance = true } = {}) {
+  reviewing.value = true;
+  reviewError.value = '';
+  try {
+    if (!network.isOnline) {
+      reviewError.value = 'Necesitas conexión para cerrar la caja: el cierre se guarda en el servidor.';
+      return;
+    }
+    await network.syncNow();
+    await refreshStats();
+    await network.updatePendingCount();
+    reviewedAt.value = new Date();
+    // Todo enviado: se pasa directo al conteo (o a donde se había quedado)
+    if (autoAdvance && unsyncedCount.value === 0) step.value = resumeStep;
+  } catch (err) {
+    reviewError.value = err.message || 'No se pudo revisar la caja.';
+  } finally {
+    reviewing.value = false;
+  }
+}
+
+function continueFromReview() {
+  if (reviewBlocked.value) return;
+  step.value = resumeStep;
+}
+
+const reviewedTime = computed(() => reviewedAt.value
+  ? reviewedAt.value.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })
+  : '');
+
+// ---------- Paso 1: conteo ----------
 // Conteo por denominación (Bolivianos)
 const billCounts = ref({
   200: 0,
@@ -85,13 +155,20 @@ const countedTotal = computed(() => {
   return calculatedTotal.value;
 });
 
-// Datos de arqueo — resueltos desde props o store
-const openingAmount  = computed(() => Number(resolvedSession.value?.opening_amount || 0));
-const cashSales      = computed(() => Number(resolvedStats.value?.cash_sales || 0));
-const totalExpenses  = computed(() => Number(resolvedStats.value?.total_expenses || 0));
-const expectedCash   = computed(() => Number(resolvedStats.value?.expected_cash ||
-  (openingAmount.value + cashSales.value - totalExpenses.value)));
-const difference     = computed(() => Number((countedTotal.value - expectedCash.value).toFixed(2)));
+// ---------- Paso 2: arqueo ----------
+// Solo el efectivo entra a la gaveta: fondo + ventas en efectivo + ingresos en efectivo − egresos en efectivo.
+// Los cobros y egresos con QR o tarjeta se muestran aparte, porque no mueven billetes.
+const openingAmount   = computed(() => Number(resolvedSession.value?.opening_amount || 0));
+const cashSales       = computed(() => Number(resolvedStats.value?.cash_sales || 0));
+const cashExtraIncome = computed(() => Number(resolvedStats.value?.cash_extra_income ?? 0));
+const cashExpenses    = computed(() => Number(resolvedStats.value?.cash_expenses ?? resolvedStats.value?.total_expenses ?? 0));
+const nonCashExpenses = computed(() => Number(resolvedStats.value?.non_cash_expenses ?? 0));
+const expectedCash    = computed(() => {
+  const fromServer = resolvedStats.value?.expected_cash;
+  if (fromServer !== undefined && fromServer !== null) return Number(fromServer);
+  return Math.round((openingAmount.value + cashSales.value + cashExtraIncome.value - cashExpenses.value) * 100) / 100;
+});
+const difference      = computed(() => Number((countedTotal.value - expectedCash.value).toFixed(2)));
 
 // Validación de notas obligatorias si hay faltante y distribución válida
 const canProceedToClose = computed(() => {
@@ -110,36 +187,38 @@ function changeQty(denomKey, delta) {
   saveProgress();
 }
 
-// Guardar en localStorage para protección ante recargas
+// Guardar en localStorage para protección ante recargas; el avance pertenece a esta caja
 function saveProgress() {
+  const sessionId = resolvedSession.value?.id;
+  if (!sessionId) return;
   const data = {
+    sessionId,
     step: step.value,
     billCounts: billCounts.value,
     useManualTotal: useManualTotal.value,
     manualTotalOverride: manualTotalOverride.value,
     diffNote: diffNote.value,
+    cashLeftForNext: cashLeftForNext.value,
   };
-  localStorage.setItem('cashClose_inProgress', JSON.stringify(data));
+  localStorage.setItem(CASH_CLOSE_PROGRESS_KEY, JSON.stringify(data));
 }
 
-// Cargar progreso previo si existe
+// Cargar progreso previo de esta misma caja (el de otra caja se ignora) y revisar antes de contar
 onMounted(() => {
-  const saved = localStorage.getItem('cashClose_inProgress');
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      if (parsed.billCounts) billCounts.value = { ...billCounts.value, ...parsed.billCounts };
-      if (parsed.diffNote) diffNote.value = parsed.diffNote;
-      if (parsed.useManualTotal) useManualTotal.value = parsed.useManualTotal;
-      if (parsed.manualTotalOverride !== undefined) manualTotalOverride.value = parsed.manualTotalOverride;
-      if (parsed.step && parsed.step < 3) step.value = parsed.step;
-    } catch (e) {
-      console.warn('Error leyendo progreso de arqueo:', e);
-    }
+  const parsed = readCashCloseProgress(resolvedSession.value?.id);
+  if (parsed) {
+    if (parsed.billCounts) billCounts.value = { ...billCounts.value, ...parsed.billCounts };
+    if (parsed.diffNote) diffNote.value = parsed.diffNote;
+    if (parsed.useManualTotal) useManualTotal.value = parsed.useManualTotal;
+    if (parsed.manualTotalOverride !== undefined) manualTotalOverride.value = parsed.manualTotalOverride;
+    if (parsed.cashLeftForNext !== undefined) cashLeftForNext.value = Number(parsed.cashLeftForNext) || 0;
+    if (parsed.step === 2) resumeStep = 2;
   }
+  runReview();
 });
 
-watch(step, () => saveProgress());
+watch(step, (value) => { if (value === 1 || value === 2) saveProgress(); });
+watch(cashLeftForNext, () => saveProgress());
 
 function nextStep() {
   errorMessage.value = '';
@@ -168,14 +247,28 @@ async function handleConfirmClose() {
 
   isSubmitting.value = true;
   errorMessage.value = '';
+  noticeMessage.value = '';
 
   try {
+    await network.updatePendingCount();
+    const unsynced = network.unsyncedCount;
+    if (unsynced > 0 && (!isAdmin.value || forceReason.value.trim().length < 5)) {
+      // Entró una venta sin enviar mientras se contaba: se vuelve a la revisión
+      step.value = 0;
+      await runReview({ autoAdvance: false });
+      return;
+    }
+
     const payload = {
       actual_closing:     countedTotal.value,
       cash_withdrawn:     cashWithdrawn.value,
       cash_left_for_next: Number(cashLeftForNext.value || 0),
       bill_breakdown:     billCounts.value,
       diff_note:          diffNote.value.trim() || null,
+      // El servidor recalcula al cerrar: si el esperado cambió, responde 409 con las cifras nuevas
+      expected_seen:      expectedCash.value,
+      unsynced_sales:     unsynced,
+      force_reason:       unsynced > 0 ? forceReason.value.trim() : null,
     };
 
     // Usar el ID de la sesión resuelta (histórica o activa)
@@ -184,7 +277,13 @@ async function handleConfirmClose() {
     step.value = 3;
     emit('closed', data);
   } catch (err) {
-    errorMessage.value = err.message || 'Error al cerrar caja.';
+    if (err.status === 409 && err.data?.stats) {
+      const before = expectedCash.value;
+      freshStats.value = err.data.stats;
+      noticeMessage.value = `Las cifras cambiaron mientras contabas: el efectivo esperado pasó de Bs ${before.toFixed(2)} a Bs ${expectedCash.value.toFixed(2)}. Revisa la diferencia y confirma otra vez.`;
+    } else {
+      errorMessage.value = err.message || 'Error al cerrar caja.';
+    }
   } finally {
     isSubmitting.value = false;
   }
@@ -195,7 +294,7 @@ function handlePrintReport() {
 }
 
 function handleFinish() {
-  localStorage.removeItem('cashClose_inProgress');
+  localStorage.removeItem(CASH_CLOSE_PROGRESS_KEY);
   emit('close');
 }
 </script>
@@ -216,6 +315,11 @@ function handleFinish() {
 
         <!-- STEP INDICATOR -->
         <div class="steps-nav">
+          <div class="step-dot" :class="{ active: step === 0, done: step > 0 }">
+            <span>✓</span>
+            <label>Revisión</label>
+          </div>
+          <div class="step-line" :class="{ done: step > 0 }"></div>
           <div class="step-dot" :class="{ active: step === 1, done: step > 1 }">
             <span>1</span>
             <label>Conteo</label>
@@ -241,12 +345,65 @@ function handleFinish() {
         <div v-if="errorMessage" class="error-banner">
           ⚠️ {{ errorMessage }}
         </div>
+        <div v-if="noticeMessage" class="notice-banner" role="status">
+          {{ noticeMessage }}
+        </div>
+
+        <!-- ================= PASO 0: REVISIÓN PREVIA ================= -->
+        <div v-if="step === 0" class="step-content">
+          <div class="step-intro">
+            <h3>Antes de contar</h3>
+            <p>Se envían las ventas de este dispositivo y se traen las cifras de la caja al día.</p>
+          </div>
+
+          <div v-if="reviewing" class="review-row checking">
+            Revisando ventas pendientes y cifras de la caja…
+          </div>
+
+          <template v-else>
+            <div v-if="reviewError" class="review-row blocked">{{ reviewError }}</div>
+
+            <template v-else>
+              <div class="review-row ok">
+                Cifras de la caja al día{{ reviewedTime ? ` (${reviewedTime})` : '' }}.
+              </div>
+              <div v-if="unsyncedCount === 0" class="review-row ok">
+                Todas las ventas de este dispositivo están en el servidor.
+              </div>
+            </template>
+
+            <SyncIssuesPanel />
+
+            <template v-if="unsyncedCount > 0 && !reviewError">
+              <p v-if="!isAdmin" class="review-help">
+                No se puede cerrar hasta que estas ventas lleguen al servidor.
+              </p>
+              <div v-else class="force-box">
+                <label for="force-reason"><strong>Cerrar igual (administrador)</strong></label>
+                <p class="review-help">
+                  El arqueo no incluirá estas ventas. El motivo queda en la nota del cierre y en la auditoría.
+                </p>
+                <textarea
+                  id="force-reason"
+                  v-model="forceReason"
+                  rows="2"
+                  class="diff-textarea"
+                  placeholder="Ej.: venta rechazada por un producto dado de baja; se revisa mañana"
+                ></textarea>
+                <small v-if="forceReason.trim().length < 5" class="text-danger">Escribe al menos 5 caracteres.</small>
+              </div>
+            </template>
+          </template>
+        </div>
 
         <!-- ================= PASO 1: CONTEO FÍSICO ================= -->
         <div v-if="step === 1" class="step-content">
           <div class="step-intro">
             <h3>Paso 1: Conteo físico de dinero en gaveta</h3>
             <p>Ingresa la cantidad de billetes y monedas que tienes en la caja registradora.</p>
+            <p v-if="reviewedTime && unsyncedCount === 0" class="review-ok-note">
+              Revisado a las {{ reviewedTime }}: todas las ventas enviadas y cifras al día.
+            </p>
           </div>
 
           <!-- TABLA DE DENOMINACIONES -->
@@ -302,7 +459,7 @@ function handleFinish() {
 
           <div class="summary-cards-grid">
             <div class="card-box">
-              <h4>💰 Movimientos del Turno</h4>
+              <h4>💰 Efectivo en la gaveta</h4>
               <div class="box-row">
                 <span>Fondo de apertura:</span>
                 <strong>Bs {{ openingAmount.toFixed(2) }}</strong>
@@ -311,10 +468,20 @@ function handleFinish() {
                 <span>(+) Ventas en efectivo:</span>
                 <strong class="text-lime">Bs {{ cashSales.toFixed(2) }}</strong>
               </div>
-              <div class="box-row" v-if="totalExpenses > 0">
-                <span>(−) Egresos de caja:</span>
-                <strong class="text-danger">Bs {{ totalExpenses.toFixed(2) }}</strong>
+              <div class="box-row" v-if="cashExtraIncome > 0">
+                <span>(+) Ingresos extra en efectivo:</span>
+                <strong class="text-lime">Bs {{ cashExtraIncome.toFixed(2) }}</strong>
               </div>
+              <div class="box-row" v-if="cashExpenses > 0">
+                <span>(−) Egresos en efectivo:</span>
+                <strong class="text-danger">Bs {{ cashExpenses.toFixed(2) }}</strong>
+              </div>
+              <div class="box-row divider">
+                <span>(=) Efectivo esperado:</span>
+                <strong>Bs {{ expectedCash.toFixed(2) }}</strong>
+              </div>
+
+              <h4 class="sub-heading">Otros cobros y pagos (no están en la gaveta)</h4>
               <div class="box-row">
                 <span>Ventas QR / Transferencia:</span>
                 <span>Bs {{ Number(resolvedStats?.qr_sales || 0).toFixed(2) }}</span>
@@ -322,6 +489,10 @@ function handleFinish() {
               <div class="box-row">
                 <span>Ventas Tarjeta:</span>
                 <span>Bs {{ Number(resolvedStats?.card_sales || 0).toFixed(2) }}</span>
+              </div>
+              <div class="box-row" v-if="nonCashExpenses > 0">
+                <span>Egresos pagados con QR o tarjeta:</span>
+                <span>Bs {{ nonCashExpenses.toFixed(2) }}</span>
               </div>
               <div class="box-row divider">
                 <span>Total ventas del local:</span>
@@ -457,7 +628,17 @@ function handleFinish() {
 
       <!-- FOOTER ACTIONS -->
       <div class="wizard-footer">
-        <template v-if="step === 1">
+        <template v-if="step === 0">
+          <button class="btn btn-ghost" @click="emit('close')">Cancelar</button>
+          <button class="btn btn-ghost" :disabled="reviewing" @click="runReview({ autoAdvance: false })">
+            {{ reviewing ? 'Revisando…' : 'Volver a revisar' }}
+          </button>
+          <button class="btn btn-primary" :disabled="reviewBlocked" @click="continueFromReview">
+            Continuar al conteo →
+          </button>
+        </template>
+
+        <template v-else-if="step === 1">
           <button class="btn btn-ghost" @click="emit('close')">Cancelar</button>
           <button class="btn btn-primary" @click="nextStep">Continuar a Resumen →</button>
         </template>
@@ -521,7 +702,7 @@ function handleFinish() {
 .wizard-badge {
   display: inline-block;
   background: var(--passion-100);
-  color: var(--passion-700);
+  color: var(--passion-text);
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
@@ -637,12 +818,80 @@ function handleFinish() {
 
 .error-banner {
   background: var(--danger-100);
-  color: var(--danger-700);
+  color: var(--danger-text);
   padding: 12px 16px;
   border-radius: 10px;
   margin-bottom: 16px;
   font-size: 13.5px;
   font-weight: 600;
+}
+
+/* Cifras que cambiaron mientras se contaba (respuesta 409 del cierre) */
+.notice-banner {
+  background: var(--gold-100);
+  color: var(--gold-text);
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+/* Paso 0: revisión previa */
+.review-row {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.review-row.ok {
+  background: var(--lime-100);
+  color: var(--lime-700);
+}
+.review-row.checking {
+  background: var(--surface-alt);
+  color: var(--ink-700);
+}
+.review-row.blocked {
+  background: var(--danger-100);
+  color: var(--danger-text);
+}
+.review-help {
+  font-size: 13px;
+  color: var(--ink-700);
+  margin: 12px 0 0;
+  line-height: 1.4;
+}
+.force-box {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-alt);
+  color: var(--ink-900);
+}
+.force-box .review-help {
+  margin: 4px 0 10px;
+}
+.review-ok-note {
+  margin-top: 6px !important;
+  color: var(--lime-700) !important;
+  font-weight: 600;
+}
+.card-box h4.sub-heading {
+  margin: 18px 0 10px;
+  font-size: 13px;
+  color: var(--ink-700);
+}
+.wizard-footer {
+  flex-wrap: wrap;
+}
+/* Un botón deshabilitado debe verse deshabilitado (Continuar, Confirmar cierre) */
+.wizard-footer .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
 }
 
 /* Conteo Denominaciones */
@@ -811,17 +1060,17 @@ function handleFinish() {
 
 .diff-banner.exact {
   background: var(--lime-100);
-  color: var(--lime-800);
+  color: var(--lime-700);
 }
 
 .diff-banner.sobrante {
   background: var(--gold-100);
-  color: #8A6A00;
+  color: var(--gold-text);
 }
 
 .diff-banner.faltante {
   background: var(--danger-100);
-  color: var(--danger-700);
+  color: var(--danger-text);
 }
 
 .diff-title {
@@ -884,7 +1133,7 @@ function handleFinish() {
 .success-banner h3 {
   margin: 0;
   font-size: 17px;
-  color: var(--lime-800);
+  color: var(--lime-700);
 }
 
 .success-banner p {
@@ -915,6 +1164,23 @@ function handleFinish() {
   }
   .steps-nav label {
     display: none;
+  }
+}
+/* Celular: los pasos bajan a su propia fila para que el título no se parta palabra por palabra */
+@media (max-width: 600px) {
+  .wizard-header {
+    flex-wrap: wrap;
+    padding: 16px 18px;
+    gap: 12px;
+  }
+  .wizard-title-box {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .steps-nav {
+    order: 3;
+    width: 100%;
+    justify-content: center;
   }
 }
 .pedidosya-note {

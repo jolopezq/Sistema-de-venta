@@ -4,12 +4,13 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-09)
-- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y **Fases 0 a 5 del plan de inventario, completo**; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
+- **Rama de trabajo:** `feat/pos-cierre-caja`, que sale de `feat/inventario-reorden`: prioridad 1 del [análisis del POS y del cierre de caja](https://claude.ai/code/artifact/0a10e4d8-9e98-424e-8ffe-8cc39486eaef) (turno obligatorio, ventas rechazadas visibles, revisión previa y desglose que suma).
+- **Rama anterior:** `feat/inventario-reorden` (auditoría, plan aprobado y **Fases 0 a 5 del plan de inventario, completo**; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
 - **Ensayo de arranque en Mac:** checklist ejecutado y validado de punta a punta (recetas base, composiciones, 2 conteos, mermas e indicadores en Finanzas; ver registro del 09/10).
 - **Destino de producción:** se prevé contratar un VPS para alojar el sistema (todavía no contratado); hasta entonces la producción sigue
   en la laptop con Windows. La base de la Mac es de desarrollo y quedó con datos de ensayo (conteos y una merma de prueba), así que no
   sirve como base de producción: el VPS debe partir de una copia de la base de la laptop.
-- **Tests:** 305 en verde (`php artisan test`, 1693 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Tests:** 315 en verde (`php artisan test`, 1720 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -102,6 +103,18 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       vigilante de Windows (`vigilante-actualizaciones.ps1` y los `.bat` no aplican allí), dónde se guardan los respaldos fuera del
       servidor y cómo se traspasa la base desde la laptop (con respaldo y verificación). No usar la base de la Mac como base de
       producción. Al terminar, actualizar `AGENTS.md` (sección «Producción») y esta Bitácora.
+- [x] POS y cierre de caja: decisiones del 09/10 sobre el [análisis](https://claude.ai/code/artifact/0a10e4d8-9e98-424e-8ffe-8cc39486eaef):
+      bloquear el cobro sin turno; bloquear el cierre con ventas pendientes (un admin puede forzarlo con motivo); ningún
+      turno pasa de medianoche; a veces se pagan insumos con la caja; categorías de egresos revisadas al cierre; conteo de
+      insumos clave en día fijo (martes, por confirmar). Prioridad 1 hecha en `feat/pos-cierre-caja`.
+- [ ] POS y cierre de caja, prioridad 2: «Compra de insumos» desde Ingreso / Egreso que mueva stock y cuente una sola vez en
+      Finanzas (cambio 6; hoy una compra pagada con la caja no entra al stock); egresos sin categoría en la revisión previa
+      (cambio 7; los cajeros no pueden usar hoy el PATCH de Finanzas); caja olvidada visible en Turno con cierre guiado
+      (cambio 8).
+- [ ] POS y cierre de caja, prioridad 3: conteo rápido de insumos clave al cerrar el día fijo; merma sin conexión; reporte de
+      caja cerrada con los cambios posteriores aparte; «qué pedir mañana» en el reporte de cierre; historial de cajas sin
+      recalcular sesión por sesión.
+- [ ] `graphify update .` en la Mac tras la rama `feat/pos-cierre-caja` (nuevo componente `SyncIssuesPanel` y cambios de flujo).
 - [ ] `graphify update .` en la Mac tras la Fase 0 (el entorno de la nube no tiene graphify).
 - [ ] Costos y punto de equilibrio: `php artisan migrate` en la Mac con respaldo (migración `2026_10_09_000001`);
       luego Finanzas → Costos y margen → «Cargar recetas base», cargar los precios del café (kg de café, litro de
@@ -179,6 +192,19 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (POS: cierre de caja confiable, prioridad 1)** — Sobre el análisis del POS y las decisiones del dueño:
+  `active()` informa `sales_session_id` (la caja que recibiría una venta, con `CashSessionResolver`) y el POS bloquea el cobro
+  sin caja («Abrir turno» lleva a Turno con la apertura abierta; sin conexión usa la copia del día y, sin dato, deja vender con
+  aviso). La sincronización marca «rechazada» una venta tras 3 rechazos, con su motivo, y aísla un lote con 422 enviando venta
+  por venta; Turno, el indicador de red y la revisión del cierre las muestran con «Reintentar envío». El asistente de cierre
+  suma un paso «Revisión» (envía, trae cifras, bloquea con pendientes; admin con motivo → nota + auditoría `cash_close_forced`),
+  envía `expected_seen` y maneja el 409 mostrando el esperado nuevo, y su desglose (igual que Turno y el reporte) es solo
+  efectivo y suma el esperado. Arqueo en progreso ligado a la caja. Motivos de validación de la sincronización en español.
+  Verificado: 315 tests (10 nuevos en `CashCloseSafetyTest`), build, y flujo completo en navegador contra una copia (cobro sin
+  turno, apertura desde el POS, venta, venta rechazada aislada, revisión bloqueada, 409 por un egreso tardío, cierre con +5 de
+  diferencia correcta, cierre forzado por admin), contraste 0 en claro y oscuro salvo el botón con degradado «Venta
+  Retroactiva» (revisado a ojo), y celular a 390 px.
 
 - **2026-10-09 (producción en VPS)** — Decisión del dueño: la producción pasará de la laptop a un VPS (todavía no contratado). Se revisó
   la base de la Mac en solo lectura: 63 de 63 migraciones aplicadas; 3 insumos con seguimiento de stock, 3 marcados clave, 3 con

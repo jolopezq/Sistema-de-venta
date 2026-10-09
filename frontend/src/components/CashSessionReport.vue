@@ -118,9 +118,14 @@ function formatDate(dateStr) {
         <span>(+) Ventas Efectivo:</span>
         <span>Bs {{ Number(summary.cash_sales || 0).toFixed(2) }}</span>
       </div>
-      <div class="row" v-if="Number(summary.total_expenses || 0) > 0">
-        <span>(-) Egresos:</span>
-        <span class="text-danger">Bs {{ Number(summary.total_expenses || 0).toFixed(2) }}</span>
+      <!-- Solo efectivo: así las filas suman el teórico (los egresos con QR o tarjeta van aparte) -->
+      <div class="row" v-if="Number(summary.cash_extra_income || 0) > 0">
+        <span>(+) Ingresos Efectivo:</span>
+        <span>Bs {{ Number(summary.cash_extra_income || 0).toFixed(2) }}</span>
+      </div>
+      <div class="row" v-if="Number(summary.cash_expenses ?? summary.total_expenses ?? 0) > 0">
+        <span>(-) Egresos Efectivo:</span>
+        <span class="text-danger">Bs {{ Number(summary.cash_expenses ?? summary.total_expenses ?? 0).toFixed(2) }}</span>
       </div>
       <div class="row highlight-row">
         <span>(=) Efectivo Teórico:</span>
@@ -136,6 +141,10 @@ function formatDate(dateStr) {
           {{ Number(reportData.difference) > 0 ? '+' : '' }} Bs {{ Number(reportData.difference || 0).toFixed(2) }}
           ({{ Number(reportData.difference) === 0 ? 'Exacto' : Number(reportData.difference) > 0 ? 'Sobrante' : 'Faltante' }})
         </strong>
+      </div>
+      <div class="row" v-if="Number(summary.non_cash_expenses || 0) > 0">
+        <span>Egresos QR/Tarjeta (no salen de gaveta):</span>
+        <span>Bs {{ Number(summary.non_cash_expenses || 0).toFixed(2) }}</span>
       </div>
     </div>
 

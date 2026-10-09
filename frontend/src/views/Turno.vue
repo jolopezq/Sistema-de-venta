@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { useTurnoStore } from '../stores/turno';
+import { useRouter, useRoute } from 'vue-router';
+import { useTurnoStore, readCashCloseProgress } from '../stores/turno';
 import { useAuthStore } from '../stores/auth';
 import CashCloseWizard from '../components/CashCloseWizard.vue';
 import SaleDetailDrawer from '../components/SaleDetailDrawer.vue';
@@ -10,10 +10,12 @@ import AdminSaleEditor from '../components/AdminSaleEditor.vue';
 import CashExpenseModal from '../components/CashExpenseModal.vue';
 import WasteModal from '../components/Inventory/WasteModal.vue';
 import ReorderNotice from '../components/Inventory/ReorderNotice.vue';
+import SyncIssuesPanel from '../components/SyncIssuesPanel.vue';
 import { useNetworkStore } from '../stores/network';
 import { useReorderStore } from '../stores/reorder';
 
 const router = useRouter();
+const route = useRoute();
 const turnoStore = useTurnoStore();
 const authStore = useAuthStore();
 
@@ -93,8 +95,17 @@ onMounted(async () => {
   await turnoStore.fetchActiveSession();
   await turnoStore.fetchSales(1);
 
-  // Si hay un arqueo en progreso guardado en localStorage, abrir wizard automáticamente
-  if (localStorage.getItem('cashClose_inProgress') && turnoStore.hasActiveSession) {
+  // Desde el POS («Abrir turno»): se abre directo el formulario de apertura
+  if (route.query.abrir === '1') {
+    router.replace({ query: {} });
+    if (!turnoStore.hasActiveSession) {
+      initOpeningModal();
+      return;
+    }
+  }
+
+  // Si hay un arqueo en progreso de ESTA caja, se retoma; uno de otra caja se ignora
+  if (turnoStore.hasActiveSession && readCashCloseProgress(turnoStore.activeSession.id)) {
     turnoStore.isWizardOpen = true;
   } else {
     checkReorderNotice();
@@ -229,6 +240,9 @@ async function handleRefresh() {
       </div>
     </div>
 
+    <!-- Ventas de este dispositivo que no llegaron al servidor: su cobro todavía no cuenta en la caja -->
+    <SyncIssuesPanel class="turno-sync-issues" />
+
     <!-- ================= 2. TARJETAS DE MÉTRICAS DEL TURNO ACTIVO ================= -->
     <div v-if="turnoStore.hasActiveSession" class="metrics-grid">
       <div class="metric-card highlight">
@@ -236,16 +250,29 @@ async function handleRefresh() {
         <div class="metric-content">
           <div class="metric-label">Efectivo en Gaveta</div>
           <div class="metric-value">Bs {{ turnoStore.currentCashInDrawer.toFixed(2) }}</div>
-          <div class="metric-hint">F: Bs {{ Number(turnoStore.activeSession.opening_amount).toFixed(2) }} + V: Bs {{ Number(turnoStore.sessionStats?.cash_sales || 0).toFixed(2) }} - E: Bs {{ Number(turnoStore.sessionStats?.total_expenses || 0).toFixed(2) }}</div>
+          <!-- Solo efectivo: fondo + ventas + ingresos − egresos en efectivo (QR y tarjeta no entran a la gaveta) -->
+          <div class="metric-hint">
+            Fondo Bs {{ Number(turnoStore.activeSession.opening_amount).toFixed(2) }}
+            + ventas Bs {{ Number(turnoStore.sessionStats?.cash_sales || 0).toFixed(2) }}
+            <template v-if="Number(turnoStore.sessionStats?.cash_extra_income || 0) > 0">
+              + ingresos Bs {{ Number(turnoStore.sessionStats?.cash_extra_income || 0).toFixed(2) }}
+            </template>
+            − egresos Bs {{ Number(turnoStore.sessionStats?.cash_expenses ?? turnoStore.sessionStats?.total_expenses ?? 0).toFixed(2) }}
+          </div>
         </div>
       </div>
 
       <div class="metric-card" v-if="Number(turnoStore.sessionStats?.total_expenses || 0) > 0">
-        <div class="metric-icon" style="color: #f87171;">💸</div>
+        <div class="metric-icon">💸</div>
         <div class="metric-content">
-          <div class="metric-label text-danger">Egresos de Caja</div>
-          <div class="metric-value text-danger">Bs {{ Number(turnoStore.sessionStats?.total_expenses || 0).toFixed(2) }}</div>
-          <div class="metric-hint">Dinero retirado durante el turno</div>
+          <div class="metric-label text-danger">Egresos en efectivo</div>
+          <div class="metric-value text-danger">Bs {{ Number(turnoStore.sessionStats?.cash_expenses ?? turnoStore.sessionStats?.total_expenses ?? 0).toFixed(2) }}</div>
+          <div class="metric-hint">
+            Dinero que salió de la gaveta
+            <template v-if="Number(turnoStore.sessionStats?.non_cash_expenses || 0) > 0">
+              · además Bs {{ Number(turnoStore.sessionStats?.non_cash_expenses || 0).toFixed(2) }} con QR o tarjeta
+            </template>
+          </div>
         </div>
       </div>
 
@@ -1374,6 +1401,8 @@ async function handleRefresh() {
   .session-actions-right {
     width: 100%;
     justify-content: flex-end;
+    /* En pantallas angostas los botones bajan de línea en vez de cortarse por la izquierda */
+    flex-wrap: wrap;
   }
   .history-header {
     flex-direction: column;

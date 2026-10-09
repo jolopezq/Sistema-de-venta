@@ -15,10 +15,17 @@ const network = useNetworkStore();
     }"
     :title="!network.isOnline ? 'Offline' : (network.isSyncing ? 'Sincronizando' : 'En línea')"
   ></span>
+  <span
+    v-if="network.failedSyncCount > 0"
+    class="count failed"
+    title="El servidor no aceptó estas ventas. Revísalas en Turno: bloquean el cierre de caja."
+  >
+    {{ network.failedSyncCount }} {{ network.failedSyncCount === 1 ? 'rechazada' : 'rechazadas' }}
+  </span>
   <span v-if="network.pendingSyncCount > 0" class="count">
     🔄 {{ network.pendingSyncCount }} pendientes
   </span>
-  <span v-else style="font-size:12px;">
+  <span v-else-if="network.failedSyncCount === 0" style="font-size:12px;">
     {{ !network.isOnline ? 'Offline' : (network.isSyncing ? 'Sincronizando' : 'En línea') }}
   </span>
 </template>
