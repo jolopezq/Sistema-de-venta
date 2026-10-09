@@ -207,6 +207,7 @@ se renombra con la fecha de la actualización de producción.
   abrir caja o al entrar a Caja con el turno ya abierto.
 - Migración `2026_10_13_000001_add_reorder_fields_to_ingredients` (cinco columnas opcionales: `reorder_policy`,
   `target_days`, `safety_days`, `shelf_life_days` y `daily_estimate`; no modifica datos).
+- Seeder `ReorderDefaultsSeeder`: precarga de proveedores (Distribuidora Açaí, Granola Artesanal, Mercado Central) y parámetros de reorden y vida útil de los insumos clave, marcando la fruta como compra diaria.
 
 ### Cambiado
 - Inventario (F3): los movimientos de venta, merma y conteo guardan el costo promedio del momento (`unit_cost`,

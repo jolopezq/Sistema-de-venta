@@ -71,11 +71,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       Inventario → Editar → «Insumo clave» y hacer el **primer conteo** (Inventario → «Conteo», idealmente un martes al
       cerrar). Ese primer conteo ordena el stock de partida y no cuenta como merma oculta; la merma oculta se mide desde el
       segundo conteo de cada insumo. Las mermas de antes de F3 no tienen valor en Bs (se avisa en el reporte).
-- [ ] Inventario (dueño, F4): para que el punto de reorden sea útil, en Inventario → Editar de cada insumo cargar su
-      **consumo diario estimado** (hasta tener 4 semanas de ventas), los **días de cobertura** al pedir, la **vida útil** de los
-      perecederos y, en la fruta, «Compra diaria». Poner el **proveedor** (con sus días de entrega y teléfono, en
-      «Proveedores») permite agrupar la lista y mandar el pedido por WhatsApp. El stock mínimo que ya existe vale como punto
-      de reorden manual. Las alertas empiezan a ser confiables con 28 días de ventas que descuenten stock real.
+- [x] Inventario (dueño, F4): cargados parámetros de referencia y proveedores para los insumos clave en la base de la Mac (Pulpa: 2.96 kg/día, 7 días cobertura, 180 días vida útil; Granola: 0.30 kg/día, 14 días cobertura; Banana: compra diaria, 3 días vida útil). Seeder disponible en `ReorderDefaultsSeeder` para replicar en la laptop.
 - [ ] Inventario (dueño): desde F1 los ingresos de stock se registran como **Compra** (Finanzas → Registrar compra o
       Inventario → Ingreso). Una compra de mercado con precios que varían se anota con lo pagado por línea; el CPP
       absorbe la variación. Las compras antiguas de Finanzas (sin líneas) siguen como gasto y no mueven stock.
@@ -86,8 +82,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       `2026_10_11_000001_create_ingredient_compositions` y
       `2026_10_12_000001_create_inventory_counts` [F3: tablas de conteos y columna `is_key`] y
       `2026_10_13_000001_add_reorder_fields_to_ingredients` [F4: cinco columnas opcionales]: tablas y columnas
-      nuevas; ninguna modifica datos). Todas menos la de F4 ya están aplicadas en la base de la Mac (09/10); falta la de F4
-      en la Mac y repetir todas en la laptop.
+      nuevas; ninguna modifica datos). Todas aplicadas ya en la base de la Mac el 09/10 (con respaldo `pre_migrate_reorder_20261009_035825.sqlite`); falta repetir en la laptop.
 - [ ] Al subir a un VPS: activar WAL (`DB_JOURNAL_MODE=wal` en `.env`) y revisar que el respaldo copie
       también `-wal`/`-shm` (el respaldo de la app usa `VACUUM INTO`, que ya es seguro). En la laptop con
       Windows queda sin WAL por `respaldo-diario.bat`.
@@ -168,6 +163,12 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (inventario migración F4 y datos de referencia)** — Aplicada en la Mac la migración
+  `2026_10_13_000001_add_reorder_fields_to_ingredients` con respaldo previo (`pre_migrate_reorder_20261009_035825.sqlite`).
+  Creado `ReorderDefaultsSeeder`: insumos clave (Pulpa, Granola y Banana) actualizados con consumo diario estimado, días de
+  cobertura, días de seguridad, vida útil, fruta como «Compra diaria» y vinculados a sus proveedores (Distribuidora Açaí, Granola
+  Artesanal, Mercado Central) con días de entrega y teléfono. Tests: 284 en verde.
 
 - **2026-10-09 (inventario F4)** — Fase 4 hecha: punto de reorden, compras sugeridas y alertas. `ReorderService` calcula por
   insumo el consumo diario real (movimientos `sale` y reversos `adjustment` de líneas de venta, H19 sin tipo nuevo: cada reverso
