@@ -8,6 +8,8 @@ import SaleDetailDrawer from '../components/SaleDetailDrawer.vue';
 import CashSessionReport from '../components/CashSessionReport.vue';
 import AdminSaleEditor from '../components/AdminSaleEditor.vue';
 import CashExpenseModal from '../components/CashExpenseModal.vue';
+import WasteModal from '../components/Inventory/WasteModal.vue';
+import { useNetworkStore } from '../stores/network';
 
 const router = useRouter();
 const turnoStore = useTurnoStore();
@@ -17,6 +19,8 @@ const authStore = useAuthStore();
 const isRetroactiveModalOpen = ref(false);
 const editingSaleForAdmin = ref(null);
 const isCashExpenseModalOpen = ref(false);
+const isWasteModalOpen = ref(false);
+const network = useNetworkStore();
 
 function openRetroactiveSaleModal() {
   editingSaleForAdmin.value = null;
@@ -163,6 +167,16 @@ async function handleRefresh() {
       <div class="session-actions-right">
         <button class="btn-icon-refresh" @click="handleRefresh" title="Actualizar datos">
           🔄
+        </button>
+
+        <!-- Merma: la anota quien la ve (se cayó, venció, error de preparación…); necesita conexión -->
+        <button
+          class="btn btn-ghost"
+          :disabled="!network.isOnline"
+          :title="network.isOnline ? 'Anotar lo que se cayó, venció o se usó sin venderse' : 'Necesitas conexión para anotar una merma'"
+          @click="isWasteModalOpen = true"
+        >
+          🗑️ Registrar merma
         </button>
 
         <button 
@@ -641,6 +655,8 @@ async function handleRefresh() {
     />
 
     <!-- MODAL DE EGRESOS -->
+    <WasteModal v-if="isWasteModalOpen" @close="isWasteModalOpen = false" />
+
     <CashExpenseModal
       :visible="isCashExpenseModalOpen"
       @close="isCashExpenseModalOpen = false"

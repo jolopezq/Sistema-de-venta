@@ -166,8 +166,31 @@ se renombra con la fecha de la actualización de producción.
   pide el producto base más el ajuste, así un tamaño Ohana avisa aunque alcance para el chico.
 - No se puede eliminar un insumo que forma parte de la composición de un componente.
 - Migración `2026_10_11_000001_create_ingredient_compositions` (solo crea la tabla; no modifica datos).
+- Inventario (plan, F3): **mermas con motivo y valor**. «Registrar merma» en Caja (cajero) y en Inventario (admin): insumo,
+  cantidad en g/ml/unidades, motivo obligatorio (vencido, dañado, derrame, error de preparación, prueba o cortesía,
+  consumo del personal) y nota. La merma resta stock y queda valorada al costo promedio del momento; no se bloquea por falta
+  de stock (avisa). El cajero solo ve lo que anotó él y no ve costos. `GET/POST /api/inventory/waste`.
+- **Conteo físico** (Inventario → «Conteo»): se escribe lo que hay y el sistema muestra la diferencia en unidades y Bs; se
+  revisa y, al confirmar, deja el stock igual a lo contado con un ajuste ligado al conteo. Filtro «Claves» / «Todos»,
+  «contado hace N días» y un historial de conteos con sus líneas. La diferencia se calcula contra el stock del momento de
+  confirmar. El primer conteo de un insumo ordena el stock de partida y no cuenta como merma oculta. Tablas
+  `inventory_counts` e `inventory_count_lines`; `GET/POST /api/inventory/counts` (solo admin).
+- Insumo clave (`ingredients.is_key`, casilla en Editar insumo): los que entran en el conteo semanal.
+- **Historial por insumo** (Inventario → «Historial»): todos los movimientos, del más reciente al más antiguo, con tipo,
+  cantidad, valor, detalle y quién; filtro por tipo y «Cargar más». `GET /api/ingredients/{id}/movements` ahora está
+  paginado y es solo para admin (antes devolvía todo y lo podía leer cualquier usuario).
+- **Mermas del mes** (Inventario): merma anotada por motivo, insumo y persona, y merma oculta (lo que los conteos
+  encontraron de menos sin que nadie lo anotara). `GET /api/inventory/waste/report`.
+- Finanzas → Punto de equilibrio: el costo real (compras del mes) frente al de las recetas se reparte en merma anotada,
+  merma oculta y compras que siguen en stock y otros (`cost_gap`).
+- Migración `2026_10_12_000001_create_inventory_counts` (tablas nuevas y la columna `is_key`; no modifica datos).
 
 ### Cambiado
+- Inventario (F3): los movimientos de venta, merma y conteo guardan el costo promedio del momento (`unit_cost`,
+  `total_cost`; vacío si el insumo no tiene costo). El reverso de una venta anulada o editada conserva el valor del
+  movimiento original.
+- Inventario (F3): el ajuste manual por diferencia ya no existe; `POST /api/inventory/movements` con `type=adjustment`
+  exige `counted_stock` y deja un conteo de un solo insumo. La merma acepta los seis motivos nuevos.
 - Inventario: el stock de un insumo ya no se edita desde el formulario (cambia con ingresos, mermas, conteos
   y ventas); el costo inicial fija el CPP; una unidad antigua se conserva al editar y las nuevas son kg,
   litros o unidades.

@@ -2,13 +2,16 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { apiFetch } from '../services/api';
 import PurchaseModal from '../components/PurchaseModal.vue';
+import WasteModal from '../components/Inventory/WasteModal.vue';
+import CountModal from '../components/Inventory/CountModal.vue';
+import MovementHistoryModal from '../components/Inventory/MovementHistoryModal.vue';
+import WasteReportModal from '../components/Inventory/WasteReportModal.vue';
 
 const ingredients = ref([]);
 const categories = ref([]);
 const loading = ref(true);
 const error = ref(null);
 
-const showMovementModal = ref(false);
 const showIngredientModal = ref(false);
 const showCategoryModal = ref(false);
 const showSuppliersModal = ref(false);
@@ -22,6 +25,29 @@ let noticeTimer = null;
 function openPurchase(ing = null) {
   purchaseIngredientId.value = ing ? ing.id : null;
   purchaseOpen.value = true;
+}
+
+// Mermas, conteo físico e historial (F3)
+const wasteOpen = ref(false);
+const wasteIngredientId = ref(null);
+const countOpen = ref(false);
+const countFocusId = ref(null);
+const reportOpen = ref(false);
+const historyIngredient = ref(null);
+
+function openWaste(ing = null) {
+  wasteIngredientId.value = ing ? ing.id : null;
+  wasteOpen.value = true;
+}
+
+function openCount(ing = null) {
+  countFocusId.value = ing ? ing.id : null;
+  countOpen.value = true;
+}
+
+function openCountFromReport() {
+  reportOpen.value = false;
+  openCount();
 }
 
 function showNotice(message) {
@@ -47,14 +73,6 @@ const filterSearch = ref('');
 const filterCategoryId = ref('');
 
 // Forms
-const movementForm = ref({
-  type: 'waste',
-  quantity_changed: 0,
-  counted_stock: 0,
-  waste_category: 'expired',
-  notes: ''
-});
-
 const ingredientForm = ref({
   name: '',
   unit: 'kg',
@@ -63,6 +81,7 @@ const ingredientForm = ref({
   minimum_stock: 0,
   unit_cost: 0,
   current_stock: 0,
+  is_key: false,
   supplier_id: '',
   purchase_unit: '',
   purchase_factor: 1,
@@ -181,19 +200,6 @@ async function fetchIngredients() {
   }
 }
 
-function openMovementModal(ing, type = 'waste') {
-  formErrors.value = {};
-  selectedIngredient.value = ing;
-  movementForm.value = {
-    type,
-    quantity_changed: 0,
-    counted_stock: Number(ing.current_stock) || 0,
-    waste_category: 'expired',
-    notes: ''
-  };
-  showMovementModal.value = true;
-}
-
 function openIngredientModal(ing = null) {
   formErrors.value = {};
   if (ing) {
@@ -218,6 +224,7 @@ function openIngredientModal(ing = null) {
       minimum_stock: 0,
       unit_cost: 0,
       current_stock: 0,
+      is_key: false,
       supplier_id: '',
       purchase_unit: '',
       purchase_factor: 1,
@@ -339,34 +346,6 @@ async function saveIngredient() {
     }
   }
 }
-
-async function saveMovement() {
-  try {
-    const isCount = movementForm.value.type === 'adjustment';
-    let qty = parseFloat(movementForm.value.quantity_changed);
-    if (movementForm.value.type === 'waste') qty = -Math.abs(qty);
-
-    // Conteo: se envía lo contado y el servidor calcula la diferencia con el stock de ese momento
-    await apiFetch(`/inventory/movements`, {
-      method: 'POST',
-      body: JSON.stringify({
-        ingredient_id: selectedIngredient.value.id,
-        ...(isCount ? { counted_stock: parseFloat(movementForm.value.counted_stock) } : { quantity_changed: qty }),
-        type: movementForm.value.type,
-        ...(movementForm.value.type === 'waste' ? { waste_category: movementForm.value.waste_category } : {}),
-        notes: movementForm.value.notes
-      })
-    });
-    showMovementModal.value = false;
-    await fetchIngredients();
-  } catch (e) {
-    if (e.validationErrors) {
-      formErrors.value = e.validationErrors;
-    } else {
-      alertAction(e.message || 'Error al registrar movimiento');
-    }
-  }
-}
 </script>
 
 <template>
@@ -379,6 +358,9 @@ async function saveMovement() {
       <div class="header-actions">
         <button class="btn-ghost" @click="openSuppliersModal()">🚚 Proveedores</button>
         <button class="btn-ghost" @click="openCategoryModal()">📂 Categorías</button>
+        <button class="btn-ghost" @click="reportOpen = true">📊 Mermas del mes</button>
+        <button class="btn-ghost" @click="openCount()">⚖️ Conteo</button>
+        <button class="btn-ghost btn-outline" @click="openWaste()">🗑️ Registrar merma</button>
         <button class="btn-ghost btn-outline" @click="openPurchase()">🛒 Registrar compra</button>
         <button class="btn-primary" @click="openIngredientModal()">+ Nuevo Insumo</button>
       </div>
@@ -437,13 +419,17 @@ async function saveMovement() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
                 Ingreso
               </button>
-              <button class="btn-action-labeled text-amber" @click="openMovementModal(ing, 'waste')" title="Reportar Merma (Dañado/Vencido)">
+              <button class="btn-action-labeled text-amber" @click="openWaste(ing)" title="Anotar una merma de este insumo (se cayó, venció, error de preparación…)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                 Merma
               </button>
-              <button class="btn-action-labeled text-info" @click="openMovementModal(ing, 'adjustment')" title="Conteo físico: escribe lo que hay y se registra la diferencia">
+              <button class="btn-action-labeled text-info" @click="openCount(ing)" title="Conteo físico: escribe lo que hay y se registra la diferencia">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
                 Conteo
+              </button>
+              <button class="btn-action-labeled" @click="historyIngredient = ing" title="Ver todo lo que entró y salió de este insumo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Historial
               </button>
               <button class="btn-action-labeled" @click="openIngredientModal(ing)" title="Editar Información del Insumo">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -646,6 +632,10 @@ async function saveMovement() {
           <input v-model="ingredientForm.minimum_stock" type="number" step="0.01" :class="{'has-error': formErrors.minimum_stock}" />
           <span v-if="formErrors.minimum_stock" class="error-text">{{ formErrors.minimum_stock[0] }}</span>
         </div>
+        <label class="key-check">
+          <input v-model="ingredientForm.is_key" type="checkbox" />
+          <span>Insumo clave <small>(entra en el conteo semanal)</small></span>
+        </label>
         <div class="form-row">
           <div class="form-group flex-1">
             <label>{{ isEditing ? 'Stock actual' : 'Stock inicial' }}</label>
@@ -694,49 +684,11 @@ async function saveMovement() {
       </div>
     </div>
 
-    <!-- Modal Movimiento -->
-    <div v-if="showMovementModal" class="modal-backdrop">
-      <div class="modal-content">
-        <h3>
-          <span v-if="movementForm.type === 'waste'">🗑️ Registrar Merma</span>
-          <span v-else>⚖️ Conteo físico</span>
-        </h3>
-        <p class="text-muted mb-4">{{ selectedIngredient?.name }}</p>
-
-        <div v-if="movementForm.type === 'adjustment'" class="form-group">
-          <label>Cantidad contada ({{ selectedIngredient?.unit }})</label>
-          <input v-model="movementForm.counted_stock" type="number" step="0.01" min="0" :class="{'has-error': formErrors.counted_stock}" />
-          <span class="field-hint">El sistema tiene {{ selectedIngredient?.current_stock }} {{ selectedIngredient?.unit }}. Escribe lo que hay en el local y se registra la diferencia.</span>
-          <span v-if="formErrors.counted_stock" class="error-text">{{ formErrors.counted_stock[0] }}</span>
-        </div>
-        <div v-else class="form-group">
-          <label>Cantidad ({{ selectedIngredient?.unit }})</label>
-          <input v-model="movementForm.quantity_changed" type="number" step="0.01" min="0" :class="{'has-error': formErrors.quantity_changed}" />
-          <span v-if="formErrors.quantity_changed" class="error-text">{{ formErrors.quantity_changed[0] }}</span>
-        </div>
-
-        <div v-if="movementForm.type === 'waste'" class="form-group">
-          <label>Motivo de Merma</label>
-          <select v-model="movementForm.waste_category" :class="{'has-error': formErrors.waste_category}">
-            <option value="expired">Vencido</option>
-            <option value="damaged">Dañado / Mal Estado</option>
-            <option value="spillage">Derrame / Accidente</option>
-          </select>
-          <span v-if="formErrors.waste_category" class="error-text">{{ formErrors.waste_category[0] }}</span>
-        </div>
-
-        <div class="form-group">
-          <label>Notas (Opcional)</label>
-          <textarea v-model="movementForm.notes" rows="2" :class="{'has-error': formErrors.notes}"></textarea>
-          <span v-if="formErrors.notes" class="error-text">{{ formErrors.notes[0] }}</span>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn-ghost" @click="showMovementModal = false">Cancelar</button>
-          <button class="btn-primary" @click="saveMovement">Confirmar Movimiento</button>
-        </div>
-      </div>
-    </div>
+    <!-- Mermas, conteo físico, historial y reporte (F3) -->
+    <WasteModal v-if="wasteOpen" :ingredient-id="wasteIngredientId" @close="wasteOpen = false" @saved="fetchIngredients" />
+    <CountModal v-if="countOpen" :focus-id="countFocusId" @close="countOpen = false" @saved="fetchIngredients" />
+    <MovementHistoryModal v-if="historyIngredient" :ingredient="historyIngredient" @close="historyIngredient = null" />
+    <WasteReportModal v-if="reportOpen" @close="reportOpen = false" @count="openCountFromReport" />
 
     <!-- Modal de Confirmación Custom -->
     <div v-if="showConfirmModal" class="modal-backdrop">
@@ -794,6 +746,8 @@ async function saveMovement() {
 .header-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .filters-bar {
@@ -1015,6 +969,18 @@ async function saveMovement() {
 }
 
 .btn-outline { border-color: var(--border); }
+.key-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-900);
+  cursor: pointer;
+}
+.key-check input { width: 18px; height: 18px; accent-color: var(--acai-500); }
+.key-check small { font-weight: 400; color: var(--ink-500); }
 .form-section {
   margin: 4px 0 12px;
   padding-top: 12px;

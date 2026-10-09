@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\InventoryMovement;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class InventoryMovementRequest extends FormRequest
 {
@@ -22,13 +24,13 @@ class InventoryMovementRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'ingredient_id' => ['required', 'exists:ingredients,id'],
-            'quantity_changed' => ['required_without:counted_stock', 'nullable', 'numeric', 'not_in:0'],
+            'ingredient_id' => ['required', Rule::exists('ingredients', 'id')->whereNull('deleted_at')->where('tracks_stock', true)],
+            'quantity_changed' => ['required_if:type,waste', 'nullable', 'numeric', 'not_in:0'],
             // Conteo físico: lo que hay; el sistema calcula la diferencia con su stock del momento
-            'counted_stock' => ['nullable', 'numeric', 'min:0', 'prohibited_unless:type,adjustment'],
+            'counted_stock' => ['required_if:type,adjustment', 'nullable', 'numeric', 'min:0', 'prohibited_unless:type,adjustment'],
             // Los ingresos de mercadería son Compras (POST /purchases): crean también el gasto en Finanzas
             'type' => ['required', 'in:waste,adjustment'],
-            'waste_category' => ['nullable', 'string', 'required_if:type,waste', 'in:expired,damaged,spillage'],
+            'waste_category' => ['nullable', 'string', 'required_if:type,waste', Rule::in(array_keys(InventoryMovement::WASTE_CATEGORIES))],
             'notes' => ['nullable', 'string'],
         ];
     }
@@ -52,7 +54,8 @@ class InventoryMovementRequest extends FormRequest
         return [
             'ingredient_id.required' => 'El insumo es obligatorio.',
             'ingredient_id.exists' => 'El insumo seleccionado no es válido.',
-            'quantity_changed.required_without' => 'La cantidad es obligatoria.',
+            'quantity_changed.required_if' => 'La cantidad es obligatoria.',
+            'counted_stock.required_if' => 'Indica la cantidad contada.',
             'counted_stock.numeric' => 'La cantidad contada debe ser un número.',
             'counted_stock.min' => 'La cantidad contada no puede ser negativa.',
             'counted_stock.prohibited_unless' => 'El conteo solo se usa en ajustes.',

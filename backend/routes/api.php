@@ -41,7 +41,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('products', ProductController::class)->only(['index', 'show']);
     Route::apiResource('ingredients', IngredientController::class)->only(['index', 'show']);
     Route::apiResource('customers', CustomerController::class)->only(['index', 'show']);
-    Route::get('/ingredients/{ingredient}/movements', [InventoryMovementController::class, 'index']);
     Route::get('/loyalty-config', [LoyaltyConfigController::class, 'show']);
 
     // Recursos — escritura de catálogo, recetas e inventario (admin y super_admin)
@@ -62,6 +61,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/option-recipes', [OptionRecipeController::class, 'store']);
         Route::delete('/option-recipes/{optionRecipe}', [OptionRecipeController::class, 'destroy']);
         Route::post('/inventory/movements', [InventoryMovementController::class, 'store']);
+        Route::get('/ingredients/{ingredient}/movements', [InventoryMovementController::class, 'index']);
+
+        // Conteo físico y reporte de mermas (F3 del plan de inventario)
+        Route::get('/inventory/waste/report', [\App\Http\Controllers\InventoryWasteController::class, 'report']);
+        Route::get('/inventory/counts/sheet', [\App\Http\Controllers\InventoryCountController::class, 'sheet']);
+        Route::get('/inventory/counts', [\App\Http\Controllers\InventoryCountController::class, 'index']);
+        Route::post('/inventory/counts', [\App\Http\Controllers\InventoryCountController::class, 'store']);
+        Route::get('/inventory/counts/{inventoryCount}', [\App\Http\Controllers\InventoryCountController::class, 'show']);
 
         // Compras de insumos (un gasto de Finanzas con líneas) y proveedores
         Route::get('/purchases/options', [\App\Http\Controllers\PurchaseController::class, 'options']);
@@ -77,6 +84,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Ventas y caja (cocina no tiene acceso)
     Route::middleware(['role:super_admin,admin,cashier'])->group(function () {
         Route::post('/sales/sync', [SaleController::class, 'sync']);
+
+        // Mermas: también las anota el cajero (decisión D4), con motivo obligatorio
+        Route::get('/inventory/waste', [\App\Http\Controllers\InventoryWasteController::class, 'index']);
+        Route::post('/inventory/waste', [\App\Http\Controllers\InventoryWasteController::class, 'store']);
+
         Route::apiResource('sales', SaleController::class)->only(['index', 'show']);
 
         // Sesiones de Caja / Turno y Arqueo (la propiedad de la sesión se valida en el controlador)

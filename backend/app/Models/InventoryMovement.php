@@ -17,6 +17,16 @@ class InventoryMovement extends Model
 
     use HasFactory;
 
+    /** Motivos de merma (plan de inventario, F3). La clave se guarda en `waste_category`. */
+    public const WASTE_CATEGORIES = [
+        'expired'    => 'Vencido',
+        'damaged'    => 'Dañado',
+        'spillage'   => 'Derrame',
+        'prep_error' => 'Error de preparación',
+        'sample'     => 'Prueba o cortesía',
+        'staff'      => 'Consumo del personal',
+    ];
+
     protected $fillable = [
         'ingredient_id',
         'quantity_changed',
@@ -29,6 +39,14 @@ class InventoryMovement extends Model
         'unit_cost',
         'total_cost',
     ];
+
+    /** Etiqueta del motivo de merma, para las pantallas (una sola lista de motivos, la de arriba). */
+    protected $appends = ['waste_label'];
+
+    public function getWasteLabelAttribute(): ?string
+    {
+        return $this->waste_category ? (self::WASTE_CATEGORIES[$this->waste_category] ?? $this->waste_category) : null;
+    }
 
     protected function casts(): array
     {

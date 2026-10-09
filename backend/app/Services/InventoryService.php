@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 class InventoryService
 {
     /** Diferencias menores a media diezmilésima no mueven nada (la columna guarda 4 decimales). */
-    private const EPSILON = 0.00005;
+    public const EPSILON = 0.00005;
 
     /**
      * Suma (o resta, si es negativa) una cantidad al stock con una sola sentencia SQL.
@@ -245,7 +245,7 @@ class InventoryService
                         'performed_by'     => $userId,
                         'reference_type'   => 'sale_item',
                         'reference_id'     => $saleItem->id,
-                    ]);
+                    ] + $this->costColumns($composition->ingredient($ingredientId), $deduction));
                 }
             }
         });
@@ -300,7 +300,7 @@ class InventoryService
                             'performed_by'     => $userId,
                             'reference_type'   => 'sale_item_option',
                             'reference_id'     => $saleItemOption->id,
-                        ]);
+                        ] + $this->costColumns($composition->ingredient($ingredientId), $deduction));
                     }
                 }
             }
@@ -308,64 +308,43 @@ class InventoryService
     }
 
     /**
-     * Registra un movimiento manual (ajuste o merma) de inventario.
-     * La cantidad ya viene con su signo: negativa si sale del inventario, positiva si entra.
+     * Registra una merma: saca stock y deja el movimiento valorado al costo promedio (CPP) de ese momento, para
+     * saber cuántos Bs se pierden y por qué. La cantidad llega positiva; el signo lo pone este método.
+     * Una merma nunca se bloquea por falta de stock (el stock teórico puede estar mal): el conteo lo corrige.
      */
-    public function recordManualMovement(
-        Ingredient $ingredient,
-        float $quantityChanged,
-        string $type,
-        ?string $wasteCategory,
-        ?string $notes,
-        int $userId
-    ): void {
-        DB::transaction(function () use ($ingredient, $quantityChanged, $type, $wasteCategory, $notes, $userId) {
-            $this->applyStockChange($ingredient->id, $quantityChanged);
+    public function recordWaste(Ingredient $ingredient, float $quantity, string $category, ?string $notes, int $userId): InventoryMovement
+    {
+        return DB::transaction(function () use ($ingredient, $quantity, $category, $notes, $userId) {
+            $current = Ingredient::lockForUpdate()->findOrFail($ingredient->id);
+            $quantity = round(abs($quantity), 4);
 
-            InventoryMovement::create([
-                'ingredient_id'    => $ingredient->id,
-                'quantity_changed' => $quantityChanged,
-                'type'             => $type,
-                'waste_category'   => $wasteCategory,
+            $this->applyStockChange($current->id, -$quantity);
+
+            return InventoryMovement::create([
+                'ingredient_id'    => $current->id,
+                'quantity_changed' => -$quantity,
+                'type'             => 'waste',
+                'waste_category'   => $category,
                 'notes'            => $notes,
                 'performed_by'     => $userId,
-            ]);
+                'reference_type'   => 'manual',
+            ] + $this->costColumns($current, $quantity));
         });
     }
 
     /**
-     * Conteo físico de un insumo: se indica lo que hay y el sistema calcula la diferencia contra su stock en
-     * ese momento (no contra el que se veía en pantalla). Devuelve la diferencia aplicada (0 si coincide).
+     * Columnas de costo de un movimiento que no es compra: el CPP del insumo en ese momento y el valor de la
+     * cantidad movida. Sin costo cargado quedan en null (los reportes los cuentan aparte como «sin costo»).
+     *
+     * @return array{unit_cost: ?float, total_cost: ?float}
      */
-    public function recordCount(Ingredient $ingredient, float $counted, ?string $notes, int $userId): float
+    public function costColumns(?Ingredient $ingredient, float $quantity): array
     {
-        return DB::transaction(function () use ($ingredient, $counted, $notes, $userId) {
-            $current = Ingredient::lockForUpdate()->findOrFail($ingredient->id);
-            $expected = (float) $current->current_stock;
-            $difference = round($counted - $expected, 4);
+        $cost = $ingredient ? round($ingredient->costPerUnit(), 4) : 0.0;
+        if ($cost <= 0) {
+            return ['unit_cost' => null, 'total_cost' => null];
+        }
 
-            if (abs($difference) < self::EPSILON) {
-                return 0.0;
-            }
-
-            $this->applyStockChange($current->id, $difference);
-
-            $summary = sprintf(
-                'Conteo físico: el sistema tenía %s y se contó %s',
-                rtrim(rtrim(number_format($expected, 4, '.', ''), '0'), '.'),
-                rtrim(rtrim(number_format($counted, 4, '.', ''), '0'), '.')
-            );
-
-            InventoryMovement::create([
-                'ingredient_id'    => $current->id,
-                'quantity_changed' => $difference,
-                'type'             => 'adjustment',
-                'notes'            => trim($summary . ($notes ? ". {$notes}" : '')),
-                'performed_by'     => $userId,
-                'reference_type'   => 'manual',
-            ]);
-
-            return $difference;
-        });
+        return ['unit_cost' => $cost, 'total_cost' => round(abs($quantity) * $cost, 2)];
     }
 }

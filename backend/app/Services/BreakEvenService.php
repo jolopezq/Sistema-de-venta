@@ -23,6 +23,7 @@ class BreakEvenService
     public function __construct(
         private FinanceReportService $pnlService,
         private RecipeCostService $recipeCosts,
+        private WasteReportService $waste,
     ) {}
 
     public function forMonth(int $year, int $month): array
@@ -107,10 +108,38 @@ class BreakEvenService
                 'total'   => (float) $pnl['cost_of_sales']['total'],
                 'percent' => $pnl['revenue']['total'] > 0 ? round($pnl['cost_of_sales']['total'] / $pnl['revenue']['total'] * 100, 1) : null,
             ],
+            'cost_gap'   => $this->costGap($margin, $basedOn, (float) $pnl['cost_of_sales']['total'], $year, $month),
             'fixed'      => $fixed,
             'break_even' => $breakEven,
             'progress'   => $progress,
             'warnings'   => $this->warnings($margin, $basedOn, $fixed),
+        ];
+    }
+
+    /**
+     * Diferencia entre lo que costó comprar (costo real) y lo que dicen las recetas, repartida en merma anotada,
+     * merma oculta (la que encontró el conteo físico) y el resto: compras que quedan en el estante, cambios de
+     * precio y todo lo que no se pudo explicar. Solo si el margen del mes sale de recetas.
+     */
+    private function costGap(array $margin, ?string $basedOn, float $purchases, int $year, int $month): ?array
+    {
+        if ($basedOn !== 'month' || $margin['variable']['source'] !== 'recipes') {
+            return null;
+        }
+
+        $recipes = (float) $margin['variable']['product_cost'];
+        $difference = round($purchases - $recipes, 2);
+        $waste = $this->waste->totals($year, $month);
+
+        return [
+            'real'              => round($purchases, 2),
+            'recipes'           => round($recipes, 2),
+            'difference'        => $difference,
+            'registered_waste'  => $waste['registered'],
+            'hidden_waste'      => $waste['hidden'],
+            'counts'            => $waste['counts'],
+            'hidden_lines'      => $waste['hidden_lines'],
+            'other'             => round($difference - $waste['registered'] - $waste['hidden'], 2),
         ];
     }
 

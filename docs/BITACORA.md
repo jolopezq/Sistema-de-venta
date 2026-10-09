@@ -4,8 +4,8 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-09)
-- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fases 0, 1 y 2 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
-- **Tests:** 229 en verde (`php artisan test`, 1235 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fases 0, 1, 2 y 3 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
+- **Tests:** 254 en verde (`php artisan test`, 1449 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -32,7 +32,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | ↳ F0 Correcciones de base (CPP, stock solo por movimientos, peso, validaciones, atomicidad, POS avisa) | ✅ | ver registro |
 | ↳ F1 Compras ligadas a insumos y proveedores | ✅ | ver registro |
 | ↳ F2 Recetas que mueven stock (composición de componentes) | ✅ | ver registro |
-| ↳ F3 Mermas y conteo físico | Pendiente | — |
+| ↳ F3 Mermas y conteo físico | ✅ | ver registro |
 | ↳ F4 Punto de reorden y alertas | Pendiente | — |
 | ↳ F5 Indicadores | Pendiente | — |
 
@@ -67,6 +67,10 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       no descuenta stock); proveedor, unidad y lote de compra de cada insumo clave (se cargan en
       Inventario → Editar insumo, desde F1) y, si se quiere, el consumo diario estimado para arrancar el punto de
       reorden (F4).
+- [ ] Inventario (dueño, F3): marcar los insumos clave (pulpa, helado, granola, leche en polvo, leche condensada, vasos…) en
+      Inventario → Editar → «Insumo clave» y hacer el **primer conteo** (Inventario → «Conteo», idealmente un martes al
+      cerrar). Ese primer conteo ordena el stock de partida y no cuenta como merma oculta; la merma oculta se mide desde el
+      segundo conteo de cada insumo. Las mermas de antes de F3 no tienen valor en Bs (se avisa en el reporte).
 - [ ] Inventario (dueño): desde F1 los ingresos de stock se registran como **Compra** (Finanzas → Registrar compra o
       Inventario → Ingreso). Una compra de mercado con precios que varían se anota con lo pagado por línea; el CPP
       absorbe la variación. Las compras antiguas de Finanzas (sin líneas) siguen como gasto y no mueven stock.
@@ -74,7 +78,8 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       (`2026_10_10_000001_relax_inventory_movement_columns`: solo cambia la definición de columnas de
       `inventory_movements`; `2026_10_10_000002_create_suppliers_and_purchase_items`,
       `2026_10_10_000003_add_purchase_fields_to_ingredients_and_movements` y
-      `2026_10_11_000001_create_ingredient_compositions`: tablas y columnas nuevas; ninguna modifica datos).
+      `2026_10_11_000001_create_ingredient_compositions` y `2026_10_12_000001_create_inventory_counts` (F3: tablas de
+      conteos y la columna `is_key`): tablas y columnas nuevas; ninguna modifica datos).
       Ya aplicadas en la base de la Mac el 09/10 (con las de finanzas y costos que estaban pendientes), salvo la
       de composición; falta repetirlo en la laptop.
 - [ ] Al subir a un VPS: activar WAL (`DB_JOURNAL_MODE=wal` en `.env`) y revisar que el respaldo copie
@@ -157,6 +162,23 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (inventario F3)** — Fase 3 hecha: mermas con costo y motivo, conteo físico y reporte. Los movimientos de venta,
+  merma y conteo guardan el CPP del momento (`InventoryService::costColumns`; `null` si el insumo no tiene costo) y el reverso
+  de una venta anulada o editada copia el valor del original. Merma: `POST /inventory/waste` para cajero, admin y dueño (la
+  cocina no), seis motivos obligatorios, nunca se bloquea por falta de stock (devuelve un aviso) y el cajero no recibe costos.
+  Conteo: `inventory_counts` + `inventory_count_lines` y `InventoryCountService`: la diferencia se calcula contra el stock al
+  confirmar, cada diferencia deja un ajuste ligado al conteo y el primer conteo de un insumo queda marcado `is_baseline` (ordena
+  el stock de partida y no cuenta como merma oculta). El «Ajuste» manual por diferencia desapareció: `adjustment` exige
+  `counted_stock` y crea un conteo de un insumo. `WasteReportService`: merma anotada (por motivo, insumo y persona) y merma
+  oculta (suma de diferencias de los conteos del mes sin las líneas de partida); equivale a consumo real − teórico − anotada.
+  Punto de equilibrio: `cost_gap` reparte compras − recetas en merma anotada, oculta y resto. Pantallas: `WasteModal` (Caja e
+  Inventario), `CountModal` (hoja, revisión y resultado + historial), `MovementHistoryModal`, `WasteReportModal` y casilla
+  «Insumo clave». El historial `GET /ingredients/{id}/movements` pasó a admin y paginado. Decisiones: merma del cajero solo con
+  conexión (se anota en el servidor, no en la cola offline del POS); el cajero no ve costos. Verificado: 254 tests (25 nuevos),
+  build, contraste 0 en 36 estados de las ventanas nuevas (claro y oscuro, 1440 y 390 px) y en el navegador contra una copia:
+  merma como cajero y como admin, conteo completo (hoja → revisión → resultado → historial), historial por insumo con filtro,
+  reporte del mes, desglose en Finanzas, y una venta con su anulación (costo guardado y reverso al mismo valor).
 
 - **2026-10-09 (inventario F2)** — Fase 2 hecha: las recetas por porciones ya mueven stock. Nueva tabla
   `ingredient_compositions` (componente de costeo → insumo real, cantidad en la unidad del insumo) y `CompositionService`,

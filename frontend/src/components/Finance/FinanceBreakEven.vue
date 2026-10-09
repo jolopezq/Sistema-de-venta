@@ -130,9 +130,27 @@ function units(n) {
             <span>Costo real (compras del mes)</span><span class="fin-num">{{ formatPercent(be.real_cost_of_sales.percent) }}</span>
           </div>
         </div>
-        <p v-if="be.variable.source === 'recipes' && be.real_cost_of_sales.total > 0" class="fin-hint" style="margin: 8px 0 0">
+        <p v-if="be.variable.source === 'recipes' && be.real_cost_of_sales.total > 0 && !be.cost_gap" class="fin-hint" style="margin: 8px 0 0">
           Si el costo real supera al de las recetas, hay merma, desperdicio o porciones más grandes que las de la receta.
         </p>
+
+        <!-- Costo real frente a recetas: cuánto se explica por merma anotada y por la que encontró el conteo -->
+        <div v-if="be.cost_gap" class="fin-gap">
+          <div class="fin-pairs">
+            <div class="fin-pair"><span>Compras del mes (costo real)</span><strong class="fin-num">{{ formatBs(be.cost_gap.real) }}</strong></div>
+            <div class="fin-pair"><span>Costo según recetas</span><strong class="fin-num">{{ formatBs(be.cost_gap.recipes) }}</strong></div>
+            <div class="fin-pair"><span>Diferencia</span><strong class="fin-num">{{ formatBs(be.cost_gap.difference, { sign: true }) }}</strong></div>
+            <div class="fin-pair fin-pair-sub"><span>Merma anotada</span><span class="fin-num">{{ formatBs(be.cost_gap.registered_waste) }}</span></div>
+            <div class="fin-pair fin-pair-sub">
+              <span>Merma oculta (conteos)</span>
+              <span class="fin-num">{{ be.cost_gap.hidden_lines ? formatBs(be.cost_gap.hidden_waste) : 'sin medir' }}<template v-if="be.cost_gap.hidden_lines && be.cost_gap.hidden_waste < 0"> (sobrante)</template></span>
+            </div>
+            <div class="fin-pair fin-pair-sub"><span>Compras que siguen en stock y otros</span><span class="fin-num">{{ formatBs(be.cost_gap.other, { sign: true }) }}</span></div>
+          </div>
+          <p class="fin-hint" style="margin: 6px 0 0">
+            La merma oculta sale de los conteos físicos (Inventario → Conteo): lo que faltó sin que nadie lo anotara.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -172,6 +190,7 @@ function units(n) {
 .fin-meter-legend { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-700); }
 .fin-meter-legend strong { color: var(--ink-900); }
 .fin-be-projection { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--ink-700); }
+.fin-gap { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
 .fin-be-side .fin-pair-sub { padding-left: 14px; font-size: 12.5px; color: var(--ink-500); }
 .fin-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
 .fin-be-warnings { border-top: 1px solid var(--border); }

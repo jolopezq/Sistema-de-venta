@@ -40,6 +40,7 @@ class IngredientRequest extends FormRequest
             'minimum_stock' => ['numeric', 'min:0'],
             'unit_cost' => ['numeric', 'min:0'],
             'weighted_avg_cost' => ['numeric', 'min:0'],
+            'is_key' => ['nullable', 'boolean'],
             'supplier_id' => ['nullable', 'exists:suppliers,id'],
             'purchase_unit' => ['nullable', 'string', 'max:30'],
             'purchase_factor' => ['nullable', 'numeric', 'gt:0'],

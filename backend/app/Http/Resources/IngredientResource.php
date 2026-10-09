@@ -27,6 +27,7 @@ class IngredientResource extends JsonResource
             'ingredient_category_id' => $this->ingredient_category_id,
             'type' => $this->type,
             'tracks_stock' => (bool) $this->tracks_stock,
+            'is_key' => (bool) $this->is_key,
             'supplier_id' => $this->supplier_id,
             'supplier' => $this->whenLoaded('supplier', fn () => $this->supplier ? ['id' => $this->supplier->id, 'name' => $this->supplier->name] : null),
             'purchase_unit' => $this->purchase_unit,

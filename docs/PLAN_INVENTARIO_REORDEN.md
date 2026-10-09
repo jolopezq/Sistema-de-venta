@@ -186,7 +186,13 @@ Cada fase se entrega sola, en la rama, con pruebas, CHANGELOG y BITÁCORA. Verif
 - **Riesgo:** cambiar una composición no recalcula el stock de las ventas pasadas. Es intencional; queda
   explicado en la pantalla.
 
-### F3 · Mermas y conteo físico — 2 a 3 días
+### F3 · Mermas y conteo físico — 2 a 3 días · ✅ hecha el 09/10/2026
+
+> Ajustes respecto a lo propuesto: `inventory_movements.unit_cost/total_cost` ya existían desde F1, así que F3 solo los
+> llena en ventas, mermas y conteos (sin costo cargado quedan en `null`); la merma oculta se mide con los conteos y no
+> incluye el **primer conteo de cada insumo**, que solo ordena el stock de partida; el «Ajuste» manual por diferencia
+> desapareció (todo ajuste es un conteo); el cajero no ve costos (el valor en Bs lo ve el dueño); la merma del cajero
+> necesita conexión; se agregó el campo «Insumo clave» (`ingredients.is_key`) para el conteo semanal.
 
 - **Modelo:**
   - `inventory_movements.unit_cost` (CPP del momento) y `total_cost`;

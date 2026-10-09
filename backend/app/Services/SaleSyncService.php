@@ -389,6 +389,8 @@ class SaleSyncService
                     'performed_by'     => $superAdminId,
                     'reference_type'   => $originalMovement->reference_type,
                     'reference_id'     => $originalMovement->reference_id,
+                    'unit_cost'        => $originalMovement->unit_cost,
+                    'total_cost'       => $originalMovement->total_cost,
                 ]);
 
                 $this->inventoryService->applyStockChange($originalMovement->ingredient_id, (float) $reversalQuantity);
@@ -669,6 +671,8 @@ class SaleSyncService
                     'performed_by'     => $userId,
                     'reference_type'   => $originalMovement->reference_type,
                     'reference_id'     => $originalMovement->reference_id,
+                    'unit_cost'        => $originalMovement->unit_cost,
+                    'total_cost'       => $originalMovement->total_cost,
                 ]);
 
                 $this->inventoryService->applyStockChange($originalMovement->ingredient_id, (float) $reversalQuantity);
