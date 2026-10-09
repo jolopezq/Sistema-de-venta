@@ -101,10 +101,11 @@ export const useFinanceStore = defineStore('finance', () => {
   const settlements = ref([]);
   const costs = ref(null);
   const breakEven = ref(null);
+  const inventoryIndicators = ref(null);
   const suppliers = ref([]);
 
   // Estados de carga y error por bloque
-  const loading = ref({ pnl: false, expenses: false, recurring: false, cash: false, settlements: false, categories: false, costs: false, breakEven: false });
+  const loading = ref({ pnl: false, expenses: false, recurring: false, cash: false, settlements: false, categories: false, costs: false, breakEven: false, inventoryIndicators: false });
   const errors = ref({});
 
   // Cada bloque guarda solo la respuesta de su última petición: al cambiar de mes rápido, una respuesta
@@ -188,6 +189,12 @@ export const useFinanceStore = defineStore('finance', () => {
     if (isCurrent()) breakEven.value = data;
   });
 
+  /** Indicadores de inventario del mes (F5): valor, cobertura, quiebres, merma, diferencia de costo y exactitud. */
+  const loadInventoryIndicators = () => run('inventoryIndicators', async (isCurrent) => {
+    const data = await apiFetch(`/finance/inventory-indicators?${periodQuery.value}`);
+    if (isCurrent()) inventoryIndicators.value = data;
+  });
+
   const loadSettlements = () => run('settlements', async (isCurrent) => {
     const data = await apiFetch(`/finance/pedidosya-settlements?${periodQuery.value}&per_page=20`);
     if (!isCurrent()) return;
@@ -196,7 +203,7 @@ export const useFinanceStore = defineStore('finance', () => {
 
   /** Datos que dependen del mes (los contadores de las pestañas se cargan con la página). */
   function loadPeriod() {
-    return Promise.all([loadPnl(), loadExpenses(), loadRecurring(), loadCashMovements(), loadSettlements()]);
+    return Promise.all([loadPnl(), loadExpenses(), loadRecurring(), loadCashMovements(), loadSettlements(), loadInventoryIndicators()]);
   }
 
   function loadAll() {
@@ -252,9 +259,9 @@ export const useFinanceStore = defineStore('finance', () => {
   return {
     year, month, periodLabel, periodQuery, isCurrentMonth,
     pnl, categories, activeCategories, expenses, expenseTotals, expenseFilter, templates, recurringPeriod,
-    cashMovements, settlements, suppliers, costs, breakEven, loading, errors, counts,
+    cashMovements, settlements, suppliers, costs, breakEven, inventoryIndicators, loading, errors, counts,
     loadPnl, loadCategories, loadSuppliers, createCategory, loadExpenses, loadRecurring, loadCashMovements, loadSettlements, loadPeriod, loadAll,
-    loadCosts, loadBreakEven,
+    loadCosts, loadBreakEven, loadInventoryIndicators,
     setPeriod, shiftMonth,
     toast, notify, dialog, confirm, closeDialog,
   };

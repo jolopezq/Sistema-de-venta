@@ -254,11 +254,29 @@ Cada fase se entrega sola, en la rama, con pruebas, CHANGELOG y BITÁCORA. Verif
 - **Pruebas:** fórmulas con cifras conocidas (las del ejemplo §2.3), arranque sin historial, perecederos
   limitados por vida útil, estados.
 
-### F5 · Indicadores — 1 a 2 días
+### F5 · Indicadores — 1 a 2 días · ✅ hecha el 09/10/2026
+
+> Ajustes respecto a lo propuesto (§5):
+> - **Metas fijas en el servidor** (`InventoryIndicatorsService::TARGETS`): merma ≤ 5 % del consumo (10 % en perecederos),
+>   diferencia de costo ≤ 5 puntos, exactitud ≥ 90 % con tolerancia de 2 %, 0 quiebres. La meta «pulpa < 3 %» quedó como la
+>   general de 5 %: una meta por insumo pide una tabla de configuración que no se justificó todavía. Cada indicador devuelve
+>   `ok`, `warn` o `err`, o `null` si aún no se puede medir. «Cerca de la meta» es hasta el doble de la meta en merma y
+>   diferencia de costo, hasta 2 días en quiebres y 15 puntos por debajo de la meta (75 %) en exactitud.
+> - **Cobertura:** en vez de rangos fijos de días por insumo, usa el estado de reorden de F4 (que ya considera días de
+>   entrega y seguridad): crítico o agotado = fuera de meta; por reordenar = cerca; el resto = en meta. Se muestra el insumo
+>   clave que primero se acaba.
+> - **Quiebres:** solo los de stock (día de venta en que un insumo clave llegó a ≤ 0). Los «producto marcado agotado» no se
+>   miden porque no se guarda su historial. Se calculan con los movimientos hacia atrás desde el stock actual, así que en
+>   meses pasados son aproximados si el stock y el libro no coinciden.
+> - **Merma oculta** ya vive en el reporte de merma (F3) y en la diferencia de costo; el informe la resume con el faltante o
+>   sobrante neto de los conteos del mes.
+> - **Valor del inventario** es informativo (sin meta) y, como la cobertura, es «a hoy»: no cambia con el mes elegido.
 
 - Valor del inventario (stock × CPP), días de cobertura, quiebres, % de merma, costo teórico frente al real y
   exactitud del conteo (§5).
-- En Finanzas → Resumen, más un reporte mensual imprimible.
+- En Finanzas → Resumen, más un reporte mensual imprimible («Informe del mes»).
+
+**El plan F0 → F5 queda completo.** Lo que sigue depende de los datos que cargue el dueño (ver Pendientes de la bitácora).
 
 **Total estimado: 10 a 15 días de desarrollo**, en este orden: F0 → F1 → F2 → F3 → F4 → F5.
 

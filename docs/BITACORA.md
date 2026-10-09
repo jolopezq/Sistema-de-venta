@@ -4,8 +4,8 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-09)
-- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y Fases 0, 1, 2, 3 y 4 del plan de inventario; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
-- **Tests:** 284 en verde (`php artisan test`, 1593 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Rama de trabajo:** `feat/inventario-reorden` (auditoría, plan aprobado y **Fases 0 a 5 del plan de inventario, completo**; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
+- **Tests:** 305 en verde (`php artisan test`, 1693 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
 - **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light). En la copia de prueba salen 1 aviso en Turno (botón deshabilitado sobre degradado) y 7 en Delivery y Control Diario (dependen de los datos de la copia); no pertenecen a esta rama.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
@@ -28,13 +28,13 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | Finanzas — corrección de la [auditoría](AUDITORIA_FINANZAS.md): fases 0 (bloqueantes), 1 (cálculos), 2 (interfaz) y 3 (importación crea ventas) | ✅ en rama `feat/modulo-finanzas` | `9a5f871`, `f2319e1`, `36ec4ad`, ver registro |
 | Finanzas — auditoría fase 4 (optimización) | ✅ en rama `feat/modulo-finanzas` | ver registro |
 | Finanzas — costos por receta, margen de contribución y punto de equilibrio ([plan](PLAN_COSTOS_PUNTO_EQUILIBRIO.md)) | ✅ en rama `feat/costos-punto-equilibrio` | ver registro |
-| Inventario confiable, mermas y punto de reorden ([auditoría](AUDITORIA_INVENTARIO_MERMAS.md), [plan](PLAN_INVENTARIO_REORDEN.md)): plan aprobado el 09/10 (D1–D7) | En curso en `feat/inventario-reorden` |  |
+| Inventario confiable, mermas y punto de reorden ([auditoría](AUDITORIA_INVENTARIO_MERMAS.md), [plan](PLAN_INVENTARIO_REORDEN.md)): plan aprobado el 09/10 (D1–D7) | ✅ completo (F0 a F5) en `feat/inventario-reorden` | ver fases |
 | ↳ F0 Correcciones de base (CPP, stock solo por movimientos, peso, validaciones, atomicidad, POS avisa) | ✅ | ver registro |
 | ↳ F1 Compras ligadas a insumos y proveedores | ✅ | ver registro |
 | ↳ F2 Recetas que mueven stock (composición de componentes) | ✅ | ver registro |
 | ↳ F3 Mermas y conteo físico | ✅ | ver registro |
 | ↳ F4 Punto de reorden y alertas | ✅ | ver registro |
-| ↳ F5 Indicadores | Pendiente | — |
+| ↳ F5 Indicadores y informe mensual | ✅ | ver registro |
 
 ## Pendientes
 
@@ -72,6 +72,12 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       cerrar). Ese primer conteo ordena el stock de partida y no cuenta como merma oculta; la merma oculta se mide desde el
       segundo conteo de cada insumo. Las mermas de antes de F3 no tienen valor en Bs (se avisa en el reporte).
 - [x] Inventario (dueño, F4): cargados parámetros de referencia y proveedores para los insumos clave en la base de la Mac (Pulpa: 2.96 kg/día, 7 días cobertura, 180 días vida útil; Granola: 0.30 kg/día, 14 días cobertura; Banana: compra diaria, 3 días vida útil). Seeder disponible en `ReorderDefaultsSeeder` para replicar en la laptop.
+- [ ] Inventario (dueño, F5): para que los **quiebres** y la **cobertura** midan lo que importa, marcar los insumos clave
+      (si no hay ninguno marcado se miden todos los que tienen consumo) y cargar el consumo diario estimado hasta tener
+      4 semanas de ventas. La **exactitud del conteo** y la **merma oculta** necesitan al menos dos conteos del mismo insumo
+      (el primero solo ordena el stock de partida). Las metas (merma 5 %, perecederos 10 %, diferencia de costo ±5 puntos,
+      exactitud 90 %, 0 quiebres) son iniciales y están fijas en `InventoryIndicatorsService::TARGETS`; si se quieren
+      ajustar desde la pantalla hace falta una tabla de configuración (no incluida).
 - [ ] Inventario (dueño): desde F1 los ingresos de stock se registran como **Compra** (Finanzas → Registrar compra o
       Inventario → Ingreso). Una compra de mercado con precios que varían se anota con lo pagado por línea; el CPP
       absorbe la variación. Las compras antiguas de Finanzas (sin líneas) siguen como gasto y no mueven stock.
@@ -163,6 +169,23 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-09 (inventario F5)** — Fase 5 hecha: indicadores de inventario e informe mensual. `InventoryIndicatorsService` arma, para
+  un mes, el valor del inventario (stock × CPP, a hoy), la cobertura (de `ReorderService`; insumos clave o todos si no hay
+  marcados), los quiebres (días de venta en que un insumo clave llegó a ≤ 0; se reconstruye el saldo hacia atrás desde el stock
+  actual con los movimientos; un insumo cargado dentro del mes no cuenta los días anteriores a su carga), el % de merma (anotada
+  ÷ consumo valorado de las ventas menos reversos, total y por insumo, con meta 10 % para perecederos), la merma oculta
+  (`WasteReportService`), la diferencia de costo en puntos de las ventas (reutiliza `BreakEvenService::cost_gap`) y la exactitud
+  del conteo (≤ 2 % de diferencia, sin primeros conteos), cada uno con estado y el mes anterior. Endpoint
+  `GET /finance/inventory-indicators` (solo dueño). Pantallas: tarjeta «Indicadores de inventario» en Finanzas → Resumen (6
+  indicadores, 3 × 2, con insignia de estado, meta, detalle y pista de qué revisar) e «Informe del mes» (tablas de cobertura,
+  quiebres, merma por insumo, conteos y valor) con «Imprimir» (marco oculto, 2 hojas A4). Las etiquetas de la tarjeta usan el
+  mes de los propios datos para no mezclar cifras de un mes con el nombre de otro mientras recarga. Límites a tener presentes:
+  los quiebres por «producto marcado agotado» no se miden (no hay historial), los quiebres de meses pasados son aproximados si
+  el stock y los movimientos no coinciden, y las metas son constantes. Verificado: 305 tests (21 nuevos), build, contraste 0 en
+  8 estados nuevos (tarjeta e informe, claro y oscuro, 1440 y 390 px), mes vacío (enero) sin errores, impresión revisada y, en
+  el navegador contra una copia con datos sembrados, tarjeta, informe, cambio de mes y cierre con Esc. Con esta fase queda
+  terminado el plan F0 → F5.
 
 - **2026-10-09 (inventario migración F4 y datos de referencia)** — Aplicada en la Mac la migración
   `2026_10_13_000001_add_reorder_fields_to_ingredients` con respaldo previo (`pre_migrate_reorder_20261009_035825.sqlite`).

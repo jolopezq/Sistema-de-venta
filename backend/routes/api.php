@@ -129,6 +129,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::prefix('finance')->group(function () {
             Route::get('/pnl', [\App\Http\Controllers\FinanceReportController::class, 'pnl']);
             Route::get('/break-even', [\App\Http\Controllers\FinanceReportController::class, 'breakEven']);
+            Route::get('/inventory-indicators', [\App\Http\Controllers\InventoryIndicatorsController::class, 'index']);
 
             // Costos por receta y margen (componentes, recetas, ajustes de opciones y asistente de recetas base)
             Route::get('/costs', [\App\Http\Controllers\FinanceCostController::class, 'index']);

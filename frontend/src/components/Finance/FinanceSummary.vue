@@ -6,6 +6,7 @@ import { useReorderStore } from '../../stores/reorder';
 import { formatQty, REORDER_STATUS } from '../../utils/inventoryLabels';
 import FinanceStatementTable from './FinanceStatementTable.vue';
 import FinanceBreakEven from './FinanceBreakEven.vue';
+import FinanceInventoryIndicators from './FinanceInventoryIndicators.vue';
 
 /** Pestaña Resumen: avisos de datos faltantes, indicadores, Estado de Resultados y canal PedidosYa. */
 const finance = useFinanceStore();
@@ -74,6 +75,8 @@ const kpis = computed(() => {
     </div>
 
     <FinanceBreakEven @navigate="(tab, intent) => emit('navigate', tab, intent)" />
+
+    <FinanceInventoryIndicators />
 
     <div class="fin-summary">
       <FinanceStatementTable :pnl="pnl" />

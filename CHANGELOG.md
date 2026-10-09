@@ -208,6 +208,23 @@ se renombra con la fecha de la actualización de producción.
 - Migración `2026_10_13_000001_add_reorder_fields_to_ingredients` (cinco columnas opcionales: `reorder_policy`,
   `target_days`, `safety_days`, `shelf_life_days` y `daily_estimate`; no modifica datos).
 - Seeder `ReorderDefaultsSeeder`: precarga de proveedores (Distribuidora Açaí, Granola Artesanal, Mercado Central) y parámetros de reorden y vida útil de los insumos clave, marcando la fruta como compra diaria.
+- Inventario (plan, F5): **indicadores de inventario** en Finanzas → Resumen (solo dueño), `GET /api/finance/inventory-indicators`
+  (`year`, `month`). Seis indicadores, cada uno con su estado frente a la meta (en meta, cerca, fuera de meta o sin medir),
+  la meta, un detalle y el mes anterior para comparar:
+  - **Valor del inventario**: stock × costo promedio, a hoy (informativo), con los insumos sin costo o en negativo avisados.
+  - **Días de cobertura**: lo que dura el insumo clave que primero se acaba, a hoy (si no hay claves marcados usa todos los
+    que tienen consumo); el estado sale del punto de reorden de F4.
+  - **Quiebres de stock**: días de venta del mes en que un insumo clave llegó a cero o menos, reconstruidos con los
+    movimientos; meta: ninguno. No incluye productos marcados «agotado» a mano (no se guarda su historial).
+  - **Merma sobre el consumo**: merma anotada en Bs ÷ consumo en Bs de las ventas (menos los reversos), total y por insumo;
+    meta 5 % (10 % en perecederos).
+  - **Diferencia de costo**: costo real (compras) menos costo por recetas, en puntos de las ventas; meta ±5 puntos.
+  - **Exactitud del conteo**: insumos contados con diferencia de hasta 2 % ÷ insumos contados (sin los primeros conteos);
+    meta 90 % o más.
+- Finanzas → Resumen → **«Informe del mes»**: los seis indicadores con su meta más el detalle (cobertura de los insumos
+  clave, quiebres con sus fechas, merma por insumo y la merma oculta de los conteos, conteos con más diferencia y dónde está
+  el valor del inventario), listo para **imprimir** (A4, sin depender de la pantalla). Las metas son iniciales y están
+  fijas en el servidor (`InventoryIndicatorsService::TARGETS`).
 
 ### Cambiado
 - Inventario (F3): los movimientos de venta, merma y conteo guardan el costo promedio del momento (`unit_cost`,
