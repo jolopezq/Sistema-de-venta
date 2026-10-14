@@ -9,6 +9,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 100%;
   background: var(--cream-50);
   color: var(--ink-900);
   font-family: var(--font-sans);
@@ -132,7 +133,7 @@ html.dark .fin-page {
 }
 .fin-page .fin-count.alert { background: var(--passion-100); color: var(--passion-text); }
 
-.fin-page .fin-body { padding: 22px 28px 40px; display: flex; flex-direction: column; gap: 18px; }
+.fin-page .fin-body { padding: 22px 28px 64px; display: flex; flex-direction: column; gap: 18px; }
 
 /* ---------- Bloques ---------- */
 .fin-page .fin-card {
@@ -141,6 +142,10 @@ html.dark .fin-page {
   border-radius: 14px;
   min-width: 0;
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+html.dark .fin-page .fin-card {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 .fin-page .fin-card-head {
   display: flex;
@@ -176,6 +181,41 @@ html.dark .fin-page {
 .fin-page .fin-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fin-page .pos { color: var(--lime-700); }
 .fin-page .neg { color: var(--danger-text); }
+.fin-page .margin-good { color: var(--lime-700); font-weight: 600; }
+.fin-page .margin-fair { color: var(--gold-text); font-weight: 600; }
+.fin-page .margin-low { color: var(--danger-text); font-weight: 600; }
+html.dark .fin-page .margin-good { color: #6fe27f; }
+html.dark .fin-page .margin-fair { color: #f6c445; }
+html.dark .fin-page .margin-low { color: #ff7b7b; }
+
+.fin-page .fin-badge-btn {
+  border: 1px solid var(--border);
+  background: var(--cream-200);
+  color: var(--ink-700);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fin-page .fin-badge-btn:hover {
+  background: var(--surface-hover);
+  color: var(--ink-900);
+}
+.fin-page .fin-badge-btn.active {
+  background: var(--acai-50);
+  border-color: var(--acai-300);
+  color: var(--acai-text);
+}
+html.dark .fin-page .fin-badge-btn.active {
+  background: rgba(116, 72, 166, 0.25);
+  border-color: var(--acai-500);
+  color: var(--acai-300);
+}
 
 /* ---------- KPI ---------- */
 .fin-page .fin-kpis {

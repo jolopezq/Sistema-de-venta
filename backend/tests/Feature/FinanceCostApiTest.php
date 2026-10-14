@@ -159,4 +159,42 @@ class FinanceCostApiTest extends TestCase
         $classic = collect($catalog['products'])->firstWhere('name', 'Classic Bowl');
         $this->assertNotEmpty($classic['recipes']);
     }
+
+    public function test_component_can_use_manual_cost_even_when_it_has_a_composition(): void
+    {
+        $this->wizard();
+        $base = Ingredient::where('name', 'Porción base açaí (bowl chico)')->firstOrFail();
+        $pulp = Ingredient::create(['name' => 'Pulpa Real', 'unit' => 'kg', 'current_stock' => 10, 'unit_cost' => 10, 'weighted_avg_cost' => 10]);
+
+        // Guardar composición de 0.18 kg (0.18 * 10 = 1.80 Bs)
+        $this->actingAs($this->owner)->putJson("/api/finance/costs/components/{$base->id}/composition", [
+            'rows' => [['ingredient_id' => $pulp->id, 'quantity' => 0.18]],
+        ])->assertOk();
+
+        // Con use_manual_cost en false: el costo es 1.80
+        $res = $this->actingAs($this->owner)->getJson('/api/finance/costs')->assertOk();
+        $comp = collect($res->json('components'))->firstWhere('id', $base->id);
+        $this->assertEquals(1.80, $comp['cost']);
+        $this->assertFalse($comp['use_manual_cost']);
+
+        // Cambiar a use_manual_cost = true con unit_cost = 4.50
+        $this->actingAs($this->owner)->putJson("/api/finance/costs/components/{$base->id}", [
+            'unit_cost' => 4.50,
+            'use_manual_cost' => true,
+        ])->assertOk();
+
+        $res = $this->actingAs($this->owner)->getJson('/api/finance/costs')->assertOk();
+        $comp = collect($res->json('components'))->firstWhere('id', $base->id);
+        $this->assertEquals(4.50, $comp['cost']);
+        $this->assertTrue($comp['use_manual_cost']);
+        $this->assertEquals(1.80, $comp['composition_cost']);
+
+        // También se puede actualizar use_manual_cost y unit_cost al guardar la composición
+        $this->actingAs($this->owner)->putJson("/api/finance/costs/components/{$base->id}/composition", [
+            'rows' => [['ingredient_id' => $pulp->id, 'quantity' => 0.18]],
+            'use_manual_cost' => false,
+        ])->assertOk();
+        $this->assertFalse(Ingredient::find($base->id)->use_manual_cost);
+    }
 }
+

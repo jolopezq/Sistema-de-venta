@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useFinanceStore } from '../stores/finance';
 import FinanceSummary from '../components/Finance/FinanceSummary.vue';
 import FinanceExpenses from '../components/Finance/FinanceExpenses.vue';
@@ -14,6 +15,8 @@ import '../components/Finance/finance.css';
  * Módulo de Finanzas (solo dueño). La vista solo arma el encabezado, el selector de mes y las pestañas;
  * cada pestaña es un componente y los datos viven en el store `finance`.
  */
+const route = useRoute();
+const router = useRouter();
 const finance = useFinanceStore();
 
 const TABS = [
@@ -24,8 +27,14 @@ const TABS = [
   { key: 'costs', label: 'Costos y margen' },
   { key: 'categories', label: 'Categorías' },
 ];
-const activeTab = ref('summary');
+const activeTab = ref(route.query?.tab && TABS.some(t => t.key === route.query.tab) ? route.query.tab : 'summary');
 const intent = ref('');
+
+watch(() => route.query?.tab, (newTab) => {
+  if (newTab && TABS.some(t => t.key === newTab) && newTab !== activeTab.value) {
+    activeTab.value = newTab;
+  }
+});
 
 const tabCounter = computed(() => ({
   pedidosya: { value: finance.counts.pedidosya },
@@ -44,6 +53,9 @@ const tabCounter = computed(() => ({
 function navigate(tab, action = '') {
   activeTab.value = tab;
   intent.value = action;
+  if (route.query?.tab !== tab) {
+    router.replace({ query: { ...route.query, tab } }).catch(() => {});
+  }
 }
 
 onMounted(() => finance.loadAll());

@@ -57,6 +57,9 @@ const total = computed(() => rows.value.reduce((sum, r) => sum + (lineCost(r) ||
 const missingCost = computed(() => rows.value.filter((r) => byId.value[r.ingredient_id] && byId.value[r.ingredient_id].cost <= 0));
 const manualCost = computed(() => Number(props.component.unit_cost) || 0);
 
+const useManualCost = ref(props.component.use_manual_cost ?? false);
+const manualCostInput = ref(props.component.unit_cost !== null && props.component.unit_cost !== undefined ? props.component.unit_cost : '');
+
 const saving = ref(false);
 const error = ref('');
 
@@ -74,9 +77,21 @@ async function save() {
     error.value = 'Un insumo aparece dos veces: junta las cantidades en una sola fila.';
     return;
   }
+  if (useManualCost.value && (manualCostInput.value === '' || Number(manualCostInput.value) < 0)) {
+    error.value = 'Ingresa un costo fijo manual válido (mayor o igual a 0).';
+    return;
+  }
   saving.value = true;
   try {
-    const res = await apiFetch(`/finance/costs/components/${props.component.id}/composition`, { method: 'PUT', body: JSON.stringify({ rows: payload }) });
+    const bodyData = {
+      rows: payload,
+      use_manual_cost: useManualCost.value,
+      unit_cost: manualCostInput.value !== '' ? Number(manualCostInput.value) : undefined,
+    };
+    const res = await apiFetch(`/finance/costs/components/${props.component.id}/composition`, {
+      method: 'PUT',
+      body: JSON.stringify(bodyData),
+    });
     finance.notify(res.message);
     emit('saved');
   } catch (err) {
@@ -152,11 +167,52 @@ async function save() {
         Agregar insumo
       </button>
       <span class="fin-spacer"></span>
-      <strong class="fin-num">Costo {{ formatBs(rows.length ? total : manualCost) }} {{ UNIT_DISPLAY[component.unit]?.costLabel }}</strong>
+      <span class="fin-small fin-muted">Suma de insumos: <strong class="fin-num">{{ formatBs(total) }}</strong></span>
     </div>
-    <p v-if="rows.length" class="fin-hint">
-      Hoy el costo cargado a mano es {{ formatBs(manualCost) }}; con la composición el costo sigue al costo promedio de los insumos.
-    </p>
+
+    <!-- Modo de costeo financiero -->
+    <div v-if="rows.length" class="fin-cost-mode-box">
+      <div class="fin-cost-mode-title">Modo de costeo financiero para este componente</div>
+      <div class="fin-cost-mode-grid">
+        <label class="fin-cost-mode-card" :class="{ active: !useManualCost }">
+          <div class="fin-cost-mode-header">
+            <input type="radio" :value="false" v-model="useManualCost" />
+            <span class="fin-cost-mode-label">Automático por suma</span>
+          </div>
+          <p class="fin-cost-mode-desc">
+            Usa el costo calculado de los insumos (<strong>{{ formatBs(total) }}</strong>). Ideal cuando la receta incluye todos los ingredientes al 100%.
+          </p>
+        </label>
+        <label class="fin-cost-mode-card" :class="{ active: useManualCost }">
+          <div class="fin-cost-mode-header">
+            <input type="radio" :value="true" v-model="useManualCost" />
+            <span class="fin-cost-mode-label">Costo fijo manual</span>
+          </div>
+          <p class="fin-cost-mode-desc">
+            Descuenta los insumos cargados arriba al vender, pero en finanzas costea con el valor fijo que ingreses aquí.
+          </p>
+          <div v-if="useManualCost" class="fin-manual-input-wrap">
+            <label class="fin-small fin-bold">Costo asignado (Bs):</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              v-model="manualCostInput"
+              class="fin-input fin-input-sm fin-num"
+              placeholder="0.00"
+              style="width: 110px; text-align: right;"
+            />
+          </div>
+        </label>
+      </div>
+      <div class="fin-cost-mode-summary">
+        Costo efectivo que se usará en recetas:
+        <strong class="fin-num" style="font-size: 14px; margin-left: 6px;">
+          {{ formatBs(useManualCost ? (Number(manualCostInput) || 0) : total) }} {{ UNIT_DISPLAY[component.unit]?.costLabel }}
+        </strong>
+      </div>
+    </div>
+
     <div v-if="missingCost.length" class="fin-note">
       Sin costo: {{ [...new Set(missingCost.map((r) => byId[r.ingredient_id].name))].join(', ') }}. Registra una compra o carga su costo en Inventario; mientras tanto las recetas que usan este componente quedan incompletas.
     </div>
@@ -176,8 +232,74 @@ async function save() {
 .fin-qty { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
 .fin-qty input { width: 96px; text-align: right; }
 .fin-recipe-table select { min-width: 220px; }
+.fin-cost-mode-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--surface-hover, rgba(0, 0, 0, 0.02));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.fin-cost-mode-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin-bottom: 8px;
+}
+.fin-cost-mode-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.fin-cost-mode-card {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.15s ease;
+}
+.fin-cost-mode-card.active {
+  border-color: var(--passion-500);
+  background: var(--passion-50, rgba(232, 90, 42, 0.04));
+}
+.fin-cost-mode-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.fin-cost-mode-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink-900);
+}
+.fin-cost-mode-desc {
+  font-size: 11.5px;
+  color: var(--ink-500);
+  line-height: 1.4;
+  margin: 0;
+}
+.fin-manual-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.fin-cost-mode-summary {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--ink-700);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
 @media (max-width: 760px) {
   .fin-recipe-table select { min-width: 0; width: 100%; }
   .fin-qty { justify-content: flex-start; }
+  .fin-cost-mode-grid { grid-template-columns: 1fr; }
 }
 </style>

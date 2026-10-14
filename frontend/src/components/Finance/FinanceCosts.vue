@@ -19,6 +19,16 @@ const ingredientsById = computed(() => Object.fromEntries((data.value?.ingredien
 const optionGroups = computed(() => (data.value?.option_groups || []).filter((g) => g.options.length));
 const platformRate = computed(() => data.value?.platform_rate);
 
+const componentFilter = ref('all');
+const filteredComponents = computed(() => {
+  const list = data.value?.components || [];
+  if (componentFilter.value === 'bases') return list.filter((c) => !c.tracks_stock);
+  if (componentFilter.value === 'stock') return list.filter((c) => c.tracks_stock);
+  return list;
+});
+const baseComponentsCount = computed(() => (data.value?.components || []).filter((c) => !c.tracks_stock).length);
+const stockComponentsCount = computed(() => (data.value?.components || []).filter((c) => c.tracks_stock).length);
+
 const expanded = ref(new Set());
 function toggle(id) {
   const next = new Set(expanded.value);
@@ -28,7 +38,9 @@ function toggle(id) {
 
 function marginClass(value) {
   if (value === null || value === undefined) return '';
-  return value < 0 ? 'neg' : '';
+  if (value < 45) return 'margin-low';
+  if (value < 60) return 'margin-fair';
+  return 'margin-good';
 }
 function pct(value) {
   return value === null || value === undefined ? '—' : formatPercent(value);
@@ -60,14 +72,34 @@ async function onApplied() {
   await Promise.all([finance.loadCosts(), finance.loadBreakEven()]);
 }
 
-// ---------- Costo de componentes (edición en la tabla) ----------
+// ---------- Costo de componentes (edición y alternancia de modo) ----------
 const savingComponent = ref(null);
 async function saveCost(component, value) {
   const cost = Number(value);
   if (Number.isNaN(cost) || cost < 0 || cost === component.unit_cost) return;
   savingComponent.value = component.id;
   try {
-    const res = await apiFetch(`/finance/costs/components/${component.id}`, { method: 'PUT', body: JSON.stringify({ unit_cost: cost }) });
+    const res = await apiFetch(`/finance/costs/components/${component.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ unit_cost: cost, use_manual_cost: component.use_manual_cost || component.composition.length > 0 })
+    });
+    finance.notify(res.message);
+    await Promise.all([finance.loadCosts(), finance.loadBreakEven()]);
+  } catch (err) {
+    finance.notify(errorText(err), 'error');
+  } finally {
+    savingComponent.value = null;
+  }
+}
+
+async function toggleCostMode(component) {
+  savingComponent.value = component.id;
+  try {
+    const nextMode = !component.use_manual_cost;
+    const res = await apiFetch(`/finance/costs/components/${component.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ use_manual_cost: nextMode }),
+    });
     finance.notify(res.message);
     await Promise.all([finance.loadCosts(), finance.loadBreakEven()]);
   } catch (err) {
@@ -93,7 +125,7 @@ function recipeText(recipe) {
       <div>
         <h2>Costos y margen</h2>
         <p>
-          Lo que cuesta cada producto según su receta y lo que deja.
+          Lo que cuesta cada producto según su receta, su margen porcentual y su ganancia neta en Bs.
           <template v-if="platformRate !== null && platformRate !== undefined">El margen PedidosYa descuenta el {{ formatPercent(platformRate * 100) }} que se queda la plataforma (últimos 90 días).</template>
           <template v-else>El margen PedidosYa aún no descuenta la comisión (no hay semanas importadas).</template>
         </p>
@@ -136,9 +168,19 @@ function recipeText(recipe) {
               </td>
               <td data-label="Costo" class="right fin-num fin-cell-main">{{ p.complete ? formatBs(p.cost) : '—' }}</td>
               <td data-label="Precio local" class="right fin-num">{{ formatBs(p.price_local) }}</td>
-              <td data-label="Margen local" class="right fin-num" :class="marginClass(p.margin_local)">{{ p.complete ? pct(p.margin_local) : '—' }}</td>
+              <td data-label="Margen local" class="right fin-num">
+                <span :class="marginClass(p.margin_local)">{{ p.complete ? pct(p.margin_local) : '—' }}</span>
+                <div v-if="p.complete" class="fin-cell-sub fin-num" :class="marginClass(p.margin_local)">
+                  Ganancia {{ formatBs(p.profit_local) }}
+                </div>
+              </td>
               <td data-label="Precio PedidosYa" class="right fin-num">{{ p.price_pya !== null ? formatBs(p.price_pya) : '—' }}</td>
-              <td data-label="Margen PedidosYa" class="right fin-num" :class="marginClass(p.margin_pya)">{{ p.complete && p.price_pya !== null ? pct(p.margin_pya) : '—' }}</td>
+              <td data-label="Margen PedidosYa" class="right fin-num">
+                <span :class="marginClass(p.margin_pya)">{{ p.complete && p.price_pya !== null ? pct(p.margin_pya) : '—' }}</span>
+                <div v-if="p.complete && p.price_pya !== null" class="fin-cell-sub fin-num" :class="marginClass(p.margin_pya)">
+                  Ganancia {{ formatBs(p.profit_pya) }}
+                </div>
+              </td>
               <td class="actions">
                 <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="editProduct(p)">Receta</button>
               </td>
@@ -148,9 +190,19 @@ function recipeText(recipe) {
                 <td data-label="Opción"><span class="fin-variant-name">{{ v.group }}: {{ v.name }}</span></td>
                 <td data-label="Costo" class="right fin-num">{{ v.complete ? formatBs(v.cost) : '—' }}</td>
                 <td data-label="Precio local" class="right fin-num">{{ formatBs(v.price_local) }}</td>
-                <td data-label="Margen local" class="right fin-num" :class="marginClass(v.margin_local)">{{ v.complete ? pct(v.margin_local) : '—' }}</td>
+                <td data-label="Margen local" class="right fin-num">
+                  <span :class="marginClass(v.margin_local)">{{ v.complete ? pct(v.margin_local) : '—' }}</span>
+                  <div v-if="v.complete" class="fin-cell-sub fin-num" :class="marginClass(v.margin_local)">
+                    Ganancia {{ formatBs(v.profit_local) }}
+                  </div>
+                </td>
                 <td data-label="Precio PedidosYa" class="right fin-num">{{ v.price_pya !== null ? formatBs(v.price_pya) : '—' }}</td>
-                <td data-label="Margen PedidosYa" class="right fin-num" :class="marginClass(v.margin_pya)">{{ v.complete && v.price_pya !== null ? pct(v.margin_pya) : '—' }}</td>
+                <td data-label="Margen PedidosYa" class="right fin-num">
+                  <span :class="marginClass(v.margin_pya)">{{ v.complete && v.price_pya !== null ? pct(v.margin_pya) : '—' }}</span>
+                  <div v-if="v.complete && v.price_pya !== null" class="fin-cell-sub fin-num" :class="marginClass(v.margin_pya)">
+                    Ganancia {{ formatBs(v.profit_pya) }}
+                  </div>
+                </td>
                 <td></td>
               </tr>
             </template>
@@ -211,11 +263,37 @@ function recipeText(recipe) {
   <div v-if="data?.components?.length" class="fin-card">
     <div class="fin-card-head">
       <div>
-        <h3>Componentes de costo</h3>
+        <h3>Componentes de costo e insumos</h3>
         <p>
           Cambia un costo y se recalculan todas las recetas que lo usan. Un componente con <strong>composición</strong> descuenta
-          sus insumos del inventario al vender y se costea por su costo promedio; sin composición solo costea.
+          sus insumos del inventario al vender y puede costearse automáticamente o con un costo manual fijo.
         </p>
+      </div>
+      <div class="fin-tabs-segmented">
+        <button
+          class="fin-tab-seg"
+          :class="{ active: componentFilter === 'all' }"
+          type="button"
+          @click="componentFilter = 'all'"
+        >
+          Todos ({{ data.components.length }})
+        </button>
+        <button
+          class="fin-tab-seg"
+          :class="{ active: componentFilter === 'bases' }"
+          type="button"
+          @click="componentFilter = 'bases'"
+        >
+          Bases y packs ({{ baseComponentsCount }})
+        </button>
+        <button
+          class="fin-tab-seg"
+          :class="{ active: componentFilter === 'stock' }"
+          type="button"
+          @click="componentFilter = 'stock'"
+        >
+          Insumos directos ({{ stockComponentsCount }})
+        </button>
       </div>
     </div>
     <div class="fin-table-wrap">
@@ -224,13 +302,27 @@ function recipeText(recipe) {
           <tr><th>Componente</th><th class="right">Usado en</th><th class="right">Costo (Bs)</th><th class="actions"><span class="sr-only">Acciones</span></th></tr>
         </thead>
         <tbody>
-          <tr v-for="c in data.components" :key="c.id">
+          <tr v-for="c in filteredComponents" :key="c.id">
             <td data-label="Componente">
-              <span class="fin-cell-main">{{ c.name }}</span>
-              <span v-if="!c.tracks_stock && c.composition.length" class="fin-badge ok" style="margin-left: 6px">Descuenta stock</span>
-              <span v-else-if="!c.tracks_stock" class="fin-badge" style="margin-left: 6px">Solo costeo</span>
-              <span v-if="c.cost <= 0 || !c.composition_complete" class="fin-badge warn" style="margin-left: 4px">{{ c.composition.length && c.cost > 0 ? 'Falta costo de un insumo' : 'Sin costo' }}</span>
-              <div v-if="c.composition.length" class="fin-cell-sub">{{ recipeText(c.composition) }} {{ UNIT_DISPLAY[c.unit]?.costLabel }}</div>
+              <div class="fin-cell-title-row">
+                <span class="fin-cell-main">{{ c.name }}</span>
+                <button
+                  v-if="!c.tracks_stock && c.composition.length"
+                  class="fin-badge-btn"
+                  :class="{ active: !c.use_manual_cost }"
+                  type="button"
+                  :title="c.use_manual_cost ? 'Haz clic para pasar a costo automático por suma de insumos' : 'Haz clic para usar un costo fijo manual'"
+                  @click="toggleCostMode(c)"
+                >
+                  {{ c.use_manual_cost ? 'Modo: Fijo manual' : 'Modo: Automático' }}
+                </button>
+                <span v-else-if="!c.tracks_stock" class="fin-badge" style="margin-left: 6px">Solo costeo</span>
+                <span v-if="c.cost <= 0 || !c.composition_complete" class="fin-badge warn" style="margin-left: 4px">{{ c.composition.length && c.cost > 0 ? 'Falta costo de un insumo' : 'Sin costo' }}</span>
+              </div>
+              <div v-if="c.composition.length && c.use_manual_cost" class="fin-cell-sub">
+                Descuenta inventario (suma {{ formatBs(c.composition_cost) }}) · Costeo financiero usa valor manual fijo
+              </div>
+              <div v-else-if="c.composition.length" class="fin-cell-sub">{{ recipeText(c.composition) }} {{ UNIT_DISPLAY[c.unit]?.costLabel }}</div>
               <div v-else-if="c.from_purchases" class="fin-cell-sub">Costo promedio de las compras registradas en Inventario</div>
             </td>
             <td data-label="Usado en" class="right fin-num">{{ c.used_in }} {{ c.used_in === 1 ? 'receta' : 'recetas' }}</td>
@@ -241,8 +333,8 @@ function recipeText(recipe) {
                   min="0"
                   step="0.01"
                   class="fin-input fin-input-sm fin-num"
-                  :value="c.from_purchases || c.composition.length ? c.cost : c.unit_cost"
-                  :disabled="c.from_purchases || c.composition.length > 0 || savingComponent === c.id"
+                  :value="c.use_manual_cost ? c.unit_cost : (c.from_purchases || c.composition.length ? c.cost : c.unit_cost)"
+                  :disabled="c.from_purchases || (!c.use_manual_cost && c.composition.length > 0) || savingComponent === c.id"
                   :aria-label="`Costo de ${c.name}`"
                   @change="saveCost(c, $event.target.value)"
                 />
@@ -270,8 +362,45 @@ function recipeText(recipe) {
 .fin-variant-name { padding-left: 22px; display: inline-block; }
 .fin-cost-input { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
 .fin-cost-input input { width: 96px; text-align: right; }
+.fin-cell-title-row { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fin-tabs-segmented {
+  display: inline-flex;
+  align-items: center;
+  background: var(--cream-200);
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+}
+.fin-tab-seg {
+  border: none;
+  background: transparent;
+  color: var(--ink-700);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.fin-tab-seg:hover {
+  color: var(--ink-900);
+}
+.fin-tab-seg.active {
+  background: var(--surface);
+  color: var(--ink-900);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+html.dark .fin-tabs-segmented {
+  background: var(--surface-hover);
+}
+html.dark .fin-tab-seg.active {
+  background: var(--surface);
+  color: #fff;
+}
 @media (max-width: 760px) {
   .fin-variant-name { padding-left: 0; }
   .fin-cost-input { justify-content: flex-start; }
+  .fin-tabs-segmented { width: 100%; justify-content: space-between; margin-top: 8px; }
+  .fin-tab-seg { flex: 1; text-align: center; padding: 4px 6px; font-size: 11px; }
 }
 </style>

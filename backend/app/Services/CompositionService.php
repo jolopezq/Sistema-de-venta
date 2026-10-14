@@ -89,8 +89,33 @@ class CompositionService
     }
 
     /**
-     * Costo de una unidad: el de un componente con composición sale del costo promedio de sus insumos; en los
-     * demás es su costo cargado (o su CPP si hay compras).
+     * Costo calculado estrictamente a partir de la composición de insumos reales.
+     *
+     * @return array{0: float, 1: bool}
+     */
+    public function compositionCost(?Ingredient $ingredient): array
+    {
+        if (!$ingredient || !$this->hasComposition($ingredient->id)) {
+            return [0.0, false];
+        }
+
+        $cost = 0.0;
+        $missing = false;
+        foreach ($this->compositionOf($ingredient->id) as $row) {
+            $target = $this->ingredient($row->ingredient_id);
+            $targetCost = $target && !$target->trashed() ? $target->costPerUnit() : 0.0;
+            $missing = $missing || $targetCost <= 0;
+            $cost += (float) $row->quantity * $targetCost;
+        }
+
+        $cost = round($cost, 4);
+
+        return [$cost, $missing || $cost <= 0];
+    }
+
+    /**
+     * Costo de una unidad: el de un componente con composición sale del costo promedio de sus insumos
+     * (a menos que use_manual_cost esté activo); en los demás es su costo cargado (o su CPP si hay compras).
      *
      * @return array{0: float, 1: bool} costo por unidad y si falta el costo de algún insumo
      */
@@ -100,19 +125,8 @@ class CompositionService
             return [0.0, true];
         }
 
-        if ($ingredient->tracks_stock === false && $this->hasComposition($ingredient->id)) {
-            $cost = 0.0;
-            $missing = false;
-            foreach ($this->compositionOf($ingredient->id) as $row) {
-                $target = $this->ingredient($row->ingredient_id);
-                $targetCost = $target && !$target->trashed() ? $target->costPerUnit() : 0.0;
-                $missing = $missing || $targetCost <= 0;
-                $cost += (float) $row->quantity * $targetCost;
-            }
-
-            $cost = round($cost, 4);
-
-            return [$cost, $missing || $cost <= 0];
+        if ($ingredient->tracks_stock === false && $this->hasComposition($ingredient->id) && !$ingredient->use_manual_cost) {
+            return $this->compositionCost($ingredient);
         }
 
         $cost = $ingredient->costPerUnit();

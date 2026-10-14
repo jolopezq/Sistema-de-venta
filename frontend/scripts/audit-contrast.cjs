@@ -59,8 +59,11 @@ const AUDIT = () => {
   // Finanzas (solo super_admin): cada pestaña
   try {
     await nav('Finanzas'); await page.waitForSelector('.fin-statement, .fin-card', { timeout: 15000 }); await snap('11_finanzas_resumen');
-    for (const [n, tab] of [['12_finanzas_pedidosya', 'PedidosYa'], ['13_finanzas_compras', 'Compras y gastos'], ['14_finanzas_fijos', 'Gastos fijos'], ['15_finanzas_categorias', 'Categorías']]) {
-      await page.locator('.fin-tab', { hasText: tab }).first().click(); await snap(n);
+    for (const [n, tab] of [['12_finanzas_pedidosya', 'PedidosYa'], ['13_finanzas_compras', 'Compras y gastos'], ['14_finanzas_fijos', 'Gastos fijos'], ['15_finanzas_costos', 'Costos y margen'], ['16_finanzas_categorias', 'Categorías']]) {
+      const btn = page.locator('.fin-tab', { hasText: tab }).first();
+      await btn.scrollIntoViewIfNeeded();
+      await btn.click();
+      await snap(n);
     }
   } catch (e) { console.log('no se pudo abrir Finanzas', e.message.slice(0, 120)); }
   fs.writeFileSync(`${OUT}/report.json`, JSON.stringify(report, null, 1));

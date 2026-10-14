@@ -3,17 +3,15 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-09)
-- **Rama de trabajo:** `feat/pos-caja-arranque`, que sale de `feat/finanzas-rediseno`: Vender y Caja listos para empezar a usar el sistema (rediseño con la dirección de Finanzas, cobro con vuelto, buscador que funciona, gaveta como cuenta, menú con iconos propios) y venta del dueño dentro del turno abierto.
-- **Rama anterior:** `feat/finanzas-rediseno`, que sale de `feat/pos-cierre-caja`: etapa 2 del rediseño visual aplicada a Finanzas (Resumen nuevo y estilos base del módulo), sobre la maqueta aprobada «Finanzas: dirección y maqueta».
-- **Rama anterior:** `feat/pos-cierre-caja`, que sale de `feat/inventario-reorden`: prioridad 1 del [análisis del POS y del cierre de caja](https://claude.ai/code/artifact/0a10e4d8-9e98-424e-8ffe-8cc39486eaef) (turno obligatorio, ventas rechazadas visibles, revisión previa y desglose que suma).
-- **Rama anterior:** `feat/inventario-reorden` (auditoría, plan aprobado y **Fases 0 a 5 del plan de inventario, completo**; sale de `feat/costos-punto-equilibrio`, que sale de `feat/modulo-finanzas`).
-- **Ensayo de arranque en Mac:** checklist ejecutado y validado de punta a punta (recetas base, composiciones, 2 conteos, mermas e indicadores en Finanzas; ver registro del 09/10).
-- **Destino de producción:** se prevé contratar un VPS para alojar el sistema (todavía no contratado); hasta entonces la producción sigue
-  en la laptop con Windows. La base de la Mac es de desarrollo y quedó con datos de ensayo (conteos y una merma de prueba), así que no
-  sirve como base de producción: el VPS debe partir de una copia de la base de la laptop.
-- **Tests:** 321 en verde (`php artisan test`, 1738 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
-- **Contraste:** 0 textos bajo WCAG AA en POS e Inventario (dark y light), y en Vender y Caja en todos sus estados (cobro justo, con vuelto, sin alcanzar, QR, dividido, comprobante, gasto, apertura, detalle, cierre) en claro y oscuro. En la copia de prueba salen 7 avisos en Delivery y Control Diario (dependen de los datos de la copia; el botón sobre degradado de Turno ya no existe).
+## Estado actual (2026-10-14)
+- **Rama de trabajo:** `feat/pos-caja-arranque`.
+- **Último cambio:** Corrección integral del módulo de Finanzas (Costos, margen y visualización):
+  - Solución a la distorsión del costo de bowls: desacoplamiento del costo financiero del descuento de inventario mediante la bandera `ingredients.use_manual_cost` (migración `2026_10_14_033606`).
+  - Classic Bowl refleja su costo real de Bs 9,20 y margen de 67,1% (ganancia Bs 18,80), Capuchino Bs 3,20 y margen 80,0% (ganancia Bs 12,80).
+  - Eliminación del fondo residual morado `#20112F` y corrección de la altura del shell a 100vh.
+  - Inclusión de ganancia neta en Bs, colores semánticos por margen, pestañas de filtrado en componentes y selector interactivo de modo de costeo en `CompositionEditor.vue`.
+- **Tests:** 322 en verde (`php artisan test`, 1.751 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
+- **Contraste:** 0 textos bajo WCAG AA en tema oscuro.
 - **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
   eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
 
@@ -202,6 +200,30 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-14 (Finanzas: corrección de costos, margen y layout)** — Solución integral de la distorsión
+  en el análisis de costos del módulo de Finanzas y correcciones visuales de la interfaz:
+  - Diagnóstico: los bowls marcaban ~85% de margen y Bs 4,11 de costo (en vez de ~67% y Bs 9,20). Causa:
+    en `CompositionService`, al existir composición para `Mix de frutas` (1 banana) y `Pack toppings base`
+    (granola), el costo financiero del componente se forzaba al CPP de esos pocos insumos descontados en vez
+    de respetar su costo completo de porción.
+  - Base de datos y backend: respaldo tomado en `storage/app/backups/backup_pre_finance_fix_20261014_033403.sqlite`.
+    Migración `2026_10_14_033606_add_use_manual_cost_to_ingredients_table` añade `use_manual_cost` a `ingredients`.
+    `CompositionService` añade `compositionCost()` y respeta `unit_cost` cuando `use_manual_cost` es true.
+    `FinanceCostController` devuelve `profit_local`, `profit_pya`, `use_manual_cost`, `composition_cost`, y permite
+    alternar y actualizar componentes y composiciones con ambos modos.
+  - Corrección de datos de referencia en desarrollo: Porción base açaí (Bs 4,50), Mix de frutas (Bs 2,00),
+    Pack toppings base (Bs 1,50), Kit descartable (Bs 1,20) e insumos de cafetería. Resultado: Classic Bowl
+    queda en Bs 9,20 de costo, margen 67,1% y ganancia Bs 18,80; Capuchino en Bs 3,20, margen 80,0% y ganancia Bs 12,80.
+  - Frontend: `FinanceCosts.vue` muestra la ganancia neta en Bs debajo del margen porcentual, colores
+    semánticos (`margin-good`, `margin-fair`, `margin-low`), filtro segmentado en componentes ("Todos",
+    "Bases y packs", "Insumos directos") y botón para alternar entre costo manual y costo automático con edición
+    directa de costo. `CompositionEditor.vue` incorpora selector interactivo de modo de costeo financiero.
+  - Corrección visual del layout: se corrigió el fondo residual `#20112F` en `style.css` y la altura del shell
+    en `AppShell.vue` y `finance.css`, eliminando el vacío morado inferior al hacer zoom o en pantallas altas.
+  - Verificación: 322 tests en verde (`php artisan test`), build de Vite sin errores (`npx vite build`),
+    auditoría de contraste con 0 textos bajo WCAG AA en tema oscuro, inspección visual en navegador y grafo
+    sincronizado con `graphify update .`.
 
 - **2026-10-09 (Vender y Caja para empezar a usar el sistema)** — Sobre `docs/MENU_LATERAL_SISTEMA.md` y un recorrido como
   cajero y como dueño a 1366×768: el buscador del POS no buscaba, el cobro tenía una clienta de ejemplo y un «Descuento VIP»

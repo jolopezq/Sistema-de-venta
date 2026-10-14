@@ -205,8 +205,9 @@ async function handleLogout() {
 
   font-family: var(--font-sans);
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  min-height: 100vh;
+  width: 100%;
   overflow: hidden;
   background: var(--cream);
   color: var(--ink);

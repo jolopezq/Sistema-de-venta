@@ -4,9 +4,21 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
-## [Sin publicar] — rama `mejoras/analisis-integral`
+## [Sin publicar] — rama `feat/pos-caja-arranque`
 
 ### Agregado
+- **Finanzas: Corrección integral de costos, margen y visualización**:
+  - Corrección de distorsión en costos por receta: los componentes con composición parcial de stock (`Mix de frutas`, `Pack toppings base`, etc.) forzaban el costo financiero del producto al valor de los pocos insumos inventariados (bajando el costo del Classic Bowl de Bs 9,20 a Bs 4,11 e inflando el margen al 85,3%).
+  - Nueva columna `ingredients.use_manual_cost` (migración `2026_10_14_033606_add_use_manual_cost_to_ingredients_table`): permite alternar entre modo automático (suma de CPP de insumos) y modo manual (costo fijo establecido para costeo financiero, mientras sigue descontando los insumos al vender en el POS).
+  - Backend `CompositionService`, `FinanceCostController`: cálculo de `compositionCost()`, soporte de `use_manual_cost` en actualización de componentes y composición, y exposición de ganancia monetaria neta (`profit_local`, `profit_pya`) junto con el porcentaje de margen.
+  - Frontend `FinanceCosts.vue`:
+    - Visualización de la ganancia neta en moneda nacional (`Ganancia Bs 18,80`, etc.) debajo del margen porcentual tanto para productos como para variantes.
+    - Clases semánticas de color para márgenes (`margin-good` >= 60%, `margin-fair` 45-59%, `margin-low` < 45%).
+    - Filtro segmentado en la tabla de componentes: "Todos", "Bases y packs" e "Insumos directos".
+    - Botón/badge interactivo para alternar entre "Modo: Fijo manual" y "Modo: Automático" directamente en la tabla.
+    - Edición directa de costo para componentes en modo manual.
+  - Modal `CompositionEditor.vue`: selector con tarjetas interactivas para elegir el modo de costeo financiero (Automático por suma vs Costo fijo manual con campo para ingresar el valor).
+  - Corrección del fondo de la aplicación y altura del shell (`style.css`, `AppShell.vue`, `finance.css`): eliminación del fondo `#20112F` que creaba un vacío morado debajo de los componentes en pantallas altas o con zoom, asegurando extensión fluida a 100vh tanto en tema claro como oscuro (0 textos bajo WCAG AA en tema oscuro).
 - Movimientos de caja (egresos e ingresos extra) con método de pago; distribución del efectivo al cierre
   y desglose de billetes; Centro de Control Diario para ventas retroactivas. (`7644554`)
 - Cada venta queda vinculada a su sesión de caja (`sales.cash_register_session_id`, con backfill que

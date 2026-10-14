@@ -52,6 +52,9 @@ class FinanceCostController extends Controller
                 'unit'         => $i->unit,
                 'unit_cost'    => (float) $i->unit_cost,
                 'cost'         => $this->composition->unitCost($i)[0],
+                'composition_cost' => $this->composition->compositionCost($i)[0],
+                'use_manual_cost' => (bool) $i->use_manual_cost,
+                'has_composition' => $this->composition->hasComposition($i->id),
                 'from_purchases' => (float) $i->weighted_avg_cost > 0,
                 'tracks_stock' => $i->tracks_stock !== false,
                 'used_in'      => (int) ($recipeUse[$i->id] ?? 0) + (int) ($optionUse[$i->id] ?? 0),
@@ -123,20 +126,26 @@ class FinanceCostController extends Controller
     public function updateComponent(Request $request, Ingredient $ingredient): JsonResponse
     {
         $data = $request->validate([
-            'name'      => ['sometimes', 'string', 'max:150'],
-            'unit_cost' => ['required', 'numeric', 'min:0'],
+            'name'            => ['sometimes', 'string', 'max:150'],
+            'unit_cost'       => ['sometimes', 'numeric', 'min:0'],
+            'use_manual_cost' => ['sometimes', 'boolean'],
         ]);
         if (isset($data['name'])) {
             $data['name'] = NameKey::tidy($data['name']);
         }
 
         $ingredient->update($data);
+        $this->costs->refresh();
+        $this->composition->refresh();
 
-        $message = (float) $ingredient->weighted_avg_cost > 0
-            ? 'Costo guardado. Este insumo tiene compras registradas: el costeo usa su costo promedio.'
-            : 'Costo guardado.';
-        if ($ingredient->composition()->exists()) {
-            $message = 'Guardado. Este componente tiene composición: su costo sale del costo promedio de sus insumos, no del que se cargó aquí.';
+        if ($ingredient->use_manual_cost) {
+            $message = 'Costo fijado manualmente en Bs ' . number_format($ingredient->unit_cost, 2, ',', '.') . '.';
+        } elseif ((float) $ingredient->weighted_avg_cost > 0) {
+            $message = 'Costo guardado. Este insumo tiene compras registradas: el costeo usa su costo promedio.';
+        } elseif ($ingredient->composition()->exists()) {
+            $message = 'Modo automático: el costo sale del costo promedio de sus insumos en inventario.';
+        } else {
+            $message = 'Costo guardado.';
         }
 
         return response()->json(['message' => $message, 'component' => $ingredient]);
@@ -159,6 +168,8 @@ class FinanceCostController extends Controller
             'rows'                 => ['present', 'array', 'max:40'],
             'rows.*.ingredient_id' => ['required', 'integer', 'exists:ingredients,id'],
             'rows.*.quantity'      => ['required', 'numeric', 'gt:0', 'max:100000'],
+            'use_manual_cost'      => ['sometimes', 'boolean'],
+            'unit_cost'            => ['sometimes', 'nullable', 'numeric', 'min:0'],
         ], [
             'rows.*.quantity.gt'       => 'Las cantidades deben ser mayores a 0.',
             'rows.*.ingredient_id.required' => 'Elige el insumo de cada fila.',
@@ -181,10 +192,20 @@ class FinanceCostController extends Controller
             }
         }
 
-        DB::transaction(function () use ($ingredient, $rows) {
+        DB::transaction(function () use ($ingredient, $rows, $data) {
             IngredientComposition::where('component_id', $ingredient->id)->get()->each->delete();
             foreach ($rows as $row) {
                 IngredientComposition::create(['component_id' => $ingredient->id] + $row);
+            }
+            $extra = [];
+            if (array_key_exists('use_manual_cost', $data)) {
+                $extra['use_manual_cost'] = $data['use_manual_cost'];
+            }
+            if (array_key_exists('unit_cost', $data) && $data['unit_cost'] !== null) {
+                $extra['unit_cost'] = $data['unit_cost'];
+            }
+            if (!empty($extra)) {
+                $ingredient->update($extra);
             }
         });
 
@@ -298,6 +319,8 @@ class FinanceCostController extends Controller
                     'price_pya'    => $pya,
                     'margin_local' => $this->margin($local, $cost['cost']),
                     'margin_pya'   => $this->margin($pya, $cost['cost'], $platformRate),
+                    'profit_local' => $cost['complete'] ? round($local - $cost['cost'], 2) : null,
+                    'profit_pya'   => $cost['complete'] && $pya !== null ? round($pya * (1 - ($platformRate ?? 0)) - $cost['cost'], 2) : null,
                 ];
             }
         }
@@ -316,6 +339,8 @@ class FinanceCostController extends Controller
             'price_pya'       => $pyaPrice,
             'margin_local'    => $this->margin($localPrice, $base['cost']),
             'margin_pya'      => $this->margin($pyaPrice, $base['cost'], $platformRate),
+            'profit_local'    => $base['complete'] ? round($localPrice - $base['cost'], 2) : null,
+            'profit_pya'      => $base['complete'] && $pyaPrice !== null ? round($pyaPrice * (1 - ($platformRate ?? 0)) - $base['cost'], 2) : null,
             'variants'        => $variants,
         ];
     }
