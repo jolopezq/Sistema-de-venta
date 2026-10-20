@@ -225,11 +225,14 @@
   "223": "AnonymousResourceCollection",
   "224": "JsonResponse",
   "225": "Response",
+  "226": "Illuminate\\Http\\Response",
   "227": "Response",
   "228": "index.js",
   "229": "Auditoría y plan de corrección — módulo de Finanzas",
   "230": "JsonResponse",
   "231": "Request",
+  "232": "AdminSaleManagementTest",
+  "233": "Análisis y Configuración de Dominio — ohana-pos.com",
   "234": "Request",
   "235": "Response",
   "236": "JsonResponse",
@@ -251,5 +254,7 @@
   "252": "Request",
   "253": "AnonymousResourceCollection",
   "254": "Request",
-  "255": "Response"
+  "255": "Response",
+  "256": "SaleSyncTest",
+  "257": "2026_10_14_033606_add_use_manual_cost_to_ingredients_table.php"
 }

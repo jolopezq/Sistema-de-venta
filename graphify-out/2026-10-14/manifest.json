@@ -140,8 +140,8 @@
     "semantic_hash": "a0d093d6fc59415fff868ec5aca8dcb4"
   },
   "backend/app/Models/Ingredient.php": {
-    "mtime": 1791532249.5007582,
-    "ast_hash": "b1f8dbdb24179a510424087901745a4f",
+    "mtime": 1791963454.0650022,
+    "ast_hash": "cbfc062aa7e54dafee08389617bfe171",
     "semantic_hash": ""
   },
   "backend/app/Models/InventoryMovement.php": {
@@ -975,8 +975,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/AppShell.vue": {
-    "mtime": 1791578643.8799734,
-    "ast_hash": "c93e52945e9975fd796bf2057f4e7511",
+    "mtime": 1791963942.6968865,
+    "ast_hash": "513258766cbee9f95af69cb60fab10fc",
     "semantic_hash": ""
   },
   "frontend/src/components/AuditLogDetailModal.vue": {
@@ -1435,8 +1435,8 @@
     "semantic_hash": ""
   },
   "frontend/scripts/audit-contrast.cjs": {
-    "mtime": 1791578643.8797324,
-    "ast_hash": "e3f6c280b94e5417aefa8d592fcb40f9",
+    "mtime": 1791967527.3701425,
+    "ast_hash": "8b36dd0f89bd832071fa6d26aca6e93c",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -1640,8 +1640,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/Finance.vue": {
-    "mtime": 1791443123.8106024,
-    "ast_hash": "cce91c8c34a719b39a4f36e7d9d179c1",
+    "mtime": 1791964707.889749,
+    "ast_hash": "9eac061ea81e4f83d780b4687aa48f53",
     "semantic_hash": ""
   },
   "docs/PLAN_MODULO_FINANZAS.md": {
@@ -1875,8 +1875,8 @@
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/FinanceCostController.php": {
-    "mtime": 1791528132.8595402,
-    "ast_hash": "ff547a783061728205bd9afa35de45fa",
+    "mtime": 1791964130.1537795,
+    "ast_hash": "53956a4863f2afa090b6451e78c03d4a",
     "semantic_hash": ""
   },
   "backend/app/Services/BaseRecipesService.php": {
@@ -1910,8 +1910,8 @@
     "semantic_hash": ""
   },
   "backend/tests/Feature/FinanceCostApiTest.php": {
-    "mtime": 1791509341.2623568,
-    "ast_hash": "8cedd756e903534ad88c6f5f6a16949d",
+    "mtime": 1791964162.0537112,
+    "ast_hash": "4949b0b0dc4ca2f61a4b5451a4a384b2",
     "semantic_hash": ""
   },
   "backend/tests/Feature/RecipeCostTest.php": {
@@ -1930,8 +1930,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceCosts.vue": {
-    "mtime": 1791528132.8740776,
-    "ast_hash": "75a423e0c089e82702764dc5d21eaeb1",
+    "mtime": 1791964325.328631,
+    "ast_hash": "c042e4e07fa141712a703c911d5f14ac",
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/RecipeEditor.vue": {
@@ -2030,8 +2030,8 @@
     "semantic_hash": ""
   },
   "backend/app/Services/CompositionService.php": {
-    "mtime": 1791528132.8635156,
-    "ast_hash": "0d0098eca66117ef190354422338c55e",
+    "mtime": 1791963492.2472153,
+    "ast_hash": "9186a72bd7b39cdc96cd749bc0e4327c",
     "semantic_hash": ""
   },
   "backend/app/Services/InventoryCountService.php": {
@@ -2135,8 +2135,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/CompositionEditor.vue": {
-    "mtime": 1791528132.8732045,
-    "ast_hash": "67a467812ff5898c22ee20a624a4e96e",
+    "mtime": 1791964206.7310724,
+    "ast_hash": "54687fc60daaf19dc89bdbf43cdf7804",
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceInventoryIndicators.vue": {
@@ -2292,6 +2292,26 @@
   "docs/MENU_LATERAL_SISTEMA.md": {
     "mtime": 1791574399.3123438,
     "ast_hash": "77bc4d4ef9f857deb5862561339f125e",
+    "semantic_hash": ""
+  },
+  "backend/database/migrations/2026_10_14_033606_add_use_manual_cost_to_ingredients_table.php": {
+    "mtime": 1791963394.928214,
+    "ast_hash": "3871321e8e15b58f34f2fe4a4160e6a4",
+    "semantic_hash": ""
+  },
+  "docs/ANALISIS_CONTRATACION_VPS.md": {
+    "mtime": 1791585523.8440218,
+    "ast_hash": "c8994ead20fa3682119befa6dd6e0f3c",
+    "semantic_hash": ""
+  },
+  "docs/COMPARATIVA_VPS_LINUX_VS_WINDOWS.md": {
+    "mtime": 1791585607.6660018,
+    "ast_hash": "df41b2df0236e5d551427905a2377468",
+    "semantic_hash": ""
+  },
+  "docs/CONFIGURACION_DOMINIO_CLOUDFLARE.md": {
+    "mtime": 1791587278.131438,
+    "ast_hash": "d313512ac25d5c73311c58530b78ddeb",
     "semantic_hash": ""
   }
 }
