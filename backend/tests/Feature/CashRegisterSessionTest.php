@@ -130,6 +130,58 @@ class CashRegisterSessionTest extends TestCase
         ]);
     }
 
+    public function test_close_rejects_inconsistent_bill_breakdown(): void
+    {
+        $session = CashRegisterSession::create([
+            'cashier_id' => $this->cashier->id,
+            'opening_amount' => 200.00,
+            'status' => 'open',
+            'opened_at' => now()->subHours(4),
+        ]);
+        $base = ['actual_closing' => 210.00, 'cash_withdrawn' => 10.00, 'cash_left_for_next' => 200.00];
+
+        // La suma del desglose (Bs 300) no coincide con lo contado (Bs 210)
+        $this->actingAs($this->cashier)
+            ->postJson("/api/cash-sessions/{$session->id}/close", $base + ['bill_breakdown' => ['100' => 3]])
+            ->assertStatus(422);
+
+        // Denominación inexistente
+        $this->actingAs($this->cashier)
+            ->postJson("/api/cash-sessions/{$session->id}/close", $base + ['bill_breakdown' => ['30' => 7]])
+            ->assertStatus(422);
+
+        // Cantidad negativa o con decimales
+        $this->actingAs($this->cashier)
+            ->postJson("/api/cash-sessions/{$session->id}/close", $base + ['bill_breakdown' => ['100' => -2, '10' => 41]])
+            ->assertStatus(422);
+        $this->actingAs($this->cashier)
+            ->postJson("/api/cash-sessions/{$session->id}/close", $base + ['bill_breakdown' => ['100' => 2.5]])
+            ->assertStatus(422);
+
+        $this->assertDatabaseHas('cash_register_sessions', ['id' => $session->id, 'status' => 'open']);
+    }
+
+    public function test_close_accepts_breakdown_with_fifty_cents(): void
+    {
+        $session = CashRegisterSession::create([
+            'cashier_id' => $this->cashier->id,
+            'opening_amount' => 200.00,
+            'status' => 'open',
+            'opened_at' => now()->subHours(4),
+        ]);
+
+        $this->actingAs($this->cashier)
+            ->postJson("/api/cash-sessions/{$session->id}/close", [
+                'actual_closing' => 851.00,
+                'cash_withdrawn' => 651.00,
+                'cash_left_for_next' => 200.00,
+                'bill_breakdown' => ['200' => 3, '50' => 5, '0.50' => 2],
+                'diff_note' => 'Conteo de prueba',
+            ])
+            ->assertStatus(200)
+            ->assertJsonPath('session.status', 'closed');
+    }
+
     public function test_sales_index_can_filter_by_date_and_payment_method(): void
     {
         $sale = Sale::create([

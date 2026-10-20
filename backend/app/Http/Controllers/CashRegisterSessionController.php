@@ -8,6 +8,7 @@ use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Services\AuditLogger;
 use App\Services\CashSessionResolver;
+use App\Services\PermissionService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,9 @@ use Illuminate\Support\Facades\DB;
 
 class CashRegisterSessionController extends Controller
 {
+    public function __construct(
+        private readonly PermissionService $permissionService,
+    ) {}
     /**
      * Obtiene la sesión de caja abierta HOY para el cajero autenticado.
      * Solo devuelve sesiones cuyo opened_at corresponde al día actual,
@@ -33,8 +37,8 @@ class CashRegisterSessionController extends Controller
             ->latest('opened_at')
             ->first();
 
-        // Si es admin, puede ver cualquier sesión abierta de hoy
-        if (!$session && $request->user()->isAdmin()) {
+        // Si tiene permiso para ver cajas de otros, puede ver cualquier sesión abierta de hoy
+        if (!$session && $this->permissionService->can($request->user(), 'register_others', 'read')) {
             $session = CashRegisterSession::with('cashier')
                 ->where('status', 'open')
                 ->whereDate('opened_at', $today)
@@ -152,11 +156,39 @@ class CashRegisterSessionController extends Controller
     }
 
     /**
+     * Valida el desglose del conteo. Devuelve el mensaje de error o null si es válido (o vacío).
+     * Se hace a mano: la clave «0.50» lleva un punto y chocaría con la sintaxis de comodines de Laravel.
+     */
+    private function breakdownError(?array $breakdown, float $actualClosing): ?string
+    {
+        if (empty($breakdown)) {
+            return null;
+        }
+        $allowed = ['200', '100', '50', '20', '10', '5', '2', '1', '0.5', '0.50'];
+        $sum = 0.0;
+        foreach ($breakdown as $denom => $qty) {
+            $key = (string) $denom;
+            if (!in_array($key, $allowed, true)) {
+                return "El desglose del conteo tiene una denominación no válida ({$key}).";
+            }
+            if (is_bool($qty) || !is_numeric($qty) || (float) $qty != floor((float) $qty) || $qty < 0 || $qty > 9999) {
+                return "La cantidad de piezas de Bs {$key} debe ser un entero entre 0 y 9999.";
+            }
+            $sum += (float) $key * (int) $qty;
+        }
+        if (abs(round($sum, 2) - $actualClosing) > 0.01) {
+            return 'El desglose de billetes y monedas (Bs ' . number_format($sum, 2, '.', '') . ') no coincide con el efectivo contado (Bs '
+                . number_format($actualClosing, 2, '.', '') . ').';
+        }
+        return null;
+    }
+
+    /**
      * Cierra el turno de caja realizando el arqueo, distribución de efectivo y cálculo de diferencias.
      */
     public function close(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
-        $this->ensureCanAccess($request, $cashSession);
+        $this->ensureCanAccess($request, $cashSession, 'edit');
 
         if ($cashSession->status === 'closed') {
             return response()->json([
@@ -184,6 +216,13 @@ class CashRegisterSessionController extends Controller
             return response()->json([
                 'message' => 'La suma de "Monto Retirado" + "Fondo para mañana" debe ser igual al efectivo contado (±Bs 0.01).',
             ], 422);
+        }
+
+        // Si viene el desglose de billetes y monedas, debe ser coherente con el efectivo contado:
+        // solo denominaciones de Bolivia, cantidades enteras 0–9999 y suma igual a «actual_closing».
+        $breakdownError = $this->breakdownError($validated['bill_breakdown'] ?? null, (float) $validated['actual_closing']);
+        if ($breakdownError !== null) {
+            return response()->json(['message' => $breakdownError], 422);
         }
 
         // Con ventas sin sincronizar el arqueo saldría incompleto: el cajero no cierra; un admin puede
@@ -264,7 +303,7 @@ class CashRegisterSessionController extends Controller
      */
     public function report(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
-        $this->ensureCanAccess($request, $cashSession);
+        $this->ensureCanAccess($request, $cashSession, 'read');
         $cashSession->load('cashier');
         $stats  = $this->calculateSessionStats($cashSession);
         $report = $this->buildReportPayload($cashSession, $stats);
@@ -279,7 +318,7 @@ class CashRegisterSessionController extends Controller
      */
     public function recordMovement(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
-        $this->ensureCanAccess($request, $cashSession);
+        $this->ensureCanAccess($request, $cashSession, 'edit');
 
         if ($cashSession->status !== 'open') {
             return response()->json([
@@ -324,7 +363,7 @@ class CashRegisterSessionController extends Controller
      */
     public function movements(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
-        $this->ensureCanAccess($request, $cashSession);
+        $this->ensureCanAccess($request, $cashSession, 'read');
 
         $movements = $cashSession->movements()
             ->with(['user:id,name', 'expenseCategory:id,name,section,group_name'])
@@ -339,7 +378,7 @@ class CashRegisterSessionController extends Controller
      */
     public function show(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
-        $this->ensureCanAccess($request, $cashSession);
+        $this->ensureCanAccess($request, $cashSession, 'read');
         $cashSession->load('cashier');
         return response()->json([
             'session' => $cashSession,
@@ -370,8 +409,8 @@ class CashRegisterSessionController extends Controller
             $query->where('cashier_id', $cashierId);
         }
 
-        // Un cajero solo puede consultar sus propias sesiones
-        if (!$request->user()->isAdmin()) {
+        // Si no tiene permiso para ver otras cajas, solo puede consultar sus propias sesiones
+        if (!$this->permissionService->can($request->user(), 'register_others', 'read')) {
             $query->where('cashier_id', $request->user()->id);
         }
 
@@ -390,13 +429,15 @@ class CashRegisterSessionController extends Controller
     }
 
     /**
-     * Solo el cajero dueño de la sesión o un administrador pueden operar sobre ella.
+     * Solo el cajero dueño de la sesión o un usuario con permiso sobre cajas ajenas pueden acceder.
+     * Para consulta (show, report, movements) se requiere 'read'.
+     * Para operaciones de cambio (close, recordMovement) se requiere 'edit'.
      */
-    private function ensureCanAccess(Request $request, CashRegisterSession $session): void
+    private function ensureCanAccess(Request $request, CashRegisterSession $session, string $level = 'edit'): void
     {
         $user = $request->user();
 
-        if (!$user->isAdmin() && (int) $session->cashier_id !== (int) $user->id) {
+        if ((int) $session->cashier_id !== (int) $user->id && !app(PermissionService::class)->can($user, 'register_others', $level)) {
             abort(403, 'No tienes permiso para operar sobre la caja de otro usuario.');
         }
     }

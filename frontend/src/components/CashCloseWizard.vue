@@ -1,10 +1,14 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useTurnoStore, readCashCloseProgress, CASH_CLOSE_PROGRESS_KEY } from '../stores/turno';
 import { useAuthStore } from '../stores/auth';
 import { useNetworkStore } from '../stores/network';
 import CashSessionReport from './CashSessionReport.vue';
 import SyncIssuesPanel from './SyncIssuesPanel.vue';
+import {
+  DENOMINATIONS, sanitizeCount, sanitizeCounts, countTotal, piecesCount,
+  sanitizeMoneyText, moneyFromText,
+} from '../utils/cashCount';
 
 const emit = defineEmits(['close', 'closed']);
 const turnoStore = useTurnoStore();
@@ -96,17 +100,7 @@ const reviewedTime = computed(() => reviewedAt.value
 
 // ---------- Paso 1: conteo ----------
 // Conteo por denominación (Bolivianos)
-const billCounts = ref({
-  200: 0,
-  100: 0,
-  50: 0,
-  20: 0,
-  10: 0,
-  5: 0,
-  2: 0,
-  1: 0,
-  '0.50': 0,
-});
+const billCounts = ref(sanitizeCounts(null));
 
 const manualTotalOverride = ref(null);
 const useManualTotal = ref(false);
@@ -126,26 +120,15 @@ const distributionError = computed(() => {
   return '';
 });
 
-const denominations = [
-  { label: 'Bs 200', value: 200, type: 'billete', color: '#1B5E20' },
-  { label: 'Bs 100', value: 100, type: 'billete', color: '#B71C1C' },
-  { label: 'Bs 50',  value: 50,  type: 'billete', color: '#E65100' },
-  { label: 'Bs 20',  value: 20,  type: 'billete', color: '#F57F17' },
-  { label: 'Bs 10',  value: 10,  type: 'billete', color: '#006064' },
-  { label: 'Bs 5',   value: 5,   type: 'moneda',  color: '#4E342E' },
-  { label: 'Bs 2',   value: 2,   type: 'moneda',  color: '#546E7A' },
-  { label: 'Bs 1',   value: 1,   type: 'moneda',  color: '#546E7A' },
-  { label: 'Bs 0.50', value: 0.5, type: 'moneda', color: '#78909C' },
-];
+const denominations = DENOMINATIONS;
+/** Billetes (columna izquierda) y monedas (derecha); el orden de DENOMINATIONS es el del teclado */
+const billDenoms = denominations.filter((d) => d.type === 'billete');
+const coinDenoms = denominations.filter((d) => d.type === 'moneda');
+const denomIndex = (d) => denominations.indexOf(d);
 
 // Cálculo automático de la suma de denominaciones
-const calculatedTotal = computed(() => {
-  return denominations.reduce((sum, d) => {
-    const key = d.value === 0.5 ? '0.50' : String(d.value);
-    const qty = Number(billCounts.value[key] || 0);
-    return sum + (d.value * qty);
-  }, 0);
-});
+const calculatedTotal = computed(() => countTotal(billCounts.value));
+const totalPieces = computed(() => piecesCount(billCounts.value));
 
 // Total final contado (manual o por desglose)
 const countedTotal = computed(() => {
@@ -179,13 +162,72 @@ const canProceedToClose = computed(() => {
   return true;
 });
 
-// Incremento / decremento rápido
+// Incremento / decremento con el mouse (el flujo principal es el teclado)
 function changeQty(denomKey, delta) {
-  const current = Number(billCounts.value[denomKey] || 0);
-  const next = Math.max(0, current + delta);
-  billCounts.value[denomKey] = next;
+  billCounts.value[denomKey] = sanitizeCount(Number(billCounts.value[denomKey] || 0) + delta);
   saveProgress();
 }
+
+// ---------- Ingreso directo con teclado (plan PLAN_CIERRE_CAJA_CONTEO_DIRECTO.md) ----------
+const countInputs = [];
+const setCountRef = (el, i) => { if (el) countInputs[i] = el; };
+const nextBtn = ref(null);
+const closeBtn = ref(null);
+const noteField = ref(null);
+const cashLeftField = ref(null);
+
+function focusCount(i) {
+  nextTick(() => {
+    const el = countInputs[i];
+    if (el) { el.focus(); el.select(); }
+  });
+}
+
+/** Solo dígitos: se descartan signos, comas y letras; vacío vale 0 y se muestra el «0» tenue. */
+function onCountInput(key, e) {
+  billCounts.value[key] = sanitizeCount(e.target.value);
+  e.target.value = billCounts.value[key] || '';
+  saveProgress();
+}
+
+function onCountKeydown(e, i) {
+  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); nextStep(); return; }
+  const last = denominations.length - 1;
+  if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const back = e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey);
+    if (back) { if (i > 0) focusCount(i - 1); return; }
+    if (i === last) {
+      // El último Enter solo lleva el foco al botón: uno de más no cambia de paso
+      if (e.key === 'Enter') nextBtn.value?.focus();
+      return;
+    }
+    focusCount(i + 1);
+  }
+}
+
+// Fondo para el próximo turno: texto con coma o punto, máximo 2 decimales
+const cashLeftText = ref('0');
+watch(cashLeftText, (t) => { cashLeftForNext.value = moneyFromText(t); });
+function onCashLeftInput(e) {
+  cashLeftText.value = sanitizeMoneyText(e.target.value);
+  e.target.value = cashLeftText.value;
+}
+function setCashLeft(value) {
+  cashLeftText.value = String(Math.max(0, Math.round(value * 100) / 100));
+}
+const openingChipValue = computed(() => Math.min(openingAmount.value, countedTotal.value));
+
+// Al entrar a cada paso el cursor ya está donde se escribe
+watch(step, (value) => {
+  if (value === 1) focusCount(0);
+  if (value === 2) {
+    nextTick(() => {
+      const el = difference.value < 0 ? noteField.value : cashLeftField.value;
+      if (el) { el.focus(); if (el.tagName === 'INPUT') el.select(); }
+    });
+  }
+});
 
 // Guardar en localStorage para protección ante recargas; el avance pertenece a esta caja
 function saveProgress() {
@@ -207,11 +249,14 @@ function saveProgress() {
 onMounted(() => {
   const parsed = readCashCloseProgress(resolvedSession.value?.id);
   if (parsed) {
-    if (parsed.billCounts) billCounts.value = { ...billCounts.value, ...parsed.billCounts };
+    if (parsed.billCounts) billCounts.value = sanitizeCounts({ ...billCounts.value, ...parsed.billCounts });
     if (parsed.diffNote) diffNote.value = parsed.diffNote;
     if (parsed.useManualTotal) useManualTotal.value = parsed.useManualTotal;
     if (parsed.manualTotalOverride !== undefined) manualTotalOverride.value = parsed.manualTotalOverride;
-    if (parsed.cashLeftForNext !== undefined) cashLeftForNext.value = Number(parsed.cashLeftForNext) || 0;
+    if (parsed.cashLeftForNext !== undefined) {
+      cashLeftForNext.value = moneyFromText(parsed.cashLeftForNext);
+      cashLeftText.value = String(cashLeftForNext.value);
+    }
     if (parsed.step === 2) resumeStep = 2;
   }
   runReview();
@@ -398,60 +443,54 @@ function handleFinish() {
 
         <!-- ================= PASO 1: CONTEO FÍSICO ================= -->
         <div v-if="step === 1" class="step-content">
-          <div class="step-intro">
-            <h3>Cuenta el efectivo de la gaveta</h3>
-            <p>Escribe cuántos billetes y monedas hay de cada valor.</p>
+          <div class="step-intro step-intro-row">
+            <div>
+              <h3>Cuenta el efectivo de la gaveta</h3>
+              <p>Escribe cuántas piezas hay de cada valor y pulsa Enter para pasar al siguiente.</p>
+            </div>
             <p v-if="reviewedTime && unsyncedCount === 0" class="review-ok-note">
-              Revisado a las {{ reviewedTime }}: todas las ventas enviadas y cifras al día.
+              Revisado a las {{ reviewedTime }}: ventas enviadas y cifras al día.
             </p>
           </div>
 
-          <!-- TABLA DE DENOMINACIONES -->
-          <div class="denoms-grid">
-            <div 
-              v-for="d in denominations" 
-              :key="d.label" 
-              class="denom-card"
-            >
-              <div class="denom-info">
-                <span class="denom-badge" :style="{ '--bill': d.color }">
-                  {{ d.label }}
-                </span>
-                <span class="denom-type">{{ d.type === 'billete' ? 'Billete' : 'Moneda' }}</span>
-              </div>
-
-              <div class="denom-counter">
-                <button type="button" class="btn-step" @click="changeQty(d.value === 0.5 ? '0.50' : String(d.value), -1)">−</button>
-                <input 
-                  type="number" 
-                  min="0"
-                  v-model.number="billCounts[d.value === 0.5 ? '0.50' : String(d.value)]"
-                  class="denom-input"
-                  @input="saveProgress"
+          <!-- Libro de conteo: billetes a la izquierda, monedas a la derecha; el orden del teclado es el de lectura -->
+          <div class="count-board">
+            <div v-for="group in [{ name: 'Billetes', list: billDenoms }, { name: 'Monedas', list: coinDenoms }]" :key="group.name" class="count-col">
+              <h4 class="count-group">{{ group.name }}</h4>
+              <div
+                v-for="d in group.list"
+                :key="d.key"
+                class="count-row"
+                :class="{ filled: billCounts[d.key] > 0 }"
+                :style="{ '--bill': d.color }"
+              >
+                <span class="count-badge">{{ d.label }}</span>
+                <input
+                  :ref="(el) => setCountRef(el, denomIndex(d))"
+                  :value="billCounts[d.key] || ''"
+                  class="count-input"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  maxlength="4"
+                  placeholder="0"
+                  :aria-label="`Cantidad de ${d.type === 'billete' ? 'billetes' : 'monedas'} de ${d.label}`"
+                  @input="onCountInput(d.key, $event)"
+                  @keydown="onCountKeydown($event, denomIndex(d))"
+                  @focus="$event.target.select()"
                 />
-                <button type="button" class="btn-step" @click="changeQty(d.value === 0.5 ? '0.50' : String(d.value), 1)">+</button>
+                <span class="count-sub">Bs {{ (d.value * (billCounts[d.key] || 0)).toFixed(2) }}</span>
+                <span class="count-adj">
+                  <button type="button" tabindex="-1" :aria-label="`Quitar uno de ${d.label}`" @click="changeQty(d.key, -1)">−</button>
+                  <button type="button" tabindex="-1" :aria-label="`Sumar uno de ${d.label}`" @click="changeQty(d.key, 1)">+</button>
+                </span>
               </div>
-
-              <div class="denom-subtotal">
-                Bs {{ ((d.value) * (billCounts[d.value === 0.5 ? '0.50' : String(d.value)] || 0)).toFixed(2) }}
-              </div>
-            </div>
-          </div>
-
-          <!-- TOTAL CONTADO FOOTER -->
-          <div class="total-counted-bar">
-            <div class="total-label">
-              <span>Total físico contado</span>
-              <small>{{ Object.values(billCounts).reduce((a, b) => a + Number(b || 0), 0) }} piezas contadas</small>
-            </div>
-            <div class="total-amount">
-              Bs {{ calculatedTotal.toFixed(2) }}
             </div>
           </div>
         </div>
 
-        <!-- ================= PASO 2: RESUMEN Y ARQUEO ================= -->
-        <div v-if="step === 2" class="step-content">
+        <!-- ================= PASO 2: RESULTADO DEL ARQUEO ================= -->
+        <div v-if="step === 2" class="step-content step-compact">
           <div class="step-intro">
             <h3>Compara lo contado con lo esperado</h3>
             <p>Si falta dinero, anota el motivo antes de cerrar.</p>
@@ -481,36 +520,38 @@ function handleFinish() {
                 <strong>Bs {{ expectedCash.toFixed(2) }}</strong>
               </div>
 
-              <h4 class="sub-heading">Otros cobros y pagos (no están en la gaveta)</h4>
-              <div class="box-row">
-                <span>Ventas QR / Transferencia:</span>
-                <span>Bs {{ Number(resolvedStats?.qr_sales || 0).toFixed(2) }}</span>
-              </div>
-              <div class="box-row">
-                <span>Ventas Tarjeta:</span>
-                <span>Bs {{ Number(resolvedStats?.card_sales || 0).toFixed(2) }}</span>
-              </div>
-              <div class="box-row" v-if="nonCashExpenses > 0">
-                <span>Egresos pagados con QR o tarjeta:</span>
-                <span>Bs {{ nonCashExpenses.toFixed(2) }}</span>
-              </div>
-              <div class="box-row divider">
-                <span>Total ventas del local:</span>
-                <strong>Bs {{ Number(resolvedStats?.total_sales || 0).toFixed(2) }}</strong>
-              </div>
-              <div class="box-row">
-                <span>Tickets emitidos:</span>
-                <span>{{ resolvedStats?.sales_count || 0 }} {{ resolvedStats?.sales_count === 1 ? 'venta' : 'ventas' }}</span>
-              </div>
-              <div class="box-row" v-if="resolvedStats?.voided_count > 0">
-                <span>Ventas anuladas:</span>
-                <span class="text-danger">{{ resolvedStats?.voided_count }} {{ resolvedStats?.voided_count === 1 ? 'ticket' : 'tickets' }}</span>
-              </div>
-              <!-- PedidosYa: informativo, no entra al arqueo -->
-              <div class="box-row divider">
-                <span>PedidosYa <small class="pedidosya-note">(no se rinde en caja)</small>:</span>
-                <span>{{ resolvedStats?.pedidosya_count || 0 }} pedidos, Bs {{ Number(resolvedStats?.pedidosya_total || 0).toFixed(2) }}</span>
-              </div>
+              <details class="other-pay">
+                <summary>Otros cobros y pagos (no están en la gaveta)</summary>
+                <div class="box-row">
+                  <span>Ventas QR / Transferencia:</span>
+                  <span>Bs {{ Number(resolvedStats?.qr_sales || 0).toFixed(2) }}</span>
+                </div>
+                <div class="box-row">
+                  <span>Ventas Tarjeta:</span>
+                  <span>Bs {{ Number(resolvedStats?.card_sales || 0).toFixed(2) }}</span>
+                </div>
+                <div class="box-row" v-if="nonCashExpenses > 0">
+                  <span>Egresos pagados con QR o tarjeta:</span>
+                  <span>Bs {{ nonCashExpenses.toFixed(2) }}</span>
+                </div>
+                <div class="box-row divider">
+                  <span>Total ventas del local:</span>
+                  <strong>Bs {{ Number(resolvedStats?.total_sales || 0).toFixed(2) }}</strong>
+                </div>
+                <div class="box-row">
+                  <span>Tickets emitidos:</span>
+                  <span>{{ resolvedStats?.sales_count || 0 }} {{ resolvedStats?.sales_count === 1 ? 'venta' : 'ventas' }}</span>
+                </div>
+                <div class="box-row" v-if="resolvedStats?.voided_count > 0">
+                  <span>Ventas anuladas:</span>
+                  <span class="text-danger">{{ resolvedStats?.voided_count }} {{ resolvedStats?.voided_count === 1 ? 'ticket' : 'tickets' }}</span>
+                </div>
+                <!-- PedidosYa: informativo, no entra al arqueo -->
+                <div class="box-row divider">
+                  <span>PedidosYa <small class="pedidosya-note">(no se rinde en caja)</small>:</span>
+                  <span>{{ resolvedStats?.pedidosya_count || 0 }} pedidos, Bs {{ Number(resolvedStats?.pedidosya_total || 0).toFixed(2) }}</span>
+                </div>
+              </details>
             </div>
 
             <!-- RESULTADO DEL ARQUEO -->
@@ -525,8 +566,8 @@ function handleFinish() {
                 <strong class="text-primary">Bs {{ countedTotal.toFixed(2) }}</strong>
               </div>
 
-              <!-- BADGE DIFERENCIA -->
-              <div 
+              <!-- DIFERENCIA -->
+              <div
                 class="diff-banner"
                 :class="{
                   exact: difference === 0,
@@ -534,24 +575,28 @@ function handleFinish() {
                   faltante: difference < 0
                 }"
               >
-                <div class="diff-title">Diferencia</div>
-                <div class="diff-value">{{ difference > 0 ? '+' : difference < 0 ? '−' : '' }}Bs {{ Math.abs(difference).toFixed(2) }}</div>
-                <div class="diff-verdict">
-                  <template v-if="difference === 0">La caja cuadra</template>
-                  <template v-else-if="difference > 0">Sobra dinero</template>
-                  <template v-else>Falta dinero</template>
+                <div class="diff-text">
+                  <div class="diff-title">Diferencia</div>
+                  <div class="diff-verdict">
+                    <template v-if="difference === 0">La caja cuadra</template>
+                    <template v-else-if="difference > 0">Sobra dinero</template>
+                    <template v-else>Falta dinero</template>
+                  </div>
                 </div>
+                <div class="diff-value">{{ difference > 0 ? '+' : difference < 0 ? '−' : '' }}Bs {{ Math.abs(difference).toFixed(2) }}</div>
               </div>
 
               <!-- NOTA OBLIGATORIA SI HAY FALTANTE -->
               <div v-if="difference < 0" class="diff-note-box">
-                <label class="required-label">
+                <label class="required-label" for="diff-note-field">
                   <strong>Motivo del faltante (obligatorio)</strong>
                 </label>
-                <textarea 
-                  v-model="diffNote" 
+                <textarea
+                  id="diff-note-field"
+                  ref="noteField"
+                  v-model="diffNote"
                   placeholder="Qué pasó: un vuelto mal dado, un gasto sin registrar…"
-                  rows="3"
+                  rows="2"
                   class="diff-textarea"
                 ></textarea>
                 <small v-if="diffNote.trim().length < 5" class="text-danger">
@@ -560,40 +605,45 @@ function handleFinish() {
               </div>
 
               <div v-else-if="difference > 0" class="diff-note-box">
-                <label>
+                <label for="diff-note-field">
                   <span>Nota sobre el sobrante (opcional)</span>
                 </label>
-                <input 
-                  type="text" 
-                  v-model="diffNote" 
+                <input
+                  id="diff-note-field"
+                  type="text"
+                  v-model="diffNote"
                   placeholder="Ej.: propina no registrada, redondeo"
                   class="diff-input"
                 />
               </div>
             </div>
 
-            <!-- DISTRIBUCIÓN DEL EFECTIVO AL CIERRE -->
+            <!-- QUÉ SE HACE CON EL EFECTIVO -->
             <div class="card-box distribution-box">
               <h4>Qué se hace con el efectivo</h4>
-              <p class="dist-hint review-help">Indica cuánto queda en la caja para el próximo turno. El resto se retira.</p>
-              <div class="box-row">
-                <span>Efectivo contado:</span>
-                <strong>Bs {{ countedTotal.toFixed(2) }}</strong>
-              </div>
               <div class="dist-input-row">
                 <label for="cash-left-input">Queda para el próximo turno:</label>
                 <div class="dist-input-wrap">
                   <span class="dist-currency">Bs</span>
                   <input
                     id="cash-left-input"
-                    v-model.number="cashLeftForNext"
-                    type="number"
-                    min="0"
-                    step="0.50"
+                    ref="cashLeftField"
+                    :value="cashLeftText"
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
                     class="dist-input"
                     :class="{ 'input-error': distributionError }"
+                    @input="onCashLeftInput"
+                    @focus="$event.target.select()"
+                    @keydown.enter.prevent="closeBtn?.focus()"
                   />
                 </div>
+              </div>
+              <div class="dist-chips" role="group" aria-label="Atajos para el fondo del próximo turno">
+                <button type="button" class="dist-chip" @click="setCashLeft(openingChipValue)">Como al abrir: Bs {{ openingChipValue.toFixed(2) }}</button>
+                <button type="button" class="dist-chip" @click="setCashLeft(countedTotal)">Todo</button>
+                <button type="button" class="dist-chip" @click="setCashLeft(0)">Nada</button>
               </div>
               <div class="box-row dist-result">
                 <span>Se retira:</span>
@@ -642,14 +692,20 @@ function handleFinish() {
 
         <template v-else-if="step === 1">
           <button class="btn btn-ghost" @click="emit('close')">Cancelar</button>
-          <button class="btn btn-primary" @click="nextStep">Ver el resultado</button>
+          <div class="footer-total" role="status" aria-live="polite">
+            <span class="ft-label">Total contado</span>
+            <strong class="ft-amount">Bs {{ calculatedTotal.toFixed(2) }}</strong>
+            <small class="ft-pieces">{{ totalPieces }} {{ totalPieces === 1 ? 'pieza' : 'piezas' }}</small>
+          </div>
+          <button ref="nextBtn" class="btn btn-primary" @click="nextStep">Ver el resultado</button>
         </template>
 
         <template v-else-if="step === 2">
           <button class="btn btn-ghost" @click="prevStep" :disabled="isSubmitting">Volver al conteo</button>
-          <button 
-            class="btn btn-primary" 
-            :disabled="!canProceedToClose || isSubmitting" 
+          <button
+            ref="closeBtn"
+            class="btn btn-primary"
+            :disabled="!canProceedToClose || isSubmitting"
             @click="handleConfirmClose"
           >
             <span v-if="isSubmitting">Cerrando…</span>
@@ -676,15 +732,15 @@ function handleFinish() {
   align-items: center;
   justify-content: center;
   z-index: 1200;
-  padding: 16px;
+  padding: 12px;
 }
 
 .wizard-modal {
   background: var(--surface);
   border-radius: 20px;
   width: 100%;
-  max-width: 820px;
-  max-height: 92vh;
+  max-width: 960px;
+  max-height: calc(100vh - 24px);
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-pop);
@@ -692,7 +748,7 @@ function handleFinish() {
 }
 
 .wizard-header {
-  padding: 20px 26px;
+  padding: 12px 22px;
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
@@ -714,7 +770,7 @@ function handleFinish() {
 
 .wizard-title-box h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   color: var(--ink-900);
 }
 
@@ -739,8 +795,8 @@ function handleFinish() {
 }
 
 .step-dot span {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--cream-200);
   color: var(--ink-500);
@@ -753,7 +809,7 @@ function handleFinish() {
 }
 
 .step-dot label {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--ink-500);
 }
@@ -794,14 +850,21 @@ function handleFinish() {
 }
 
 .wizard-body {
-  padding: 24px 26px;
+  padding: 12px 22px 10px;
   overflow-y: auto;
   flex: 1;
 }
 
 .step-intro {
-  margin-bottom: 18px;
+  margin-bottom: 10px;
 }
+.step-intro-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+.step-intro-row .review-ok-note { margin: 0 !important; font-size: 12.5px; white-space: nowrap; }
 
 .step-intro h3 {
   margin: 0 0 4px;
@@ -893,126 +956,117 @@ function handleFinish() {
   filter: none;
 }
 
-/* Conteo Denominaciones */
-.denoms-grid {
+/* Libro de conteo: dos columnas (billetes | monedas), una fila por valor */
+.count-board {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 28px;
+  align-items: start;
 }
-
-.denom-card {
-  background: var(--surface-alt);
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.count-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.count-group {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-600);
 }
-
-.denom-info {
-  display: flex;
-  justify-content: space-between;
+.count-row {
+  --bill: var(--ink-400);
+  display: grid;
+  grid-template-columns: 96px 96px minmax(0, 1fr) auto;
   align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 8px 0 0;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 5px 0 0 var(--bill);
+  transition: border-color .12s, background-color .12s;
 }
-
-/* Cada billete conserva su color real como franja; el número va en tinta para leerse bien */
-.denom-badge {
+.count-row:focus-within {
+  border-color: var(--acai-500);
+  background: var(--acai-50);
+  box-shadow: inset 5px 0 0 var(--bill), 0 0 0 3px var(--acai-50);
+}
+.count-badge {
+  padding-left: 16px;
   font-family: 'Baloo 2', sans-serif;
   font-weight: 700;
-  font-size: 15px;
-  padding: 2px 8px 2px 12px;
-  border-radius: 6px;
-  border: 1.5px solid var(--bill);
-  box-shadow: inset 5px 0 0 var(--bill);
+  font-size: 16px;
   color: var(--ink-900);
 }
-
-.denom-type {
-  font-size: 12px;
-  color: var(--ink-500);
-  font-weight: 500;
-}
-
-.denom-counter {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.btn-step {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  font-weight: 800;
-  font-size: 16px;
-  color: var(--ink-800);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-step:hover {
-  background: var(--cream-200);
-}
-
-.denom-input {
-  flex: 1;
+.count-input {
   width: 100%;
+  box-sizing: border-box;
+  height: 30px;
   text-align: center;
   font-family: 'Baloo 2', sans-serif;
   font-weight: 800;
-  font-size: 17px;
-  padding: 6px;
-  border-radius: 8px;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
   border: 1.5px solid var(--border);
+  border-radius: 8px;
   background: var(--surface);
   color: var(--ink-900);
 }
-
-.denom-subtotal {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink-600);
+.count-input::placeholder { color: var(--ink-300); font-weight: 600; }
+.count-input:focus { outline: none; border-color: var(--acai-500); }
+.count-sub {
   text-align: right;
-}
-
-.total-counted-bar {
-  background: var(--acai-900);
-  color: white;
-  padding: 16px 20px;
-  border-radius: 14px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.total-label span {
-  font-size: 14px;
-  font-weight: 700;
-  display: block;
-}
-
-.total-label small {
-  font-size: 11.5px;
-  opacity: 0.8;
-}
-
-.total-amount {
   font-family: 'Baloo 2', sans-serif;
-  font-size: 26px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-400);
 }
+.count-row.filled .count-sub { color: var(--ink-900); font-weight: 700; }
+/* − / + solo para el mouse: fuera del recorrido con Tab y discretos hasta pasar por la fila */
+.count-adj { display: inline-flex; gap: 4px; opacity: 0; transition: opacity .12s; }
+.count-row:hover .count-adj,
+.count-row:focus-within .count-adj { opacity: 1; }
+.count-adj button {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-700);
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+.count-adj button:hover { background: var(--cream-200); }
+
+/* Total contado: siempre a la vista, en el pie */
+.footer-total {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 18px;
+  border-radius: 12px;
+  background: var(--acai-900);
+  color: #fff;
+}
+.ft-label { font-size: 13px; font-weight: 600; opacity: .85; }
+.ft-amount {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.ft-pieces { font-size: 12px; opacity: .8; }
 
 /* Paso 2: Resumen Grid */
 .summary-cards-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 12px;
+  align-items: start;
 }
 
 .card-box {
@@ -1160,13 +1214,15 @@ function handleFinish() {
 
 /* Footer */
 .wizard-footer {
-  padding: 18px 26px;
+  padding: 10px 22px;
   border-top: 1px solid var(--border);
   background: var(--surface-hover);
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 12px;
 }
+.wizard-footer .btn { min-height: 42px; }
 
 @media (max-width: 768px) {
   .summary-cards-grid {
@@ -1197,5 +1253,106 @@ function handleFinish() {
   color: var(--ink-500);
   font-weight: 500;
   font-size: 0.85em;
+}
+/* ===== Paso 2 compacto (portátil de caja) ===== */
+.step-compact .card-box { padding: 10px 14px; border-radius: 12px; }
+.step-compact .card-box h4 { margin: 0 0 6px; font-size: 14px; }
+.step-compact .box-row { font-size: 13px; margin-bottom: 3px; }
+.step-compact .box-row.divider { padding-top: 5px; margin-top: 5px; }
+.other-pay { margin-top: 8px; font-size: 13px; }
+.other-pay summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-700);
+  padding: 4px 0;
+}
+.other-pay summary:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; border-radius: 4px; }
+.other-pay[open] summary { margin-bottom: 4px; }
+.step-compact .diff-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+.step-compact .diff-value { font-size: 22px; margin: 0; }
+.step-compact .diff-note-box { margin-top: 6px; }
+.step-compact .required-label { margin-bottom: 4px; }
+.step-compact .diff-textarea { padding: 6px 10px; resize: none; }
+.step-compact .diff-input { padding: 6px 10px; }
+.dist-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.dist-chip {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-900);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dist-chip:hover { border-color: var(--acai-300); }
+.dist-chip:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
+
+.step-compact .diff-note-box label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--ink-700); }
+/* Fondo para el próximo turno */
+.dist-input-row { display: flex; flex-direction: column; gap: 4px; }
+.dist-input-row label { font-size: 13px; font-weight: 600; color: var(--ink-700); }
+.dist-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 40px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.dist-input-wrap:focus-within { border-color: var(--acai-500); box-shadow: 0 0 0 3px var(--acai-50); }
+.dist-currency { font-weight: 600; color: var(--ink-500); }
+.dist-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ink-900);
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dist-input.input-error { color: var(--danger-text); }
+.dist-error { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--danger-text); }
+.dist-result { margin-top: 4px; }
+
+/* Plan B: ventanas bajas (p. ej. Windows al 125 %, ≈ 1093 × 489) */
+@media (max-height: 520px) and (min-width: 641px) {
+  .wizard-header { padding: 8px 22px; }
+  .wizard-body { padding: 8px 22px 8px; }
+  .step-intro { margin-bottom: 6px; }
+  .step-intro p { font-size: 12.5px; }
+  .count-col { gap: 4px; }
+  .count-row { min-height: 36px; }
+  .count-input { height: 28px; }
+  .wizard-footer { padding: 8px 22px; }
+  .wizard-footer .btn { min-height: 38px; }
+  .step-compact .card-box { padding: 8px 12px; }
+  .step-compact .box-row { margin-bottom: 2px; }
+  .step-compact .diff-banner { padding: 6px 12px; margin: 6px 0; }
+}
+
+@media (min-width: 769px) and (max-width: 900px) {
+  .summary-cards-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .count-board { grid-template-columns: 1fr; }
+  .count-row { grid-template-columns: 84px 84px minmax(0, 1fr) auto; gap: 8px; }
+  .step-intro-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .wizard-footer { flex-wrap: wrap; }
+  .footer-total { order: -1; flex: 1 1 100%; }
 }
 </style>

@@ -103,6 +103,15 @@ onMounted(async () => {
     }
   }
 
+  // Desde el indicador de turno del menú: abre directo el asistente de cierre
+  if (route.query.cerrar === '1') {
+    router.replace({ query: {} });
+    if (turnoStore.hasActiveSession) {
+      turnoStore.isWizardOpen = true;
+      return;
+    }
+  }
+
   // Si hay un arqueo en progreso de ESTA caja, se retoma; uno de otra caja se ignora
   if (turnoStore.hasActiveSession && readCashCloseProgress(turnoStore.activeSession.id)) {
     turnoStore.isWizardOpen = true;
@@ -203,6 +212,11 @@ async function handleOpenSession() {
   } finally {
     isOpening.value = false;
   }
+}
+
+/** El fondo inicial no lleva signos ni notación científica (el campo numérico del navegador los acepta). */
+function blockSignsAndExponent(e) {
+  if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault();
 }
 
 const openingInput = ref(null);
@@ -575,7 +589,9 @@ async function handleRefresh() {
               min="0"
               step="10"
               inputmode="decimal"
+              @keydown="blockSignsAndExponent"
               @keydown.enter.prevent="handleOpenSession"
+              @focus="$event.target.select()"
             />
           </span>
         </div>
@@ -656,6 +672,8 @@ async function handleRefresh() {
   gap: 18px;
   background: var(--cream-100);
   min-height: 100%;
+  /* Con un historial largo no se encoge al alto de la pantalla (el fondo y el margen inferior se cortaban) */
+  flex-shrink: 0;
   color: var(--ink-900);
 }
 
@@ -944,7 +962,7 @@ async function handleRefresh() {
 .strip-main dd { font-family: var(--font-heading); font-size: 20px; line-height: 1.1; }
 
 /* Tabla de ventas */
-.table-responsive { overflow-x: auto; }
+.table-responsive { overflow-x: auto; position: relative; }
 .sales-table {
   width: 100%;
   border-collapse: collapse;
