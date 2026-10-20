@@ -263,6 +263,43 @@ const trustTitle = computed(() => {
 }
 .hero-trust-ok svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--lime-700); }
 
+/* Portátil de caja (≤ 1366 px o ≤ 800 px de alto): el aviso de datos faltantes pasa a la derecha y el resultado ocupa
+   menos de la mitad de la altura. Mismo criterio que finance.css; en monitores grandes y celular no cambia. */
+@media (min-width: 761px) and (max-width: 1366px), (min-width: 761px) and (max-height: 800px) {
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-template-areas: "text trust" "bar trust";
+    grid-template-rows: auto 1fr;
+    gap: 10px 18px;
+    padding: 14px 18px;
+    border-radius: 16px;
+    align-items: start;
+  }
+  .hero-text { grid-area: text; gap: 4px; max-width: none; }
+  .hero-title { font-size: 26px; line-height: 1.1; }
+  .hero-lead { max-width: none; font-size: 13px; line-height: 1.4; }
+  .hero-bar-wrap { grid-area: bar; align-self: end; }
+  .hero-bar { height: 16px; }
+  .hero-seg.first { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+  .hero-seg.last { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+  .hero-legend { margin-top: 8px; gap: 4px 14px; font-size: 12px; }
+  .hero-legend li { gap: 6px; }
+  .hero-swatch { width: 10px; height: 10px; }
+  .hero-trust { grid-area: trust; border-radius: 12px; padding: 2px 14px; }
+  .hero-trust-title { margin: 8px 0 4px; font-size: 13px; }
+  .hero-trust li { padding: 7px 0; gap: 6px 12px; }
+  .hero-trust-text { flex-basis: 160px; font-size: 12.5px; line-height: 1.35; gap: 7px; }
+  .hero-trust-text svg { width: 15px; height: 15px; }
+  .hero-trust li .fin-btn { padding: 4px 11px; min-height: 28px; font-size: 12.5px; }
+  .hero-trust-ok { padding: 8px 0; font-size: 12.5px; }
+  .hero-updating { top: 8px; right: 12px; padding: 2px 8px; font-size: 11.5px; }
+}
+/* Al 125 % de escala (≈ 489 px de alto) el aviso vuelve debajo para no apretar el texto */
+@media (min-width: 761px) and (max-height: 520px) {
+  .hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "text" "bar" "trust"; grid-template-rows: auto; }
+}
+
 @media (max-width: 760px) {
   .hero { padding: 24px 20px 20px; border-radius: 20px; gap: 20px; }
   .hero-title { font-size: 30px; }

@@ -248,7 +248,7 @@ async function save() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12" /></svg>
               </button>
             </div>
-            <div class="fin-field">
+            <div class="fin-field" :class="{ 'pm-span': line.ingredient_id !== OTHER }">
               <label :for="`pm-ing-${line.key}`">Insumo</label>
               <select :id="`pm-ing-${line.key}`" v-model="line.ingredient_id" class="fin-input" @change="onIngredientChange(line)">
                 <option :value="OTHER">Otro gasto (gas, limpieza, bolsas…)</option>
@@ -359,6 +359,15 @@ async function save() {
 .pm-calc { margin: 0; }
 .pm-calc strong { color: var(--ink-900); }
 .pm-total { color: var(--ink-900); font-size: 15px; }
+/* Portátil de caja: cada línea usa dos columnas (insumo / concepto, luego cantidades) para que entren más líneas.
+   Mismo criterio que finance.css. */
+@media (min-width: 761px) and (max-width: 1366px), (min-width: 761px) and (max-height: 800px) {
+  .pm-lines { gap: 8px; }
+  .pm-line { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; padding: 8px 12px; }
+  .pm-line-head, .pm-line-grid, .pm-calc, .pm-span { grid-column: 1 / -1; }
+  .pm-line-head { min-height: 16px; }
+  .pm-line-grid { gap: 8px; }
+}
 /* En móvil el total ocupa su propia fila y los botones quedan juntos debajo */
 @media (max-width: 520px) {
   .pm-total { flex: 1 0 100%; }

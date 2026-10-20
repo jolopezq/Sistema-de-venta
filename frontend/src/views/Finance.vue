@@ -63,6 +63,7 @@ onMounted(() => finance.loadAll());
 
 <template>
   <div class="fin-page">
+    <div class="fin-nav">
     <header class="fin-head">
       <div>
         <h1>Finanzas</h1>
@@ -102,6 +103,7 @@ onMounted(() => finance.loadAll());
         <span v-if="tabCounter[t.key]" class="fin-count" :class="{ alert: tabCounter[t.key].alert }">{{ tabCounter[t.key].value }}</span>
       </button>
     </nav>
+    </div>
 
     <section class="fin-body" role="tabpanel">
       <FinanceSummary v-if="activeTab === 'summary'" @navigate="navigate" />

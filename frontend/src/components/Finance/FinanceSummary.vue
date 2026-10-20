@@ -128,6 +128,20 @@ const stockTone = (status) => REORDER_STATUS[status]?.tone || 'err';
 .sum-stock .sum-stock-note { font-size: 13px; color: var(--ink-500); }
 .sum-stock .fin-btn { align-self: flex-start; }
 
+/* Portátil de caja: ver finance.css */
+@media (min-width: 761px) and (max-width: 1366px), (min-width: 761px) and (max-height: 800px) {
+  .sum-grid { gap: 12px; }
+  .sum-main { gap: 12px; flex-basis: 540px; }
+  .sum-side { flex-basis: 300px; }
+  .sum-pya { padding: 12px 16px; gap: 8px; }
+  .sum-pya-head h3, .sum-stock h3 { font-size: 17px; }
+  .sum-pya-head p { font-size: 13px; }
+  .sum-pya-facts { gap: 8px 28px; }
+  .sum-pya-facts dd { margin-top: 2px; font-size: 17px; }
+  .sum-stock { gap: 8px; padding: 12px 16px; }
+  .sum-stock > p { font-size: 13px; line-height: 1.4; }
+  .sum-stock-list li { padding: 6px 0; font-size: 13px; }
+}
 @media (max-width: 760px) {
   .sum-grid, .sum-main { gap: 18px; }
   .sum-pya { padding: 18px 16px; }

@@ -102,6 +102,7 @@ async function toggle(c) {
 </script>
 
 <template>
+  <div class="cat-grid">
   <div v-for="g in groups" :key="g.key" class="fin-card">
     <div class="fin-card-head">
       <div>
@@ -119,7 +120,7 @@ async function toggle(c) {
         <thead>
           <tr>
             <th>Categoría</th>
-            <th>Grupo</th>
+            <th class="cat-col-group">Grupo</th>
             <th>Tipo de costo</th>
             <th>Estado</th>
             <th class="actions"><span class="sr-only">Acciones</span></th>
@@ -127,8 +128,8 @@ async function toggle(c) {
         </thead>
         <tbody>
           <tr v-for="c in g.items" :key="c.id" :class="{ inactive: !c.is_active }">
-            <td data-label="Categoría" class="fin-cell-main">{{ c.name }}</td>
-            <td data-label="Grupo">{{ c.group_name || '—' }}</td>
+            <td data-label="Categoría" class="fin-cell-main">{{ c.name }}<small v-if="c.group_name" class="cat-group">{{ c.group_name }}</small></td>
+            <td data-label="Grupo" class="cat-col-group">{{ c.group_name || '—' }}</td>
             <td data-label="Tipo de costo">
               <select
                 class="fin-input fin-input-sm fin-behavior"
@@ -152,6 +153,7 @@ async function toggle(c) {
         </tbody>
       </table>
     </div>
+  </div>
   </div>
 
   <FinanceModal v-if="modalOpen" :title="editing ? 'Editar categoría' : 'Nueva categoría'" :busy="saving" @close="modalOpen = false">
@@ -188,3 +190,21 @@ async function toggle(c) {
     </template>
   </FinanceModal>
 </template>
+
+<style scoped>
+
+.cat-grid { display: contents; }
+.cat-group { display: none; }
+
+/* Portátil de caja: las 4 secciones en 2 columnas (el grupo pasa debajo del nombre). Ver finance.css */
+@media (min-width: 761px) and (max-width: 1366px), (min-width: 761px) and (max-height: 800px) {
+  .cat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  .cat-col-group { display: none; }
+  .cat-grid .fin-input-sm { height: 28px; padding-top: 2px; padding-bottom: 2px; }
+  .cat-grid .fin-btn-sm { padding-top: 3px; padding-bottom: 3px; }
+  .cat-grid .fin-table td { padding-top: 4px; padding-bottom: 4px; }
+  .cat-group { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-500); }
+  .cat-grid .fin-card-head p { display: none; }
+  .cat-grid .fin-table th, .cat-grid .fin-table td { padding-left: 10px; padding-right: 10px; }
+}
+</style>

@@ -241,4 +241,16 @@ const salesBar = computed(() => {
 .be-gap { padding-top: 10px; border-top: 1px solid var(--border); }
 .be-detail .fin-pair { font-size: 13px; }
 .be-sub { padding-left: 12px; color: var(--ink-500); }
+
+/* Portátil de caja: ver finance.css */
+@media (min-width: 761px) and (max-width: 1366px), (min-width: 761px) and (max-height: 800px) {
+  .be { gap: 10px; padding: 12px 16px 12px; }
+  .be h3 { font-size: 17px; }
+  .be-lead { font-size: 14px; line-height: 1.4; }
+  .be-muted { font-size: 12.5px; line-height: 1.4; }
+  .be-facts > div { padding: 6px 0; font-size: 13px; }
+  .be-days { margin-top: 5px; }
+  .be-legend { margin-top: 6px; }
+  .be-warnings li { padding: 8px 12px; gap: 6px; font-size: 13px; }
+}
 </style>
