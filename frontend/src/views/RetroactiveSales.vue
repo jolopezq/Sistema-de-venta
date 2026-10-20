@@ -1502,6 +1502,7 @@ watch(selectedDate, (newDate) => {
 
 .table-responsive {
   overflow-x: auto;
+  position: relative;
 }
 
 .cd-table {

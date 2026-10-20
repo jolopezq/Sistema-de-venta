@@ -1,20 +1,32 @@
 <script setup>
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useReorderStore } from '../stores/reorder';
 import { useThemeStore } from '../stores/theme';
+import { useTurnoStore } from '../stores/turno';
 import NetworkIndicator from './NetworkIndicator.vue';
+import { screensFor } from '../utils/roleScreens.js';
 
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
 const theme = useThemeStore();
 const reorder = useReorderStore();
+const turno = useTurnoStore();
 
 // Marca del menú «Inventario»: insumos por reponer (solo administradores; el servidor calcula las alertas al momento)
 const canSeeReorder = computed(() => ['admin', 'super_admin'].includes(auth.user?.role));
-onMounted(() => { if (canSeeReorder.value) reorder.fetchSummary(); });
+// Indicador de turno: solo para quien ve la pantalla Caja; se consulta una vez al montar el menú
+const canSeeTurno = computed(() => screensFor(auth.user?.role, (mod) => auth.effective_permissions?.[mod] ?? 'none').screens.some(s => s.route === '/turno'));
+// La ventana queda fija mientras está el menú: el único que se desplaza es el contenido (ver style.css)
+onMounted(() => document.documentElement.classList.add('oh-shell-active'));
+onBeforeUnmount(() => document.documentElement.classList.remove('oh-shell-active'));
+
+onMounted(() => {
+  if (canSeeReorder.value) reorder.fetchSummary();
+  if (canSeeTurno.value && !turno.activeSession) turno.fetchActiveSession();
+});
 watch(() => route.path, () => { if (canSeeReorder.value) reorder.fetchSummary(); });
 
 const userInitials = computed(() => {
@@ -53,27 +65,29 @@ const navItems = computed(() => {
   const role = auth.user?.role;
   const isSuperAdmin = role === 'super_admin';
   const isAdmin = role === 'admin' || isSuperAdmin;
-  const isKitchen = role === 'kitchen';
+
+  const { screens } = screensFor(role, (mod) => auth.effective_permissions?.[mod] ?? 'none');
+  const screenMap = new Map(screens.map(s => [s.route, s]));
 
   return [
     {
       label: 'Operación',
       items: [
-        { name: 'Vender', route: '/pos', show: !isKitchen, icon: 'cart' },
-        { name: 'Caja', route: '/turno', show: !isKitchen, icon: 'cash' },
-        { name: 'Delivery', route: '/delivery', always: true, icon: 'delivery' },
-        { name: 'Menú', route: '/menu', show: isAdmin, icon: 'catalog' },
-        { name: 'Inventario', route: '/inventario', show: isAdmin, icon: 'inventory', badge: reorder.count },
+        { name: 'Vender', route: '/pos', show: screenMap.has('/pos'), icon: 'cart' },
+        { name: 'Caja', route: '/turno', show: screenMap.has('/turno'), icon: 'cash' },
+        { name: 'Delivery', route: '/delivery', show: screenMap.has('/delivery'), icon: 'delivery' },
+        { name: 'Menú', route: '/menu', show: screenMap.has('/menu'), icon: 'catalog' },
+        { name: 'Inventario', route: '/inventario', show: screenMap.has('/inventario'), icon: 'inventory', badge: reorder.count },
       ],
     },
     {
       label: 'Sistema',
       show: isAdmin,
       items: [
-        { name: 'Control diario', route: '/admin/ventas-retroactivas', show: isAdmin, icon: 'retroactive' },
-        { name: 'Finanzas', route: '/finanzas', show: isSuperAdmin, icon: 'finance' },
-        { name: 'Usuarios', route: '/users', show: isSuperAdmin, icon: 'users' },
-        { name: 'Auditoría', route: '/audit-logs', show: isSuperAdmin, icon: 'audit' },
+        { name: 'Control diario', route: '/admin/ventas-retroactivas', show: screenMap.has('/admin/ventas-retroactivas'), icon: 'retroactive' },
+        { name: 'Finanzas', route: '/finanzas', show: screenMap.has('/finanzas'), icon: 'finance' },
+        { name: 'Usuarios', route: '/users', show: screenMap.has('/users'), icon: 'users' },
+        { name: 'Auditoría', route: '/audit-logs', show: screenMap.has('/audit-logs'), icon: 'audit' },
       ],
     },
   ];
@@ -122,6 +136,17 @@ async function handleLogout() {
           </template>
         </template>
       </nav>
+
+      <!-- Turno: indicador con texto (el color no va solo) -->
+      <a
+        v-if="turno.hasActiveSession && canSeeTurno"
+        class="oh-turno-chip"
+        href="/turno?cerrar=1"
+        title="Turno abierto: ir a cerrar caja"
+        @click.prevent="router.push({ path: '/turno', query: { cerrar: '1' } })"
+      >
+        <i aria-hidden="true"></i><span>Turno abierto</span>
+      </a>
 
       <!-- Footer: user info + logout -->
       <div class="oh-sidebar-foot">
@@ -206,7 +231,8 @@ async function handleLogout() {
   font-family: var(--font-sans);
   display: flex;
   height: 100%;
-  min-height: 100vh;
+  /* Sin min-height: 100vh: en celular 100vh es más alto que lo visible y el pie quedaba bajo la barra del navegador */
+  min-height: 0;
   width: 100%;
   overflow: hidden;
   background: var(--cream);
@@ -224,6 +250,7 @@ async function handleLogout() {
   flex-direction: column;
   gap: 26px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .pos-brand {
@@ -304,6 +331,16 @@ async function handleLogout() {
   align-items: center;
   gap: 9px;
 }
+.oh-turno-chip {
+  margin: auto 10px 0; padding: 6px 10px; border-radius: 8px;
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.10); color: #fff; font-size: 12px; font-weight: 600; text-decoration: none;
+}
+.oh-turno-chip i { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; flex-shrink: 0; }
+.oh-turno-chip:hover { background: rgba(255,255,255,0.18); }
+.oh-turno-chip:focus-visible { outline: 2px solid var(--passion-400); outline-offset: 1px; }
+.oh-turno-chip + .oh-sidebar-foot { margin-top: 8px; }
+@media (max-width: 760px) { .oh-turno-chip span { display: none; } .oh-turno-chip { justify-content: center; margin: auto 6px 0; } }
 .oh-avatar-sm {
   width: 28px;
   height: 28px;
@@ -400,9 +437,16 @@ async function handleLogout() {
 
 .oh-shell-content {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   display: flex;
   flex-direction: column;
+  /* Bloque contenedor de los position:absolute del contenido (p. ej. .sr-only en los encabezados de tabla).
+     Sin esto se ubicaban respecto de la ventana, estiraban la página (Costos: 863 px con 611 de pantalla) y al
+     llegar al final la rueda desplazaba la ventana: el menú se despegaba y aparecía una franja blanca. */
+  position: relative;
+  /* Al llegar al final, la rueda o el gesto no pasan a la ventana (ni al «tirar para recargar» del celular) */
+  overscroll-behavior: contain;
 }
 
 /* ---- RESPONSIVE: Laptop 1366x768 & Compact Displays ---- */

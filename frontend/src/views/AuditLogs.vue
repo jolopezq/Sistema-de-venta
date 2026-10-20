@@ -312,7 +312,7 @@ const getShortDescription = (desc) => {
   display: flex;
   flex-direction: column;
   background: var(--cream-50);
-  min-height: 100vh;
+  /* flex: 1 ya ocupa el alto del contenido; con 100vh sobraban 41 px de scroll (la barra superior) */
 }
 .oh-topbar { padding: 24px 30px 20px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
 .oh-topbar-actions { display: flex; gap: 12px; }

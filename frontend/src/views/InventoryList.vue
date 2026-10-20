@@ -857,6 +857,8 @@ async function saveIngredient() {
   padding: 30px;
   background: var(--surface);
   min-height: 100%;
+  /* Con muchos insumos no se encoge al alto de la pantalla (el fondo y el margen inferior se cortaban) */
+  flex-shrink: 0;
 }
 .inventory-header {
   display: flex;
