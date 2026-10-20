@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
+import { rebalance, fillRemainder, cashDue as calcCashDue } from '../utils/splitPayments';
 
 /**
  * Cobro de una venta. Lo memorable es el vuelto: arriba el total a cobrar y, apenas se marca lo recibido,
@@ -36,6 +37,8 @@ const orderDestination = ref('dine_in'); // 'dine_in' | 'takeaway' | 'mixed'
 const currentMethod = ref('cash');
 const cashReceived = ref(0);
 const payments = ref([]);
+/** Turno de edición manual: la línea menos reciente es la que se completa sola (ver utils/splitPayments.js) */
+const editStamp = ref(0);
 const saleNote = ref('');
 const isCashManuallyEntered = ref(false);
 const receivedInput = ref(null);
@@ -61,7 +64,8 @@ watch(() => props.show, (newVal) => {
     pedidosYaOrderId.value = '';
     currentMethod.value = 'cash';
     saleNote.value = '';
-    payments.value = [{ method: 'cash', amount: props.total }];
+    editStamp.value = 0;
+    payments.value = [{ method: 'cash', amount: props.total, touched: 0 }];
     isCashManuallyEntered.value = false;
     cashReceived.value = props.total;
     isSubmitting.value = false;
@@ -73,6 +77,8 @@ const totalPaid = computed(() => payments.value.reduce((s, p) => s + Number(p.am
 const remaining = computed(() => Math.max(0, props.total - totalPaid.value));
 const hasCash = computed(() => payments.value.some((p) => p.method === 'cash'));
 const splitMode = computed(() => payments.value.length > 1);
+/** Efectivo que de verdad hay que cobrar: la línea de efectivo sin pasar de lo que falta tras QR/tarjeta */
+const cashDue = computed(() => calcCashDue(payments.value, props.total));
 
 const change = computed(() => {
   let totalChange = 0;
@@ -81,12 +87,10 @@ const change = computed(() => {
     totalChange += (totalPaid.value - props.total);
   }
 
-  const cashPayment = payments.value.find(p => p.method === 'cash');
-  if (cashPayment) {
-    const cashAmount = Number(cashPayment.amount);
+  if (hasCash.value) {
     const received = Number(cashReceived.value);
-    if (received > cashAmount) {
-      totalChange += (received - cashAmount);
+    if (received > cashDue.value) {
+      totalChange += (received - cashDue.value);
     }
   }
 
@@ -95,9 +99,8 @@ const change = computed(() => {
 
 /** Lo recibido en efectivo no alcanza para la parte en efectivo (p. ej. escribió 40 para un total de 44). */
 const cashShort = computed(() => {
-  const cashPayment = payments.value.find(p => p.method === 'cash');
-  if (!cashPayment || !isCashManuallyEntered.value) return 0;
-  return Math.max(0, Number(cashPayment.amount) - Number(cashReceived.value || 0));
+  if (!hasCash.value || !isCashManuallyEntered.value) return 0;
+  return Math.max(0, cashDue.value - Number(cashReceived.value || 0));
 });
 
 const isReady = computed(() => isPedidosYa.value || (totalPaid.value >= props.total && cashShort.value === 0));
@@ -116,7 +119,8 @@ function addPayment() {
   const nextMethod = ['cash', 'qr', 'card'].find(m => !used.includes(m)) || currentMethod.value;
   payments.value.push({
     method: nextMethod,
-    amount: remaining.value > 0 ? Number(remaining.value.toFixed(2)) : 0
+    amount: remaining.value > 0 ? Number(remaining.value.toFixed(2)) : 0,
+    touched: 0
   });
 }
 
@@ -124,7 +128,13 @@ function addPayment() {
 function startSplit() {
   const used = payments.value.map(p => p.method);
   const nextMethod = ['qr', 'cash', 'card'].find(m => !used.includes(m));
-  payments.value.push({ method: nextMethod, amount: 0 });
+  payments.value.push({ method: nextMethod, amount: 0, touched: 0 });
+}
+
+/** El cajero escribió el monto de una línea: las demás se acomodan solas para sumar el total. */
+function onAmountInput(index, raw) {
+  editStamp.value += 1;
+  payments.value = rebalance(payments.value, index, raw, props.total, editStamp.value);
 }
 
 function removePayment(index) {
@@ -136,6 +146,9 @@ function removePayment(index) {
     // De vuelta a un solo método: cubre el total completo
     payments.value[0].amount = props.total;
     currentMethod.value = payments.value[0].method;
+  } else {
+    // Quedan 2 (o más): la línea menos reciente absorbe lo que dejó la quitada
+    payments.value = fillRemainder(payments.value, props.total);
   }
 }
 
@@ -186,10 +199,7 @@ function handleConfirm() {
   });
 }
 
-const cashNeededAmount = computed(() => {
-  const cashPayment = payments.value.find(p => p.method === 'cash');
-  return cashPayment ? Number(cashPayment.amount) : 0;
-});
+const cashNeededAmount = computed(() => cashDue.value);
 
 watch(cashNeededAmount, (newVal) => {
   if (!isCashManuallyEntered.value || Number(cashReceived.value) < newVal) {
@@ -300,12 +310,13 @@ const confirmLabel = computed(() => {
                     <span class="co-money-input sm">
                       <span aria-hidden="true">Bs</span>
                       <input
-                        v-model="payment.amount"
+                        :value="payment.amount"
                         type="number"
                         min="0"
                         step="0.5"
                         inputmode="decimal"
                         :aria-label="`Monto del pago ${index + 1}`"
+                        @input="onAmountInput(index, $event.target.value)"
                         @focus="$event.target.select()"
                       />
                     </span>
@@ -321,7 +332,7 @@ const confirmLabel = computed(() => {
 
             <!-- Lo que entrega el cliente -->
             <div v-if="hasCash" class="co-row">
-              <label class="co-row-label" for="co-received">Recibe</label>
+              <label class="co-row-label" for="co-received">Recibe<small v-if="splitMode" class="co-row-label-sub">en efectivo</small></label>
               <div class="co-row-control">
                 <div class="co-received">
                   <span class="co-money-input">
@@ -452,12 +463,12 @@ const confirmLabel = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 12px;
 }
 .co-card {
   width: 100%;
-  max-width: 520px;
-  max-height: calc(100vh - 32px);
+  max-width: 620px;
+  max-height: calc(100vh - 24px);
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -471,9 +482,9 @@ const confirmLabel = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 20px 0;
+  padding: 10px 18px 0;
 }
-.co-head h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--ink-900); }
+.co-head h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink-900); }
 .co-close,
 .co-icon-btn {
   width: 34px;
@@ -498,10 +509,11 @@ const confirmLabel = computed(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px 20px 16px;
+  overflow-x: hidden;
+  padding: 8px 18px 10px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 9px;
 }
 
 /* Total a cobrar */
@@ -509,8 +521,8 @@ const confirmLabel = computed(() => {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: baseline;
-  gap: 2px 12px;
-  padding: 14px 16px;
+  gap: 0 12px;
+  padding: 8px 14px;
   border-radius: 14px;
   background: var(--acai-50);
 }
@@ -522,7 +534,7 @@ html.dark .co-total.pya .co-total-label { color: #FFB3C9; }
 .co-total-amount {
   grid-row: span 2;
   font-family: var(--font-heading);
-  font-size: 34px;
+  font-size: 30px;
   font-weight: 700;
   line-height: 1;
   color: var(--ink-900);
@@ -534,29 +546,31 @@ html.dark .co-total.pya .co-total-label { color: #FFB3C9; }
 /* Filas etiqueta | control */
 .co-row {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
+  grid-template-columns: 90px minmax(0, 1fr);
   align-items: start;
   gap: 10px;
 }
 .co-row-label {
-  padding-top: 10px;
+  padding-top: 8px;
   font-size: 13.5px;
   font-weight: 600;
   color: var(--ink-700);
 }
-.co-row-control { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+/* Control y enlace ("Dividir el pago") comparten línea; el pago dividido ocupa la fila completa y el enlace baja */
+.co-row-label-sub { display: block; font-size: 11.5px; font-weight: 500; line-height: 1.1; color: var(--ink-500); }
+.co-row-control { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 14px; min-width: 0; }
 
 /* Control segmentado: una sola opción marcada, con relleno morado y texto en peso mayor */
 .co-seg {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 4px;
+  padding: 3px;
   border-radius: 12px;
   background: var(--cream-200);
 }
 .co-seg-btn {
-  min-height: 38px;
+  min-height: 34px;
   padding: 0 16px;
   border: none;
   border-radius: 9px;
@@ -570,7 +584,7 @@ html.dark .co-total.pya .co-total-label { color: #FFB3C9; }
 .co-seg-btn:hover { color: var(--ink-900); }
 .co-seg-btn.active { background: var(--acai-700); color: #FFFFFF; font-weight: 700; }
 html.dark .co-seg-btn.active { background: var(--acai-500); }
-.co-seg-sm .co-seg-btn { min-height: 34px; padding: 0 13px; font-size: 13.5px; }
+.co-seg-sm .co-seg-btn { min-height: 30px; padding: 0 13px; font-size: 13.5px; }
 .co-seg-btn:focus-visible,
 .co-bill:focus-visible,
 .co-link:focus-visible,
@@ -592,16 +606,20 @@ html.dark .co-seg-btn.active { background: var(--acai-500); }
 }
 
 /* Pago dividido */
-.co-split { display: flex; flex-direction: column; gap: 6px; width: 100%; }
-.co-split-line { display: flex; align-items: center; gap: 6px; }
-.co-split-method { width: 120px; flex-shrink: 0; }
+.co-split { display: flex; flex-direction: column; gap: 4px; flex: 1 1 100%; min-width: 0; }
+.co-split-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* Mayor especificidad que .co-input (que se declara después): evita que el selector ocupe toda la columna */
+.co-split-line .co-split-method { flex: 0 0 120px; width: 120px; min-height: 34px; padding: 4px 10px; }
+.co-split-line .co-money-input.sm { flex: 1; min-width: 0; }
+.co-split-line .co-money-input.sm input { flex: 1; width: 100%; min-width: 0; }
+.co-split-line .co-icon-btn { width: 30px; height: 30px; }
 
 /* Montos en Bs */
 .co-input {
   width: 100%;
   box-sizing: border-box;
-  min-height: 40px;
-  padding: 8px 11px;
+  min-height: 34px;
+  padding: 6px 10px;
   border: 1.5px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -614,7 +632,7 @@ html.dark .co-seg-btn.active { background: var(--acai-500); }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 46px;
+  min-height: 38px;
   padding: 0 12px;
   border: 1.5px solid var(--border);
   border-radius: 12px;
@@ -623,23 +641,23 @@ html.dark .co-seg-btn.active { background: var(--acai-500); }
 .co-money-input:focus-within { border-color: var(--acai-500); box-shadow: 0 0 0 3px var(--acai-50); }
 .co-money-input > span { font-weight: 600; color: var(--ink-500); }
 .co-money-input input {
-  width: 110px;
+  width: 100px;
   border: none;
   outline: none;
   background: transparent;
   color: var(--ink-900);
   font-family: var(--font-heading);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.co-money-input.sm { min-height: 40px; }
-.co-money-input.sm input { width: 80px; font-size: 17px; }
+.co-money-input.sm { min-height: 34px; }
+.co-money-input.sm input { width: 80px; font-size: 16px; }
 
 .co-received { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .co-bills { display: flex; flex-wrap: wrap; gap: 6px; }
 .co-bill {
-  min-height: 38px;
+  min-height: 34px;
   padding: 0 12px;
   border: 1.5px solid var(--border);
   border-radius: 10px;
@@ -659,8 +677,8 @@ html.dark .co-seg-btn.active { background: var(--acai-500); }
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 10px 14px;
+  min-height: 38px;
+  padding: 8px 12px;
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.4;
@@ -670,14 +688,14 @@ html.dark .co-seg-btn.active { background: var(--acai-500); }
 .co-result svg { width: 17px; height: 17px; flex-shrink: 0; }
 .co-result.change {
   justify-content: space-between;
-  min-height: 62px;
+  min-height: 52px;
   background: var(--lime-100);
   color: var(--lime-700);
 }
 .co-result-label { font-size: 16px; font-weight: 700; }
 .co-result-amount {
   font-family: var(--font-heading);
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 700;
   line-height: 1;
   color: var(--ink-900);
@@ -701,12 +719,12 @@ html.dark .co-seg-btn.active { background: var(--acai-500); }
 .co-foot {
   display: flex;
   gap: 10px;
-  padding: 12px 20px 16px;
+  padding: 10px 18px 12px;
   border-top: 1px solid var(--border);
   background: var(--surface);
 }
 .co-btn {
-  min-height: 50px;
+  min-height: 44px;
   padding: 0 18px;
   border-radius: 13px;
   font-family: var(--font-heading);
@@ -727,6 +745,22 @@ html.dark .co-seg-btn.active { background: var(--acai-500); }
 }
 .co-btn-primary:hover:not(:disabled) { filter: brightness(1.05); }
 .co-btn-primary:disabled { background: var(--cream-200); color: var(--ink-500); }
+
+/* Portátil de caja (la app marca html.screen-compact en pantallas ≤ 1366): el pago dividido de 3 métodos gana unos píxeles */
+html.screen-compact .co-split { gap: 3px; }
+html.screen-compact .co-split-line .co-split-method,
+html.screen-compact .co-split-line .co-money-input.sm { min-height: 32px; }
+
+/* Plan B: ventanas bajas (p. ej. Windows al 125 %): el cuerpo es lo único que se desplaza si aun así no cabe */
+@media (max-height: 520px) and (min-width: 521px) {
+  .co-body { gap: 6px; padding: 6px 18px 8px; }
+  .co-total { padding: 5px 14px; }
+  .co-total-amount { font-size: 26px; }
+  .co-result { min-height: 32px; padding: 5px 12px; }
+  .co-result.change { min-height: 44px; }
+  .co-foot { padding: 8px 18px 10px; }
+  .co-btn { min-height: 40px; }
+}
 
 @media (max-width: 520px) {
   .co-overlay { padding: 0; align-items: flex-end; }
