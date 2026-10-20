@@ -66,6 +66,16 @@ export async function apiFetch(endpoint, options = {}) {
           errorObj.message = errorMessage + ':\n- ' + messages.join('\n- ');
         }
       }
+
+      // Si el backend rechazó la petición por cambio de permisos, refrescar permisos del usuario (si hay conexión)
+      if (response.status === 403 && errData.reason === 'permission_denied') {
+        if (typeof navigator === 'undefined' || navigator.onLine) {
+          import('../stores/auth.js').then(({ useAuthStore }) => {
+            const auth = useAuthStore();
+            auth.fetchUser().catch(() => {});
+          }).catch(() => {});
+        }
+      }
     } catch (e) {
       // Ignorar si no es JSON
     }

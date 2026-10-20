@@ -40,88 +40,112 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('options', \App\Http\Controllers\OptionController::class)->only(['index', 'show']);
     Route::apiResource('products', ProductController::class)->only(['index', 'show']);
     Route::apiResource('ingredients', IngredientController::class)->only(['index', 'show']);
-    Route::apiResource('customers', CustomerController::class)->only(['index', 'show']);
+    Route::apiResource('customers', CustomerController::class)->only(['index', 'show'])->middleware('perm:crm_read,read');
     Route::get('/loyalty-config', [LoyaltyConfigController::class, 'show']);
 
     // Recursos — escritura de catálogo, recetas e inventario (admin y super_admin)
     Route::middleware(['admin'])->group(function () {
-        Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
-        Route::apiResource('ingredient-categories', \App\Http\Controllers\IngredientCategoryController::class)->except(['index', 'show']);
-        Route::post('option-groups/{option_group}/attach-products', [\App\Http\Controllers\OptionGroupController::class, 'attachProducts']);
-        Route::post('option-groups/{option_group}/reorder-options', [\App\Http\Controllers\OptionGroupController::class, 'reorderOptions']);
-        Route::apiResource('option-groups', \App\Http\Controllers\OptionGroupController::class)->except(['index', 'show']);
-        Route::apiResource('options', \App\Http\Controllers\OptionController::class)->except(['index', 'show']);
-        Route::apiResource('products', ProductController::class)->except(['index', 'show']);
-        // Tarifario PedidosYa: precios de plataforma y disponibilidad en lote
-        Route::put('/admin/pricing/pedidosya', [\App\Http\Controllers\PedidosYaPricingController::class, 'update']);
-        Route::apiResource('ingredients', IngredientController::class)->except(['index', 'show']);
-        Route::apiResource('customers', CustomerController::class)->except(['index', 'show']);
+        // Catálogo (productos, categorías, grupos de opciones, precios y recetas)
+        Route::middleware(['perm:catalog,edit'])->group(function () {
+            Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
+            Route::post('option-groups/{option_group}/attach-products', [\App\Http\Controllers\OptionGroupController::class, 'attachProducts']);
+            Route::post('option-groups/{option_group}/reorder-options', [\App\Http\Controllers\OptionGroupController::class, 'reorderOptions']);
+            Route::apiResource('option-groups', \App\Http\Controllers\OptionGroupController::class)->except(['index', 'show']);
+            Route::apiResource('options', \App\Http\Controllers\OptionController::class)->except(['index', 'show']);
+            Route::apiResource('products', ProductController::class)->except(['index', 'show']);
+            Route::put('/admin/pricing/pedidosya', [\App\Http\Controllers\PedidosYaPricingController::class, 'update']);
+            Route::apiResource('recipes', RecipeController::class)->only(['store', 'destroy']);
+            Route::post('/option-recipes', [OptionRecipeController::class, 'store']);
+            Route::delete('/option-recipes/{optionRecipe}', [OptionRecipeController::class, 'destroy']);
+        });
 
-        Route::apiResource('recipes', RecipeController::class)->only(['store', 'destroy']);
-        Route::post('/option-recipes', [OptionRecipeController::class, 'store']);
-        Route::delete('/option-recipes/{optionRecipe}', [OptionRecipeController::class, 'destroy']);
-        Route::post('/inventory/movements', [InventoryMovementController::class, 'store']);
-        Route::get('/ingredients/{ingredient}/movements', [InventoryMovementController::class, 'index']);
+        // Inventario (insumos, categorías de insumos, movimientos, conteos, compras y proveedores)
+        Route::middleware(['perm:inventory,edit'])->group(function () {
+            Route::apiResource('ingredient-categories', \App\Http\Controllers\IngredientCategoryController::class)->except(['index', 'show']);
+            Route::apiResource('ingredients', IngredientController::class)->except(['index', 'show']);
+            Route::post('/inventory/movements', [InventoryMovementController::class, 'store']);
+            Route::get('/ingredients/{ingredient}/movements', [InventoryMovementController::class, 'index']);
+            Route::get('/inventory/reorder', [\App\Http\Controllers\InventoryReorderController::class, 'index']);
+            Route::get('/inventory/reorder/summary', [\App\Http\Controllers\InventoryReorderController::class, 'summary']);
+            Route::get('/inventory/counts/sheet', [\App\Http\Controllers\InventoryCountController::class, 'sheet']);
+            Route::get('/inventory/counts', [\App\Http\Controllers\InventoryCountController::class, 'index']);
+            Route::post('/inventory/counts', [\App\Http\Controllers\InventoryCountController::class, 'store']);
+            Route::get('/inventory/counts/{inventoryCount}', [\App\Http\Controllers\InventoryCountController::class, 'show']);
+            Route::get('/purchases/options', [\App\Http\Controllers\PurchaseController::class, 'options']);
+            Route::apiResource('purchases', \App\Http\Controllers\PurchaseController::class)
+                ->only(['show', 'store', 'update', 'destroy'])
+                ->parameters(['purchases' => 'financeExpense']);
+            Route::apiResource('suppliers', \App\Http\Controllers\SupplierController::class)->only(['index', 'store', 'update', 'destroy']);
+        });
 
-        // Conteo físico y reporte de mermas (F3 del plan de inventario)
-        Route::get('/inventory/reorder', [\App\Http\Controllers\InventoryReorderController::class, 'index']);
-        Route::get('/inventory/reorder/summary', [\App\Http\Controllers\InventoryReorderController::class, 'summary']);
-        Route::get('/inventory/waste/report', [\App\Http\Controllers\InventoryWasteController::class, 'report']);
-        Route::get('/inventory/counts/sheet', [\App\Http\Controllers\InventoryCountController::class, 'sheet']);
-        Route::get('/inventory/counts', [\App\Http\Controllers\InventoryCountController::class, 'index']);
-        Route::post('/inventory/counts', [\App\Http\Controllers\InventoryCountController::class, 'store']);
-        Route::get('/inventory/counts/{inventoryCount}', [\App\Http\Controllers\InventoryCountController::class, 'show']);
+        // Reportes de inventario / mermas
+        Route::middleware(['perm:reports,read'])->group(function () {
+            Route::get('/inventory/waste/report', [\App\Http\Controllers\InventoryWasteController::class, 'report']);
+        });
 
-        // Compras de insumos (un gasto de Finanzas con líneas) y proveedores
-        Route::get('/purchases/options', [\App\Http\Controllers\PurchaseController::class, 'options']);
-        Route::apiResource('purchases', \App\Http\Controllers\PurchaseController::class)
-            ->only(['show', 'store', 'update', 'destroy'])
-            ->parameters(['purchases' => 'financeExpense']);
-        Route::apiResource('suppliers', \App\Http\Controllers\SupplierController::class)->only(['index', 'store', 'update', 'destroy']);
+        // CRM y fidelización
+        Route::middleware(['perm:crm_config,edit'])->group(function () {
+            Route::apiResource('customers', CustomerController::class)->except(['index', 'show']);
+            Route::put('/loyalty-config', [LoyaltyConfigController::class, 'update']);
+        });
 
-        Route::put('/loyalty-config', [LoyaltyConfigController::class, 'update']);
-        Route::post('/sales/{sale}/void', [SaleController::class, 'voidSale']);
+        // Anulaciones de ventas
+        Route::post('/sales/{sale}/void', [SaleController::class, 'voidSale'])->middleware('perm:voids,edit');
     });
 
     // Ventas y caja (cocina no tiene acceso)
     Route::middleware(['role:super_admin,admin,cashier'])->group(function () {
-        Route::post('/sales/sync', [SaleController::class, 'sync']);
+        // Ventas POS: consulta de ventas (read) y sincronización/registro (edit)
+        Route::apiResource('sales', SaleController::class)->only(['index', 'show'])->middleware('perm:pos,read');
+        Route::post('/sales/sync', [SaleController::class, 'sync'])->middleware('perm:pos,edit');
 
-        // Mermas: también las anota el cajero (decisión D4), con motivo obligatorio
-        Route::get('/inventory/waste', [\App\Http\Controllers\InventoryWasteController::class, 'index']);
-        Route::post('/inventory/waste', [\App\Http\Controllers\InventoryWasteController::class, 'store']);
+        // Mermas en turno (lectura y registro)
+        Route::get('/inventory/waste', [\App\Http\Controllers\InventoryWasteController::class, 'index'])->middleware('perm:register_self,read');
+        Route::post('/inventory/waste', [\App\Http\Controllers\InventoryWasteController::class, 'store'])->middleware('perm:register_self,edit');
 
-        Route::apiResource('sales', SaleController::class)->only(['index', 'show']);
+        // Sesiones de Caja / Turno y Arqueo: lectura (ver turno activo, reporte, movimientos, historial)
+        Route::middleware(['perm:register_self,read'])->group(function () {
+            Route::get('/cash-sessions/active', [CashRegisterSessionController::class, 'active']);
+            Route::get('/cash-sessions/{cashSession}/report', [CashRegisterSessionController::class, 'report']);
+            Route::get('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'movements']);
+            Route::apiResource('cash-sessions', CashRegisterSessionController::class)->only(['index', 'show']);
+        });
 
-        // Sesiones de Caja / Turno y Arqueo (la propiedad de la sesión se valida en el controlador)
-        Route::get('/cash-sessions/active', [CashRegisterSessionController::class, 'active']);
-        Route::post('/cash-sessions/{cashSession}/close', [CashRegisterSessionController::class, 'close']);
-        Route::get('/cash-sessions/{cashSession}/report', [CashRegisterSessionController::class, 'report']);
-        Route::post('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'recordMovement']);
-        Route::get('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'movements']);
-        Route::apiResource('cash-sessions', CashRegisterSessionController::class)->only(['index', 'store', 'show']);
+        // Sesiones de Caja / Turno y Arqueo: operaciones de escritura (abrir, cerrar, registrar movimientos)
+        Route::middleware(['perm:register_self,edit'])->group(function () {
+            Route::post('/cash-sessions', [CashRegisterSessionController::class, 'store']);
+            Route::post('/cash-sessions/{cashSession}/close', [CashRegisterSessionController::class, 'close']);
+            Route::post('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'recordMovement']);
+        });
     });
     
     // Cola de Pedidos (KDS Web & Android App)
-    Route::get('/order-queue', [\App\Http\Controllers\OrderQueueController::class, 'index']);
-    Route::patch('/order-queue/{sale}/status', [\App\Http\Controllers\OrderQueueController::class, 'updateStatus']);
+    Route::middleware(['perm:delivery_ops,read'])->group(function () {
+        Route::get('/order-queue', [\App\Http\Controllers\OrderQueueController::class, 'index']);
 
-    // KDS Mobile API Especializada (Android / Comandas / Realtime Stream)
-    Route::prefix('kds')->group(function () {
-        Route::get('/orders', [\App\Http\Controllers\KdsController::class, 'index']);
-        Route::patch('/orders/{sale}/status', [\App\Http\Controllers\KdsController::class, 'updateStatus']);
-        Route::get('/stats', [\App\Http\Controllers\KdsController::class, 'stats']);
-        Route::get('/stream', [\App\Http\Controllers\KdsController::class, 'stream']);
+        // KDS Mobile API Especializada (Android / Comandas / Realtime Stream)
+        Route::prefix('kds')->group(function () {
+            Route::get('/orders', [\App\Http\Controllers\KdsController::class, 'index']);
+            Route::get('/stats', [\App\Http\Controllers\KdsController::class, 'stats']);
+            Route::get('/stream', [\App\Http\Controllers\KdsController::class, 'stream']);
+        });
+    });
+
+    Route::middleware(['perm:delivery_ops,edit'])->group(function () {
+        Route::patch('/order-queue/{sale}/status', [\App\Http\Controllers\OrderQueueController::class, 'updateStatus']);
+        Route::patch('/kds/orders/{sale}/status', [\App\Http\Controllers\KdsController::class, 'updateStatus']);
     });
 
     // Gestión de permisos de roles y logs (Solo Super Admin)
     Route::middleware(['super_admin'])->group(function () {
         Route::get('/permissions', [\App\Http\Controllers\RolePermissionController::class, 'index']);
         Route::put('/permissions', [\App\Http\Controllers\RolePermissionController::class, 'update']);
-        Route::apiResource('users', \App\Http\Controllers\UserController::class)->except(['show']);
+        Route::apiResource('users', \App\Http\Controllers\UserController::class)->except(['show'])->middleware('perm:users,edit');
 
-        Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index']);
-        Route::get('/audit-logs/export', [\App\Http\Controllers\AuditLogController::class, 'export']);
+        Route::middleware(['perm:audit,read'])->group(function () {
+            Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index']);
+            Route::get('/audit-logs/export', [\App\Http\Controllers\AuditLogController::class, 'export']);
+        });
         Route::post('/system/backup/download', [\App\Http\Controllers\SystemBackupController::class, 'download'])->middleware('throttle:5,60');
         Route::post('/system/backup/restore', [\App\Http\Controllers\SystemBackupController::class, 'restore'])->middleware('throttle:5,60');
 
@@ -183,7 +207,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/expense-categories', [\App\Http\Controllers\ExpenseCategoryController::class, 'index']);
 
     // Gestión manual / retroactiva de ventas (admin y super_admin)
-    Route::middleware(['admin'])->group(function () {
+    Route::middleware(['admin', 'perm:pos,edit'])->group(function () {
         Route::post('/admin/sales', [SaleController::class, 'adminCreate']);
         Route::put('/admin/sales/{sale}', [SaleController::class, 'adminUpdate']);
     });

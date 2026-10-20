@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
 use App\Models\User;
+use App\Services\PermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -11,6 +12,10 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        private readonly PermissionService $permissionService,
+    ) {}
+
     /**
      * Authenticate a user and return a Sanctum token.
      */
@@ -30,10 +35,11 @@ class AuthController extends Controller
         $permissions = \App\Models\RolePermission::where('role', $user->role)->get();
 
         return response()->json([
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'user' => $user,
-            'permissions' => $permissions,
+            'access_token'          => $token,
+            'token_type'            => 'Bearer',
+            'user'                  => $user,
+            'permissions'           => $permissions,
+            'effective_permissions' => $this->permissionService->effectiveFor($user),
         ]);
     }
 
@@ -59,8 +65,9 @@ class AuthController extends Controller
         $permissions = \App\Models\RolePermission::where('role', $user->role)->get();
 
         return response()->json([
-            'user' => $user,
-            'permissions' => $permissions,
+            'user'                  => $user,
+            'permissions'           => $permissions,
+            'effective_permissions' => $this->permissionService->effectiveFor($user),
         ]);
     }
 }

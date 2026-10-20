@@ -2,35 +2,58 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
 use App\Models\RolePermission;
+use App\Services\PermissionService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class RolePermissionController extends Controller
 {
     /**
-     * Get all role permissions.
+     * Devuelve todos los permisos, módulos, restricciones, techos y defaults.
      */
     public function index(): JsonResponse
     {
-        return response()->json(RolePermission::all());
+        $permissionService = app(PermissionService::class);
+        $levels = [];
+        foreach (['kitchen', 'cashier', 'admin'] as $role) {
+            foreach (PermissionService::MODULES as $module) {
+                $levels[$role][$module] = $permissionService->levelsFor($role, $module);
+            }
+        }
+
+        return response()->json([
+            'permissions'  => RolePermission::all(),
+            'modules'      => PermissionService::MODULES,
+            'restrictions' => PermissionService::restrictions(),
+            'ceilings'     => PermissionService::CEILINGS,
+            'defaults'     => PermissionService::DEFAULTS,
+            'levels'       => $levels,
+        ]);
     }
 
     /**
-     * Update role permissions in bulk.
+     * Actualiza los permisos en lote dentro de una transacción (solo super_admin, por middleware).
      */
     public function update(\App\Http\Requests\RolePermissionRequest $request): JsonResponse
     {
         $validated = $request->validated();
 
-        foreach ($validated['permissions'] as $perm) {
-            RolePermission::updateOrCreate(
-                ['role' => $perm['role'], 'module' => $perm['module']],
-                ['access_level' => $perm['access_level']]
-            );
-        }
+        DB::transaction(function () use ($validated) {
+            foreach ($validated['permissions'] as $perm) {
+                RolePermission::updateOrCreate(
+                    ['role' => $perm['role'], 'module' => $perm['module']],
+                    ['access_level' => $perm['access_level']]
+                );
+            }
+        });
 
-        return response()->json(['message' => 'Permissions updated successfully', 'permissions' => RolePermission::all()]);
+        // Limpiar caché en memoria del servicio
+        app(PermissionService::class)->clearCache();
+
+        return response()->json([
+            'message'     => 'Matriz de permisos guardada.',
+            'permissions' => RolePermission::all(),
+        ]);
     }
 }

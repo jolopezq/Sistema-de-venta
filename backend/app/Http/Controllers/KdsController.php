@@ -196,7 +196,15 @@ class KdsController extends Controller
                     $lastCheck = now();
                 }
 
-                // Heartbeat / ping cada 15 segundos para mantener viva la conexión
+                // Keep-alive comment en cada tick para verificar si el cliente sigue conectado
+                echo ": keep-alive\n\n";
+                flush();
+
+                if (connection_aborted()) {
+                    break;
+                }
+
+                // Heartbeat formal de evento cada 15 segundos
                 $heartbeatCounter++;
                 if ($heartbeatCounter >= 7) {
                     echo "event: ping\n";
