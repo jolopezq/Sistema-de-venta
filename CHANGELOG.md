@@ -4,7 +4,9 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
-## [Sin publicar] — rama `feat/pos-caja-arranque`
+## [Sin publicar]
+
+## [2026-10-20] — versión portátil de caja (Cobro, Cierre, Finanzas, Permisos y Layout)
 
 ### Agregado
 - **Scroll del sistema sin franja blanca (PLAN_CORRECCION_SCROLL_SISTEMA.md)**:
