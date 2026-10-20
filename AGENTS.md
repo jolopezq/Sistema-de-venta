@@ -57,9 +57,7 @@ vender. `scripts/audit-contrast.cjs` usa `AUDIT_URL` (por defecto 5173, la base 
   `npm run build`, **pero nunca `npm install`**. No agregues dependencias npm sin cambiar esos scripts;
   por eso las fuentes van como archivos en `frontend/src/assets/fonts/`.
 - `npm install` falla hoy por un conflicto de peers previo (vue-router 5 pide Vite ≥7; el proyecto usa Vite 5).
-- **Roles**: `super_admin`, `admin`, `cashier`, `kitchen`. Se aplican en backend con los middlewares
-  `admin`, `super_admin` y `role:...` (`routes/api.php`). La matriz `role_permissions` que se edita en
-  Usuarios **no se aplica** en ningún lado (decisión pendiente, ver bitácora).
+- **Roles y permisos**: `super_admin`, `admin`, `cashier`, `kitchen`. Se aplican con el modelo **techo por rol + matriz dinámica** (`PermissionService` y middleware `perm:módulo,nivel`, con segunda llave en middlewares `admin`, `super_admin` y `role:...`). La matriz editada en Usuarios recorta el acceso dentro del techo inamovible de cada rol.
 - **Ventas ↔ caja**: cada venta guarda `cash_register_session_id`, asignado en `Sale::saving` por
   `App\Services\CashSessionResolver`. El arqueo suma por ese vínculo, no por rango de horas.
 - **Sincronización offline**: `SyncSalesRequest` define qué campos llegan al servicio; un campo sin

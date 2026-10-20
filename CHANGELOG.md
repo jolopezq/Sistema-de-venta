@@ -7,6 +7,73 @@ se renombra con la fecha de la actualización de producción.
 ## [Sin publicar] — rama `feat/pos-caja-arranque`
 
 ### Agregado
+- **Scroll del sistema sin franja blanca (PLAN_CORRECCION_SCROLL_SISTEMA.md)**:
+  - **Corrección:** al llegar al final de una página larga (Finanzas → Costos y margen; también Caja con historial largo) la ventana se desplazaba, el menú lateral se despegaba hacia arriba y quedaba una franja blanca. Causa: las etiquetas `.sr-only` de los encabezados de tabla se ubicaban respecto de la ventana. El contenido ahora las contiene (`position: relative`), no encadena la rueda a la ventana y, con el menú montado, la ventana queda fija (el login sigue desplazándose; al imprimir no se recorta).
+  - **Corrección:** Finanzas, Caja e Inventario se encogían al alto de la pantalla con mucho contenido (fondo y margen cortados; en Finanzas la navegación pegada se perdía tras ~490 px). Auditoría y «Sin acceso» tenían 41 px de scroll vacío. El menú lateral en celular ya no queda bajo la barra del navegador.
+  - «Clasificar egresos» / «Revisar gastos fijos» dejan la tarjeta visible debajo de las pestañas. Prueba `layout-scroll.spec.js` (15 pantallas × 3 tamaños).
+- **Finanzas en la portátil de caja (PLAN_REDISENO_FINANZAS_PORTATIL.md)**:
+  - **Corrección:** en pantallas de laptop la barra de pestañas se aplastaba a 1 px y desaparecía (el contenedor flex la encogía); ahora no se encoge.
+  - Cabecera y pestañas pegadas arriba al desplazarse (solo las pestañas al 125 %); cabecera de ~48 px y pestañas de 32 px.
+  - Resumen: el resultado del mes pasa de 471 a 165 px de alto (aviso de datos faltantes a la derecha, con todas sus acciones); la página baja de 1.435 a 912 px. Estado de resultados y Punto de equilibrio compactos y lado a lado.
+  - Categorías en 2 columnas × 2 filas; Compras y gastos, Costos y margen y Gastos fijos con filas y barras más cortas (≥ 7 productos visibles en Costos); líneas de «Registrar compra» en dos columnas.
+  - Todo bajo 1366 px de ancho o 800 px de alto; monitores grandes y celular sin cambios. Prueba E2E `finanzas-portatil.spec.js` (27) con API simulada (`e2e/fixtures/finanzas-api.js`).
+- **Cerrar caja: conteo directo (PLAN_CIERRE_CAJA_CONTEO_DIRECTO.md)**:
+  - Paso «Conteo» en dos columnas (billetes / monedas) con las 9 denominaciones, casillas numéricas saneadas (sin signos, decimales ni letras; máx. 4 cifras) y el total contado siempre visible en el pie. Entra sin scroll en 1366 × 611, 1280 × 720 y al 125 % (1093 × 489).
+  - Teclado completo: foco inicial en Bs 200, Enter/↓ siguiente, Shift+Enter/↑ anterior, Ctrl+Enter avanza; − / + salen del orden de Tab. Se elimina la opción de escribir solo el total.
+  - Paso «Resultado» compacto en 3 tarjetas: foco en el motivo si hay faltante, fondo para mañana con atajos («Como al abrir», «Todo», «Nada») y Enter no cierra por accidente. Monto de apertura sin signos ni exponente.
+  - Indicador «Turno abierto» en el menú que lleva directo al cierre.
+  - Servidor: si llega `bill_breakdown`, se exigen denominaciones válidas, cantidades enteras 0–9999 y que la suma coincida con el efectivo contado (422 con mensaje claro). Tests nuevos en `CashRegisterSessionTest`.
+- **Cobro dividido: los montos se completan solos (PLAN_COBRO_DIVIDIDO_AUTOCOMPLETAR.md)**:
+  - Al escribir el monto de un método, los demás se reacomodan para sumar siempre el total (con 2 y con 3 métodos; con 3, la línea menos reciente absorbe la diferencia y nunca se pisa lo último que escribió el cajero). Ya no aparece "faltan Bs X en efectivo" ni un vuelto falso cuando el cliente paga parte por QR o tarjeta.
+  - El efectivo a cobrar es ahora `min(línea de efectivo, total − QR/tarjeta)`: lo usan "Justo", los billetes sugeridos, el vuelto y la validación. Las líneas no pueden pasar del total ni quedar negativas; montos en centavos enteros (sin errores de decimales).
+  - Con pago dividido la etiqueta dice "Recibe / en efectivo". Sin cambios de alto: sigue entrando en 1366 × 611 y en escala 125 % (también con 3 métodos).
+  - Lógica en `frontend/src/utils/splitPayments.js` (11 pruebas: `npm run test:unit`) y 9 pruebas E2E nuevas en `checkout-portatil.spec.js` (22 en total).
+- **Pantalla de Cobro ajustada a la portátil de caja (PLAN_PANTALLA_COBRO_PORTATIL.md)**:
+  - Corrige el desborde horizontal del pago dividido (el selector de método ocupaba toda la columna por conflicto de especificidad CSS con `.co-input`).
+  - Modal más ancho (620 px) y compacto: "Recibe" en una línea, "Dividir el pago" junto al selector de método, filas y pie más bajos. Entra completo, sin scroll, en 1366 × 611 (efectivo con vuelto, QR, tarjeta, dividido de 2 y 3 pagos, PedidosYa, claro y oscuro).
+  - Plan B para ventanas bajas (p. ej. Windows al 125 %): se compacta más y, si aun así no cabe, solo se desplaza el cuerpo; el pie con "Cobrar" no se mueve.
+  - Nueva suite `frontend/e2e/checkout-portatil.spec.js` (13 pruebas). Sin cambios de lógica de cobro.
+  - Pantalla Roles y permisos: se reemplazaron variables CSS inexistentes por las del tema, filas más bajas (cabe Cajero/Cocina en 1366 × 611), frase resumen completa y etiqueta "Gestionar" en Pedidos y comandas.
+- **Nueva pantalla de Roles y Permisos para la portátil de caja (PLAN_PANTALLA_PERMISOS.md)**:
+  - Rediseño ergonómico y compacto de **Usuarios → Roles y permisos**, adaptado a la pantalla de 15,6" (1366 × 768 / 1366 × 611 de viewport útil):
+    - **Un rol a la vez**: Cocina, Cajero o Administrador; Super Admin fijo informativo.
+    - **Frase resumen dinámica**: frase en tipografía Baloo 2 que resume las facultades del rol según el borrador activo.
+    - **Filas de acción directa**: 10 módulos operativos (se omiten `users` y `audit` exclusivos del Super Admin) con altura compacta de 38 px y selector segmentado con solo los niveles permitidos (`ALLOWED_LEVELS`) sin exceder el techo.
+    - **Vista previa en vivo**: réplica visual del menú lateral compacto que verá el rol, indicando "Abre aquí", "Solo ver", pantallas no visibles y tarjeta "Acceso no disponible".
+    - **Sin scroll**: cero scroll horizontal en cualquier resolución (1366, 1024, 390 px) y cero scroll vertical en 1366 × 611 para el Administrador con cambios pendientes y aviso visible.
+    - **Guardado diferencial**: el botón "Guardar cambios" en el encabezado envía únicamente las filas modificadas (`changedRows`).
+  - **Backend**:
+    - `PermissionService`: constante `ALLOWED_LEVELS`, método `levelsFor(string $role, string $module)`, y normalización automática de niveles no válidos en `level()`.
+    - `RolePermissionRequest`: validación estricta de estructura array y validación de niveles contra `levelsFor()` (error 422 ante niveles no soportados).
+    - `RolePermissionController@index`: entrega el mapa `levels` de niveles permitidos por rol y módulo.
+    - `CashRegisterSessionController@ensureCanAccess`: granularidad `read` para `show`, `report` y `movements`, y `edit` para `close` y `recordMovement` (permite auditar turnos ajenos sin cerrarlos).
+    - Migración `2026_10_16_000001_normalize_role_permission_levels.php`: normaliza niveles incompatibles en la base de datos de forma idempotente.
+  - **Pruebas y accesibilidad**:
+    - Suite de pruebas E2E `frontend/e2e/permisos-portatil.spec.js` con el proyecto "Portátil de caja" (6 tests automáticos en verde: scrolls, interactividad, diffs, restablecimiento a defaults, error 500 y vista previa).
+    - Auditoría de contraste WCAG 2.1 AA (`scripts/audit-contrast.cjs`): 0 textos bajo el estándar en tema claro y oscuro (`09b_roles_permisos issues: 0`).
+    - 344 tests de PHPUnit en verde con 2.134 aserciones.
+- **Módulo de Usuarios, Roles y Permisos: Modelo de techos por rol y matriz dinámica (Opción C v2)**:
+  - Implementación integral del modelo: la matriz de la base de datos y la interfaz en Usuarios otorgan y recortan permisos reales dentro de los techos inamovibles fijados en código (`PermissionService::CEILINGS`).
+  - **Topes de seguridad inamovibles**:
+    - `super_admin`: edición total incondicional en todos los módulos (no editable desde la interfaz ni en requests).
+    - Techos declarados por rol: `cashier` no puede superar `none` en finanzas, usuarios, auditoría, catálogo, inventario ni anulaciones; `kitchen` restringido con techo `edit` en operaciones de delivery/KDS y `none` en todo lo demás.
+    - Falla cerrado: rutas o llamadas con módulos o niveles desconocidos lanzan `InvalidArgumentException`.
+  - **Backend**:
+    - `PermissionService`: registrado como `scoped`, con cálculo de `effectiveFor(User)` en una sola consulta por rol y caché de ciclo de vida.
+    - Separación por verbo HTTP en `api.php`: lectura (`read`) y escritura (`edit`) desacopladas en Ventas POS (`pos`), Caja y Mermas (`register_self`), y Cola de Pedidos/KDS (`delivery_ops`); `GET /customers` protegido con `perm:crm_read,read`.
+    - `CashRegisterSessionController`: conectado al permiso `register_others` (lectura para consultar otras cajas, edición para operar sobre ellas).
+    - `RolePermissionRequest`: valida contra techos y rechaza pares `{role, module}` repetidos con 422.
+    - `RolePermissionController`: guardado atómico en lote mediante `DB::transaction`; `index()` expone `ceilings`, `defaults`, `modules` y `restrictions`.
+    - `AuthController`: respuestas de `/login` y `/me` exponen `effective_permissions`.
+    - `CheckModulePermission`: retorna `reason: 'permission_denied'` en el JSON de error 403.
+    - Migración `2026_10_15_000001_update_role_permissions_to_match_reality.php`: sincroniza la base de datos mediante `DB::table('role_permissions')->upsert()` con valores literales.
+    - Suite de pruebas: `PermissionServiceTest` con 18 tests automatizados cubriendo techos, fallos cerrados, unicidad de rutas, migraciones, atomismo y separaciones de verbos (340 tests en verde).
+  - **Frontend**:
+    - Vista `SinAcceso.vue`: pantalla de bloqueo con opción de cerrar sesión para usuarios sin pantallas permitidas.
+    - Router `router/index.js`: guard `beforeEach` con función `landingFor()` que previene bucles infinitos de redirección.
+    - Store `auth.js`: consume `effective_permissions` del backend sin duplicar lógica de fallback; refresco automático al recuperar el foco de ventana o ante respuestas 403 `permission_denied`.
+    - Menú `AppShell.vue`: visibilidad de Control Diario alineada a `pos,edit`; Delivery sin excepción cableada para Cocina.
+    - Pantalla `AdminUsers.vue`: celdas dinámicas según los techos del rol, nuevas etiquetas de módulo y confirmación preventiva si un rol queda sin pantallas operativas.
 - **Finanzas: Corrección integral de costos, margen y visualización**:
   - Corrección de distorsión en costos por receta: los componentes con composición parcial de stock (`Mix de frutas`, `Pack toppings base`, etc.) forzaban el costo financiero del producto al valor de los pocos insumos inventariados (bajando el costo del Classic Bowl de Bs 9,20 a Bs 4,11 e inflando el margen al 85,3%).
   - Nueva columna `ingredients.use_manual_cost` (migración `2026_10_14_033606_add_use_manual_cost_to_ingredients_table`): permite alternar entre modo automático (suma de CPP de insumos) y modo manual (costo fijo establecido para costeo financiero, mientras sigue descontando los insumos al vender en el POS).

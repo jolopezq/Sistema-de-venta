@@ -3,17 +3,34 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-14)
+## Estado actual (2026-10-16)
 - **Rama de trabajo:** `feat/pos-caja-arranque`.
-- **Último cambio:** Corrección integral del módulo de Finanzas (Costos, margen y visualización):
-  - Solución a la distorsión del costo de bowls: desacoplamiento del costo financiero del descuento de inventario mediante la bandera `ingredients.use_manual_cost` (migración `2026_10_14_033606`).
-  - Classic Bowl refleja su costo real de Bs 9,20 y margen de 67,1% (ganancia Bs 18,80), Capuchino Bs 3,20 y margen 80,0% (ganancia Bs 12,80).
-  - Eliminación del fondo residual morado `#20112F` y corrección de la altura del shell a 100vh.
-  - Inclusión de ganancia neta en Bs, colores semánticos por margen, pestañas de filtrado en componentes y selector interactivo de modo de costeo en `CompositionEditor.vue`.
-- **Tests:** 322 en verde (`php artisan test`, 1.751 aserciones, con `APP_TIMEZONE=America/La_Paz`). Build de Vite sin errores (`npx vite build`).
-- **Contraste:** 0 textos bajo WCAG AA en tema oscuro.
-- **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y la
-  eliminación de `.graphify_detect.json`, a la espera de decisión (ver Pendientes).
+- **Último cambio (2026-10-20, 4):** Scroll del sistema ([PLAN_CORRECCION_SCROLL_SISTEMA.md](PLAN_CORRECCION_SCROLL_SISTEMA.md)): la franja blanca al final de Costos venía de `.sr-only` posicionados respecto de la ventana (no de «altura de flexbox» como decía la v1); contención en `.oh-shell-content` y envoltorios de tabla, `overscroll-behavior`, ventana fija solo con AppShell; además, pantallas que se encogían (Finanzas, Caja, Inventario) y `100vh` dentro del contenido (Auditoría, Sin acceso). E2E `layout-scroll.spec.js`. Pendiente: probar en la caja real.
+- **Último cambio (2026-10-20, 3):** Finanzas para la portátil ([PLAN_REDISENO_FINANZAS_PORTATIL.md](PLAN_REDISENO_FINANZAS_PORTATIL.md)): navegación pegada, hero compacto, Categorías 2×2, tablas y modal de compra compactos; arreglo de las pestañas aplastadas a 1 px. E2E `finanzas-portatil.spec.js` (27) con API simulada. Pendiente: contraste AA con la copia de BD y prueba en la caja real.
+- **Último cambio (2026-10-20, 2):** Cerrar caja con conteo directo ([PLAN_CIERRE_CAJA_CONTEO_DIRECTO.md](PLAN_CIERRE_CAJA_CONTEO_DIRECTO.md)): conteo en dos columnas con total en el pie, teclado completo, resultado compacto, indicador de turno en el menú que lleva al cierre, y validación del desglose en el servidor. E2E `cierre-caja-portatil.spec.js` (23) y `cashCount.test.mjs`. Pendiente: prueba manual en la caja real.
+- **Último cambio (2026-10-20):** Cobro dividido con montos que se completan solos, con 2 y 3 métodos ([PLAN_COBRO_DIVIDIDO_AUTOCOMPLETAR.md](PLAN_COBRO_DIVIDIDO_AUTOCOMPLETAR.md)): corrige el bloqueo "faltan Bs X en efectivo" y el vuelto falso al combinar efectivo + QR/tarjeta. Pendiente: probar en la caja real y contra una copia de la base (guardado de los dos pagos y arqueo).
+- **Cambio anterior (2026-10-19):** Pantalla de Cobro ajustada a la portátil de caja ([PLAN_PANTALLA_COBRO_PORTATIL.md](PLAN_PANTALLA_COBRO_PORTATIL.md)): sin desborde en pago dividido y sin scroll en 1366 × 611; suite `checkout-portatil.spec.js` 13/13. Pendiente: confirmar la escala de Windows de la Toshiba (100 % o 125 %) y probar el cobro en la caja real.
+- **Cambio anterior:** Implementación de la nueva pantalla de Roles y permisos para la portátil de caja ([PLAN_PANTALLA_PERMISOS.md](PLAN_PANTALLA_PERMISOS.md)):
+  - **Interfaz de usuario**:
+    - Un rol a la vez (Cocina, Cajero, Administrador; Super Admin fijo informativo).
+    - Frase resumen dinámica en Baloo 2 alineada en la franja superior (`role-strip`).
+    - 10 módulos operativos con selector segmentado de 336 px alineado que ofrece exclusivamente los niveles válidos (`ALLOWED_LEVELS`) sin exceder el techo.
+    - Vista previa en vivo (`RolePreview.vue`) réplica del menú lateral compacto basada en la función pura `screensFor()`, con indicadores "Abre aquí", "Solo ver", pantallas no visibles y tarjeta "Acceso no disponible".
+    - Encabezado compacto (`AdminUsers.vue`) que integra las acciones dinámicas: contador de cambios pendientes, aviso de rol sin pantallas, mensaje de guardado, botón "Descartar" y "Guardar cambios" (envío diferencial: solo filas modificadas).
+    - Restablecimiento a valores por defecto con "Volver a lo recomendado".
+    - Ergonomía para la portátil de caja Toshiba (1366 × 768): **cero scroll horizontal** en 1366, 1024 y 390 px, y **cero scroll vertical** en 1366 × 611 para Administrador con 3 cambios pendientes y aviso visible.
+  - **Backend y reglas de negocio**:
+    - `PermissionService`: constante `ALLOWED_LEVELS`, método `levelsFor($role, $module)` respetando techos, y normalización hacia abajo en `level()`.
+    - `RolePermissionRequest`: validación estricta de array y validación de niveles contra `levelsFor()`.
+    - `RolePermissionController@index`: entrega el mapa `levels` rol → módulo → niveles válidos.
+    - `CashRegisterSessionController@ensureCanAccess`: granularidad `read` para `show`, `report` y `movements`, y `edit` para `close` y `recordMovement`.
+    - Migración `2026_10_16_000001_normalize_role_permission_levels.php`: normalización idempotente en BD.
+  - **Verificación**:
+    - 344 tests PHPUnit en verde (2.134 aserciones).
+    - Suite E2E Playwright `frontend/e2e/permisos-portatil.spec.js` con proyecto "Portátil de caja" (6/6 tests en verde).
+    - Auditoría de contraste WCAG 2.1 AA (`scripts/audit-contrast.cjs`): 0 textos bajo el mínimo tanto en tema claro como oscuro (`09b_roles_permisos issues: 0`).
+    - Build de producción de Vite exitoso en 1.7s.
+- **Sin commit a propósito:** `graphify-out/` (grafo, caché y `obsidian/`, ~2.000 archivos) y las 7 imágenes de productos en `backend/storage/app/public/products/`.
 
 ## Plan de mejora
 
@@ -39,7 +56,8 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 | ↳ F2 Recetas que mueven stock (composición de componentes) | ✅ | ver registro |
 | ↳ F3 Mermas y conteo físico | ✅ | ver registro |
 | ↳ F4 Punto de reorden y alertas | ✅ | ver registro |
-| ↳ F5 Indicadores y informe mensual | ✅ | ver registro |
+| Roles y permisos: conexión dinámica con protecciones ([plan](PLAN_ROLES_PERMISOS.md)) | ✅ en rama `feat/pos-caja-arranque` | ver registro |
+| Roles y permisos: nueva pantalla para portátil de caja ([plan](PLAN_PANTALLA_PERMISOS.md)) | ✅ en rama `feat/pos-caja-arranque` | ver registro |
 
 ## Pendientes
 
@@ -128,8 +146,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
       luego Finanzas → Costos y margen → «Cargar recetas base», cargar los precios del café (kg de café, litro de
       leche, azúcar, vasos y tapas, matcha, bombilla, siropes) y los gastos fijos reales. Revisar el costo por kg del
       helado del Autoservicio (25 es un valor inicial) y qué categorías son fijas o variables.
-- [ ] Matriz `role_permissions` (pantalla Usuarios → Roles y permisos): conectarla al backend o eliminarla.
-      Hoy no se aplica y sus datos dicen que el admin solo tiene lectura en todo.
+- [x] Matriz `role_permissions` (pantalla Usuarios → Roles y permisos): conectada al backend con protecciones de seguridad (Opción C, 2026-10-15). Ahora controla el acceso real tanto en backend (`PermissionService`, middleware `perm`) como en frontend (`authStore.hasPermission`, guards de router y menú).
 - [ ] Botones naranjas/verdes en modo claro usan texto oscuro (decisión aplicada). Alternativa si se
       prefiere texto blanco: oscurecer el naranja a `#C2410C`.
 
@@ -200,6 +217,19 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-10-15 (Módulo de Usuarios, Roles y Permisos — Opción C v2: Techos por rol y congruencia integral)**:
+  - Diagnóstico y auditoría: la v1 inicial conectó la tabla pero presentaba hallazgos de seguridad y consistencia (la matriz no podía ampliar accesos que los middlewares de rol bloqueaban, lecturas permitían operar en ventas y caja, bucles potenciales en el router, falta de atomicidad en guardado y falta de sincronización inter-sesiones).
+  - Implementación del modelo v2 ([docs/PLAN_ROLES_PERMISOS.md](PLAN_ROLES_PERMISOS.md)):
+    - **Techos por rol inamovibles (`CEILINGS`)**: declarados en `PermissionService` (registrado como `scoped`). La matriz solo recorta dentro del techo de cada rol; ninguna fila de base de datos puede otorgar más que el techo.
+    - **Falla cerrado**: módulos o niveles desconocidos lanzan `InvalidArgumentException` detectables de inmediato.
+    - **Separación estricta por verbo HTTP**: lectura (`read`) y escritura (`edit`) desacopladas en Ventas POS (`pos`), Caja y Mermas (`register_self`), y Pedidos/KDS (`delivery_ops`); `GET /customers` protegido con `perm:crm_read,read`.
+    - **Caja de otros cajeros (`register_others`)**: conectada en `CashRegisterSessionController` para lectura y edición de sesiones ajenas.
+    - **Contrato de API enriquecido**: `/login` y `/me` devuelven `effective_permissions` precalculados; respuestas 403 incluyen `reason: 'permission_denied'`; `/permissions` expone `ceilings` y `defaults`.
+    - **Validación y transacciones**: `RolePermissionRequest` valida contra `CEILINGS` y rechaza pares duplicados con 422; guardado en lote atómico mediante `DB::transaction`.
+    - **Migración robusta**: `2026_10_15_000001_update_role_permissions_to_match_reality.php` reescrita con `DB::table('role_permissions')->upsert()` y valores literales sin dependencias de Eloquent.
+    - **Frontend resiliente**: vista `SinAcceso.vue`, guard de router con `landingFor()` libre de bucles, `auth.js` sin duplicación de lógica local y refresco de permisos por foco y error 403, `AppShell.vue` alineado con rutas, y `AdminUsers.vue` con celdas dinámicas según techos y confirmación preventiva ante roles sin pantallas.
+  - Verificación: 340 tests en verde (`php artisan test`, 2.102 aserciones; 18 tests en `PermissionServiceTest` cubriendo todas las fases y casos límite), build de producción Vite limpio (`npx vite build`).
 
 - **2026-10-14 (Finanzas: corrección de costos, margen y layout)** — Solución integral de la distorsión
   en el análisis de costos del módulo de Finanzas y correcciones visuales de la interfaz:

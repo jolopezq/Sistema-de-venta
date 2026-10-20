@@ -20,6 +20,12 @@ export default defineConfig({
 
   projects: [
     {
+      name: 'Portátil de caja',
+      use: {
+        viewport: { width: 1366, height: 611 },
+      },
+    },
+    {
       name: 'Mobile Chrome (Pixel 7)',
       use: { 
         ...devices['Pixel 7'],

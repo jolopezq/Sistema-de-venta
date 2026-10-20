@@ -54,7 +54,17 @@ const AUDIT = () => {
     const cobrar = page.locator('.btn-charge').first(); if (await cobrar.count() && await cobrar.isEnabled()) { await cobrar.click(); await snap('03c_checkout'); await page.keyboard.press('Escape'); await page.waitForTimeout(600); }
   }
   for (const [n, label] of [['04_turno', 'Caja'], ['05_delivery', 'Delivery'], ['06_menu', 'Menú'], ['07_inventario', 'Inventario'], ['08_control_diario', 'Control diario'], ['09_usuarios', 'Usuarios'], ['10_auditoria', 'Auditoría']]) {
-    try { await nav(label); await snap(n); } catch (e) { console.log('no se pudo abrir', n, e.message.slice(0,120)); }
+    try {
+      await nav(label);
+      await snap(n);
+      if (label === 'Usuarios') {
+        const tab = page.locator('.oh-tab', { hasText: 'Roles y permisos' });
+        if (await tab.count()) {
+          await tab.click();
+          await snap('09b_roles_permisos');
+        }
+      }
+    } catch (e) { console.log('no se pudo abrir', n, e.message.slice(0,120)); }
   }
   // Finanzas (solo super_admin): cada pestaña
   try {
