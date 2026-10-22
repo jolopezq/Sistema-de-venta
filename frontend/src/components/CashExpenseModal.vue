@@ -11,13 +11,18 @@ import './Finance/finance.css';
  * Al guardar, actualiza las stats de la gaveta en tiempo real.
  */
 const props = defineProps({
-  visible:   { type: Boolean, default: false },
+  visible:      { type: Boolean, default: false },
   /**
    * ID de sesión de caja específica.
    * Si se pasa, el movimiento se registra en esa sesión (histórica o no).
    * Si no, se usa la sesión activa del store.
    */
-  sessionId: { type: String, default: null },
+  sessionId:    { type: String, default: null },
+  /**
+   * Efectivo esperado en gaveta para la sesión específica (p. ej. desde Control Diario).
+   * Si se pasa, tiene prioridad sobre el turno activo del store.
+   */
+  expectedCash: { type: Number, default: null },
 });
 const emit = defineEmits(['close', 'saved']);
 
@@ -37,7 +42,12 @@ const form = ref({
 });
 
 // Saldo actual en gaveta antes de este movimiento
-const currentCash = computed(() => turnoStore.currentCashInDrawer);
+const currentCash = computed(() => {
+  if (props.expectedCash !== null && props.expectedCash !== undefined) {
+    return Number(props.expectedCash);
+  }
+  return turnoStore.currentCashInDrawer;
+});
 
 // Saldo proyectado después del movimiento (solo si es efectivo)
 const projectedCash = computed(() => {

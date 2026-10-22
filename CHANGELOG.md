@@ -6,6 +6,12 @@ se renombra con la fecha de la actualización de producción.
 
 ## [Sin publicar]
 
+### Corregido
+- **Control Diario / Arqueo: saldo de gaveta en modal de gastos (`CashExpenseModal`)**:
+  - `CashExpenseModal` aceptaba `sessionId` pero ignoraba el saldo de dicha sesión, calculando siempre `currentCash` a través del turno activo global del store (`turnoStore.currentCashInDrawer`).
+  - Si se visualizaba una sesión en Control Diario / Ventas Históricas con un saldo distinto al turno activo (por ejemplo, Bs 215.00 frente a Bs 295.00), el modal mostraba "En la gaveta ahora" y calculaba sobregiros (`isOverdrawn`) con los fondos de otra caja.
+  - Se añade la propiedad `expectedCash` a `CashExpenseModal.vue` y `RetroactiveSales.vue` la abastece con `expectedPhysicalCash`, manteniendo la compatibilidad con `Turno.vue`.
+
 ## [2026-10-20] — versión portátil de caja (Cobro, Cierre, Finanzas, Permisos y Layout)
 
 ### Agregado

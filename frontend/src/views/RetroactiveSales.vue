@@ -808,6 +808,7 @@ watch(selectedDate, (newDate) => {
     <CashExpenseModal
       :visible="showExpenseModal"
       :sessionId="currentSession?.id"
+      :expectedCash="expectedPhysicalCash"
       @close="showExpenseModal = false"
       @saved="handleExpenseSaved"
     />
