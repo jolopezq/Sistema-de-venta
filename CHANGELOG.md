@@ -4,7 +4,7 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
-## [Sin publicar]
+## [2026-10-21]
 
 ### Agregado
 - **Control diario: comanda con varios ítems**: el catálogo ya no se cierra al agregar un producto; se apilan ítems con un clic,
