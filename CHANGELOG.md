@@ -6,6 +6,14 @@ se renombra con la fecha de la actualización de producción.
 
 ## [Sin publicar]
 
+### Agregado
+- **Control diario: comanda con varios ítems**: el catálogo ya no se cierra al agregar un producto; se apilan ítems con un clic,
+  el mismo ítem sin ajustes suma cantidad, las filas quedan compactas (se abren solo si falta elegir una opción obligatoria),
+  hay resumen de comanda y total dentro del catálogo y el destello marca lo recién agregado. Afecta `AdminSaleEditor.vue`
+  (Control diario y editar venta). Prueba: `e2e/control-diario-apilado.spec.js`.
+- **Toppings sueltos**: comando `php artisan catalog:sync-toppings` (simulación; con `--apply` escribe) que crea la categoría
+  «Toppings» y un producto por topping con su precio y su consumo de inventario, para venderlos sin elegir envase en Ventas y Control diario.
+
 ### Corregido
 - **Control Diario / Arqueo: saldo de gaveta en modal de gastos (`CashExpenseModal`)**:
   - `CashExpenseModal` aceptaba `sessionId` pero ignoraba el saldo de dicha sesión, calculando siempre `currentCash` a través del turno activo global del store (`turnoStore.currentCashInDrawer`).

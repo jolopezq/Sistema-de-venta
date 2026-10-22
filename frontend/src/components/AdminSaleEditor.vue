@@ -260,7 +260,8 @@ function toggleMultiSelect(item, og, opt) {
 function initForm() {
   errorMessage.value = '';
   successMessage.value = '';
-  showProductPicker.value = false;
+  // Venta nueva: el catálogo ya viene abierto para apilar ítems sin pasos extra.
+  showProductPicker.value = !(isEditMode.value && props.sale);
   productSearchQuery.value = '';
   selectedCategoryId.value = '';
 
@@ -512,10 +513,54 @@ function addProductToSale(product) {
   };
 
   recalcItemPricesAndModifiers(newItem);
-  formData.value.items.push(newItem);
+
+  // Mismo producto, mismas opciones y sin ajustes manuales: solo sube la cantidad.
+  const sig = itemSignature(newItem);
+  const same = !isWeight
+    ? formData.value.items.find(it => itemSignature(it) === sig)
+    : null;
+  if (same) {
+    same.quantity = Number(same.quantity || 0) + 1;
+    onItemQuantityChange(same);
+    flashAdded(formData.value.items.indexOf(same));
+  } else {
+    // Se abre solo si hay un grupo obligatorio sin elegir; si no, queda en fila compacta.
+    newItem.isExpanded = groups.some(og => (og.min_selections || 0) > (selectedOptionIds[og.id] || []).length)
+      || isWeight;
+    formData.value.items.push(newItem);
+    flashAdded(formData.value.items.length - 1);
+  }
   autoSyncPayments();
-  showProductPicker.value = false;
-  productSearchQuery.value = '';
+  // El catálogo queda abierto para seguir apilando ítems.
+}
+
+/** Huella de un ítem: producto + opciones + modo de precio + nota + llevar. */
+function itemSignature(item) {
+  if (!item || item.priceMode !== 'auto' || item.item_note || item.priceOverrideReason) return null;
+  const opts = Object.keys(item.selectedOptionIds || {}).sort()
+    .map(k => `${k}:${[...(item.selectedOptionIds[k] || [])].sort((a, b) => a - b).join(',')}`).join('|');
+  return `${item.product_id}#${opts}#${item.is_takeaway ? 1 : 0}`;
+}
+
+/** Resumen corto de lo elegido, para la fila compacta. */
+function itemSummary(item) {
+  const groups = getProductOptionGroups(getProduct(item.product_id));
+  const parts = [];
+  groups.forEach(og => {
+    const ids = item.selectedOptionIds?.[og.id] || [];
+    const names = og.options.filter(o => ids.includes(o.id)).map(o => o.name);
+    if (names.length) parts.push(`${og.name}: ${names.join(', ')}`);
+  });
+  if (item.is_takeaway) parts.push('Para llevar');
+  return parts.join(' · ');
+}
+
+const lastAddedIdx = ref(-1);
+let flashTimer = null;
+function flashAdded(idx) {
+  lastAddedIdx.value = idx;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { lastAddedIdx.value = -1; }, 900);
 }
 
 function onProductSelectChange(item) {
@@ -901,6 +946,11 @@ function resetForm() {
                 No se encontraron productos coincidentes.
               </div>
             </div>
+
+            <div v-if="formData.items.length" class="picker-live-summary">
+              <span>🧾 Comanda: <strong>{{ formData.items.reduce((n, i) => n + (Number(i.quantity) || 0), 0) }}</strong> ítem(s)</span>
+              <strong>Bs {{ calculatedSubtotal.toFixed(2) }}</strong>
+            </div>
           </div>
 
           <!-- LISTADO DE ITEMS SELECCIONADOS -->
@@ -917,6 +967,7 @@ function resetForm() {
               v-for="(item, idx) in formData.items" 
               :key="idx" 
               class="item-card"
+              :class="{ 'item-card--flash': lastAddedIdx === idx, 'item-card--compact': !item.isExpanded }"
             >
               <!-- HEADER DE LA TARJETA DEL PRODUCTO -->
               <div class="item-card-header">
@@ -973,8 +1024,10 @@ function resetForm() {
                 </div>
               </div>
 
+              <div v-if="!item.isExpanded && itemSummary(item)" class="item-summary-line">{{ itemSummary(item) }}</div>
+
               <!-- BARRA DE MODALIDAD DE PRECIO (AUTO / PESO / MANUAL) -->
-              <div class="item-price-modes-bar">
+              <div v-show="item.isExpanded" class="item-price-modes-bar">
                 <div class="price-mode-pills-wrap">
                   <span class="mode-bar-label">Modo Precio:</span>
                   <div class="mode-pills">
@@ -1768,6 +1821,25 @@ function resetForm() {
   border-color: var(--tw-bg-cbd5e1);
 }
 
+@keyframes item-flash { 0% { box-shadow: 0 0 0 3px var(--primary-200, #ddd6fe); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.item-card--flash { animation: item-flash .9s ease-out; }
+.picker-live-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--tw-bg-fff, #fff);
+  border: 1px dashed var(--primary-200, #ddd6fe);
+  font-size: 13px;
+}
+.item-summary-line {
+  padding: 4px 14px 8px;
+  font-size: 12px;
+  color: var(--text-muted, #64748b);
+  line-height: 1.3;
+}
+.item-card--compact .item-card-header { border-bottom: none; }
 .item-card-header {
   padding: 10px 14px;
   background: var(--cream-50, var(--tw-bg-f8fafc));
