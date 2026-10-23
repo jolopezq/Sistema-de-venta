@@ -4,6 +4,25 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
+## [Sin publicar]
+
+### Cambiado
+- **Control diario: comanda con el configurador de Ventas** ([plan](docs/PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md)): los productos con opciones
+  o por peso abren `ModifierModal` (el mismo de Ventas); cada fila se edita con el lápiz, y si al editar queda igual a otra se juntan.
+  Las filas siguen el ticket de Ventas (píldoras de opciones, Baloo 2 en importes); «Precio y nota» queda plegado.
+- **Control diario en la portátil de caja**: datos de la venta en una línea (el origen siempre visible), pestañas de categoría como en Ventas,
+  catálogo de dos filas y barra fija con el total y **Registrar venta**. A 1366 × 611 y a 125 % el catálogo se ve sin desplazar.
+  Motivos rápidos y, en modo semi-lote, el motivo se conserva entre ventas del mismo talonario.
+- **Marca en el editor de ventas**: el token `--primary`, que no existía, se mapea a la paleta açaí (antes caía al violeta de Tailwind,
+  sin modo oscuro y con contraste insuficiente). Afecta también al editor en ventana de Turno.
+
+### Corregido
+- **Ventas y Control diario: «Toppings» a Bs 0.00**: un producto sin precio propio ya no se puede agregar sin al menos un extra con precio.
+- **Control diario en modo oscuro**: los campos «Descuento» y «Total a cobrar» tenían fondo blanco con texto claro.
+
+### Retirado
+- Comando `php artisan catalog:sync-toppings` y su prueba: los toppings se venden con el producto «Toppings» y su grupo de opciones.
+
 ## [2026-10-21]
 
 ### Agregado

@@ -3,11 +3,15 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-21)
-- **Rama de trabajo:** `fix/modal-gasto-saldo-sesion`.
-- **Último cambio (2026-10-21, 2):** Venta multi-ítem en Control Diario y Toppings sueltos ([PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md](PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md)):
-  - Control Diario (`AdminSaleEditor.vue`): el catálogo permanece abierto para apilar productos con un clic; el mismo producto sin ajustes incrementa cantidad; filas compactas con resumen colapsado y destello visual; barra de resumen en vivo dentro del catálogo para pantallas pequeñas. Suite E2E `control-diario-apilado.spec.js` (24/24 en verde).
-  - Toppings sueltos: comando idempotente `catalog:sync-toppings` (`SyncToppingProducts.php`) con simulación y `--apply` para crear la categoría «Toppings», productos independientes a Bs 4.00 y recetas vinculadas al insumo de inventario. Suite unitaria `SyncToppingProductsCommandTest` (3/3 en verde).
+## Estado actual (2026-10-23)
+- **Rama de trabajo:** `feat/control-diario-flujo-opciones-toppings` (desde `main` `3fa5b0b`, cambios sin commit).
+- **Último cambio (2026-10-23):** Control diario con el configurador de Ventas y diseño para la portátil ([PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md](PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md), secciones 4.5 y 8):
+  - `AdminSaleEditor.vue`: productos con opciones abren `ModifierModal`; filas tipo ticket con píldoras, edición con fusión, «Precio y nota» plegado; datos de la venta en una línea con el origen visible; pestañas `CategoryFilter`; barra fija (`.cd-dock`, z-index 30) con total y Registrar venta; motivos rápidos; `--primary` mapeado a açaí.
+  - `ModifierModal.vue`: precio base 0 exige un extra con precio (afecta Ventas).
+  - `RetroactiveSales.vue`: `.editor-wrapper` con `overflow: clip` (con `hidden` la barra fija no funciona); cabecera en una línea en la portátil y título del editor oculto a 125 %.
+  - Retirado `catalog:sync-toppings` y su prueba.
+  - Pruebas: `e2e/control-diario-apilado.spec.js` (26 casos, 4 perfiles, 104/104 en verde); backend `php artisan test` (346/346 en verde); auditoría de contraste `scripts/audit-contrast.cjs` (0 textos ilegibles bajo AA fuera de degradados). Pendiente: prueba en la Toshiba y decidir si la fruta es obligatoria en Control diario.
+- **Cambio anterior (2026-10-21, 2):** Venta multi-ítem en Control Diario (catálogo abierto y fusión de ítems iguales); el comando de toppings sueltos de ese cambio quedó retirado el 2026-10-23.
 - **Cambio anterior (2026-10-21):** Corrección de saldo de gaveta en modal de gastos (`CashExpenseModal.vue` y `RetroactiveSales.vue`): el modal leía ciegamente el turno activo global (`turnoStore.currentCashInDrawer`) en lugar de la sesión específica seleccionada en Control Diario. Se agregó el prop `expectedCash` para sincronizar la gaveta y evitar desfasajes en la validación de fondos y el saldo visible.
 - **Cambio anterior (2026-10-20, 4):** Scroll del sistema ([PLAN_CORRECCION_SCROLL_SISTEMA.md](PLAN_CORRECCION_SCROLL_SISTEMA.md)): la franja blanca al final de Costos venía de `.sr-only` posicionados respecto de la ventana (no de «altura de flexbox» como decía la v1); contención en `.oh-shell-content` y envoltorios de tabla, `overscroll-behavior`, ventana fija solo con AppShell; además, pantallas que se encogían (Finanzas, Caja, Inventario) y `100vh` dentro del contenido (Auditoría, Sin acceso). E2E `layout-scroll.spec.js`. Pendiente: probar en la caja real.
 - **Último cambio (2026-10-20, 3):** Finanzas para la portátil ([PLAN_REDISENO_FINANZAS_PORTATIL.md](PLAN_REDISENO_FINANZAS_PORTATIL.md)): navegación pegada, hero compacto, Categorías 2×2, tablas y modal de compra compactos; arreglo de las pestañas aplastadas a 1 px. E2E `finanzas-portatil.spec.js` (27) con API simulada. Pendiente: contraste AA con la copia de BD y prueba en la caja real.
