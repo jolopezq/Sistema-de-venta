@@ -4,7 +4,7 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-23)
-- **Rama de trabajo:** `feat/control-diario-flujo-opciones-toppings` (desde `main` `3fa5b0b`, cambios sin commit).
+- **Rama de trabajo:** `feat/control-diario-flujo-opciones-toppings`, fusionada en `main` local el 2026-10-23 para publicar en el VPS por paquete (`deploy/vps/04-actualizar.sh`). **No subida a GitHub**: al hacer `git push origin main` se actualiza también la laptop de caja (vigilante).
 - **Último cambio (2026-10-23):** Control diario con el configurador de Ventas y diseño para la portátil ([PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md](PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md), secciones 4.5 y 8):
   - `AdminSaleEditor.vue`: productos con opciones abren `ModifierModal`; filas tipo ticket con píldoras, edición con fusión, «Precio y nota» plegado; datos de la venta en una línea con el origen visible; pestañas `CategoryFilter`; barra fija (`.cd-dock`, z-index 30) con total y Registrar venta; motivos rápidos; `--primary` mapeado a açaí.
   - `ModifierModal.vue`: precio base 0 exige un extra con precio (afecta Ventas).

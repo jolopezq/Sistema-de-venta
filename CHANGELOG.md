@@ -4,7 +4,7 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
-## [Sin publicar]
+## [2026-10-23]
 
 ### Cambiado
 - **Control diario: comanda con el configurador de Ventas** ([plan](docs/PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md)): los productos con opciones
