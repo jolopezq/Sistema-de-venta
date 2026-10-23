@@ -1,5 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import ModifierModal from './ModifierModal.vue';
+import CategoryFilter from './CategoryFilter.vue';
 import { productPrice, optionPrice } from '../utils/channelPricing';
 import { useCatalogStore } from '../stores/catalog';
 import { useTurnoStore } from '../stores/turno';
@@ -44,6 +46,16 @@ const successMessage = ref('');
 const selectedCategoryId = ref('');
 const productSearchQuery = ref('');
 const showProductPicker = ref(false);
+// Datos de la venta (fecha, cajero, cliente, notas): plegados en venta nueva para que el catálogo quede a la vista.
+const showSaleDetails = ref(false);
+// Motivos frecuentes: el motivo es obligatorio en cada venta registrada desde aquí.
+const quickReasons = ['Talonario manual', 'Corte de energía', 'Corrección de turno'];
+
+// Configurador de opciones compartido con Ventas (ModifierModal)
+const showModifierModal = ref(false);
+const selectedProductForModal = ref(null);
+const editingItemIndex = ref(null);
+const modalInitialData = ref(null);
 
 // Origen de la Venta (Plataformas, Mesa, Llevar)
 const saleOrigin = ref('pos_mesa');
@@ -260,8 +272,10 @@ function toggleMultiSelect(item, og, opt) {
 function initForm() {
   errorMessage.value = '';
   successMessage.value = '';
-  // Venta nueva: el catálogo ya viene abierto para apilar ítems sin pasos extra.
+  // Venta nueva: catálogo abierto y datos de la venta plegados (se ven en una línea).
   showProductPicker.value = !(isEditMode.value && props.sale);
+  showSaleDetails.value = Boolean(isEditMode.value && props.sale);
+  closeModifierModal();
   productSearchQuery.value = '';
   selectedCategoryId.value = '';
 
@@ -346,7 +360,8 @@ function initForm() {
           priceOverrideReason: i.price_override_reason || '',
           selectedOptionIds,
           modifiers: [],
-          isExpanded: true
+          // Fila compacta; solo se abre «Precio y nota» si el precio fue manual, para que se vea el porqué
+          isExpanded: priceMode === 'manual'
         };
 
         if (priceMode !== 'manual') {
@@ -426,14 +441,48 @@ onMounted(async () => {
 // Filtrado de productos disponibles en el picker
 const filteredAvailableProducts = computed(() => {
   let list = catalogStore.products.filter(p => p.is_active);
+  const q = productSearchQuery.value.toLowerCase().trim();
+  // Igual que en Ventas: al buscar se busca en todo el menú, sin importar la pestaña.
+  if (q) return list.filter(p => (p.name || '').toLowerCase().includes(q));
   if (selectedCategoryId.value) {
     list = list.filter(p => p.category_id === Number(selectedCategoryId.value));
   }
-  if (productSearchQuery.value.trim()) {
-    const q = productSearchQuery.value.toLowerCase().trim();
-    list = list.filter(p => (p.name || '').toLowerCase().includes(q));
-  }
   return list;
+});
+
+/** Pestañas del catálogo: solo categorías con productos activos (una pestaña vacía no sirve). */
+const pickerCategories = computed(() => {
+  const withProducts = new Set(catalogStore.products.filter(p => p.is_active).map(p => p.category_id));
+  return [...catalogStore.categories]
+    .filter(c => withProducts.has(c.id))
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+});
+const pickerCategoryId = computed(() => (selectedCategoryId.value === '' ? null : Number(selectedCategoryId.value)));
+function selectPickerCategory(id) {
+  selectedCategoryId.value = id === null ? '' : id;
+  productSearchQuery.value = '';
+}
+
+const modalChannel = computed(() => (saleOrigin.value === 'pedidosya' ? 'pedidosya' : 'pos'));
+const itemCount = computed(() => formData.value.items.reduce((n, i) => n + (Number(i.quantity) || 0), 0));
+
+/** Resumen de los datos de la venta para la fila plegada. */
+const saleMetaParts = computed(() => {
+  const parts = [];
+  const dt = formData.value.created_at || '';
+  if (dt) {
+    const [d, t] = dt.split('T');
+    const [y, m, dd] = d.split('-');
+    parts.push(`${dd}/${m}/${y} ${(t || '').slice(0, 5)}`.trim());
+  } else {
+    parts.push('Sin fecha');
+  }
+  const cashier = usersList.value.find(u => String(u.id) === String(formData.value.cashier_id));
+  parts.push(cashier ? `Registra ${cashier.name}` : 'Registra tu usuario');
+  const customer = catalogStore.customers.find(c => String(c.id) === String(formData.value.customer_id));
+  parts.push(customer ? customer.name : 'Cliente ocasional');
+  if ((formData.value.notes || '').trim()) parts.push(formData.value.notes.trim());
+  return parts;
 });
 
 // Totales calculados
@@ -481,6 +530,14 @@ const paymentDifference = computed(() => {
 // Manipulación de Items
 function addProductToSale(product) {
   const groups = getProductOptionGroups(product);
+  // Con opciones o por peso: el mismo configurador que en Ventas.
+  if (groups.length > 0 || product.is_weight_based) {
+    selectedProductForModal.value = product;
+    editingItemIndex.value = null;
+    modalInitialData.value = null;
+    showModifierModal.value = true;
+    return;
+  }
   const selectedOptionIds = {};
 
   // Inicializar defaults de opciones
@@ -542,25 +599,119 @@ function itemSignature(item) {
   return `${item.product_id}#${opts}#${item.is_takeaway ? 1 : 0}`;
 }
 
-/** Resumen corto de lo elegido, para la fila compacta. */
-function itemSummary(item) {
-  const groups = getProductOptionGroups(getProduct(item.product_id));
-  const parts = [];
-  groups.forEach(og => {
-    const ids = item.selectedOptionIds?.[og.id] || [];
-    const names = og.options.filter(o => ids.includes(o.id)).map(o => o.name);
-    if (names.length) parts.push(`${og.name}: ${names.join(', ')}`);
-  });
-  if (item.is_takeaway) parts.push('Para llevar');
-  return parts.join(' · ');
-}
-
 const lastAddedIdx = ref(-1);
+const lastAddedLabel = ref('');
 let flashTimer = null;
+let labelTimer = null;
 function flashAdded(idx) {
   lastAddedIdx.value = idx;
+  const it = formData.value.items[idx];
+  const name = it ? (getProduct(it.product_id)?.name || 'Producto') : '';
+  lastAddedLabel.value = it ? `${name}${Number(it.quantity) > 1 ? ` (${it.quantity})` : ''}` : '';
   clearTimeout(flashTimer);
   flashTimer = setTimeout(() => { lastAddedIdx.value = -1; }, 900);
+  clearTimeout(labelTimer);
+  labelTimer = setTimeout(() => { lastAddedLabel.value = ''; }, 2500);
+}
+
+/** Reconstruye las opciones elegidas por grupo a partir de los modificadores del configurador. */
+function selectionsFromModifiers(product, modifiers) {
+  const sel = {};
+  getProductOptionGroups(product).forEach(og => {
+    sel[og.id] = (modifiers || [])
+      .filter(m => og.options.some(o => Number(o.id) === Number(m.option_id)))
+      .map(m => m.option_id);
+  });
+  return sel;
+}
+
+/** Confirmación del configurador: crea la fila, suma cantidad si ya existe una igual o reemplaza la que se editaba. */
+function handleConfirmModal({ product, modifiers, finalPrice, itemNote, isTakeaway, weightGrams }) {
+  showModifierModal.value = false;
+  const items = formData.value.items;
+  const editIdx = editingItemIndex.value;
+  const editing = editIdx !== null ? items[editIdx] : null;
+  const isWeight = Boolean(product.is_weight_based);
+  const keepManual = Boolean(editing && editing.priceMode === 'manual');
+
+  const item = {
+    product_id: product.id,
+    quantity: editing ? Number(editing.quantity || 1) : 1,
+    priceMode: keepManual ? 'manual' : (isWeight ? 'weight' : 'auto'),
+    weightGrams: isWeight ? Number(weightGrams || 0) : 0,
+    pricePerGram: Number(product.price_per_gram || 0.08),
+    unit_price: keepManual ? Number(editing.unit_price || 0) : Number(finalPrice || 0),
+    subtotal: 0,
+    // La venta manda: si es «Para llevar» o PedidosYa, el ítem también.
+    is_takeaway: Boolean(formData.value.is_takeaway || isTakeaway),
+    item_note: itemNote || '',
+    priceOverrideReason: editing ? (editing.priceOverrideReason || '') : '',
+    selectedOptionIds: selectionsFromModifiers(product, modifiers),
+    modifiers: [],
+    isExpanded: false,
+  };
+  // Una sola fuente de precio: el mismo cálculo que usa el editor al cambiar canal o cantidad.
+  recalcItemPricesAndModifiers(item);
+  if (import.meta.env.DEV && item.priceMode === 'auto' && Math.abs(item.unit_price - Number(finalPrice || 0)) > 0.009) {
+    console.warn('[Control diario] El precio del configurador y el del editor difieren', finalPrice, item.unit_price);
+  }
+
+  if (editing) {
+    items.splice(editIdx, 1, item);
+    // Si al editar quedó igual a otra fila, se juntan las cantidades.
+    const sig = itemSignature(item);
+    const twinIdx = sig ? items.findIndex((it, i) => i !== editIdx && itemSignature(it) === sig) : -1;
+    if (twinIdx !== -1) {
+      items[twinIdx].quantity = Number(items[twinIdx].quantity || 0) + item.quantity;
+      onItemQuantityChange(items[twinIdx]);
+      items.splice(editIdx, 1);
+      flashAdded(twinIdx > editIdx ? twinIdx - 1 : twinIdx);
+    } else {
+      flashAdded(editIdx);
+    }
+  } else {
+    const sig = isWeight ? null : itemSignature(item);
+    const same = sig ? items.find(it => itemSignature(it) === sig) : null;
+    if (same) {
+      same.quantity = Number(same.quantity || 0) + 1;
+      onItemQuantityChange(same);
+      flashAdded(items.indexOf(same));
+    } else {
+      items.push(item);
+      flashAdded(items.length - 1);
+    }
+  }
+  autoSyncPayments();
+  closeModifierModal();
+}
+
+function openEditItemModal(idx) {
+  const item = formData.value.items[idx];
+  const product = getProduct(item?.product_id);
+  if (!product) return;
+  selectedProductForModal.value = product;
+  editingItemIndex.value = idx;
+  modalInitialData.value = {
+    cartKey: `cd_item_${idx}`,
+    modifiers: item.modifiers || [],
+    itemNote: item.item_note || '',
+    allergenFlags: [],
+    isTakeaway: Boolean(item.is_takeaway),
+    weightGrams: item.weightGrams || 350,
+  };
+  showModifierModal.value = true;
+}
+
+function closeModifierModal() {
+  showModifierModal.value = false;
+  selectedProductForModal.value = null;
+  editingItemIndex.value = null;
+  modalInitialData.value = null;
+}
+
+function itemHasConfig(item) {
+  const p = getProduct(item.product_id);
+  return Boolean(p) && (getProductOptionGroups(p).length > 0 || Boolean(p.is_weight_based));
 }
 
 function onProductSelectChange(item) {
@@ -660,6 +811,7 @@ async function handleSave() {
   successMessage.value = '';
 
   if (!formData.value.created_at) {
+    showSaleDetails.value = true;
     errorMessage.value = 'Debes ingresar una fecha y hora válida.';
     scrollToError();
     return;
@@ -743,7 +895,7 @@ async function handleSave() {
         formData.value.items = [];
         formData.value.payments = [{ method: 'cash', amount: 0 }];
         formData.value.discount_amount = 0;
-        formData.value.edit_reason = '';
+        // El motivo se conserva: las ventas de un mismo talonario comparten justificación.
       }
     }, 1200);
   } catch (err) {
@@ -760,7 +912,7 @@ function resetForm() {
 </script>
 
 <template>
-  <div v-if="visible" :class="inline ? 'inline-editor-overlay' : 'modal-overlay'" @click.self="!inline && $emit('close')">
+  <div v-if="visible" :class="inline ? 'inline-editor-overlay' : 'editor-overlay'" @click.self="!inline && $emit('close')">
     <div :class="inline ? 'inline-editor-card' : 'editor-modal'">
       <!-- HEADER -->
       <div v-if="!inline" class="modal-header">
@@ -772,7 +924,10 @@ function resetForm() {
       </div>
 
       <!-- AUDIT WARNING BANNER -->
-      <div class="audit-warning-banner">
+      <div v-if="inline" class="audit-warning-banner audit-warning-banner--compact">
+        Cada venta descuenta inventario y queda en auditoría con su motivo.
+      </div>
+      <div v-else class="audit-warning-banner">
         <span>⚠️</span>
         <div>
           <strong>Registro con Trazabilidad:</strong> Toda modificación o creación manual recalculará stock en base a recetas y registrará un evento inmutable en los registros de auditoría.
@@ -789,38 +944,29 @@ function resetForm() {
 
       <!-- FORM BODY -->
       <div class="modal-body">
-        <!-- SECCIÓN 1: METADATOS PRINCIPALES -->
-        <div class="form-grid-3">
-          <div class="form-group">
-            <label><strong>📅 Fecha y Hora de Venta:</strong></label>
-            <input 
-              type="datetime-local" 
-              v-model="formData.created_at" 
-              class="form-input"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label><strong>👤 Cajero que Registró:</strong></label>
-            <select v-model="formData.cashier_id" class="form-input">
-              <option value="">-- Mismo Super Admin --</option>
-              <option v-for="u in usersList" :key="u.id" :value="u.id">
-                {{ u.name }} ({{ u.role }})
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label><strong>🏷️ Origen / Destino:</strong></label>
-            <div class="destination-toggle">
+        <!-- DATOS DE LA VENTA: una línea de resumen; el origen queda a la vista porque cambia los precios -->
+        <section class="cd-meta" aria-label="Datos de la venta">
+          <div class="cd-meta-bar">
+            <button
+              type="button"
+              class="cd-meta-toggle"
+              :aria-expanded="showSaleDetails"
+              aria-controls="cd-meta-fields"
+              @click="showSaleDetails = !showSaleDetails"
+            >
+              <span class="cd-meta-parts">
+                <span v-for="(part, i) in saleMetaParts" :key="i" class="cd-meta-part">{{ part }}</span>
+              </span>
+              <span class="cd-meta-action">{{ showSaleDetails ? 'Ocultar' : 'Cambiar' }}</span>
+            </button>
+            <div class="destination-toggle" role="group" aria-label="Origen de la venta">
               <button 
                 type="button" 
                 class="dest-btn" 
                 :class="{ active: saleOrigin === 'pos_mesa' }"
                 @click="saleOrigin = 'pos_mesa'"
               >
-                🍽️ En Mesa
+                En mesa
               </button>
               <button 
                 type="button" 
@@ -828,7 +974,7 @@ function resetForm() {
                 :class="{ active: saleOrigin === 'pos_llevar' }"
                 @click="saleOrigin = 'pos_llevar'"
               >
-                🛍️ Para Llevar
+                Para llevar
               </button>
               <button 
                 type="button" 
@@ -836,36 +982,49 @@ function resetForm() {
                 :class="{ active: saleOrigin === 'pedidosya' }"
                 @click="saleOrigin = 'pedidosya'"
               >
-                🛵 PedidosYa
+                PedidosYa
               </button>
             </div>
           </div>
-        </div>
-
-        <!-- SECCIÓN 2: CLIENTE Y NOTAS -->
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label>Cliente (Opcional):</label>
-            <select v-model="formData.customer_id" class="form-input">
+          <div v-show="showSaleDetails" id="cd-meta-fields" class="cd-meta-fields">
+              <div class="form-group">
+                <label for="cd-f-fecha">Fecha y hora</label>
+                <input 
+              type="datetime-local" 
+              v-model="formData.created_at" 
+              id="cd-f-fecha" class="form-input"
+              required
+            />
+              </div>
+              <div class="form-group">
+                <label for="cd-f-cajero">Registrada por</label>
+                <select v-model="formData.cashier_id" id="cd-f-cajero" class="form-input">
+              <option value="">-- Mismo Super Admin --</option>
+              <option v-for="u in usersList" :key="u.id" :value="u.id">
+                {{ u.name }} ({{ u.role }})
+              </option>
+            </select>
+              </div>
+              <div class="form-group">
+                <label for="cd-f-cliente">Cliente</label>
+                <select v-model="formData.customer_id" id="cd-f-cliente" class="form-input">
               <option value="">-- Cliente Ocasional (Sin registro) --</option>
               <option v-for="c in catalogStore.customers" :key="c.id" :value="c.id">
                 {{ c.name }} {{ c.ci_or_phone ? `(${c.ci_or_phone})` : '' }}
               </option>
             </select>
-          </div>
-
-          <div class="form-group">
-            <label>Notas de la Venta (Opcional):</label>
-            <input 
+              </div>
+              <div class="form-group">
+                <label for="cd-f-nota">Nota de la venta</label>
+                <input 
               type="text" 
               v-model="formData.notes" 
               placeholder="Ej: Pedido manual / Talonario de contingencia" 
-              class="form-input" 
+              id="cd-f-nota" class="form-input" 
             />
+              </div>
           </div>
-        </div>
-
-        <hr class="section-divider" />
+        </section>
 
         <!-- SECCIÓN 3: PRODUCTOS E ITEMS -->
         <div class="items-section-wrapper">
@@ -881,40 +1040,35 @@ function resetForm() {
           </div>
 
           <div class="items-section-header">
-            <div>
-              <h4>🛒 Productos e Ítems de la Venta</h4>
-              <span class="items-count-tag">{{ formData.items.length }} {{ formData.items.length === 1 ? 'producto' : 'productos' }}</span>
-            </div>
-            <button 
-              type="button" 
-              class="btn btn-sm btn-outline-primary" 
+            <h4 class="cd-items-title">Comanda</h4>
+            <button
+              type="button"
+              class="cd-link-btn"
+              :aria-expanded="showProductPicker"
               @click="showProductPicker = !showProductPicker"
             >
-              {{ showProductPicker ? '✕ Cerrar Catálogo' : '＋ Añadir Producto' }}
+              {{ showProductPicker ? 'Ocultar catálogo' : 'Mostrar catálogo' }}
             </button>
           </div>
 
-          <!-- PANEL PICKER DE PRODUCTOS RÁPIDO -->
+          <!-- CATÁLOGO: pestañas de Ventas + buscador en una sola línea -->
           <div v-if="showProductPicker" class="product-picker-panel">
             <div class="picker-filters">
+              <CategoryFilter
+                class="cd-cat-tabs"
+                :categories="pickerCategories"
+                :activeCategoryId="pickerCategoryId"
+                @select="selectPickerCategory"
+              />
               <div class="picker-search-wrap">
-                <span class="search-icon">🔍</span>
-                <input 
-                  type="text" 
-                  v-model="productSearchQuery" 
-                  placeholder="Buscar producto (ej: Bowl, Jugo, Waffle)..." 
+                <input
+                  type="search"
+                  v-model="productSearchQuery"
+                  placeholder="Buscar producto"
+                  aria-label="Buscar producto"
                   class="picker-search-input"
-                  autofocus
                 />
-                <button v-if="productSearchQuery" class="clear-search-btn" @click="productSearchQuery = ''">✕</button>
               </div>
-
-              <select v-model="selectedCategoryId" class="picker-category-select">
-                <option value="">Todas las Categorías</option>
-                <option v-for="cat in catalogStore.categories" :key="cat.id" :value="cat.id">
-                  {{ cat.name }}
-                </option>
-              </select>
             </div>
 
             <div class="picker-products-grid">
@@ -923,6 +1077,7 @@ function resetForm() {
                 v-for="p in filteredAvailableProducts" 
                 :key="p.id" 
                 class="product-picker-card"
+                :title="getProductOptionGroups(p).length || p.is_weight_based ? `${p.name}: elegir opciones` : `Agregar ${p.name}`"
                 @click="addProductToSale(p)"
               >
                 <div class="card-info">
@@ -930,6 +1085,9 @@ function resetForm() {
                   <span class="card-price">
                     <template v-if="p.is_weight_based">
                       Bs {{ (Number(p.price_per_gram || 0) * 100).toFixed(2) }}/100g
+                    </template>
+                    <template v-else-if="!Number(saleOrigin === 'pedidosya' ? (p.delivery_price ?? p.price) : p.price) && getProductOptionGroups(p).length">
+                      Elige opciones
                     </template>
                     <template v-else-if="saleOrigin === 'pedidosya' && p.delivery_price">
                       🛵 Bs {{ Number(p.delivery_price).toFixed(2) }}
@@ -946,88 +1104,84 @@ function resetForm() {
                 No se encontraron productos coincidentes.
               </div>
             </div>
-
-            <div v-if="formData.items.length" class="picker-live-summary">
-              <span>🧾 Comanda: <strong>{{ formData.items.reduce((n, i) => n + (Number(i.quantity) || 0), 0) }}</strong> ítem(s)</span>
-              <strong>Bs {{ calculatedSubtotal.toFixed(2) }}</strong>
-            </div>
           </div>
 
           <!-- LISTADO DE ITEMS SELECCIONADOS -->
-          <div v-if="formData.items.length === 0" class="empty-items-alert">
-            <span class="empty-icon">🥣</span>
-            <p>No hay productos agregados a la venta todavía.</p>
-            <button type="button" class="btn btn-sm btn-primary" @click="showProductPicker = true">
-              ＋ Añadir Primer Producto
-            </button>
+          <div v-if="formData.items.length === 0" class="cd-empty">
+            <template v-if="showProductPicker">La comanda está vacía. Toca un producto del catálogo para agregarlo.</template>
+            <template v-else>
+              La comanda está vacía.
+              <button type="button" class="cd-link-btn" @click="showProductPicker = true">Mostrar catálogo</button>
+            </template>
           </div>
 
-          <div v-else class="items-cards-list">
-            <div 
-              v-for="(item, idx) in formData.items" 
-              :key="idx" 
-              class="item-card"
-              :class="{ 'item-card--flash': lastAddedIdx === idx, 'item-card--compact': !item.isExpanded }"
+          <ul v-else class="cd-ticket" aria-label="Ítems de la comanda">
+            <li
+              v-for="(item, idx) in formData.items"
+              :key="idx"
+              class="cd-line"
+              :class="{ 'cd-line--flash': lastAddedIdx === idx, 'cd-line--open': item.isExpanded }"
             >
-              <!-- HEADER DE LA TARJETA DEL PRODUCTO -->
-              <div class="item-card-header">
-                <div class="item-header-left">
-                  <span class="item-index-badge">#{{ idx + 1 }}</span>
-                  <select 
-                    v-model="item.product_id" 
-                    @change="onProductSelectChange(item)" 
-                    class="item-product-select"
-                  >
-                    <option v-for="p in catalogStore.products" :key="p.id" :value="p.id">
-                      {{ p.name }} ({{ p.is_weight_based ? `Bs ${(Number(p.price_per_gram || 0) * 100).toFixed(2)}/100g` : `Base: Bs ${Number(p.price).toFixed(2)}` }})
-                    </option>
-                  </select>
-                </div>
-
-                <!-- CONTROLES DE CANTIDAD Y PRECIO -->
-                <div class="item-header-right">
-                  <div class="qty-stepper">
-                    <button type="button" class="qty-btn" @click="stepItemQuantity(item, -1)">−</button>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      step="1" 
-                      v-model.number="item.quantity" 
-                      @input="onItemQuantityChange(item)" 
-                      class="qty-input" 
-                    />
-                    <button type="button" class="qty-btn" @click="stepItemQuantity(item, 1)">+</button>
-                  </div>
-
-                  <div class="item-price-tag">
-                    <span class="unit-price-hint">Bs {{ item.unit_price.toFixed(2) }} c/u</span>
-                    <strong class="item-subtotal-val">Bs {{ item.subtotal.toFixed(2) }}</strong>
-                  </div>
-
-                  <button 
-                    type="button" 
-                    class="btn-toggle-expand" 
-                    @click="item.isExpanded = !item.isExpanded"
-                    :title="item.isExpanded ? 'Colapsar opciones' : 'Expandir opciones'"
-                  >
-                    {{ item.isExpanded ? '▲' : '▼' }}
-                  </button>
-
-                  <button 
-                    type="button" 
-                    class="btn-remove-item" 
-                    @click="removeItem(idx)" 
-                    title="Eliminar este ítem"
-                  >
-                    🗑️
-                  </button>
-                </div>
+              <div class="cd-line-main">
+                <span class="cd-line-name">{{ getProduct(item.product_id)?.name || 'Producto' }}</span>
+                <span v-if="item.modifiers.length || item.priceMode !== 'auto' || item.item_note || (item.is_takeaway && saleOrigin === 'pos_mesa')" class="cd-line-pills">
+                  <span v-if="item.priceMode === 'manual'" class="mod-pill mod-pill--flag">Precio manual</span>
+                  <span v-else-if="item.priceMode === 'weight'" class="mod-pill mod-pill--flag">{{ item.weightGrams }} g</span>
+                  <span
+                    v-for="(mod, mIdx) in item.modifiers"
+                    :key="mIdx"
+                    class="mod-pill"
+                    :class="{ 'mod-pill--size': /tamaño|size/i.test(mod.group_name || '') }"
+                  >{{ mod.option_name }}<template v-if="mod.price > 0"> +{{ Number(mod.price).toFixed(2) }}</template></span>
+                  <span v-if="item.is_takeaway && saleOrigin === 'pos_mesa'" class="mod-pill">Para llevar</span>
+                  <span v-if="item.item_note" class="mod-pill mod-pill--note">Nota: {{ item.item_note }}</span>
+                </span>
               </div>
 
-              <div v-if="!item.isExpanded && itemSummary(item)" class="item-summary-line">{{ itemSummary(item) }}</div>
+              <div class="cd-qty" role="group" :aria-label="`Cantidad de ${getProduct(item.product_id)?.name || 'producto'}`">
+                <button type="button" class="cd-qty-btn" aria-label="Uno menos" @click="stepItemQuantity(item, -1)">−</button>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputmode="numeric"
+                  v-model.number="item.quantity"
+                  @input="onItemQuantityChange(item)"
+                  class="cd-qty-input"
+                  aria-label="Cantidad"
+                />
+                <button type="button" class="cd-qty-btn" aria-label="Uno más" @click="stepItemQuantity(item, 1)">+</button>
+              </div>
 
+              <div class="cd-line-price">
+                <strong class="cd-line-subtotal">Bs {{ item.subtotal.toFixed(2) }}</strong>
+                <span v-if="item.quantity > 1" class="cd-line-unit">Bs {{ item.unit_price.toFixed(2) }} c/u</span>
+              </div>
+
+              <div class="cd-line-tools">
+                <button v-if="itemHasConfig(item)" type="button" class="cd-tool cd-tool--edit" title="Editar opciones" aria-label="Editar opciones" @click="openEditItemModal(idx)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </button>
+                <button
+                  type="button"
+                  class="cd-tool cd-tool--extra"
+                  :class="{ 'cd-tool--on': item.isExpanded }"
+                  :aria-expanded="item.isExpanded"
+                  title="Precio y nota"
+                  aria-label="Precio y nota"
+                  @click="item.isExpanded = !item.isExpanded"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+                </button>
+                <button type="button" class="cd-tool cd-tool--danger" title="Quitar de la comanda" aria-label="Quitar de la comanda" @click="removeItem(idx)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                </button>
+              </div>
+
+              <!-- PRECIO Y NOTA (plegado): modo de precio, precio manual, motivo y nota de cocina -->
+              <div v-show="item.isExpanded" class="cd-line-extra">
               <!-- BARRA DE MODALIDAD DE PRECIO (AUTO / PESO / MANUAL) -->
-              <div v-show="item.isExpanded" class="item-price-modes-bar">
+              <div class="item-price-modes-bar">
                 <div class="price-mode-pills-wrap">
                   <span class="mode-bar-label">Modo Precio:</span>
                   <div class="mode-pills">
@@ -1125,78 +1279,10 @@ function resetForm() {
                 </div>
               </div>
 
-              <!-- CUERPO DE OPCIONES / MODIFICADORES (EXPANDIBLE) -->
-              <div v-show="item.isExpanded" class="item-card-body">
+                <div class="item-card-body">
                 <!-- AVISO INFORMATIVO SI ESTÁ EN MODO MANUAL -->
                 <div v-if="item.priceMode === 'manual'" class="manual-mode-notice">
                   <span>✏️ <strong>Modo Manual Libre activo:</strong> El precio unitario está fijo en <strong>Bs {{ Number(item.unit_price || 0).toFixed(2) }}</strong>. Si deseas que los tamaños y agregados calculen el monto automáticamente, pulsa <button type="button" class="btn-link-switch-auto" @click="setItemPriceMode(item, 'auto')">🔒 Catálogo Auto</button>.</span>
-                </div>
-
-                <!-- GRUPOS DE OPCIONES (TAMAÑO, FRUTAS, TOPPINGS, ETC.) -->
-                <div 
-                  v-if="getProductOptionGroups(getProduct(item.product_id)).length > 0" 
-                  class="item-option-groups"
-                >
-                  <div 
-                    v-for="og in getProductOptionGroups(getProduct(item.product_id))" 
-                    :key="og.id" 
-                    class="option-group-block"
-                  >
-                    <div class="group-header">
-                      <div class="group-title-wrap">
-                        <span class="group-icon">{{ getGroupIcon(og.name) }}</span>
-                        <strong class="group-name">{{ og.name }}</strong>
-                        <span class="group-limit-badge" :class="{ 'badge-required': og.min_selections > 0 }">
-                          {{ (!og.max_selections || Number(og.max_selections) <= 1) ? 'Elige 1' : `Máx. ${og.max_selections}` }}
-                        </span>
-                      </div>
-
-                      <!-- Contador para multiselect -->
-                      <span v-if="Number(og.max_selections) > 1" class="group-counter">
-                        {{ getGroupSelectedCount(item, og.id) }} / {{ og.max_selections }} seleccionados
-                      </span>
-                    </div>
-
-                    <!-- CASO 1: SINGLE-SELECT (TAMAÑOS / RADIOS) -->
-                    <div v-if="!og.max_selections || Number(og.max_selections) <= 1" class="single-select-row">
-                      <button 
-                        type="button" 
-                        v-for="opt in og.options" 
-                        :key="opt.id" 
-                        class="option-radio-btn"
-                        :class="{ active: isOptionSelected(item, og.id, opt.id) }"
-                        @click="handleSingleSelect(item, og, opt)"
-                      >
-                        <span class="radio-dot"></span>
-                        <span class="opt-name">{{ opt.name }}</span>
-                        <span v-if="getActiveOptionPrice(opt) > 0" class="opt-price-add">
-                          +Bs {{ Number(getActiveOptionPrice(opt)).toFixed(2) }}
-                        </span>
-                      </button>
-                    </div>
-
-                    <!-- CASO 2: MULTI-SELECT (FRUTAS, TOPPINGS / CHIPS) -->
-                    <div v-else class="multi-select-chips">
-                      <button 
-                        type="button" 
-                        v-for="opt in og.options" 
-                        :key="opt.id" 
-                        class="option-chip-btn"
-                        :class="{
-                          active: isOptionSelected(item, og.id, opt.id),
-                          'limit-disabled': !isOptionSelected(item, og.id, opt.id) && getGroupSelectedCount(item, og.id) >= og.max_selections
-                        }"
-                        :disabled="!isOptionSelected(item, og.id, opt.id) && getGroupSelectedCount(item, og.id) >= og.max_selections"
-                        @click="toggleMultiSelect(item, og, opt)"
-                      >
-                        <span class="chip-indicator">{{ isOptionSelected(item, og.id, opt.id) ? '✓' : '+' }}</span>
-                        <span class="opt-name">{{ opt.name }}</span>
-                        <span v-if="getActiveOptionPrice(opt) > 0" class="opt-price-add">
-                          +Bs {{ Number(getActiveOptionPrice(opt)).toFixed(2) }}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
                 </div>
 
                 <!-- NOTA DE COCINA Y DESTINO POR ITEM -->
@@ -1216,9 +1302,10 @@ function resetForm() {
                     <span>🛍️ Para llevar este ítem</span>
                   </label>
                 </div>
+                </div>
               </div>
-            </div>
-          </div>
+            </li>
+          </ul>
         </div>
 
         <!-- RESUMEN DE TOTALES -->
@@ -1261,7 +1348,7 @@ function resetForm() {
                 step="0.5" 
                 v-model.lazy="calculatedTotal"
                 class="discount-input"
-                style="font-weight: bold; width: 100px; padding: 0.25rem; font-size: 1rem; color: var(--tw-fg-1e293b);"
+                style="font-weight: bold; width: 100px; padding: 0.25rem; font-size: 1rem;"
                 title="Si modificas el total final, se ajustará automáticamente como recargo o descuento."
               />
             </div>
@@ -1368,10 +1455,22 @@ function resetForm() {
               placeholder="Explica el motivo de este registro o cambio (ej: Venta offline por corte de energía registrada en talonario físico #045)..."
               required
             ></textarea>
+            <div class="cd-reason-chips" role="group" aria-label="Motivos frecuentes">
+              <button
+                v-for="r in quickReasons"
+                :key="r"
+                type="button"
+                class="cd-reason-chip"
+                :aria-pressed="formData.edit_reason === r"
+                @click="formData.edit_reason = r"
+              >{{ r }}</button>
+            </div>
           </div>
         </div>
       </div>
 
+      <!-- PIE: en Control diario es una barra fija con el total y Registrar; en el modal, el pie de siempre -->
+      <div :class="{ 'cd-dock': inline }">
       <!-- ALERTA DE ERROR VISIBLE EN EL FOOTER SI EL GUARDADO ES BLOQUEADO -->
       <div v-if="errorMessage" class="error-banner-footer">
         <div class="error-footer-content">
@@ -1388,8 +1487,17 @@ function resetForm() {
         </button>
       </div>
 
+        <div v-if="inline" class="cd-bar">
+          <span class="cd-bar-count">{{ itemCount }} {{ itemCount === 1 ? 'ítem' : 'ítems' }}</span>
+          <strong class="cd-bar-total">Bs {{ calculatedTotal.toFixed(2) }}</strong>
+          <span class="cd-bar-added" aria-live="polite">{{ successMessage || (lastAddedLabel ? `Agregado: ${lastAddedLabel}` : '') }}</span>
+          <button type="button" class="cd-bar-clear" :disabled="isSaving" @click="resetForm()">Limpiar</button>
+          <button type="button" class="cd-bar-save btn-save" :disabled="isSaving" @click="handleSave">
+            {{ isSaving ? 'Guardando…' : 'Registrar venta' }}
+          </button>
+        </div>
       <!-- FOOTER ACCIONES -->
-      <div class="modal-footer">
+      <div v-else class="modal-footer">
         <button 
           type="button" 
           class="btn btn-ghost" 
@@ -1408,7 +1516,17 @@ function resetForm() {
           <span v-else>{{ isEditMode ? '✓ Guardar Cambios de la Venta' : '✓ Registrar Venta Retroactiva' }}</span>
         </button>
       </div>
+      </div>
     </div>
+
+    <ModifierModal
+      :show="showModifierModal"
+      :product="selectedProductForModal"
+      :initialData="modalInitialData"
+      :channel="modalChannel"
+      @close="closeModifierModal"
+      @confirm="handleConfirmModal"
+    />
   </div>
 </template>
 
@@ -1429,7 +1547,7 @@ function resetForm() {
   flex-direction: column;
 }
 
-.modal-overlay {
+.editor-overlay {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.7);
@@ -2427,10 +2545,13 @@ function resetForm() {
 .discount-input {
   width: 70px;
   padding: 4px 6px;
-  border: 1px solid var(--tw-bg-cbd5e1);
+  border: 1px solid var(--border);
   border-radius: 6px;
   text-align: right;
   font-size: 13px;
+  /* Antes heredaba fondo blanco del navegador: en modo oscuro el texto claro no se leía */
+  background: var(--surface);
+  color: var(--ink-900);
 }
 
 .surcharge-row {
@@ -2720,5 +2841,373 @@ function resetForm() {
 
 .btn-save {
   min-width: 220px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Marca en todo el editor.
+   El editor usaba var(--primary, #8b5cf6): ese token no existe en el sistema y siempre caía al
+   violeta de Tailwind (fuera de marca, sin modo oscuro, blanco a 4,2:1). Se mapea a la paleta açaí.
+   ════════════════════════════════════════════════════════════════════════ */
+.inline-editor-overlay,
+.editor-overlay {
+  --primary: var(--acai-700);
+  --primary-hover: var(--acai-800);
+  --primary-50: var(--acai-50);
+  --primary-200: var(--acai-300);
+  --primary-700: var(--acai-text);
+  --primary-900: var(--acai-text);
+}
+
+/* ── Control diario: la comanda habla el idioma del ticket de Ventas ── */
+.audit-warning-banner--compact {
+  padding: 8px 16px;
+  font-size: 12.5px;
+  background: var(--cream-100);
+  color: var(--ink-700);
+  border-bottom: 1px solid var(--border);
+}
+
+.cd-meta { display: flex; flex-direction: column; gap: 10px; }
+.cd-meta-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cd-meta-toggle {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--cream-50);
+  color: var(--ink-700);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.cd-meta-toggle:hover { border-color: var(--acai-300); }
+.cd-meta-parts { display: flex; flex-wrap: wrap; row-gap: 2px; min-width: 0; }
+.cd-meta-part { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.cd-meta-part + .cd-meta-part { border-left: 1px solid var(--border); margin-left: 10px; padding-left: 10px; }
+.cd-meta-part:first-child { font-weight: 700; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+.cd-meta-action { flex-shrink: 0; font-weight: 700; color: var(--acai-text); }
+.cd-meta-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+.cd-meta .destination-toggle { flex: 0 0 auto; }
+
+.items-section-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.cd-items-title { margin: 0; font-family: var(--font-heading); font-size: 17px; font-weight: 700; color: var(--ink-900); }
+.cd-link-btn {
+  background: none;
+  border: none;
+  padding: 6px 4px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--acai-text);
+  cursor: pointer;
+}
+.cd-link-btn:hover { text-decoration: underline; }
+
+.product-picker-panel {
+  background: var(--cream-50);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  padding: 10px 12px 12px;
+  gap: 8px;
+}
+.picker-filters { display: flex; align-items: center; gap: 10px; }
+.cd-cat-tabs { flex: 1 1 auto; min-width: 0; margin-bottom: 0; padding-bottom: 4px; }
+.cd-cat-tabs :deep(.cat-tab) { padding: 7px 14px; font-size: 13px; border-radius: 10px; }
+.picker-search-wrap { flex: 0 0 200px; position: static; }
+.picker-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink-900);
+  font: inherit;
+  font-size: 13px;
+}
+.picker-search-input:focus { outline: none; border-color: var(--acai-500); }
+.picker-products-grid {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  max-height: 108px;
+}
+.product-picker-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px 6px 10px;
+  min-height: 46px;
+  gap: 8px;
+}
+.product-picker-card:hover { border-color: var(--passion-400); background: var(--surface); transform: none; }
+.product-picker-card:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 1px; }
+.card-info { min-width: 0; }
+.card-name {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--ink-900);
+  max-width: none;
+}
+.card-price { color: var(--ink-700); font-variant-numeric: tabular-nums; }
+.card-add-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--passion-500);
+  color: var(--on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 0;
+}
+
+.cd-empty {
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--ink-500);
+  font-size: 13px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* Fila de comanda: nombre y opciones | cantidad | importe | herramientas */
+.cd-ticket { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cd-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 96px 100px;
+  grid-template-areas: "main qty price tools" "extra extra extra extra";
+  align-items: center;
+  column-gap: 14px;
+  padding: 9px 4px;
+  border-bottom: 1px dashed var(--border);
+}
+.cd-line:last-child { border-bottom: none; }
+.cd-line-main { grid-area: main; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cd-line-name {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 14.5px;
+  line-height: 1.2;
+  color: var(--ink-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Opciones elegidas: mismas píldoras que el ticket de Ventas (CartItem), máximo dos líneas */
+.cd-line-pills { display: flex; flex-wrap: wrap; gap: 4px; max-height: 44px; overflow: hidden; }
+.mod-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+  background: var(--cream-200);
+  color: var(--ink-700);
+}
+.mod-pill--size { background: var(--acai-50); color: var(--acai-text); font-weight: 600; }
+.mod-pill--flag { background: var(--passion-100); color: var(--passion-text); font-weight: 700; }
+.mod-pill--note { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.cd-qty { grid-area: qty; display: flex; align-items: center; gap: 2px; }
+.cd-qty-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--cream-200);
+  color: var(--ink-900);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cd-qty-input {
+  width: 38px;
+  height: 32px;
+  text-align: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-900);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.cd-qty-input::-webkit-inner-spin-button,
+.cd-qty-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.cd-qty-input:focus { outline: none; border-color: var(--acai-300); background: var(--surface); }
+.cd-line-price { grid-area: price; display: flex; flex-direction: column; align-items: flex-end; }
+.cd-line-subtotal {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cd-line-unit { font-size: 11px; color: var(--ink-500); white-space: nowrap; }
+.cd-line-tools { grid-area: tools; display: flex; justify-content: flex-end; gap: 2px; }
+.cd-tool {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-500);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cd-tool svg { width: 17px; height: 17px; }
+.cd-tool:hover,
+.cd-tool--on { background: var(--acai-50); color: var(--acai-text); border-color: var(--acai-300); }
+.cd-tool--danger:hover { background: var(--danger-100); color: var(--danger-text); border-color: transparent; }
+.cd-line-extra {
+  grid-area: extra;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.cd-line--flash { animation: cd-line-flash 0.9s ease-out; }
+@keyframes cd-line-flash {
+  from { background: var(--passion-100); }
+  to { background: transparent; }
+}
+
+.cd-qty-btn:focus-visible,
+.cd-tool:focus-visible,
+.cd-link-btn:focus-visible,
+.cd-meta-toggle:focus-visible,
+.cd-reason-chip:focus-visible,
+.cd-bar-clear:focus-visible,
+.cd-bar-save:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
+
+.cd-reason-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cd-reason-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-700);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.cd-reason-chip:hover,
+.cd-reason-chip[aria-pressed="true"] { border-color: var(--acai-300); color: var(--acai-text); background: var(--acai-50); }
+
+/* Barra fija: el total y Registrar siempre a la mano (mismo tono que la píldora «Total» del configurador) */
+.cd-dock { position: sticky; bottom: 0; z-index: 30; }
+.cd-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 7px 10px 7px 16px;
+  background: var(--acai-900);
+  color: #ffffff;
+}
+.cd-bar-count { font-size: 13px; color: rgba(255, 255, 255, 0.78); white-space: nowrap; }
+.cd-bar-total {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cd-bar-added {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--passion-300);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-bar-clear {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cd-bar-clear:hover { background: rgba(255, 255, 255, 0.08); }
+.cd-bar-save {
+  background: var(--passion-500);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cd-bar-save:hover { filter: brightness(1.05); }
+.cd-bar-save:disabled,
+.cd-bar-clear:disabled { opacity: 0.6; cursor: wait; }
+.cd-dock .error-banner-footer { border-radius: 0; }
+
+/* ── Portátil de caja (1366 × 611 y 125 %) ── */
+@media (min-width: 761px) and (max-width: 1366px), (min-width: 761px) and (max-height: 800px) {
+  .inline-editor-card .modal-body { padding: 12px 16px; gap: 12px; }
+  .cd-meta-toggle { padding: 6px 10px; font-size: 12.5px; }
+  .cd-meta .dest-btn { padding: 6px 10px; font-size: 12.5px; }
+  .inline-editor-card .section-divider { margin: 0; }
+}
+@media (min-width: 761px) and (max-height: 520px) {
+  .picker-products-grid { max-height: 100px; }
+  .cd-line { padding: 7px 4px; }
+  .cd-bar { min-height: 48px; }
+}
+
+/* ── Teléfono ── */
+@media (max-width: 760px) {
+  .picker-filters { flex-direction: column; align-items: stretch; }
+  .picker-search-wrap { flex-basis: auto; }
+  .cd-meta-fields { grid-template-columns: 1fr; }
+  .cd-line {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "main main main" "qty price tools" "extra extra extra";
+    grid-template-rows: auto auto auto;
+    row-gap: 6px;
+  }
+  .cd-line-price { align-items: flex-start; }
+  .cd-qty-btn, .cd-tool { width: 44px; height: 44px; }
+  .cd-bar { flex-wrap: wrap; }
+  .cd-bar-added { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-line--flash { animation: none; }
 }
 </style>

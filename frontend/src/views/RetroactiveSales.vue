@@ -1120,6 +1120,22 @@ watch(selectedDate, (newDate) => {
   border: 1px solid var(--color-border, var(--tw-bg-e2e8f0));
   box-shadow: 0 2px 10px rgba(0,0,0,0.04);
   overflow: hidden;
+  /* clip recorta igual que hidden pero no crea un contenedor de scroll: deja funcionar la barra fija del editor */
+  overflow: clip;
+}
+
+/* Portátil de caja: cabecera en una línea para que el editor empiece más arriba */
+@media (min-width: 761px) and (max-width: 1366px), (min-width: 761px) and (max-height: 800px) {
+  .cd-topbar { padding: 0.6rem 1.25rem; gap: 0.75rem; }
+  .topbar-desc { display: none; }
+  .topbar-title { font-size: 1.2rem; }
+  /* Solo administradores llegan aquí: la insignia no aporta en la portátil */
+  .badge-role { display: none; }
+  .topbar-right { gap: 0.5rem; }
+}
+/* 125 %: el título del editor repite la fecha de la cabecera; se oculta para que el catálogo entre en pantalla */
+@media (min-width: 761px) and (max-height: 520px) {
+  .editor-wrapper .editor-header-bar { display: none; }
 }
 
 .editor-header-bar {
