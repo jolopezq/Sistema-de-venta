@@ -177,8 +177,17 @@ const validateGroup = (groupId) => {
   };
 };
 
+/**
+ * Producto sin precio propio (p. ej. «Toppings», base Bs 0): solo se vende con al menos un extra con precio.
+ * Evita cobrar o registrar un ítem vacío a Bs 0.00 en Ventas y en Control diario.
+ */
+const needsPricedOption = computed(() =>
+  Boolean(props.product) && !props.product.is_weight_based && basePrice.value <= 0 && filteredGroups.value.length > 0
+);
+
 const isValid = computed(() => {
   if (!filteredGroups.value || filteredGroups.value.length === 0) return true;
+  if (needsPricedOption.value && extrasPrice.value <= 0) return false;
   return filteredGroups.value.every(og => {
     const minReq = getMinRequired(og);
     const selectedCount = getGroupSelectedCount(og.id);
@@ -204,6 +213,7 @@ const confirmButtonText = computed(() => {
         return `Elige ${(og.name || '').toLowerCase()}`;
       }
     }
+    if (needsPricedOption.value && extrasPrice.value <= 0) return 'Elige al menos una opción';
   }
   return 'Agregar al pedido';
 });
