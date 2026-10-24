@@ -4,6 +4,47 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
+## [Sin publicar]
+
+### Corregido
+- **Inventario: el modal de insumo no se podía guardar** ([plan](docs/PLAN_REDISENO_INVENTARIO_PORTATIL.md)): medía 1026 px y quedaba cortado
+  arriba y abajo en todas las pantallas (incluso 1440 × 900); «Guardar» era inalcanzable. Ahora usa `FinanceModal` en tres columnas
+  (Insumo, Compra, Reposición) y entra completo en la portátil (558 px a 1366 × 611); a 125 % solo desplaza el cuerpo, con cabecera y pie fijos.
+  Foco en Nombre, Enter guarda, errores junto a su campo y sin doble envío.
+- **Inventario: Proveedores se cortaba** 13 px a 100 % y 74 px a 125 %.
+- **Inventario: los errores de Categorías aparecían en el formulario de insumo** (compartían el mismo estado).
+- **Inventario: la confirmación de borrado se cerraba antes de terminar** y no decía qué se borraba.
+- **Inventario: texto secundario y colores fuera del sistema**: `--ink-400` (no existe) dejaba en negrita oscura la línea «unidad · proveedor»;
+  las insignias usaban colores fijos sin modo oscuro.
+- **Registrar compra (Inventario y Finanzas): valores por defecto engañosos**: la línea empezaba en «Otro gasto» y la categoría en la
+  primera de la lista, así que una compra guardada sin mirar no subía stock ni costo y caía en una categoría al azar. Ahora la línea empieza
+  en «Elige un insumo…» (insumos y otros gastos en grupos separados) y la categoría en «Elige una categoría…»; al guardar sin elegir, el
+  aviso dice qué falta. «Se compra en» y el cálculo por unidad solo aparecen con un insumo elegido. Desde la fila de un insumo la línea
+  sigue llegando con ese insumo.
+- **Ventanas de Inventario y Finanzas con teclado** ([plan, sección 13](docs/PLAN_REDISENO_INVENTARIO_PORTATIL.md)): al abrir, el foco quedaba
+  en el botón de atrás (o se perdía si se abría desde «Más») y Tab recorría la página tapada. Ahora entra a la ventana, al campo con el que
+  se empieza («Insumo» en Registrar compra, «Cantidad» desde la fila, el primer «Contado» en el conteo, «Nombre» en Categorías y Proveedores);
+  Tab no sale de ella y al cerrar el foco vuelve al botón que la abrió. En pantallas táctiles no se enfoca un campo (no abre el teclado).
+- **Inventario: costo con punto junto a cantidades con coma** en la misma fila: ahora «Bs 9,40», como en Finanzas.
+- **Inventario: un nombre largo ocupaba tres líneas**: máximo dos, con el nombre completo al pasar el puntero.
+- **Finanzas: «Registrar gasto» y «Agregar gasto fijo» elegían la categoría solos** ([plan v2, Fase 1](docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL.md)):
+  empezaban en «Helado y açaí» y «Salarios y personal», así que un gasto guardado sin mirar (gas, alquiler…) caía en otra sección del Estado de
+  resultados. Ahora empiezan en «Elige una categoría…»; el proveedor conocido la sugiere (también si su lista llega después de escribirlo).
+- **Finanzas: avisos del formulario fuera de la vista al 125 %**: ahora van junto a cada campo, el foco salta al primero con error y se borran
+  al corregirlo. La ventana se llama «Registrar gasto», como su botón (decía «compra o gasto», junto a otro botón «Registrar compra»).
+- **Finanzas con teclado**: «Registrar gasto» empieza en Monto, «Gasto fijo» en Concepto, «Categoría» y «+ Nueva categoría…» en Nombre.
+
+### Cambiado
+- **Inventario: Categorías, Proveedores, confirmación y aviso con `FinanceModal`**: lista con herramientas y formulario al lado, la acción
+  principal en el pie, Escape y ✕ en todos; el borrado nombra el insumo, la categoría o el proveedor, y el foco queda en «Cancelar».
+- **`FinanceModal`**: prop `size` (`''`, `'wide'`, `'xl'` de 920 px), compatible con `wide`.
+- **Inventario: cabecera en una línea**: acciones del turno a la vista, Proveedores, Categorías y Mermas del mes en el menú «Más»
+  (teclado completo), íconos de trazo en vez de emojis y «Nuevo insumo» como único botón naranja. La tabla empieza a ≤ 150 px (antes 281).
+- **Inventario: tabla legible en la portátil**: filas de ≈ 56 px (antes 85 y 213 a 125 %), seis herramientas de 32 px en una línea con
+  el nombre del insumo en su etiqueta, nivel de stock frente al punto de reorden y franja de estado en vez de teñir la fila, tipo legible
+  («No perecedero»), costo y promedio en una celda. Se ven 7 filas a 100 % y 5 a 125 % (antes 2 y 0). En teléfono la tabla se desliza con
+  el nombre fijo (antes se recortaba).
+
 ## [2026-10-23]
 
 ### Cambiado

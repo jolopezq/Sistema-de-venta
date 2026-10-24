@@ -159,7 +159,7 @@ async function toggle(c) {
   <FinanceModal v-if="modalOpen" :title="editing ? 'Editar categoría' : 'Nueva categoría'" :busy="saving" @close="modalOpen = false">
     <div class="fin-field">
       <label for="cx-name">Nombre</label>
-      <input id="cx-name" v-model="form.name" type="text" maxlength="100" class="fin-input" placeholder="Ej.: Empaques de delivery" />
+      <input id="cx-name" v-model="form.name" type="text" maxlength="100" class="fin-input" placeholder="Ej.: Empaques de delivery" data-autofocus />
     </div>
     <div class="fin-grid-2">
       <div class="fin-field">

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch, onMounted } from 'vue';
+import { computed, nextTick, reactive, ref, watch, onMounted } from 'vue';
 import { apiFetch } from '../../services/api';
 import {
   useFinanceStore, formatBs, formatDay, localDate, errorText, nameKey, SECTIONS, PAYMENT_METHODS,
@@ -59,6 +59,12 @@ const editing = ref(null);
 const form = reactive({
   date: '', expense_category_id: '', supplier: '', amount: '', payment_method: 'bank_transfer', receipt_number: '', notes: '',
 });
+// Errores de validación junto a cada campo; se borran al corregirlo
+const fieldErrors = reactive({ date: '', amount: '', category: '' });
+const clearFieldErrors = () => Object.assign(fieldErrors, { date: '', amount: '', category: '' });
+watch(() => form.expense_category_id, (v) => { if (v) fieldErrors.category = ''; });
+watch(() => form.amount, (v) => { if (Number(v) > 0) fieldErrors.amount = ''; });
+watch(() => form.date, (v) => { if (v) fieldErrors.date = ''; });
 
 function defaultDate() {
   if (finance.isCurrentMonth) return localDate();
@@ -73,10 +79,13 @@ function openNew() {
   editing.value = null;
   Object.assign(form, {
     date: defaultDate(),
-    expense_category_id: finance.activeCategories.find((c) => c.section === 'cost_of_sales')?.id || finance.activeCategories[0]?.id || '',
+    // Sin categoría: antes nacía en la primera de Costo de ventas («Helado y açaí») y un gasto guardado sin mirar
+    // (gas, alquiler…) inflaba el costo de ventas. La elige la persona o la sugiere el proveedor.
+    expense_category_id: '',
     supplier: '', amount: '', payment_method: 'bank_transfer', receipt_number: '', notes: '',
   });
   formError.value = '';
+  clearFieldErrors();
   categoryTouched.value = false;
   supplierHint.value = '';
   modalOpen.value = true;
@@ -97,6 +106,7 @@ function openEdit(item) {
     notes: item.notes || '',
   });
   formError.value = '';
+  clearFieldErrors();
   categoryTouched.value = true;
   supplierHint.value = '';
   modalOpen.value = true;
@@ -128,6 +138,10 @@ function onSupplierInput() {
   }
 }
 
+// Ahora que la categoría empieza vacía, la sugerencia importa más: si el proveedor se escribió antes de que
+// llegara la lista de proveedores conocidos, se sugiere en cuanto llega.
+watch(() => finance.suppliers, () => { if (modalOpen.value && form.supplier) onSupplierInput(); });
+
 /** Al salir del campo se usa la forma ya registrada del proveedor ("frutas del valle" → "Frutas del Valle"). */
 function onSupplierBlur() {
   const key = nameKey(form.supplier);
@@ -136,9 +150,17 @@ function onSupplierBlur() {
 }
 
 async function save() {
-  if (!(Number(form.amount) > 0)) { formError.value = 'El monto debe ser mayor a 0.'; return; }
-  if (!form.expense_category_id) { formError.value = 'Elige una categoría.'; return; }
-  if (!form.date) { formError.value = 'Indica la fecha.'; return; }
+  formError.value = '';
+  clearFieldErrors();
+  if (!form.date) fieldErrors.date = 'Indica la fecha.';
+  if (!(Number(form.amount) > 0)) fieldErrors.amount = 'El monto debe ser mayor a 0.';
+  if (!form.expense_category_id) fieldErrors.category = 'Elige una categoría.';
+  const firstError = ['date', 'amount', 'category'].find((k) => fieldErrors[k]);
+  if (firstError) {
+    await nextTick();
+    document.getElementById({ date: 'fx-date', amount: 'fx-amount', category: 'fx-cat' }[firstError])?.focus();
+    return;
+  }
   saving.value = true;
   formError.value = '';
   try {
@@ -379,7 +401,7 @@ watch(() => props.intent, handleIntent);
   <!-- Modal de gasto -->
   <FinanceModal
     v-if="modalOpen"
-    :title="editing ? 'Editar compra o gasto' : 'Registrar compra o gasto'"
+    :title="editing ? 'Editar gasto' : 'Registrar gasto'"
     subtitle="Pagos hechos fuera de la caja del turno (transferencia, QR, tarjeta o efectivo propio)."
     :busy="saving"
     @close="modalOpen = false"
@@ -390,11 +412,14 @@ watch(() => props.intent, handleIntent);
     <div class="fin-grid-2">
       <div class="fin-field">
         <label for="fx-date">Fecha</label>
-        <input id="fx-date" v-model="form.date" type="date" class="fin-input" />
+        <input id="fx-date" v-model="form.date" type="date" class="fin-input" :aria-invalid="fieldErrors.date ? 'true' : null" :aria-describedby="fieldErrors.date ? 'fx-date-err' : null" />
+        <span v-if="fieldErrors.date" id="fx-date-err" class="fin-field-err">{{ fieldErrors.date }}</span>
       </div>
       <div class="fin-field">
         <label for="fx-amount">Monto (Bs)</label>
-        <input id="fx-amount" v-model="form.amount" type="number" min="0.01" step="0.01" inputmode="decimal" class="fin-input" placeholder="0,00" />
+        <input id="fx-amount" v-model="form.amount" type="number" min="0.01" step="0.01" inputmode="decimal" class="fin-input" placeholder="0,00" data-autofocus
+          :aria-invalid="fieldErrors.amount ? 'true' : null" :aria-describedby="fieldErrors.amount ? 'fx-amount-err' : null" />
+        <span v-if="fieldErrors.amount" id="fx-amount-err" class="fin-field-err">{{ fieldErrors.amount }}</span>
       </div>
     </div>
     <div class="fin-grid-2">
@@ -430,9 +455,12 @@ watch(() => props.intent, handleIntent);
         id="fx-cat"
         :model-value="form.expense_category_id"
         default-section="cost_of_sales"
+        placeholder="Elige una categoría…"
+        :error-id="fieldErrors.category ? 'fx-cat-err' : ''"
         @update:model-value="chooseCategory"
       />
-      <span v-if="supplierHint" class="fin-hint">{{ supplierHint }}</span>
+      <span v-if="fieldErrors.category" id="fx-cat-err" class="fin-field-err">{{ fieldErrors.category }}</span>
+      <span v-else-if="supplierHint" class="fin-hint">{{ supplierHint }}</span>
       <span v-else class="fin-hint">¿No está en la lista? Elige «+ Nueva categoría…» al final.</span>
     </div>
     <div v-if="form.payment_method === 'cash'" class="fin-note">

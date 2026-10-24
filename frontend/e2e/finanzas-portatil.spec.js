@@ -163,3 +163,136 @@ test.describe('Finanzas — sin cambios fuera de la portátil', () => {
     expect(new Set(lefts).size).toBe(1);
   });
 });
+
+// ───────────── Plan v2, Fase 1: categoría sin preseleccionar, título y teclado (docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL.md) ─────────────
+test.describe('Finanzas v2 — Fase 1: formularios', () => {
+  const sent = [];
+  test.beforeEach(async ({ page }) => {
+    sent.length = 0;
+    await mockFinanzas(page);
+    // Lo que se envía al guardar (las rutas registradas después tienen prioridad)
+    for (const pattern of ['**/api/finance/expenses', '**/api/finance/recurring-expenses']) {
+      await page.route(pattern, (r) => {
+        if (r.request().method() === 'GET') return r.fallback();
+        sent.push({ url: r.request().url(), body: JSON.parse(r.request().postData() || '{}') });
+        return r.fulfill({ status: 201, contentType: 'application/json', body: '{"id":99}' });
+      });
+    }
+    await page.setViewportSize({ width: 1093, height: 489 });
+  });
+
+  test('F1/F2. «Registrar gasto»: título como su botón, sin categoría y con aviso si falta', async ({ page }) => {
+    await openTab(page, 'expenses');
+    const btn = page.getByRole('button', { name: 'Registrar gasto', exact: true });
+    await btn.click();
+    const modal = page.locator('.fin-modal').last();
+    await expect(modal.locator('.fin-modal-head h2')).toHaveText('Registrar gasto');
+    await expect(page.locator('#fx-cat option:checked')).toHaveText('Elige una categoría…');
+    await expect(page.locator('#fx-amount'), 'F3: el foco empieza en Monto').toBeFocused();
+    await page.keyboard.type('50');
+    await modal.getByRole('button', { name: 'Guardar' }).click();
+    // El aviso va junto al campo (a la vista al 125 %) y el foco salta al selector
+    await expect(page.locator('#fx-cat-err')).toHaveText('Elige una categoría.');
+    await expect(page.locator('#fx-cat-err')).toBeInViewport();
+    await expect(page.locator('#fx-cat')).toBeFocused();
+    await expect(page.locator('#fx-cat')).toHaveAttribute('aria-describedby', 'fx-cat-err');
+    expect(sent).toHaveLength(0);
+    await page.locator('#fx-cat').selectOption({ label: 'Servicios básicos' });
+    await expect(page.locator('#fx-cat-err')).toHaveCount(0);
+    await modal.getByRole('button', { name: 'Guardar' }).click();
+    await expect.poll(() => sent.length).toBe(1);
+    expect(sent[0].body.expense_category_id).toBe(7);
+    expect(Number(sent[0].body.amount)).toBe(50);
+  });
+
+  test('F1. Con un proveedor conocido se sugiere su categoría', async ({ page }) => {
+    await page.route('**/api/finance/suppliers', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ id: 1, name: 'Distribuidora Sur', expense_category_id: 1 }]) }));
+    await openTab(page, 'expenses');
+    await page.getByRole('button', { name: 'Registrar gasto', exact: true }).click();
+    await page.locator('#fx-supplier').fill('distribuidora sur');
+    await expect(page.locator('#fx-cat option:checked')).toHaveText('Insumos de açaí');
+    await expect(page.locator('.fin-modal').last()).toContainText('Categoría de las compras anteriores a Distribuidora Sur.');
+  });
+
+  test('F1. La sugerencia llega aunque el proveedor se escriba antes de cargar la lista', async ({ page }) => {
+    await page.route('**/api/finance/suppliers', async (r) => {
+      await new Promise((ok) => setTimeout(ok, 1200));
+      await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ name: 'Plásticos del Oriente', expense_category_id: 3 }]) });
+    });
+    await openTab(page, 'expenses');
+    await page.getByRole('button', { name: 'Registrar gasto', exact: true }).click();
+    await page.locator('#fx-supplier').fill('Plásticos del Oriente');
+    await expect(page.locator('#fx-cat option:checked')).toHaveText('Elige una categoría…');
+    await expect(page.locator('#fx-cat option:checked')).toHaveText('Descartables', { timeout: 5000 });
+  });
+
+  test('F1. Guardar vacío: un aviso junto a cada campo y el foco en el primero', async ({ page }) => {
+    await openTab(page, 'expenses');
+    await page.getByRole('button', { name: 'Registrar gasto', exact: true }).click();
+    await page.locator('.fin-modal').last().getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.locator('#fx-amount-err')).toHaveText('El monto debe ser mayor a 0.');
+    await expect(page.locator('#fx-cat-err')).toHaveText('Elige una categoría.');
+    await expect(page.locator('#fx-amount')).toBeFocused();
+    await expect(page.locator('#fx-amount')).toHaveAttribute('aria-invalid', 'true');
+    await page.keyboard.type('12');
+    await expect(page.locator('#fx-amount-err')).toHaveCount(0);
+    await expect(page.locator('#fx-cat-err')).toHaveCount(1);
+    expect(sent).toHaveLength(0);
+  });
+
+  test('F2. Editar un gasto: «Editar gasto» y conserva su categoría', async ({ page }) => {
+    await openTab(page, 'expenses');
+    await page.getByRole('button', { name: 'Editar Distribuidora Sur' }).first().click();
+    await expect(page.locator('.fin-modal-head h2').last()).toHaveText('Editar gasto');
+    await expect(page.locator('#fx-cat option:checked')).toHaveText('Insumos de açaí');
+  });
+
+  test('F1/F3. «Agregar gasto fijo»: foco en Concepto, sin categoría y con aviso si falta', async ({ page }) => {
+    await openTab(page, 'recurring');
+    await page.getByRole('button', { name: /Agregar gasto fijo/ }).first().click();
+    await expect(page.locator('#rx-name')).toBeFocused();
+    await expect(page.locator('#rx-cat option:checked')).toHaveText('Elige una categoría…');
+    await page.keyboard.type('Contador');
+    await page.locator('#rx-amount').fill('300');
+    const modal = page.locator('.fin-modal').last();
+    await modal.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.locator('#rx-cat-err')).toHaveText('Elige una categoría.');
+    await expect(page.locator('#rx-cat')).toBeFocused();
+    expect(sent).toHaveLength(0);
+    await page.locator('#rx-cat').selectOption({ label: 'Alquiler' });
+    await expect(page.locator('#rx-cat-err')).toHaveCount(0);
+    await modal.getByRole('button', { name: 'Guardar' }).click();
+    await expect.poll(() => sent.length).toBe(1);
+    expect(sent[0].body).toMatchObject({ name: 'Contador', expense_category_id: 5 });
+  });
+
+  test('F3. Nueva categoría: foco en Nombre', async ({ page }) => {
+    await openTab(page, 'categories');
+    await page.getByRole('button', { name: /Agregar/ }).first().click();
+    await expect(page.locator('#cx-name')).toBeFocused();
+  });
+
+  test('F3. Tab no sale de «Registrar gasto» y Escape devuelve el foco al botón', async ({ page }) => {
+    await openTab(page, 'expenses');
+    const btn = page.getByRole('button', { name: 'Registrar gasto', exact: true });
+    await btn.click();
+    await expect(page.locator('#fx-amount')).toBeFocused();
+    for (let k = 0; k < 20; k++) {
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => [...document.querySelectorAll('.fin-modal')].pop().contains(document.activeElement)), `Tab ${k + 1}`).toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await expect(btn).toBeFocused();
+  });
+
+  test('F3. «+ Nueva categoría…» dentro del gasto: foco en Nombre y al cerrar vuelve al selector', async ({ page }) => {
+    await openTab(page, 'expenses');
+    await page.getByRole('button', { name: 'Registrar gasto', exact: true }).click();
+    await page.locator('#fx-cat').focus();
+    await page.locator('#fx-cat').selectOption({ label: '+ Nueva categoría…' });
+    await expect(page.locator('#nc-name')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#fx-cat')).toBeFocused();
+    await expect(page.locator('.fin-modal')).toHaveCount(1);
+  });
+});

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch, onMounted } from 'vue';
+import { computed, nextTick, reactive, ref, watch, onMounted } from 'vue';
 import { apiFetch } from '../../services/api';
 import {
   useFinanceStore, formatBs, formatDay, errorText, PAYMENT_METHODS, FREQUENCIES, MONTHS,
@@ -59,16 +59,25 @@ const form = reactive({
   name: '', expense_category_id: '', amount: '', frequency: 'monthly', day_of_month: 1, start_month: '', payment_method: 'bank_transfer', notes: '',
 });
 
+// Errores de validación junto a cada campo; se borran al corregirlo
+const fieldErrors = reactive({ name: '', amount: '', category: '' });
+const clearFieldErrors = () => Object.assign(fieldErrors, { name: '', amount: '', category: '' });
+watch(() => form.name, (v) => { if (v.trim()) fieldErrors.name = ''; });
+watch(() => form.amount, (v) => { if (Number(v) > 0) fieldErrors.amount = ''; });
+watch(() => form.expense_category_id, (v) => { if (v) fieldErrors.category = ''; });
+
 const periodValue = () => `${finance.year}-${String(finance.month).padStart(2, '0')}`;
 
 function openNew() {
   editing.value = null;
   Object.assign(form, {
     name: '',
-    expense_category_id: finance.activeCategories.find((c) => c.section === 'operating')?.id || finance.activeCategories[0]?.id || '',
+    // Sin categoría: antes nacía en la primera de Gastos operativos («Salarios y personal») y se guardaba así sin mirar.
+    expense_category_id: '',
     amount: '', frequency: 'monthly', day_of_month: 1, start_month: periodValue(), payment_method: 'bank_transfer', notes: '',
   });
   formError.value = '';
+  clearFieldErrors();
   modalOpen.value = true;
 }
 
@@ -85,13 +94,23 @@ function openEdit(t) {
     notes: t.notes || '',
   });
   formError.value = '';
+  clearFieldErrors();
   modalOpen.value = true;
 }
 
 
 async function save() {
-  if (!form.name.trim()) { formError.value = 'Escribe el concepto.'; return; }
-  if (!(Number(form.amount) > 0)) { formError.value = 'El monto debe ser mayor a 0.'; return; }
+  formError.value = '';
+  clearFieldErrors();
+  if (!form.name.trim()) fieldErrors.name = 'Escribe el concepto.';
+  if (!(Number(form.amount) > 0)) fieldErrors.amount = 'El monto debe ser mayor a 0.';
+  if (!form.expense_category_id) fieldErrors.category = 'Elige una categoría.';
+  const firstError = ['name', 'amount', 'category'].find((k) => fieldErrors[k]);
+  if (firstError) {
+    await nextTick();
+    document.getElementById({ name: 'rx-name', amount: 'rx-amount', category: 'rx-cat' }[firstError])?.focus();
+    return;
+  }
   saving.value = true;
   formError.value = '';
   try {
@@ -269,16 +288,21 @@ watch(() => props.intent, handleIntent);
   >
     <div class="fin-field">
       <label for="rx-name">Concepto</label>
-      <input id="rx-name" v-model="form.name" type="text" maxlength="150" class="fin-input" placeholder="Ej.: Alquiler del local" />
+      <input id="rx-name" v-model="form.name" type="text" maxlength="150" class="fin-input" placeholder="Ej.: Alquiler del local" data-autofocus
+        :aria-invalid="fieldErrors.name ? 'true' : null" :aria-describedby="fieldErrors.name ? 'rx-name-err' : null" />
+      <span v-if="fieldErrors.name" id="rx-name-err" class="fin-field-err">{{ fieldErrors.name }}</span>
     </div>
     <div class="fin-grid-2">
       <div class="fin-field">
         <label for="rx-amount">Monto (Bs)</label>
-        <input id="rx-amount" v-model="form.amount" type="number" min="0.01" step="0.01" inputmode="decimal" class="fin-input" />
+        <input id="rx-amount" v-model="form.amount" type="number" min="0.01" step="0.01" inputmode="decimal" class="fin-input"
+          :aria-invalid="fieldErrors.amount ? 'true' : null" :aria-describedby="fieldErrors.amount ? 'rx-amount-err' : null" />
+        <span v-if="fieldErrors.amount" id="rx-amount-err" class="fin-field-err">{{ fieldErrors.amount }}</span>
       </div>
       <div class="fin-field">
         <label for="rx-cat">Categoría</label>
-        <CategorySelect id="rx-cat" v-model="form.expense_category_id" default-section="operating" />
+        <CategorySelect id="rx-cat" v-model="form.expense_category_id" default-section="operating" placeholder="Elige una categoría…" :error-id="fieldErrors.category ? 'rx-cat-err' : ''" />
+        <span v-if="fieldErrors.category" id="rx-cat-err" class="fin-field-err">{{ fieldErrors.category }}</span>
       </div>
     </div>
     <div class="fin-grid-3">

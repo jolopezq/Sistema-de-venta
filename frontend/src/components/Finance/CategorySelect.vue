@@ -16,6 +16,8 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   id: { type: String, default: undefined },
   ariaLabel: { type: String, default: undefined },
+  /** Id del mensaje de error del campo: marca el selector como inválido y lo enlaza al mensaje. */
+  errorId: { type: String, default: '' },
 });
 const emit = defineEmits(['update:modelValue', 'created']);
 const finance = useFinanceStore();
@@ -123,6 +125,8 @@ async function create() {
     :value="modelValue ?? ''"
     :disabled="disabled"
     :aria-label="ariaLabel"
+    :aria-invalid="errorId ? 'true' : null"
+    :aria-describedby="errorId || null"
     @change="onChange"
   >
     <option v-if="placeholder" value="" disabled>{{ placeholder }}</option>
@@ -141,7 +145,7 @@ async function create() {
     >
       <div class="fin-field">
         <label for="nc-name">Nombre</label>
-        <input id="nc-name" v-model="form.name" type="text" maxlength="100" class="fin-input" placeholder="Ej.: Gas licuado" autofocus @keyup.enter="create" />
+        <input id="nc-name" v-model="form.name" type="text" maxlength="100" class="fin-input" placeholder="Ej.: Gas licuado" data-autofocus @keyup.enter="create" />
       </div>
       <div v-if="similar.length" class="fin-note info">
         {{ exact ? 'Ya existe:' : '¿Es alguna de estas?' }}
