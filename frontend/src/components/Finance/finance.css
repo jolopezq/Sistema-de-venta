@@ -481,6 +481,9 @@ html.dark .fin-page .fin-btn-danger { color: var(--on-accent); }
 .fin-page .fin-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .fin-page .fin-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .fin-page .fin-hint { font-size: 12px; color: var(--ink-500); line-height: 1.4; }
+/* Error de un campo: junto al campo (al 125 % un aviso al final del formulario queda bajo el pie) */
+.fin-page .fin-field-err { font-size: 12px; font-weight: 600; color: var(--danger-text); line-height: 1.4; }
+.fin-page .fin-input[aria-invalid="true"] { border-color: var(--danger-600); background: var(--danger-100); }
 .fin-page .fin-note {
   padding: 10px 12px;
   border-radius: 10px;
@@ -528,7 +531,9 @@ html.dark .fin-page .fin-btn-danger { color: var(--on-accent); }
   box-shadow: var(--shadow-pop);
   overflow: hidden;
 }
+.fin-page .fin-modal:focus { outline: none; } /* la ventana recibe el foco al abrir; el anillo va en sus controles */
 .fin-page .fin-modal.wide { max-width: 760px; }
+.fin-page .fin-modal.xl { max-width: 920px; }
 .fin-page .fin-modal-head {
   display: flex;
   justify-content: space-between;
@@ -691,7 +696,8 @@ html.dark .fin-page .fin-toast.error { background: var(--danger-100); color: var
   .fin-page .fin-grid-3 { grid-template-columns: 1fr; }
   .fin-page .fin-modal-overlay { padding: 0; align-items: flex-end; }
   .fin-page .fin-modal,
-  .fin-page .fin-modal.wide { max-width: none; max-height: 92vh; border-radius: 16px 16px 0 0; }
+  .fin-page .fin-modal.wide,
+  .fin-page .fin-modal.xl { max-width: none; max-height: 92vh; border-radius: 16px 16px 0 0; }
 
   /* Las listas se apilan como tarjetas */
   .fin-page .fin-table.stack thead { display: none; }

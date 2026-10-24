@@ -229,7 +229,7 @@ const SCOPES = { key: 'Insumos clave', all: 'Todos los insumos', partial: 'Selec
             <div class="cm-row cm-head" aria-hidden="true">
               <span>Insumo</span><span class="cm-col">Sistema</span><span class="cm-col">Contado</span><span class="cm-col">Diferencia</span>
             </div>
-            <div v-for="i in visible" :key="i.id" class="cm-row" role="listitem">
+            <div v-for="(i, idx) in visible" :key="i.id" class="cm-row" role="listitem">
               <span class="cm-name">
                 {{ i.name }}
                 <span class="fin-small cm-last">{{ i.last_counted_at ? `contado ${relativeDays(i.last_counted_at)}` : 'nunca contado' }}</span>
@@ -240,6 +240,7 @@ const SCOPES = { key: 'Insumos clave', all: 'Todos los insumos', partial: 'Selec
                   v-model="values[i.id]"
                   type="number" min="0" step="any" inputmode="decimal"
                   class="fin-input fin-input-sm cm-input"
+                  :data-autofocus="idx === 0 ? '' : null"
                   :aria-label="`Contado de ${i.name} (${i.unit})`"
                   placeholder="—"
                   @keydown.enter.prevent="focusNext"

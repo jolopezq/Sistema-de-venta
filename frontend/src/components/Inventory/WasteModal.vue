@@ -117,7 +117,7 @@ async function save() {
 
         <div class="fin-field">
           <label for="wm-search">Insumo</label>
-          <input id="wm-search" v-model="search" type="search" class="fin-input" placeholder="Buscar por nombre…" autocomplete="off" />
+          <input id="wm-search" v-model="search" type="search" class="fin-input" placeholder="Buscar por nombre…" autocomplete="off" :data-autofocus="ingredientId ? null : ''" />
           <select id="wm-ingredient" v-model="form.ingredient_id" class="fin-input wm-select" aria-label="Insumo">
             <option value="">Elige un insumo…</option>
             <option v-for="i in filtered" :key="i.id" :value="i.id">{{ i.name }} ({{ i.unit }})</option>
@@ -127,7 +127,7 @@ async function save() {
 
         <div class="fin-field">
           <label for="wm-amount">Cantidad perdida<template v-if="selected"> ({{ display.short }})</template></label>
-          <input id="wm-amount" v-model="form.amount" type="number" min="0" step="any" inputmode="decimal" class="fin-input" placeholder="0" />
+          <input id="wm-amount" v-model="form.amount" type="number" min="0" step="any" inputmode="decimal" class="fin-input" placeholder="0" :data-autofocus="ingredientId ? '' : null" />
         </div>
 
         <div class="fin-field">

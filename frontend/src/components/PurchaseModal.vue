@@ -25,6 +25,9 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved']);
 
 const OTHER = '';
+// Línea sin elegir: ni insumo ni «Otro gasto». Antes la línea nacía como «Otro gasto» y, si nadie la cambiaba,
+// una compra de insumo se guardaba como gasto suelto (sin subir el stock).
+const NONE = null;
 const options = reactive({ categories: [], suppliers: [], ingredients: [] });
 const loading = ref(true);
 const saving = ref(false);
@@ -42,12 +45,17 @@ const form = reactive({
 const lines = ref([]);
 let nextKey = 1;
 
-function emptyLine(ingredientId = OTHER) {
+function emptyLine(ingredientId = NONE) {
   const line = {
     key: nextKey++, ingredient_id: ingredientId, description: '', quantity: '', purchase_unit: '', factor: 1, total: '',
   };
-  if (ingredientId !== OTHER) applyIngredient(line);
+  if (isIngredient(line)) applyIngredient(line);
   return line;
+}
+
+/** La línea es de un insumo del inventario (no «Otro gasto» ni sin elegir). */
+function isIngredient(line) {
+  return line.ingredient_id !== OTHER && line.ingredient_id !== NONE;
 }
 
 const ingredientById = computed(() => Object.fromEntries(options.ingredients.map((i) => [i.id, i])));
@@ -99,7 +107,8 @@ onMounted(async () => {
   try {
     const opts = await apiFetch('/purchases/options');
     Object.assign(options, opts);
-    form.expense_category_id = opts.categories[0]?.id || '';
+    // Sin categoría por defecto: antes quedaba la primera de la lista y un gasto de gas podía quedar como «Helado y açaí».
+    form.expense_category_id = '';
     if (props.expenseId) {
       const e = await apiFetch(`/purchases/${props.expenseId}`);
       Object.assign(form, {
@@ -132,7 +141,7 @@ onMounted(async () => {
       const sup = options.suppliers.find((s) => s.name === props.prefill.supplier);
       if (sup) form.supplier = sup.name;
     } else {
-      lines.value = [emptyLine(props.ingredientId ?? OTHER)];
+      lines.value = [emptyLine(props.ingredientId ?? NONE)];
       const ing = props.ingredientId ? ingredientById.value[props.ingredientId] : null;
       const sup = ing?.supplier_id ? options.suppliers.find((s) => s.id === ing.supplier_id) : null;
       if (sup) form.supplier = sup.name;
@@ -156,7 +165,8 @@ function validate() {
   if (!lines.value.length) return 'Agrega al menos una línea.';
   for (const [i, l] of lines.value.entries()) {
     const n = i + 1;
-    if (l.ingredient_id === OTHER && !l.description.trim()) return `Línea ${n}: elige un insumo o escribe el concepto.`;
+    if (l.ingredient_id === NONE) return `Línea ${n}: elige un insumo, u «Otro gasto» si no es del inventario.`;
+    if (l.ingredient_id === OTHER && !l.description.trim()) return `Línea ${n}: escribe el concepto del gasto.`;
     if (!(Number(l.quantity) > 0)) return `Línea ${n}: la cantidad debe ser mayor a 0.`;
     if (needsFactor(l) && !(Number(l.factor) > 0)) return `Línea ${n}: indica cuántos ${baseUnit(l)} trae cada ${l.purchase_unit}.`;
     if (!(Number(l.total) > 0)) return `Línea ${n}: indica el importe pagado.`;
@@ -250,9 +260,14 @@ async function save() {
             </div>
             <div class="fin-field" :class="{ 'pm-span': line.ingredient_id !== OTHER }">
               <label :for="`pm-ing-${line.key}`">Insumo</label>
-              <select :id="`pm-ing-${line.key}`" v-model="line.ingredient_id" class="fin-input" @change="onIngredientChange(line)">
-                <option :value="OTHER">Otro gasto (gas, limpieza, bolsas…)</option>
-                <option v-for="ing in options.ingredients" :key="ing.id" :value="ing.id">{{ ing.name }} ({{ ing.unit }})</option>
+              <select :id="`pm-ing-${line.key}`" v-model="line.ingredient_id" class="fin-input" :data-autofocus="i === 0 && line.ingredient_id === NONE ? '' : null" @change="onIngredientChange(line)">
+                <option :value="null" disabled>Elige un insumo…</option>
+                <optgroup label="Insumos">
+                  <option v-for="ing in options.ingredients" :key="ing.id" :value="ing.id">{{ ing.name }} ({{ ing.unit }})</option>
+                </optgroup>
+                <optgroup label="Otros gastos">
+                  <option :value="OTHER">Otro gasto (gas, limpieza, bolsas…)</option>
+                </optgroup>
               </select>
             </div>
             <div v-if="line.ingredient_id === OTHER" class="fin-field">
@@ -262,9 +277,9 @@ async function save() {
             <div class="pm-line-grid">
               <div class="fin-field">
                 <label :for="`pm-qty-${line.key}`">Cantidad</label>
-                <input :id="`pm-qty-${line.key}`" v-model="line.quantity" type="number" min="0" step="any" inputmode="decimal" class="fin-input" />
+                <input :id="`pm-qty-${line.key}`" v-model="line.quantity" type="number" min="0" step="any" inputmode="decimal" class="fin-input" :data-autofocus="i === 0 && ingredientId && !expenseId ? '' : null" />
               </div>
-              <div v-if="line.ingredient_id !== OTHER" class="fin-field">
+              <div v-if="isIngredient(line)" class="fin-field">
                 <label :for="`pm-unit-${line.key}`">Se compra en</label>
                 <input
                   :id="`pm-unit-${line.key}`"
@@ -282,10 +297,10 @@ async function save() {
               </div>
               <div class="fin-field">
                 <label :for="`pm-total-${line.key}`">Pagado (Bs)</label>
-                <input :id="`pm-total-${line.key}`" v-model="line.total" type="number" min="0" step="0.01" inputmode="decimal" class="fin-input" placeholder="0,00" />
+                <input :id="`pm-total-${line.key}`" v-model="line.total" type="number" min="0" step="0.01" inputmode="decimal" class="fin-input" placeholder="0,00" :data-autofocus="i === 0 && prefill && !expenseId ? '' : null" />
               </div>
             </div>
-            <p v-if="line.ingredient_id !== OTHER && stockQuantity(line) > 0 && Number(line.total) > 0" class="fin-hint pm-calc">
+            <p v-if="isIngredient(line) && stockQuantity(line) > 0 && Number(line.total) > 0" class="fin-hint pm-calc">
               Entran <strong>{{ Number(stockQuantity(line).toFixed(4)) }} {{ baseUnit(line) }}</strong>
               a <strong>{{ formatBs(unitCost(line)) }}</strong> por {{ baseUnit(line) }}.
             </p>
@@ -300,6 +315,7 @@ async function save() {
           <div class="fin-field">
             <label for="pm-cat">Categoría</label>
             <select id="pm-cat" v-model="form.expense_category_id" class="fin-input">
+              <option value="" disabled>Elige una categoría…</option>
               <option v-for="c in options.categories" :key="c.id" :value="c.id">{{ c.name }}</option>
             </select>
           </div>

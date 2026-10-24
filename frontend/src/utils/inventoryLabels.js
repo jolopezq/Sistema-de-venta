@@ -72,6 +72,9 @@ export const REORDER_BASIS = {
 
 export const EXPIRY_LABEL = { soon: 'Vence pronto', expired: 'Vencido' };
 
+/** Tipo de insumo tal como lo lee una persona (en la base se guarda en snake_case). */
+export const TYPE_LABEL = { perecedero: 'Perecedero', no_perecedero: 'No perecedero', material_empaque: 'Empaque', otros: 'Otros' };
+
 /** «vence hoy», «vence mañana», «vence en 3 días», «venció hace 2 días». */
 export function expiryText(expiry) {
   if (!expiry || expiry.days_left === null || expiry.days_left === undefined) return '';
