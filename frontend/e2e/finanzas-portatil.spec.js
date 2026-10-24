@@ -317,4 +317,57 @@ test.describe('Finanzas v2 — Fase 1: formularios', () => {
     await expect(page.locator('#fx-cat')).toBeFocused();
     await expect(page.locator('.fin-modal')).toHaveCount(1);
   });
+
+  test('C3. Informe de inventario: navegación segmentada por pestañas operativas', async ({ page }) => {
+    const MOCK_IND = {
+      period: { year: 2026, month: 10, days: 31 },
+      targets: { stockout_days: 0, waste_percent: 5, waste_percent_perishable: 8, cost_gap_points: 3, accuracy_percent: 95, accuracy_tolerance: 5 },
+      value: { total: 4500, items: 18, unpriced: 0, negative: 0, top: [{ name: 'Açaí', stock: 50, unit: 'kg', unit_cost: 30, value: 1500, share: 33.3 }] },
+      coverage: { min_days: 4.5, key_only: true, low: 1, items: [{ name: 'Açaí', stock: 50, unit: 'kg', daily_use: 10, days: 5, status: 'ok' }], without_data: 0 },
+      stockouts: { days: 0, status: 'ok', operating_days: 20, events: [], ingredients_checked: 10, key_only: true },
+      waste: { percent: 3.2, status: 'ok', registered_cost: 120, consumption_cost: 3750, unpriced: 0, by_ingredient: [] },
+      hidden: { net_loss: 0, lines: 0, counts: 2, unpriced: 0, previous: null },
+      cost_gap: { points: 1.2, status: 'ok', real_percent: 32, recipes_percent: 30.8 },
+      accuracy: { percent: 96, status: 'ok', exact: 12, compared: 12, baseline_lines: 0, worst: [] },
+      previous: { label: '09/2026', waste_percent: 3.5, accuracy_percent: 94, stockout_days: 1 },
+    };
+
+    await page.route('**/api/finance/inventory-indicators*', (r) => r.fulfill({ json: MOCK_IND }));
+    await openTab(page, 'summary');
+    await page.getByRole('button', { name: 'Informe del mes' }).click();
+
+    const modal = page.locator('.fin-modal');
+    await expect(modal).toBeVisible();
+
+    const nav = page.locator('.iim-nav');
+    await expect(nav).toBeVisible();
+    await expect(nav.getByRole('tab')).toHaveCount(5);
+
+    // 1. Indicadores del mes activo por defecto
+    await expect(modal.getByRole('cell', { name: 'Valor del inventario' })).toBeVisible();
+
+    // 2. Cobertura y Quiebres
+    await nav.getByRole('tab', { name: /Cobertura y Quiebres/ }).click();
+    await expect(modal.getByRole('cell', { name: 'Valor del inventario' })).toHaveCount(0);
+    await expect(modal.getByRole('heading', { name: /Cobertura/ })).toBeVisible();
+
+    // 3. Mermas y Conteos
+    await nav.getByRole('tab', { name: /Mermas y Conteos/ }).click();
+    await expect(modal.getByRole('heading', { name: /Merma por insumo/ })).toBeVisible();
+
+    // 4. Valorización
+    await nav.getByRole('tab', { name: /Valorización/ }).click();
+    await expect(modal.getByRole('heading', { name: /Dónde está el valor/ })).toBeVisible();
+
+    // 5. Ver todo
+    await nav.getByRole('tab', { name: 'Ver todo' }).click();
+    await expect(modal.getByRole('cell', { name: 'Valor del inventario' })).toBeVisible();
+    await expect(modal.getByRole('heading', { name: /Cobertura/ })).toBeVisible();
+
+    // Botones del footer visibles
+    await expect(modal.getByRole('button', { name: 'Imprimir' })).toBeVisible();
+    await modal.locator('.fin-modal-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await expect(modal).toHaveCount(0);
+  });
 });
+

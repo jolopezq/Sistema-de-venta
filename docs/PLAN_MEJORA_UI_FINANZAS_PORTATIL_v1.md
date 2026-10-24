@@ -97,17 +97,19 @@ A partir de las capturas de pantalla proporcionadas por el usuario, se identific
 
 ---
 
-### Fase 3: Modal de Informe de Inventario (`InventoryIndicatorsModal.vue`)
+### Fase 3: Modal de Informe de Inventario (`InventoryIndicatorsModal.vue`) — ✅ HECHA (2026-10-23)
 - **Archivo:** [frontend/src/components/Finance/InventoryIndicatorsModal.vue](file:///Users/jolopez/Sistema%20de%20Ventas/frontend/src/components/Finance/InventoryIndicatorsModal.vue)
-- **Acciones:**
+- **Acciones Realizadas:**
   1. **Navegación Rápida por Pestañas / Segmentos:**
-     - Incorporar en la parte superior del cuerpo una barra de pestañas compacta (chips segmentados):
-       - `[1. Indicadores del mes]` · `[2. Cobertura y Quiebres]` · `[3. Mermas y Conteos]` · `[4. Valorización]`
-     - Permite al usuario revisar de inmediato el área de interés sin tener que realizar un scroll de 6 páginas.
-  2. **Compactación Tabular:**
-     - En pantallas `≤ 1366px`, evitar que `.fin-table.stack` rompa a vista de tarjetas en este modal analítico, manteniendo el formato tabular limpio con anchos porcentuales fijos.
-  3. **Impresión Directa:**
-     - Mantener el botón `Imprimir` optimizado que genera el reporte oficial en iframe sin alterar la vista en pantalla.
+     - Barra de chips superior pegajosa (`.iim-nav`): `[1. Indicadores del mes]` · `[2. Cobertura y Quiebres]` · `[3. Mermas y Conteos]` · `[4. Valorización]` · `[Ver todo]`.
+     - Renderizado reactivo filtrado (`visibleSections` y `showIndicators`) que reduce la altura visible de 1.318 px a < 320 px por sección, eliminando el scroll vertical masivo en la portátil de caja.
+  2. **Formato Tabular Limpio:**
+     - Se reemplazó `.fin-table.stack` por `.iim-table` para evitar que en resoluciones compactas se apilen filas como bloques gigantes, conservando estructura de tabla legible.
+  3. **Impresión Directa Intacta:**
+     - La función `print()` mantiene todas las filas y secciones completas para emitir el reporte impreso oficial sin omitir datos.
+  4. **Verificación:**
+     - Test E2E `C3. Informe de inventario: navegación segmentada por pestañas operativas` añadido a `finanzas-portatil.spec.js` y validado.
+
 
 ---
 

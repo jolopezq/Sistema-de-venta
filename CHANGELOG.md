@@ -42,6 +42,11 @@ se renombra con la fecha de la actualización de producción.
   hacía wrap cayendo 35 px debajo del campo numérico. Se reemplazaron por una franja horizontal compacta `.rm-kpis` (38 px) con badges de alerta
   integrados con tooltip nativo, cabecera de proveedor en una línea horizontal (~32 px) y cantidades sin quiebre de línea (`.rm-qty { flex-wrap: nowrap }`).
   Ahora se ven ≥ 4 insumos al 125 % y ≥ 6 al 100 % en el primer pantallazo sin scroll, con la unidad alineada al campo.
+- **Informe de inventario en la portátil de caja** ([plan v1 Fase 3](docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL_v1.md)): el modal apilaba 6 tablas
+  analíticas en más de 1.300 px verticales, obligando a un desplazamiento masivo en pantallas de 489 px de alto útil. Ahora cuenta con una barra
+  superior de pestañas/chips (`1. Indicadores del mes`, `2. Cobertura y Quiebres`, `3. Mermas y Conteos`, `4. Valorización`, `Ver todo`), reduciendo
+  la altura visible por sección a < 320 px sin scroll forzado y sustituyendo `.fin-table.stack` por formato tabular estructurado `.iim-table` sin
+  apilar filas como tarjetas. La impresión mantiene el reporte íntegro con todas las secciones.
 - **Finanzas con teclado**: «Registrar gasto» empieza en Monto, «Gasto fijo» en Concepto, «Categoría» y «+ Nueva categoría…» en Nombre.
 
 ### Cambiado

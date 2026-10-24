@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import FinanceModal from './FinanceModal.vue';
 import { useFinanceStore, MONTHS } from '../../stores/finance';
 import { indicatorRows, reportSections, rowBadge } from '../../utils/inventoryIndicators';
@@ -12,6 +12,26 @@ const data = computed(() => finance.inventoryIndicators);
 const rows = computed(() => indicatorRows(data.value));
 const sections = computed(() => reportSections(data.value));
 const periodText = computed(() => (data.value ? `${MONTHS[data.value.period.month - 1]} ${data.value.period.year}` : finance.periodLabel));
+
+// Navegación rápida por pestañas / segmentos operativos (Fase 3 del plan de portátil)
+const TABS = [
+  { id: 'indicators', label: '1. Indicadores del mes' },
+  { id: 'coverage',   label: '2. Cobertura y Quiebres' },
+  { id: 'waste',      label: '3. Mermas y Conteos' },
+  { id: 'value',      label: '4. Valorización' },
+  { id: 'all',        label: 'Ver todo' },
+];
+const activeTab = ref('indicators');
+
+const showIndicators = computed(() => activeTab.value === 'indicators' || activeTab.value === 'all');
+
+const visibleSections = computed(() => {
+  if (activeTab.value === 'all') return sections.value;
+  if (activeTab.value === 'coverage') return sections.value.filter((s) => ['coverage', 'stockouts'].includes(s.key));
+  if (activeTab.value === 'waste') return sections.value.filter((s) => ['waste', 'accuracy'].includes(s.key));
+  if (activeTab.value === 'value') return sections.value.filter((s) => s.key === 'value');
+  return [];
+});
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -55,9 +75,34 @@ function print() {
 
 <template>
   <FinanceModal wide :title="`Informe de inventario · ${periodText}`" subtitle="Los indicadores del mes con su meta y el detalle que los explica." @close="emit('close')">
-    <div class="fin-table-wrap">
-      <table class="fin-table stack">
-        <thead><tr><th>Indicador</th><th class="right">Valor</th><th>Meta</th><th>Estado</th><th>Detalle</th></tr></thead>
+    <!-- Barra de pestañas compacta (chips segmentados) -->
+    <div class="iim-nav" role="tablist" aria-label="Secciones del informe de inventario">
+      <button
+        v-for="t in TABS"
+        :key="t.id"
+        class="fin-chip"
+        :class="{ active: activeTab === t.id }"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === t.id"
+        @click="activeTab = t.id"
+      >
+        {{ t.label }}
+      </button>
+    </div>
+
+    <!-- Tabla principal de los 6 indicadores -->
+    <div v-if="showIndicators" class="fin-table-wrap iim-table-wrap">
+      <table class="fin-table iim-table">
+        <thead>
+          <tr>
+            <th scope="col">Indicador</th>
+            <th scope="col" class="right">Valor</th>
+            <th scope="col">Meta</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Detalle</th>
+          </tr>
+        </thead>
         <tbody>
           <tr v-for="r in rows" :key="r.key">
             <td data-label="Indicador"><span class="fin-cell-main">{{ r.label }}</span></td>
@@ -74,11 +119,16 @@ function print() {
       </table>
     </div>
 
-    <section v-for="s in sections" :key="s.key" class="iim-section">
+    <!-- Secciones detalladas según la pestaña activa -->
+    <section v-for="s in visibleSections" :key="s.key" class="iim-section">
       <h3>{{ s.title }}</h3>
-      <div v-if="s.rows.length" class="fin-table-wrap">
-        <table class="fin-table stack">
-          <thead><tr><th v-for="(h, i) in s.head" :key="h" :class="{ right: i > 0 }">{{ h }}</th></tr></thead>
+      <div v-if="s.rows.length" class="fin-table-wrap iim-table-wrap">
+        <table class="fin-table iim-table">
+          <thead>
+            <tr>
+              <th v-for="(h, i) in s.head" :key="h" :class="{ right: i > 0 }">{{ h }}</th>
+            </tr>
+          </thead>
           <tbody>
             <tr v-for="(r, ri) in s.rows" :key="ri">
               <td v-for="(c, ci) in r" :key="ci" :class="{ right: ci > 0, 'fin-num': ci > 0 }" :data-label="s.head[ci]">{{ c }}</td>
@@ -100,7 +150,52 @@ function print() {
 </template>
 
 <style scoped>
-.iim-section { margin-top: 18px; }
-.iim-section h3 { margin: 0 0 6px; font-size: 15px; color: var(--ink-900); }
-.iim-empty, .iim-note { margin: 4px 0 0; }
+.iim-nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.iim-section {
+  margin-top: 14px;
+}
+.iim-section:first-child {
+  margin-top: 0;
+}
+.iim-section h3 {
+  margin: 0 0 6px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+.iim-empty, .iim-note {
+  margin: 4px 0 0;
+}
+.iim-table th,
+.iim-table td {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.iim-table th {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.iim-table td .fin-small {
+  font-size: 12px;
+  line-height: 1.35;
+}
+@media (max-width: 640px) {
+  .iim-nav {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 6px;
+  }
+}
 </style>
+
