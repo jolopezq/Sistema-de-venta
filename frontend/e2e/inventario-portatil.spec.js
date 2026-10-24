@@ -616,6 +616,61 @@ test.describe('Fase 5 — teclado y nombres largos (125 %)', () => {
     await expect(page.locator('.fin-modal')).toBeFocused();
   });
 
+  test('Compras sugeridas (ergonomía portátil): franja KPI ≤ 42 px, cantidades alineadas sin wrap y ≥ 4 insumos visibles a 1093×489', async ({ page }) => {
+    await setup(page, { width: 1093, height: 489 });
+    await page.locator('.inv-daily .inv-hbtn', { hasText: 'Compras sugeridas' }).click();
+    const modal = page.locator('.fin-modal');
+    await expect(modal).toBeVisible();
+    await expect(page.locator('.rm-kpis')).toBeVisible();
+
+    const m = await page.evaluate(() => {
+      const kpis = document.querySelector('.rm-kpis')?.getBoundingClientRect();
+      const body = document.querySelector('.fin-modal-body')?.getBoundingClientRect();
+      const rows = [...document.querySelectorAll('.rm-table tbody tr')];
+      const visibleRows = rows.filter((r) => {
+        const rect = r.getBoundingClientRect();
+        return rect.top >= body.top && rect.bottom <= body.bottom + 2;
+      });
+
+      const qtyAlignment = [...document.querySelectorAll('.rm-qty')].map((q) => {
+        const input = q.querySelector('.fin-input').getBoundingClientRect();
+        const unit = q.querySelector('.rm-unit').getBoundingClientRect();
+        const inputCenter = input.top + input.height / 2;
+        const unitCenter = unit.top + unit.height / 2;
+        return Math.abs(inputCenter - unitCenter);
+      });
+
+      return {
+        kpiHeight: Math.round(kpis?.height ?? 0),
+        visibleCount: visibleRows.length,
+        maxQtyDiff: Math.max(...qtyAlignment, 0),
+      };
+    });
+
+    expect(m.kpiHeight, 'altura de la franja horizontal de KPIs').toBeLessThanOrEqual(42);
+    expect(m.maxQtyDiff, 'la unidad y el campo de pedir deben estar en la misma línea (sin wrap)').toBeLessThan(6);
+    expect(m.visibleCount, 'al menos 4 insumos visibles sin scroll al 125 %').toBeGreaterThanOrEqual(4);
+  });
+
+  test('Compras sugeridas (portátil 100 %): ≥ 6 insumos visibles sin scroll a 1366×611', async ({ page }) => {
+    await setup(page, { width: 1366, height: 611 });
+    await page.locator('.inv-daily .inv-hbtn', { hasText: 'Compras sugeridas' }).click();
+    await expect(page.locator('.rm-kpis')).toBeVisible();
+
+    const m = await page.evaluate(() => {
+      const body = document.querySelector('.fin-modal-body')?.getBoundingClientRect();
+      const rows = [...document.querySelectorAll('.rm-table tbody tr')];
+      const visibleRows = rows.filter((r) => {
+        const rect = r.getBoundingClientRect();
+        return rect.top >= body.top && rect.bottom <= body.bottom + 2;
+      });
+      return visibleRows.length;
+    });
+
+    expect(m, 'al menos 6 insumos visibles sin scroll al 100 %').toBeGreaterThanOrEqual(6);
+  });
+
+
   test('Nombre largo: máximo dos líneas con el nombre completo en el título', async ({ page }) => {
     const long = 'Pulpa de açaí orgánica sin azúcar (paquete de 1 kg, importada de Brasil)';
     await page.route('**/api/ingredients?**', (r) => r.fulfill(json({ data: [{ ...ING[0], name: long }, ...ING.slice(1)] })));

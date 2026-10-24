@@ -302,19 +302,16 @@ Se prueban a 1366 × 611 y a 1093 × 489 (escala 1,25), con el fixture de API de
 | `finance.css` | • En `@media (min-width: 761px) and (max-height: 520px)`, reducción de márgenes y padding de `.fin-card-head` (6px 12px) y celdas de tabla (5px 12px).<br>• Ocultación del subtítulo estático redundante en cabecera de tarjeta en portátiles.<br>• El Estado de resultados y el Punto de equilibrio inician en **y = 261 px** (meta < 330 px; antes en y = 426-500 px).<br>• Quedan completamente visibles en el primer pantallazo sin scroll: Ventas, Costo de ventas, Utilidad bruta, Gastos operativos y Utilidad operativa, junto al Punto de equilibrio a la derecha. |
 | `e2e/finanzas-portatil.spec.js` | Test 3b que valida la cabecera ≤ 180 px y la tarjeta y filas visibles en 1093 × 489. 37/37 pruebas en verde. |
 
-### Fase 3 — Compras sugeridas: ⏳ PENDIENTE (en curso)
+### Fase 3 — Compras sugeridas: ✅ HECHA (2026-10-23)
 
-- **Dónde empezar:** [ReorderModal.vue](../frontend/src/components/Inventory/ReorderModal.vue).
-  - **KPIs:** `.rm-kpis`, de 96 px; está en la plantilla cerca de la línea 187.
-  - **Aviso de estimaciones:** `.fin-modal-body > .fin-note`, de 38 px.
-  - **Cabecera de proveedor:** `.rm-group-head`, de 41 px.
-  - **Cantidad:** `.rm-qty`, con CSS cerca de la línea 284. Ahí `flex-wrap: wrap` hace caer la unidad 35 px.
-- **Línea base:** 1 insumo a la vista al 125 % y 3 al 100 %, con 10 insumos por reponer en 4 proveedores.
-- **Datos de prueba:** `datos-inventario.py`.
-- **Cómo medir:** `simular-inventario.cjs` (estado `11-compras-sugeridas`). La prueba de Inventario «Compras sugeridas (revisión)» exige que el foco quede en la ventana, no en una cantidad.
-- **Cuidado:** se abre desde Inventario y desde el Resumen («Ver compras sugeridas» lleva a `/inventario?compras=1`). «Registrar compra» de cada proveedor abre `PurchaseModal` con `prefill`, y el foco va a «Pagado»: no romperlo.
+**Qué cambió**
 
-### Fase 4 — Costos y margen al 125 %: ⏳ PENDIENTE
+| Archivo | Cambio |
+| :-- | :-- |
+| `ReorderModal.vue` | • Se reemplazaron las 2 tarjetas KPI de 96 px por una franja horizontal compacta `.rm-kpis` de **38 px**.<br>• Badges de alerta de estimaciones y sin datos integrados con tooltip nativo `title` (ahorrando 38–76 px de notas).<br>• Cabecera de proveedor `.rm-group-head` en una sola línea horizontal (~32 px) con acciones alineadas a la derecha.<br>• Cantidad a pedir con `.rm-qty { flex-wrap: nowrap }`: la unidad de medida no cae a una segunda línea, reduciendo la fila de ~75 px a ~42 px.<br>• Insumos visibles sin scroll: **≥ 4** al 125 % (1093×489) y **≥ 6** al 100 % (1366×611). |
+| `e2e/inventario-portatil.spec.js` | 2 nuevos tests para validar franja KPI ≤ 42 px, cantidades alineadas sin wrap y ≥ 4 / ≥ 6 insumos visibles sin scroll. 88/88 tests en verde. |
+
+### Fase 4 — Costos y margen al 125 %: ⏳ PENDIENTE (siguiente)
 
 - **Dónde empezar:** [FinanceCosts.vue](../frontend/src/components/Finance/FinanceCosts.vue).
   - La receta bajo el nombre del producto es el `fin-cell-sub` de cada fila de producto.

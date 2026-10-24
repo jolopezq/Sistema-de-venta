@@ -184,46 +184,62 @@ function toPurchase(group) {
       <div v-if="loading" class="fin-loading">Calculando…</div>
       <div v-else-if="error" class="fin-note err" role="alert">{{ error }}</div>
       <template v-else>
-        <div class="fin-kpis rm-kpis">
-          <div class="fin-card fin-kpi">
-            <span class="fin-kpi-label">Por reponer</span>
-            <span class="fin-kpi-value">{{ report.summary.to_reorder }}</span>
-            <span class="fin-kpi-sub">{{ report.summary.critical }} {{ report.summary.critical === 1 ? 'crítico' : 'críticos' }} · {{ report.summary.out }} {{ report.summary.out === 1 ? 'agotado' : 'agotados' }}</span>
+        <!-- Franja horizontal compacta de KPIs (≤ 42 px) -->
+        <div class="rm-kpis" role="region" aria-label="Resumen de compras sugeridas">
+          <div class="rm-kpi-item">
+            <span class="rm-kpi-label">Por reponer:</span>
+            <strong class="rm-kpi-val">{{ report.summary.to_reorder }}</strong>
+            <span class="rm-kpi-sub fin-small fin-muted">
+              ({{ report.summary.critical || 0 }} {{ report.summary.critical === 1 ? 'crítico' : 'críticos' }} · {{ report.summary.out || 0 }} {{ report.summary.out === 1 ? 'agotado' : 'agotados' }})
+            </span>
           </div>
-          <div class="fin-card fin-kpi">
-            <span class="fin-kpi-label">Estimado de la lista</span>
-            <span class="fin-kpi-value">{{ formatBs(grandTotal) }}</span>
-            <span class="fin-kpi-sub">{{ chosenCount }} {{ chosenCount === 1 ? 'insumo elegido' : 'insumos elegidos' }} · al costo promedio</span>
+          <span class="rm-kpi-divider" aria-hidden="true"></span>
+          <div class="rm-kpi-item">
+            <span class="rm-kpi-label">Estimado:</span>
+            <strong class="rm-kpi-val fin-num">{{ formatBs(grandTotal) }}</strong>
+            <span class="rm-kpi-sub fin-small fin-muted">({{ chosenCount }} {{ chosenCount === 1 ? 'insumo' : 'insumos' }})</span>
           </div>
-        </div>
-
-        <div v-if="estimated" class="fin-note info">
-          {{ estimated }} {{ estimated === 1 ? 'insumo usa' : 'insumos usan' }} una estimación o pocos datos (aún sin 4 semanas de ventas): revisa esas cantidades antes de pedir.
-        </div>
-        <div v-if="noData" class="fin-note">
-          {{ noData }} {{ noData === 1 ? 'insumo no tiene' : 'insumos no tienen' }} datos para calcular su reposición. Completa su consumo diario estimado o un punto de reorden manual en «Editar».
+          <div v-if="estimated || noData" class="rm-kpi-alerts">
+            <span
+              v-if="estimated"
+              class="fin-badge warn rm-badge-alert"
+              :title="`${estimated} ${estimated === 1 ? 'insumo usa' : 'insumos usan'} una estimación o pocos datos (aún sin 4 semanas de ventas): revisa esas cantidades antes de pedir.`"
+            >
+              ⚠ {{ estimated }} {{ estimated === 1 ? 'con estimación' : 'con estimaciones' }}
+            </span>
+            <span
+              v-if="noData"
+              class="fin-badge info rm-badge-alert"
+              :title="`${noData} ${noData === 1 ? 'insumo no tiene' : 'insumos no tienen'} datos para calcular su reposición. Completa su consumo diario estimado o un punto de reorden manual en «Editar».`"
+            >
+              ℹ {{ noData }} sin datos
+            </span>
+          </div>
         </div>
 
         <p v-if="!groups.length" class="fin-empty">No hay nada que pedir por ahora: todo lo controlado está sobre su punto de reorden.</p>
 
         <section v-for="g in groups" :key="g.key" class="rm-group">
           <header class="rm-group-head">
-            <div>
+            <div class="rm-group-info">
               <h3>{{ g.title }}</h3>
-              <p v-if="g.supplier" class="fin-small fin-muted">
-                Llega en {{ g.supplier.delivery_days }} {{ g.supplier.delivery_days === 1 ? 'día' : 'días' }}<template v-if="g.supplier.order_days"> · pedidos: {{ g.supplier.order_days }}</template><template v-if="g.supplier.phone"> · {{ g.supplier.phone }}</template>
-              </p>
-              <p v-else-if="g.daily" class="fin-small fin-muted">Se compra el mismo día: cantidad para cubrir hoy.</p>
-              <p v-else class="fin-small fin-muted">Asigna un proveedor al insumo para agruparlo y mandar el pedido.</p>
+              <span v-if="g.supplier" class="fin-small fin-muted rm-group-meta">
+                · Llega en {{ g.supplier.delivery_days }} {{ g.supplier.delivery_days === 1 ? 'día' : 'días' }}<template v-if="g.supplier.order_days"> · pedidos: {{ g.supplier.order_days }}</template><template v-if="g.supplier.phone"> · {{ g.supplier.phone }}</template>
+              </span>
+              <span v-else-if="g.daily" class="fin-small fin-muted rm-group-meta">· Cubre hoy</span>
+              <span v-else class="fin-small fin-muted rm-group-meta">· Sin proveedor fijo</span>
             </div>
             <div class="rm-group-actions">
               <button class="fin-btn fin-btn-secondary fin-btn-sm" type="button" :disabled="!chosen(g).length" @click="copy(textFor(g))">Copiar</button>
-              <button v-if="g.supplier?.phone" class="fin-btn fin-btn-secondary fin-btn-sm" type="button" :disabled="!chosen(g).length" @click="whatsapp(g)">WhatsApp</button>
+              <button v-if="g.supplier?.phone" class="fin-btn fin-btn-secondary fin-btn-sm rm-wa-btn" type="button" :disabled="!chosen(g).length" @click="whatsapp(g)">
+                <svg class="rm-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                WhatsApp
+              </button>
               <button class="fin-btn fin-btn-primary fin-btn-sm" type="button" :disabled="!chosen(g).length" @click="toPurchase(g)">Registrar compra</button>
             </div>
           </header>
 
-          <div class="fin-table-wrap"><table class="fin-table stack">
+          <div class="fin-table-wrap"><table class="fin-table stack rm-table">
             <thead><tr><th class="rm-check"><span class="sr-only">Pedir</span></th><th>Insumo</th><th>Hay</th><th>Pedir</th><th class="right">Estimado</th></tr></thead>
             <tbody>
               <tr v-for="r in g.rows" :key="r.key">
@@ -236,14 +252,14 @@ function toPurchase(group) {
                   </div>
                 </td>
                 <td data-label="Hay">
-                  <span class="fin-num">{{ formatQty(r.stock) }} {{ r.unit }}</span>
+                  <span class="fin-num rm-mono">{{ formatQty(r.stock) }} {{ r.unit }}</span>
                   <div class="fin-small fin-muted"><template v-if="r.days_of_stock !== null">alcanza {{ formatQty(r.days_of_stock, 1) }} {{ r.days_of_stock === 1 ? 'día' : 'días' }}</template><template v-if="r.reorder_point > 0"> · reorden en {{ formatQty(r.reorder_point, 2) }}</template></div>
                 </td>
                 <td data-label="Pedir">
                   <div class="rm-qty">
                     <input v-model.number="r.units" class="fin-input fin-input-sm" type="number" min="0" step="any" inputmode="decimal" :aria-label="`Cantidad de ${r.name}`" />
                     <span class="rm-unit">{{ r.unit_label }}{{ r.pack ? ' ' + r.pack : '' }}</span>
-                    <button v-if="Number(r.units) !== r.suggested?.units" class="fin-btn-link" type="button" @click="reset(r)">sugerido: {{ formatQty(r.suggested?.units ?? 0) }}</button>
+                    <button v-if="Number(r.units) !== r.suggested?.units" class="fin-btn-link rm-reset-btn" type="button" @click="reset(r)" :title="`Volver a ${formatQty(r.suggested?.units ?? 0)} ${r.unit_label}`">sugerido: {{ formatQty(r.suggested?.units ?? 0) }}</button>
                   </div>
                 </td>
                 <td class="right fin-num" data-label="Estimado">{{ formatBs(estimate(r)) }}</td>
@@ -273,20 +289,161 @@ function toPurchase(group) {
 
 <style scoped>
 .rm-host { display: contents; }
-.rm-kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin: 0; }
-.rm-group { display: flex; flex-direction: column; gap: 6px; }
-.rm-group-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-.rm-group-head h3 { margin: 0; font-size: 15px; color: var(--ink-900); }
-.rm-group-head p { margin: 2px 0 0; }
-.rm-group-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.rm-kpis {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  margin: 0;
+  min-height: 38px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  box-sizing: border-box;
+}
+.rm-kpi-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.rm-kpi-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-500);
+}
+.rm-kpi-val {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-900);
+  line-height: 1;
+}
+.rm-kpi-sub {
+  font-size: 11.5px;
+  color: var(--ink-500);
+}
+.rm-kpi-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.rm-kpi-alerts {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rm-badge-alert {
+  cursor: help;
+  font-size: 11px;
+  padding: 2px 7px;
+}
+.rm-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.rm-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  padding: 4px 0;
+}
+.rm-group-info {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rm-group-info h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.rm-group-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.rm-group-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  align-items: center;
+}
+.rm-btn-icon {
+  width: 13px;
+  height: 13px;
+  margin-right: 3px;
+}
 .rm-check { width: 36px; }
 .rm-check input { width: 17px; height: 17px; accent-color: var(--acai-500); }
-.rm-qty { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.rm-qty .fin-input { width: 84px; }
-.rm-unit { font-size: 12.5px; color: var(--ink-700); }
-.rm-subtotal { margin: 0; text-align: right; }
+.rm-table td { padding: 6px 10px; }
+.rm-table th { padding: 6px 10px; }
+.rm-mono {
+  font-variant-numeric: tabular-nums;
+}
+.rm-qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.rm-qty .fin-input {
+  width: 76px;
+  flex-shrink: 0;
+  text-align: right;
+  padding: 4px 6px;
+}
+.rm-unit {
+  font-size: 12px;
+  color: var(--ink-700);
+  white-space: nowrap;
+}
+.rm-reset-btn {
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+.rm-subtotal { margin: 2px 0 0; text-align: right; }
 .rm-group .fin-badge { margin-left: 6px; }
+
 @media (max-width: 640px) {
-  .rm-group-actions { width: 100%; }
+  .rm-kpis {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-height: auto;
+  }
+  .rm-kpi-divider {
+    display: none;
+  }
+  .rm-kpi-alerts {
+    margin-left: 0;
+    margin-top: 4px;
+  }
+  .rm-group-head {
+    flex-wrap: wrap;
+  }
+  .rm-group-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .rm-qty {
+    flex-wrap: wrap;
+  }
 }
 </style>

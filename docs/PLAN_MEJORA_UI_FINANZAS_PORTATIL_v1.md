@@ -73,23 +73,27 @@ A partir de las capturas de pantalla proporcionadas por el usuario, se identific
 
 ---
 
-### Fase 2: Modal de Compras Sugeridas (`ReorderModal.vue`)
+### Fase 2: Modal de Compras Sugeridas (`ReorderModal.vue`) — ✅ HECHA (2026-10-23)
 - **Archivo:** [frontend/src/components/Inventory/ReorderModal.vue](file:///Users/jolopez/Sistema%20de%20Ventas/frontend/src/components/Inventory/ReorderModal.vue)
-- **Acciones:**
+- **Acciones Realizadas:**
   1. **Barra Resumen Horizontal de KPIs (Compact Strip):**
-     - Reemplazar las 2 tarjetas verticales grandes de KPI (`.rm-kpis`) por una franja resumen compacta horizontal de 38 px de alto:
-       - `Por reponer: 2 (2 agotados)` · `Estimado: Bs 544,00 (2 insumos)` · Badge informativo con advertencia plegable.
-     - Ahorro de espacio vertical: **110 px recuperados** para la lista de compras.
+     - Se sustituyeron las 2 tarjetas verticales grandes (96 px) por una franja horizontal compacta `.rm-kpis` de **38 px** de alto.
+     - Métricas en línea: `Por reponer: X (críticos · agotados)` y `Estimado: Bs Y (Z insumos)`.
+     - Badges de alerta integrados con tooltip nativo `title`: `⚠ X con estimación` y `ℹ Y sin datos` ahorrando 38–76 px de notas verticales.
   2. **Cabecera de Grupo de Proveedor Compacta:**
-     - Alinear en una sola línea:
-       - Izquierda: Nombre del proveedor en negrita + info de entrega (`Llega en 2 días · Lunes/Jueves`).
-       - Derecha: Botones compactos (`Copiar`, botón icono `WhatsApp`, y botón primario `Registrar compra`).
+     - En una sola línea horizontal (`.rm-group-head`, ~32 px):
+       - Izquierda: Nombre del proveedor en negrita + meta de entrega en línea (`· Llega en X días...`).
+       - Derecha: Botones compactos (`Copiar`, icono + `WhatsApp` y primario `Registrar compra`).
   3. **Tabla de Insumos Optimizada:**
-     - Filas con padding compacto (`6px 8px`).
-     - Input numérico de cantidad a pedir ajustado a 64 px con botón sutil de restablecer al sugerido.
-     - Indicador de stock actual (`Hay`) en formato monoespaciado legible.
-  4. **Footer:**
-     - Botones `Recalcular`, `Imprimir`, `Copiar todo`, `Cerrar` con padding ergonómico y espaciador flexible.
+     - Padding compacto en celdas (`6px 10px`).
+     - Cantidades con `.rm-qty { flex-wrap: nowrap }`: la unidad de medida se mantiene fija al lado del input numérico sin caer a una segunda línea, reduciendo la altura de fila de ~75 px a ~42 px.
+     - Indicador de stock actual con formato tabular `rm-mono`.
+  4. **Mediciones y Criterios Alcanzados:**
+     - Altura de franja KPI: **38 px** (meta ≤ 42 px).
+     - Insumos visibles sin scroll al 125 % (1093×489): **≥ 4** (meta cumplida).
+     - Insumos visibles sin scroll al 100 % (1366×611): **≥ 6** (meta cumplida).
+     - Contraste accesible: **0 textos bajo AA** en tema claro y oscuro (`07_inventario issues: 0`).
+     - Tests Playwright: suite completa en verde (88/88 tests pasando).
 
 ---
 

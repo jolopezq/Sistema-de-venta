@@ -37,6 +37,11 @@ se renombra con la fecha de la actualización de producción.
   (a y = 426-500 px de 489 px). Ahora mantiene un layout horizontal de 2 columnas con avisos en versión compacta (el detalle
   completo en `title`), reduciendo la altura a 116 px y permitiendo que el Estado de resultados y el Punto de equilibrio inicien en y = 261 px
   con 5 filas de cifras operativas visibles en el primer pantallazo sin scroll.
+- **Compras sugeridas en la portátil de caja** ([plan v1 Fase 2 / v2 Fase 3](docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL_v1.md)): las 2 tarjetas KPI
+  (96 px) y las notas de advertencia consumían hasta 170 px verticales dejando visible solo 1 insumo al 125 %; además, la unidad de medida
+  hacía wrap cayendo 35 px debajo del campo numérico. Se reemplazaron por una franja horizontal compacta `.rm-kpis` (38 px) con badges de alerta
+  integrados con tooltip nativo, cabecera de proveedor en una línea horizontal (~32 px) y cantidades sin quiebre de línea (`.rm-qty { flex-wrap: nowrap }`).
+  Ahora se ven ≥ 4 insumos al 125 % y ≥ 6 al 100 % en el primer pantallazo sin scroll, con la unidad alineada al campo.
 - **Finanzas con teclado**: «Registrar gasto» empieza en Monto, «Gasto fijo» en Concepto, «Categoría» y «+ Nueva categoría…» en Nombre.
 
 ### Cambiado
