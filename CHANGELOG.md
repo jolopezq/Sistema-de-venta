@@ -32,6 +32,11 @@ se renombra con la fecha de la actualización de producción.
   resultados. Ahora empiezan en «Elige una categoría…»; el proveedor conocido la sugiere (también si su lista llega después de escribirlo).
 - **Finanzas: avisos del formulario fuera de la vista al 125 %**: ahora van junto a cada campo, el foco salta al primero con error y se borran
   al corregirlo. La ventana se llama «Registrar gasto», como su botón (decía «compra o gasto», junto a otro botón «Registrar compra»).
+- **Finanzas: cabecera del Resumen al 125 %** ([plan v2, Fase 2](docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL.md)): en pantallas con `max-height: 520px`
+  la cabecera pasaba a 3 pisos verticales apilados midiendo hasta 281 px y empujando el Estado de resultados fuera de la vista
+  (a y = 426-500 px de 489 px). Ahora mantiene un layout horizontal de 2 columnas con avisos en versión compacta (el detalle
+  completo en `title`), reduciendo la altura a 116 px y permitiendo que el Estado de resultados y el Punto de equilibrio inicien en y = 261 px
+  con 5 filas de cifras operativas visibles en el primer pantallazo sin scroll.
 - **Finanzas con teclado**: «Registrar gasto» empieza en Monto, «Gasto fijo» en Concepto, «Categoría» y «+ Nueva categoría…» en Nombre.
 
 ### Cambiado

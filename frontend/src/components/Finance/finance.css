@@ -659,6 +659,11 @@ html.dark .fin-page .fin-toast.error { background: var(--danger-100); color: var
 @media (min-width: 761px) and (max-height: 520px) {
   .fin-page .fin-nav { position: static; display: contents; }
   .fin-page .fin-tabs { position: sticky; top: 0; z-index: 40; }
+  .fin-page .fin-card-head { padding: 6px 12px; }
+  .fin-page .fin-card-head h2 { font-size: 15px; }
+  .fin-page .fin-card-head p { display: none; }
+  .fin-page .fin-statement th,
+  .fin-page .fin-statement td { padding: 5px 12px; }
 }
 
 @media (max-width: 1180px) {

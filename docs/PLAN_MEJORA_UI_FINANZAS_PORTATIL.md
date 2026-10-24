@@ -292,17 +292,17 @@ Se prueban a 1366 × 611 y a 1093 × 489 (escala 1,25), con el fixture de API de
 
 **Pendiente de esta fase:** solo el commit (ver arriba) y verlo en la Toshiba real.
 
-### Fase 2 — Cabecera del Resumen al 125 %: ⏳ PENDIENTE (siguiente)
+### Fase 2 — Cabecera del Resumen al 125 %: ✅ HECHA (2026-10-23)
 
-- **Dónde empezar:** [FinanceMonthHero.vue](../frontend/src/components/Finance/FinanceMonthHero.vue).
-  - La sección raíz es `<section class="hero">`, con `.hero-text` y la lista de avisos con sus acciones (`add_purchase`, `classify_cash`, `generate_recurring`, `import_pedidosya`, `view_pedidosya`).
-  - El CSS de la portátil está en el mismo archivo y en `finance.css` (regla `max-height: 520px`).
-- **Línea base:** con 2 avisos, la cabecera mide 191 px al 100 % y 281 px al 125 %. El Estado de resultados empieza en y = 426 de 489.
-- **Datos de prueba:** `datos-finanzas.py` deja 7 gastos fijos sin generar y las semanas de PedidosYa sin cargar, que son los dos avisos que la agrandan.
-- **Cómo medir:** `node scripts/toshiba/medir-finanzas.cjs <salida>` (línea «resumen … hero N»). En la suite, el test 3 de `finanzas-portatil.spec.js` mide 1366 × 611.
-- **Cuidado:** el test 8 exige que en 1440 × 900 la cabecera siga midiendo más de 300 px y el título 28 px. No tocar fuera de `max-height: 520px`.
+**Qué cambió**
 
-### Fase 3 — Compras sugeridas: ⏳ PENDIENTE
+| Archivo | Cambio |
+| :-- | :-- |
+| `FinanceMonthHero.vue` | • Se reemplazó el layout de 3 filas apiladas (`grid-template-areas: "text" "bar" "trust"`) en `@media (max-height: 520px)` por un layout compacto de 2 columnas (`minmax(0, 1.15fr) minmax(0, 1fr)`).<br>• Avisos compactos: función `shortWarningMessage(w)` que muestra un mensaje condensado en la portátil de caja y mantiene el detalle completo en `title`.<br>• Altura de la cabecera a 1093 × 489: bajó de 281/256 px a **116 px** (meta ≤ 180 px).<br>• En pantallas grandes (1440 × 900) y móviles (390 × 844) se mantiene intacto (> 300 px). |
+| `finance.css` | • En `@media (min-width: 761px) and (max-height: 520px)`, reducción de márgenes y padding de `.fin-card-head` (6px 12px) y celdas de tabla (5px 12px).<br>• Ocultación del subtítulo estático redundante en cabecera de tarjeta en portátiles.<br>• El Estado de resultados y el Punto de equilibrio inician en **y = 261 px** (meta < 330 px; antes en y = 426-500 px).<br>• Quedan completamente visibles en el primer pantallazo sin scroll: Ventas, Costo de ventas, Utilidad bruta, Gastos operativos y Utilidad operativa, junto al Punto de equilibrio a la derecha. |
+| `e2e/finanzas-portatil.spec.js` | Test 3b que valida la cabecera ≤ 180 px y la tarjeta y filas visibles en 1093 × 489. 37/37 pruebas en verde. |
+
+### Fase 3 — Compras sugeridas: ⏳ PENDIENTE (en curso)
 
 - **Dónde empezar:** [ReorderModal.vue](../frontend/src/components/Inventory/ReorderModal.vue).
   - **KPIs:** `.rm-kpis`, de 96 px; está en la plantilla cerca de la línea 187.

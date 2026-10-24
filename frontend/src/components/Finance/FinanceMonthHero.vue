@@ -95,6 +95,33 @@ const trustTitle = computed(() => {
   const sentence = closed.value ? 'este resultado sea definitivo' : 'este resultado esté completo';
   return n === 1 ? `Falta 1 dato para que ${sentence}` : `Faltan ${n} datos para que ${sentence}`;
 });
+
+function shortWarningMessage(w) {
+  if (w.code === 'unclassified_cash_movements') {
+    const n = w.count ?? 1;
+    const bs = w.amount ? ` · ${whole(w.amount)}` : '';
+    return `${n} ${n === 1 ? 'egreso sin clasificar' : 'egresos sin clasificar'}${bs}`;
+  }
+  if (w.code === 'pending_recurring') {
+    const n = w.count ?? 1;
+    const bs = w.amount ? ` · ${whole(w.amount)}` : '';
+    return `${n} ${n === 1 ? 'gasto fijo sin generar' : 'gastos fijos sin generar'}${bs}`;
+  }
+  if (w.code === 'pedidosya_missing_weeks') {
+    const n = w.weeks?.length ?? 1;
+    return `${n} ${n === 1 ? 'semana PedidosYa sin cargar' : 'semanas PedidosYa sin cargar'}`;
+  }
+  if (w.code === 'no_purchases') {
+    return 'Sin compras registradas';
+  }
+  if (w.code === 'pedidosya_unreconciled_sales') {
+    return 'Ventas PedidosYa sin semana importada';
+  }
+  if (w.code === 'pedidosya_reconciliation') {
+    return 'Semana PedidosYa con diferencias';
+  }
+  return w.message?.split(':')[0] || w.message || '';
+}
 </script>
 
 <template>
@@ -133,10 +160,11 @@ const trustTitle = computed(() => {
         <p class="hero-trust-title">{{ trustTitle }}</p>
         <ul>
           <li v-for="(w, i) in warnings" :key="w.code + i">
-            <span class="hero-trust-text">
+            <span class="hero-trust-text" :title="w.message">
               <svg v-if="w.level === 'info'" class="info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6" /><path d="M12 7.5v.5" /></svg>
               <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6" /><path d="M12 16.5v.5" /></svg>
-              {{ w.message }}
+              <span class="hero-trust-full">{{ w.message }}</span>
+              <span class="hero-trust-short">{{ shortWarningMessage(w) }}</span>
             </span>
             <button
               v-if="ACTIONS[w.action]"
@@ -263,6 +291,9 @@ const trustTitle = computed(() => {
 }
 .hero-trust-ok svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--lime-700); }
 
+.hero-trust-short { display: none; }
+.hero-trust-full { display: inline; }
+
 /* Portátil de caja (≤ 1366 px o ≤ 800 px de alto): el aviso de datos faltantes pasa a la derecha y el resultado ocupa
    menos de la mitad de la altura. Mismo criterio que finance.css; en monitores grandes y celular no cambia. */
 @media (min-width: 761px) and (max-width: 1366px), (min-width: 761px) and (max-height: 800px) {
@@ -295,9 +326,32 @@ const trustTitle = computed(() => {
   .hero-trust-ok { padding: 8px 0; font-size: 12.5px; }
   .hero-updating { top: 8px; right: 12px; padding: 2px 8px; font-size: 11.5px; }
 }
-/* Al 125 % de escala (≈ 489 px de alto) el aviso vuelve debajo para no apretar el texto */
+/* Al 125 % de escala (≈ 489 px de alto): diseño de 2 columnas compacto (≤ 180 px total) */
 @media (min-width: 761px) and (max-height: 520px) {
-  .hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "text" "bar" "trust"; grid-template-rows: auto; }
+  .hero {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    grid-template-areas: "text trust" "bar trust";
+    grid-template-rows: auto 1fr;
+    gap: 4px 14px;
+    padding: 8px 14px;
+    border-radius: 12px;
+  }
+  .hero-text { gap: 2px; }
+  .hero-title { font-size: 20px; line-height: 1.1; }
+  .hero-lead { font-size: 11px; line-height: 1.3; }
+  .hero-bar { height: 12px; }
+  .hero-legend { margin-top: 3px; gap: 2px 8px; font-size: 10.5px; }
+  .hero-swatch { width: 8px; height: 8px; }
+  .hero-trust { padding: 4px 10px; border-radius: 10px; }
+  .hero-trust-title { margin: 1px 0 2px; font-size: 11px; }
+  .hero-trust ul { display: flex; flex-direction: column; gap: 2px; }
+  .hero-trust li { padding: 2px 0; gap: 4px 8px; }
+  .hero-trust-text { flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.25; gap: 5px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hero-trust-full { display: none; }
+  .hero-trust-short { display: inline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hero-trust li .fin-btn { padding: 2px 7px; min-height: 24px; height: 24px; font-size: 11px; flex-shrink: 0; }
+  .hero-trust-ok { padding: 3px 0; font-size: 11px; }
+  .hero-updating { top: 6px; right: 10px; font-size: 10px; padding: 1px 6px; }
 }
 
 @media (max-width: 760px) {

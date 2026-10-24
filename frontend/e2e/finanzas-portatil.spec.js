@@ -70,6 +70,28 @@ test.describe('Finanzas — portátil de caja', () => {
     await expect(page.getByRole('button', { name: 'Revisar gastos fijos' })).toBeInViewport();
   });
 
+  test('3b. Resumen 1093×489 (125 %): cabecera compacta ≤ 180 px y Estado de resultados visible en el primer pantallazo', async ({ page }) => {
+    await page.setViewportSize({ width: 1093, height: 489 });
+    await openTab(page, 'summary');
+    const g = await page.evaluate(() => {
+      const r = (s) => document.querySelector(s)?.getBoundingClientRect();
+      const rows = [...document.querySelectorAll('.fin-statement tbody tr')].map((tr) => tr.getBoundingClientRect().bottom);
+      return {
+        hero: r('.hero')?.height ?? 0,
+        main: r('.sum-main'),
+        side: r('.sum-side'),
+        stmtTop: r('.fin-statement')?.top ?? 0,
+        grossProfitBottom: rows[2] ?? 0, // Utilidad bruta
+      };
+    });
+    expect(g.hero, 'alto de la cabecera del resultado a 125 %').toBeLessThanOrEqual(180);
+    expect(g.stmtTop, 'el Estado de resultados empieza antes de y=330').toBeLessThan(330);
+    expect(g.grossProfitBottom, 'Ventas, Costo y Utilidad bruta visibles sin scroll').toBeLessThanOrEqual(489);
+    await expect(page.getByRole('heading', { name: 'Punto de equilibrio' })).toBeInViewport();
+    await expect(page.getByRole('button', { name: 'Clasificar egresos' })).toBeInViewport();
+    await expect(page.getByRole('button', { name: 'Revisar gastos fijos' })).toBeInViewport();
+  });
+
   test('4. Categorías: las 4 secciones en 2 columnas × 2 filas', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 611 });
     await openTab(page, 'categories');
