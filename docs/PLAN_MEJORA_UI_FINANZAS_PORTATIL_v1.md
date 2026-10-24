@@ -131,20 +131,20 @@ A partir de las capturas de pantalla proporcionadas por el usuario, se identific
 
 ---
 
-### Fase 5: Vista Principal de Finanzas (`FinanceSummary.vue` & `Finance.vue`)
+### Fase 5: Vista Principal de Finanzas (`FinanceSummary.vue` & `Finance.vue`) — ✅ HECHA (2026-10-23)
 - **Archivos:** [frontend/src/views/Finance.vue](file:///Users/jolopez/Sistema%20de%20Ventas/frontend/src/views/Finance.vue), [FinanceSummary.vue](file:///Users/jolopez/Sistema%20de%20Ventas/frontend/src/components/Finance/FinanceSummary.vue), [FinanceMonthHero.vue](file:///Users/jolopez/Sistema%20de%20Ventas/frontend/src/components/Finance/FinanceMonthHero.vue).
-- **Acciones:**
+- **Acciones Realizadas:**
   1. **Estabilidad del Grid de 2 Columnas en 125 % DPI:**
-     - Ajustar los anchos mínimos en `.sum-grid`:
-       - `.sum-main`: `flex: 1 1 500px; min-width: 0;`
-       - `.sum-side`: `flex: 0 0 280px; min-width: 260px;`
-     - En 914 px de contenido (1093 px con escala 125 %), las columnas se mantienen lado a lado (590 px para Estado de Resultados / 280 px para Punto de Equilibrio y Reposición), evitando el colapso a 1 sola columna vertical.
-  2. **Hero del Mes Compacto:**
-     - Reducir el padding de `FinanceMonthHero` a `10px 16px`.
-     - Barra de progreso de Bs 100 integrada a la derecha del texto en la misma línea cuando el ancho lo permite.
-     - Avisos de egresos sin clasificar en una píldora inline de alerta rápida con botón de acción.
-  3. **Punto de Equilibrio y Reposición:**
-     - Reducir paddings internos y asegurar que el botón "Ver compras sugeridas" esté siempre a la vista en la primera pantalla.
+     - En `.sum-grid`, se configuraron anchos proporcionados y flexibles:
+       - En portátiles (≤ 1366 px o ≤ 800 px): `.sum-main` con `flex: 1 1 480px; min-width: 0;` y `.sum-side` con `flex: 0 0 280px; min-width: 260px;`.
+       - En 125 % DPI habitual (`max-height: 520px`): `.sum-main` con `flex: 1 1 450px; min-width: 0;` y `.sum-side` con `flex: 0 0 270px; min-width: 250px;` con gap de 10 px.
+     - En los ~914 px de contenido a 1093×489, las columnas permanecen estables lado a lado (Estado de Resultados a la izquierda y Punto de Equilibrio + Reposición a la derecha), eliminando por completo el colapso abrupto a una columna vertical infinita.
+  2. **Hero del Mes y Reposición Compacta:**
+     - Cabecera `FinanceMonthHero` contenida en 116 px con layout de 2 columnas y avisos en píldora con tooltip nativo.
+     - Botón "Ver compras sugeridas" con variante compacta `.fin-btn-sm` (28-32 px) y márgenes ajustados en `.sum-stock` para máxima visibilidad.
+  3. **Verificación:**
+     - Test E2E `3b. Resumen 1093×489 (125 %)` verifica explícitamente `g.side.left > g.main.right - 4` y todos los componentes visibles sin scroll.
+
 
 ---
 

@@ -52,6 +52,11 @@ se renombra con la fecha de la actualización de producción.
   `2. Recetas de productos`, `3. Ajustes de opciones`) navegables con botones `← Anterior`, `Siguiente →` o clic directo en los chips superiores.
   Incluye herramientas de selección rápida (`Todos`, `Solo sin receta/ajuste`, `Ninguno`) y tabla compacta de componentes, conteniendo cada paso
   en < 360 px de alto útil en la pantalla de la caja.
+- **Resumen de Finanzas en dos columnas estables al 125 % DPI** ([plan v1 Fase 5](docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL_v1.md)): en pantallas
+  con escala DPI o anchos reducidos, la cuadrícula `.sum-grid` podía quebrar sus columnas y apilar el Punto de Equilibrio y la Reposición al
+  fondo a más de 1.400 px de scroll. Con flex proporcional estabilizado (`.sum-main: 1 1 480px`, `.sum-side: 0 0 280px` y versión ajustada a
+  `max-height: 520px`), el Estado de Resultados a la izquierda y el Punto de Equilibrio a la derecha se conservan siempre lado a lado sin colapsar,
+  con el botón «Ver compras sugeridas» visible de inmediato.
 - **Finanzas con teclado**: «Registrar gasto» empieza en Monto, «Gasto fijo» en Concepto, «Categoría» y «+ Nueva categoría…» en Nombre.
 
 ### Cambiado

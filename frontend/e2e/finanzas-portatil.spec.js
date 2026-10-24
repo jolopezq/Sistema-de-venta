@@ -85,6 +85,7 @@ test.describe('Finanzas — portátil de caja', () => {
       };
     });
     expect(g.hero, 'alto de la cabecera del resultado a 125 %').toBeLessThanOrEqual(180);
+    expect(g.side.left, 'Punto de equilibrio a la derecha de Estado de resultados (2 columnas en 125 %)').toBeGreaterThan(g.main.right - 4);
     expect(g.stmtTop, 'el Estado de resultados empieza antes de y=330').toBeLessThan(330);
     expect(g.grossProfitBottom, 'Ventas, Costo y Utilidad bruta visibles sin scroll').toBeLessThanOrEqual(489);
     await expect(page.getByRole('heading', { name: 'Punto de equilibrio' })).toBeInViewport();

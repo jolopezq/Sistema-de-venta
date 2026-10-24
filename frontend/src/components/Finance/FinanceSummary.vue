@@ -97,7 +97,7 @@ const stockTone = (status) => REORDER_STATUS[status]?.tone || 'err';
           </ul>
           <p v-if="stock.expiring" class="sum-stock-note">{{ stock.expiring }} {{ stock.expiring === 1 ? 'insumo vence' : 'insumos vencen' }} pronto o ya {{ stock.expiring === 1 ? 'venció' : 'vencieron' }}.</p>
           <p v-if="stock.no_data" class="sum-stock-note">{{ stock.no_data }} {{ stock.no_data === 1 ? 'insumo sin datos' : 'insumos sin datos' }} para calcular su reposición.</p>
-          <button class="fin-btn fin-btn-ghost" type="button" @click="router.push({ path: '/inventario', query: { compras: '1' } })">Ver compras sugeridas</button>
+          <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="router.push({ path: '/inventario', query: { compras: '1' } })">Ver compras sugeridas</button>
         </section>
       </aside>
     </div>
@@ -128,11 +128,11 @@ const stockTone = (status) => REORDER_STATUS[status]?.tone || 'err';
 .sum-stock .sum-stock-note { font-size: 13px; color: var(--ink-500); }
 .sum-stock .fin-btn { align-self: flex-start; }
 
-/* Portátil de caja: ver finance.css */
+/* Portátil de caja (≤ 1366 px o ≤ 800 px de alto): Estabilidad de 2 columnas */
 @media (min-width: 761px) and (max-width: 1366px), (min-width: 761px) and (max-height: 800px) {
   .sum-grid { gap: 12px; }
-  .sum-main { gap: 12px; flex-basis: 540px; }
-  .sum-side { flex-basis: 300px; }
+  .sum-main { gap: 12px; flex: 1 1 480px; min-width: 0; }
+  .sum-side { flex: 0 0 280px; min-width: 260px; }
   .sum-pya { padding: 12px 16px; gap: 8px; }
   .sum-pya-head h3, .sum-stock h3 { font-size: 17px; }
   .sum-pya-head p { font-size: 13px; }
@@ -141,6 +141,17 @@ const stockTone = (status) => REORDER_STATUS[status]?.tone || 'err';
   .sum-stock { gap: 8px; padding: 12px 16px; }
   .sum-stock > p { font-size: 13px; line-height: 1.4; }
   .sum-stock-list li { padding: 6px 0; font-size: 13px; }
+}
+
+/* Al 125 % de escala (≈ 489 px de alto): compactación y contención precisa */
+@media (min-width: 761px) and (max-height: 520px) {
+  .sum-grid { gap: 10px; }
+  .sum-main { gap: 10px; flex: 1 1 450px; min-width: 0; }
+  .sum-side { flex: 0 0 270px; min-width: 250px; }
+  .sum-pya { padding: 10px 14px; gap: 6px; }
+  .sum-stock { gap: 6px; padding: 10px 14px; }
+  .sum-stock-list li { padding: 4px 0; font-size: 12.5px; }
+  .sum-stock .fin-btn { padding: 4px 10px; min-height: 28px; font-size: 12px; }
 }
 @media (max-width: 760px) {
   .sum-grid, .sum-main { gap: 18px; }
