@@ -369,5 +369,79 @@ test.describe('Finanzas v2 — Fase 1: formularios', () => {
     await modal.locator('.fin-modal-foot').getByRole('button', { name: 'Cerrar' }).click();
     await expect(modal).toHaveCount(0);
   });
+
+  test('C4. Cargar recetas base: asistente por pasos (stepper 1, 2 y 3) con selección rápida', async ({ page }) => {
+    const MOCK_BASE_RECIPES = {
+      components: [
+        { key: 'acai_100', name: 'Porción Açaí 100g', unit: 'porciones', unit_cost: 3.5, exists: true },
+        { key: 'vaso_12oz', name: 'Vaso 12oz', unit: 'unidades', unit_cost: 0.8, exists: true },
+        { key: 'cafe_espresso', name: 'Café espresso', unit: 'unidades', unit_cost: 0, exists: false },
+      ],
+      products: [
+        { product_id: 1, name: 'Bowl Clásico', kind: 'bowl', has_recipe: false, recipe: [{ key: 'acai_100', quantity: 2 }] },
+        { product_id: 2, name: 'Bowl Tropical', kind: 'bowl', has_recipe: true, recipe: [{ key: 'acai_100', quantity: 2 }] },
+      ],
+      options: [
+        { option_id: 10, name: 'Frutilla', kind: 'fruit', group: 'Frutas', has_recipe: false, recipe: [{ key: 'acai_100', quantity: 0.5 }] },
+        { option_id: 11, name: 'Banana', kind: 'fruit', group: 'Frutas', has_recipe: true, recipe: [{ key: 'acai_100', quantity: 0.5 }] },
+      ],
+    };
+
+    await page.route('**/api/finance/costs/base-recipes*', (r) => {
+      if (r.request().method() === 'POST') {
+        return r.fulfill({ json: { message: 'Recetas aplicadas correctamente.' } });
+      }
+      return r.fulfill({ json: MOCK_BASE_RECIPES });
+    });
+
+    await openTab(page, 'costs');
+    await page.getByRole('button', { name: 'Cargar recetas base' }).click();
+
+    const modal = page.locator('.fin-modal');
+    await expect(modal).toBeVisible();
+
+    const stepper = page.locator('.brw-stepper');
+    await expect(stepper).toBeVisible();
+    await expect(stepper.getByRole('tab')).toHaveCount(3);
+
+    // --- PASO 1: Componentes ---
+    await expect(modal.getByRole('columnheader', { name: 'Componente' })).toBeVisible();
+    await expect(modal.getByRole('button', { name: /← Anterior/ })).toHaveCount(0);
+    const nextToProducts = modal.getByRole('button', { name: /Siguiente: Productos/ });
+    await expect(nextToProducts).toBeVisible();
+
+    // Avanzar a Paso 2
+    await nextToProducts.click();
+
+    // --- PASO 2: Productos ---
+    await expect(modal.getByText('Bowl Clásico')).toBeVisible();
+    await expect(modal.getByRole('button', { name: /← Anterior/ })).toBeVisible();
+    const nextToOptions = modal.getByRole('button', { name: /Siguiente: Opciones/ });
+    await expect(nextToOptions).toBeVisible();
+
+    // Probar acciones rápidas
+    await modal.getByRole('button', { name: 'Ninguno' }).click();
+    await expect(modal.getByText('0 de 2 productos seleccionados')).toBeVisible();
+    await modal.getByRole('button', { name: 'Todos' }).click();
+    await expect(modal.getByText('2 de 2 productos seleccionados')).toBeVisible();
+
+    // Avanzar a Paso 3
+    await nextToOptions.click();
+
+    // --- PASO 3: Opciones ---
+    await expect(modal.getByText('FRUTAS')).toBeVisible();
+    await expect(modal.getByRole('button', { name: /Siguiente/ })).toHaveCount(0);
+    const applyBtn = modal.getByRole('button', { name: /Aplicar a/ });
+    await expect(applyBtn).toBeVisible();
+
+    // Navegar directamente hacia atrás haciendo clic en el stepper
+    await stepper.getByRole('tab', { name: /1\. Costo de componentes/ }).click();
+    await expect(modal.getByRole('columnheader', { name: 'Componente' })).toBeVisible();
+
+    // Cerrar modal
+    await modal.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(modal).toHaveCount(0);
+  });
 });
+
 

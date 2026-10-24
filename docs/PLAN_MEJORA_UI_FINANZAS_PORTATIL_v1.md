@@ -113,17 +113,21 @@ A partir de las capturas de pantalla proporcionadas por el usuario, se identific
 
 ---
 
-### Fase 4: Asistente "Cargar Recetas Base" (`BaseRecipesWizard.vue`)
+### Fase 4: Asistente "Cargar Recetas Base" (`BaseRecipesWizard.vue`) — ✅ HECHA (2026-10-23)
 - **Archivo:** [frontend/src/components/Finance/BaseRecipesWizard.vue](file:///Users/jolopez/Sistema%20de%20Ventas/frontend/src/components/Finance/BaseRecipesWizard.vue)
-- **Acciones:**
+- **Acciones Realizadas:**
   1. **Estructura en Pasos (Wizard Stepper):**
-     - En lugar de apilar 3 listas extensas, dividir en 3 pasos navegables:
-       - **Paso 1:** Costo de componentes (porciones base, descartables, café).
-       - **Paso 2:** Recetas de productos (bowls y opciones base).
-       - **Paso 3:** Ajustes de opciones (frutas, extras, sin...).
-     - Barra de progreso superior simple: `Paso 1 de 3` con botones `Anterior` y `Siguiente`, y en el paso 3 `Aplicar recetas`.
-  2. **Beneficio en Portátil:**
-     - Cada paso mide menos de 360 px de alto, permitiendo revisar y ajustar costos sin perder de vista los botones ni el contexto.
+     - Se reemplazó el formulario continuo de 3.344 px por un stepper interactivo accesible de 3 pasos (`.brw-stepper`):
+       - **Paso 1:** Costo de componentes (tabla compacta `.brw-table` con inputs de 82 px e indicaciones inline).
+       - **Paso 2:** Recetas de productos (lista de bowls con barra de selección rápida: `Todos`, `Solo sin receta`, `Ninguno`).
+       - **Paso 3:** Ajustes de opciones (grupos de opciones con selección rápida: `Todas`, `Solo sin ajuste`, `Ninguna`).
+  2. **Navegación Fluida y Ergonomía en Portátil:**
+     - Botones `← Anterior` y `Siguiente: X →` en el pie del modal, permitiendo avanzar o retroceder paso a paso, o saltar directamente haciendo clic en los chips del stepper superior.
+     - Botón primario de guardado dinámico (`applyLabel`) disponible de forma clara.
+     - Cada paso se mantiene contenido en < 360 px de altura útil, eliminando scroll vertical masivo en 1093×489 y 1366×611.
+  3. **Verificación:**
+     - Test E2E `C4. Cargar recetas base: asistente por pasos (stepper 1, 2 y 3) con selección rápida` añadido a `finanzas-portatil.spec.js` (39/39 tests en verde).
+
 
 ---
 

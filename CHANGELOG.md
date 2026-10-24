@@ -47,6 +47,11 @@ se renombra con la fecha de la actualización de producción.
   superior de pestañas/chips (`1. Indicadores del mes`, `2. Cobertura y Quiebres`, `3. Mermas y Conteos`, `4. Valorización`, `Ver todo`), reduciendo
   la altura visible por sección a < 320 px sin scroll forzado y sustituyendo `.fin-table.stack` por formato tabular estructurado `.iim-table` sin
   apilar filas como tarjetas. La impresión mantiene el reporte íntegro con todas las secciones.
+- **Cargar recetas base en la portátil de caja** ([plan v1 Fase 4](docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL_v1.md)): el asistente apilaba más de
+  3.300 px de formulario continuo con tres etapas mezcladas. Ahora se organiza en un stepper de 3 pasos (`1. Costo de componentes`,
+  `2. Recetas de productos`, `3. Ajustes de opciones`) navegables con botones `← Anterior`, `Siguiente →` o clic directo en los chips superiores.
+  Incluye herramientas de selección rápida (`Todos`, `Solo sin receta/ajuste`, `Ninguno`) y tabla compacta de componentes, conteniendo cada paso
+  en < 360 px de alto útil en la pantalla de la caja.
 - **Finanzas con teclado**: «Registrar gasto» empieza en Monto, «Gasto fijo» en Concepto, «Categoría» y «+ Nueva categoría…» en Nombre.
 
 ### Cambiado
