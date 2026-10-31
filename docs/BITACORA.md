@@ -12,9 +12,13 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
     - E2E: `caja-cerrada.spec.js` (2); suite completa 190 en verde, con una prueba de cobro intermitente que pasa 3 de 3 al repetirla.
     - Venta real anulada en una caja cerrada contra el backend en PHP 8.4 (WebAssembly).
     - `vite build` sin errores. Contraste del aviso: 4,94 en claro y 6,99 en oscuro.
-  - **Pendiente de ese análisis:**
-    - Paso 3: «Reabrir caja para corregir» (solo super admin, con motivo y con historial de cierres), y egresos con la fecha de la caja, porque Finanzas los cuenta por `created_at`.
-    - Paso 4: comandas viejas que no descuenten stock si son anteriores al último conteo de cada insumo, y decidir si suman puntos.
+  - **Plan completo:** [PLAN_DIAS_PASADOS_Y_PERMISOS.md](PLAN_DIAS_PASADOS_Y_PERMISOS.md). Esta rama es su Fase 0.
+    - Fase 1: permisos por persona y módulos nuevos (*Ventas de días pasados*, *Corregir cajas cerradas*, *Finanzas*).
+    - Fase 2: Finanzas por permiso.
+    - Fase 3: cargar días pasados (histórico y día con falla), con regla de stock por línea base de cada insumo.
+    - Fase 4: «Reabrir para corregir» una caja cerrada, con historial de cierres.
+    - Fase 5 (opcional): importar el histórico desde una planilla.
+    - Esperan las decisiones D1–D6 del dueño (sección 6 del plan).
 
 - **Publicación 2026-10-30 (`main` local, listo para el VPS y la laptop):** reúne la rama `feat/inventario-portatil` y `feat/recuperar-contrasena`.
   - Inventario en la portátil, fases 1 a 5; Finanzas v2, fases 1 y 2; plan v1 de Finanzas (Compras sugeridas, Informe de inventario, Recetas base por pasos, Resumen); correcciones de la auditoría (`7e29d6c`).
