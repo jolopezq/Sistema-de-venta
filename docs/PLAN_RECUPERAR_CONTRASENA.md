@@ -3,7 +3,8 @@
 > **Pedido del dueño (2026-10-30):** poder recuperar la contraseña desde el login con un código enviado al correo, como segundo factor.
 > **Alcance decidido:** solo recuperar la contraseña. El inicio de sesión normal no cambia.
 > **Envío:** Resend, desde el dominio propio `ohana-pos.com`, por su API HTTPS.
-> **Estado:** implementado y probado el 2026-10-30, sin commit. Falta que el dueño configure Resend (sección 4) y correr `php artisan test` en la Mac (sección 5).
+> **Estado:** publicado en el VPS el 2026-10-30 (`3d5220c`). Producción es solo el VPS (`pos.ohana-pos.com`); la laptop de caja es un navegador más.
+> **Falta:** configurar Resend (sección 4). Hasta entonces el código **no llega**: con `MAIL_MAILER=log` y `LOG_LEVEL=warning` no sale por correo ni queda en el log (comprobado el 2026-10-31).
 
 ---
 
@@ -44,11 +45,11 @@
 
 | Archivo | Qué hace |
 | :-- | :-- |
-| `database/migrations/2026_10_30_000001_create_password_reset_codes_table.php` | Tabla `password_reset_codes`: usuario, huella del código, intentos, vencimiento, huella del permiso, verificado/usado e IP. Las actualizaciones del VPS y de la laptop corren `migrate` solas. |
+| `database/migrations/2026_10_30_000001_create_password_reset_codes_table.php` | Tabla `password_reset_codes`: usuario, huella del código, intentos, vencimiento, huella del permiso, verificado/usado e IP. `deploy/vps/04-actualizar.sh` corre `migrate`. |
 | `app/Services/PasswordResetService.php` | La lógica: pedir, verificar y cambiar. |
 | `app/Http/Controllers/PasswordResetController.php` + `routes/api.php` | Rutas públicas con límite de intentos:<br>• `POST /api/password/code` (`email`)<br>• `POST /api/password/verify` (`email`, `code`) → `reset_token`<br>• `POST /api/password/reset` (`email`, `reset_token`, `password`, `password_confirmation`) |
 | `app/Providers/AppServiceProvider.php` | Límites `password-code` y `password-verify`, y el registro del envío `resend-api`. |
-| `app/Mail/Transport/ResendApiTransport.php` + `config/mail.php` (mailer `resend-api`) | Envío por `POST https://api.resend.com/emails` con el cliente HTTP de Laravel. **No agrega paquetes**, porque la laptop no corre `composer install` al actualizarse. **No usa puertos SMTP**, porque el VPS puede tenerlos bloqueados. Envía la versión HTML y la de texto y una `Idempotency-Key`. Si Resend rechaza el correo, el error queda claro en el log, por ejemplo «Resend rechazó el correo (403): …». |
+| `app/Mail/Transport/ResendApiTransport.php` + `config/mail.php` (mailer `resend-api`) | Envío por `POST https://api.resend.com/emails` con el cliente HTTP de Laravel. **No agrega paquetes** de Composer. **No usa puertos SMTP**, porque el VPS puede tenerlos bloqueados. Envía la versión HTML y la de texto y una `Idempotency-Key`. Si Resend rechaza el correo, el error queda claro en el log, por ejemplo «Resend rechazó el correo (403): …». |
 | `app/Mail/PasswordResetCodeMail.php`, `PasswordChangedMail.php` + `resources/views/mail/*.blade.php` | Los dos correos, en HTML y texto, con la marca. |
 | `app/Console/Commands/ProbarCorreo.php` | `php artisan ohana:probar-correo tu@correo.com`: comprueba la configuración. |
 | `.env.example` | `RESEND_API_KEY` y la explicación. |
@@ -67,7 +68,7 @@
 
 ## 4. Configurar Resend (lo hace el dueño, una sola vez)
 
-> **La clave de Resend no se pega en el chat ni se sube al repositorio.** Va solo en el `.env` de cada máquina.
+> **La clave de Resend no se pega en el chat ni se sube al repositorio.** Va solo en el `.env` del VPS; el script de la sección 4.2 la pide sin mostrarla.
 
 ### 4.1 Cuenta y dominio
 
@@ -83,39 +84,27 @@
 
 ### 4.2 VPS (`pos.ohana-pos.com`)
 
-Primero publica el código (sección 6). Luego, desde la Terminal de la Mac:
+Con el dominio verificado y la clave copiada, desde la Terminal de la Mac, en la carpeta del proyecto:
 
 ```bash
-ssh root@64.176.3.152
-nano /var/www/ohana-pos/app/backend/.env
+scp deploy/vps/08-configurar-correo.sh root@64.176.3.152:/root/
+ssh -t root@64.176.3.152 'bash /root/08-configurar-correo.sh' 2>&1 | tee deploy/vps/logs/08-configurar-correo.log
 ```
 
-En el `.env`, cambia o agrega estas líneas. Deja `MAIL_MAILER=log` fuera: debe quedar `resend-api`.
+El script:
 
-```
-MAIL_MAILER=resend-api
-MAIL_FROM_ADDRESS="no-responder@avisos.ohana-pos.com"
-MAIL_FROM_NAME="Ohana Açaí"
-RESEND_API_KEY=pega_aqui_la_clave
-```
+1. Pide la clave. Al pegarla no se ve y no queda en el registro.
+2. Respalda el `.env` y pone `MAIL_MAILER=resend-api`, `MAIL_FROM_ADDRESS="no-responder@avisos.ohana-pos.com"`, `MAIL_FROM_NAME="Ohana Açaí"` y `RESEND_API_KEY`. Mantiene el dueño y los permisos del archivo.
+3. Corre `config:cache` y recarga PHP. Sin este paso, editar el `.env` no tiene efecto, porque la configuración queda en caché.
+4. Envía «Prueba de correo de Ohana POS» al correo que indiques (por defecto el del super admin).
 
-Guarda con Ctrl+O, Enter y Ctrl+X. Luego:
+Se puede volver a ejecutar para cambiar la clave o solo para probar: Enter sin pegar nada mantiene la clave guardada.
 
-```bash
-cd /var/www/ohana-pos/app/backend
-sudo -u ohana php artisan config:cache
-sudo -u ohana php artisan ohana:probar-correo tu_correo@gmail.com
-```
+Si dice «Resend rechazó el correo (403)… domain is not verified», el dominio todavía no está verificado. La configuración queda puesta y los códigos empiezan a salir apenas Resend lo verifique.
 
-Debe decir «Enviado» y llegarte «Prueba de correo de Ohana POS» (revisa Spam la primera vez). Si dice «Resend rechazó el correo (403)…», el dominio todavía no está verificado o la clave es de otro dominio.
+### 4.3 Laptop de caja
 
-### 4.3 Laptop de caja (Windows)
-
-Necesita internet para enviar el correo. Sin conexión, la recuperación no funciona: el administrador puede restablecer la contraseña desde **Usuarios**.
-
-1. Abre `backend\.env` de la carpeta del sistema con el Bloc de notas y cambia las mismas 4 líneas. Puedes crear otra clave en Resend para la laptop y así revocarla por separado.
-2. Ejecuta `actualizar-pos.bat`, que limpia la caché de configuración. También puedes correr `C:\Ohana-POS-Windows\php\php.exe artisan config:clear` en `backend`.
-3. Prueba con `php artisan ohana:probar-correo tu_correo@gmail.com`, usando el `php.exe` de la ruta anterior.
+No necesita nada: usa el sistema del VPS desde el navegador.
 
 ### 4.4 Correos reales en las cuentas
 
@@ -157,7 +146,7 @@ El código va al correo de la cuenta. Las cuentas de ejemplo (`cashier@example.c
 
 Solo código y una migración, sin paquetes nuevos.
 
-1. Commit en una rama propia. La rama `feat/inventario-portatil` tiene cambios de otra sesión sin commit: no mezclarlos. Los archivos de esta función no se cruzan con esos, salvo `CHANGELOG.md` y `docs/BITACORA.md`.
-2. **VPS:** paquete y `deploy/vps/04-actualizar.sh`, que corre `migrate`. Luego, la sección 4.2.
-3. **Laptop:** `git push origin main` cuando el dueño lo decida (el vigilante actualiza y migra). Luego, la sección 4.3.
-4. Hasta configurar Resend, la recuperación responde normal pero el correo no sale: con `MAIL_MAILER=log` el código queda solo en `storage/logs/laravel.log`.
+1. **VPS:** paquete y `deploy/vps/04-actualizar.sh`, que corre `migrate`. Hecho el 2026-10-30 (`62c6f512 → 3d5220cb`).
+2. Configurar Resend: sección 4.
+3. `git push origin main` solo como respaldo del código. Antes de hacerlo, desactivar el vigilante de la laptop (`vigilante-actualizaciones.ps1`).
+4. Mientras `MAIL_MAILER=log`, la recuperación responde normal pero el código no sale. Con `LOG_LEVEL=warning`, que es el del VPS, tampoco queda en `storage/logs`: la librería escribe el correo a nivel `debug`.

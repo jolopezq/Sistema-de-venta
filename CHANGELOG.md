@@ -4,6 +4,11 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
+## [Sin publicar]
+
+### Agregado
+- `deploy/vps/08-configurar-correo.sh`: activa el envío por Resend en el VPS. Pide la clave sin mostrarla, ajusta el `.env`, corre `config:cache`, recarga PHP y envía un correo de prueba.
+
 ## [2026-10-30]
 
 ### Agregado
