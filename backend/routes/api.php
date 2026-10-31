@@ -235,6 +235,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/sales/day-info', [\App\Http\Controllers\PastDayController::class, 'dayInfo']);
     });
 
+    // Corregir cajas cerradas: reabrir con motivo (permiso por persona «Corregir cajas cerradas»)
+    Route::post('/cash-sessions/{cashSession}/reopen', [CashRegisterSessionController::class, 'reopen'])
+        ->middleware(['admin', 'perm:register_corrections,edit']);
+
     // Gestión de usuarios: reset password (super_admin o admin)
     Route::middleware(['admin'])->group(function () {
         Route::post('/users/{id}/reset-password', [\App\Http\Controllers\UserController::class, 'resetPassword']);

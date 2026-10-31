@@ -32,6 +32,7 @@ class CashRegisterSession extends Model
         'status',
         'opened_at',
         'closed_at',
+        'reopened_at',
     ];
 
     protected function casts(): array
@@ -47,10 +48,17 @@ class CashRegisterSession extends Model
             'bill_breakdown'     => 'array',
             'opened_at'          => 'datetime',
             'closed_at'          => 'datetime',
+            'reopened_at'        => 'datetime',
         ];
     }
 
     // --- Relaciones ---
+
+    /** Cierres anteriores de una caja reabierta para corregir (más antiguo primero). */
+    public function closings(): HasMany
+    {
+        return $this->hasMany(CashSessionClosing::class)->orderBy('id');
+    }
 
     public function cashier(): BelongsTo
     {

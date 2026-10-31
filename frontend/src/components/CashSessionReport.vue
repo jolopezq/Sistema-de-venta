@@ -15,6 +15,14 @@ const summary = computed(() => reportData.value.summary || {});
 // el cierre guardado se muestra tal cual se firmó y, aparte, el teórico y la diferencia con las cifras de hoy.
 const recalc = computed(() => (reportData.value.recalculated?.changed ? reportData.value.recalculated : null));
 
+// Caja corregida: sus cierres anteriores (reabierta con motivo y vuelta a cerrar)
+const closings = computed(() => reportData.value.closings || []);
+// Corrección que cambió el «fondo para mañana»: la caja siguiente abrió con otro fondo
+const chainWarning = computed(() => {
+  const c = reportData.value.chain;
+  return closings.value.length && c && !c.matches ? c : null;
+});
+
 const money = (n) => Number(n || 0).toFixed(2);
 const signed = (n) => `${Number(n) > 0 ? '+' : ''}Bs ${money(n)}`;
 const diffLabel = (n) => (Number(n) === 0 ? 'Exacto' : Number(n) > 0 ? 'Sobrante' : 'Faltante');
@@ -163,6 +171,25 @@ function formatDate(dateStr) {
         <span>Egresos QR/Tarjeta (no salen de gaveta):</span>
         <span>Bs {{ Number(summary.non_cash_expenses || 0).toFixed(2) }}</span>
       </div>
+    </div>
+
+    <!-- CAJA RECTIFICADA: cierres anteriores -->
+    <div v-if="closings.length" class="corrections" role="note">
+      <div class="divider">--------------------------------</div>
+      <div class="section-title">CAJA RECTIFICADA {{ closings.length === 1 ? '1 VEZ' : `${closings.length} VECES` }}</div>
+      <div v-for="(c, i) in closings" :key="i" class="correction-item">
+        <div class="row mini">
+          <span>Cierre {{ formatDate(c.closed_at) }}</span>
+          <span>{{ signed(c.difference) }}</span>
+        </div>
+        <div class="row mini"><span>Contado / teórico:</span><span>Bs {{ money(c.actual_closing) }} / {{ money(c.expected_closing) }}</span></div>
+        <div class="correction-text">Reabierta {{ formatDate(c.reopened_at) }}{{ c.reopened_by ? ` por ${c.reopened_by}` : '' }}: «{{ c.reopen_reason }}»</div>
+        <div v-if="c.reclosed_at" class="correction-text">Cerrada otra vez{{ c.reclosed_by ? ` por ${c.reclosed_by}` : '' }}: «{{ c.reclose_reason }}»</div>
+      </div>
+      <p v-if="chainWarning" class="changed-text">
+        La caja siguiente (#{{ chainWarning.next_id }}) abrió con Bs {{ money(chainWarning.next_opening_amount) }};
+        este cierre dejó Bs {{ money(chainWarning.left_for_next) }} para mañana.
+      </p>
     </div>
 
     <!-- CAMBIOS DESPUÉS DEL CIERRE -->
@@ -336,6 +363,9 @@ function formatDate(dateStr) {
   margin: 0 0 4px;
   font-size: 10.5px;
 }
+
+.correction-item { margin-bottom: 6px; }
+.correction-text { font-size: 10px; margin-top: 1px; }
 
 .changed-item {
   display: flex;

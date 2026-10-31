@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\CashRegisterSession;
 use App\Models\CashMovement;
+use App\Models\CashSessionClosing;
 use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Services\AuditLogger;
@@ -218,7 +219,20 @@ class CashRegisterSessionController extends Controller
             // Ventas del dispositivo que aún no llegaron al servidor (pendientes o rechazadas)
             'unsynced_sales'     => 'nullable|integer|min:0',
             'force_reason'       => 'nullable|string|max:500',
+            // Caja reabierta para corregir: motivo obligatorio del nuevo cierre
+            'correction_reason'  => 'nullable|string|max:500',
         ]);
+
+        $isCorrection = $cashSession->reopened_at !== null;
+        $correctionReason = trim((string) ($validated['correction_reason'] ?? ''));
+        if ($isCorrection) {
+            if (!$this->permissionService->can($request->user(), 'register_corrections', 'edit')) {
+                abort(403, 'Volver a cerrar una caja reabierta requiere el permiso «Corregir cajas cerradas».');
+            }
+            if (mb_strlen($correctionReason) < 10) {
+                return response()->json(['message' => 'Escribe el motivo de la corrección (al menos 10 caracteres).'], 422);
+            }
+        }
 
         // Validar que withdrawn + left_for_next == actual_closing (tolerancia ±0.01)
         $sumDistribution = round($validated['cash_withdrawn'] + $validated['cash_left_for_next'], 2);
@@ -295,8 +309,37 @@ class CashRegisterSessionController extends Controller
             'bill_breakdown'     => $validated['bill_breakdown'] ?? null,
             'diff_note'          => $diffNote,
             'status'             => 'closed',
-            'closed_at'          => now(),
+            // Al corregir, el cierre conserva la fecha y hora del cierre original
+            'closed_at'          => $cashSession->closed_at ?? now(),
+            'reopened_at'        => null,
         ]);
+
+        if ($isCorrection) {
+            $previous = $cashSession->closings()->whereNull('reclosed_at')->latest('id')->first();
+            $previous?->update([
+                'reclosed_by'    => $request->user()->id,
+                'reclosed_at'    => now(),
+                'reclose_reason' => $correctionReason,
+            ]);
+            AuditLogger::log(
+                'cash_session_reclosed',
+                'Sales',
+                sprintf(
+                    'Caja #%d del %s corregida y cerrada otra vez por %s. Teórico Bs %s → Bs %s; contado Bs %s → Bs %s; diferencia Bs %s → Bs %s. Motivo: %s',
+                    $cashSession->id,
+                    $cashSession->opened_at->format('d/m/Y'),
+                    $request->user()->name,
+                    number_format((float) $previous?->expected_closing, 2),
+                    number_format($expectedClosing, 2),
+                    number_format((float) $previous?->actual_closing, 2),
+                    number_format($actualClosing, 2),
+                    number_format((float) $previous?->difference, 2),
+                    number_format($difference, 2),
+                    $correctionReason
+                ),
+                $request->user()->id
+            );
+        }
 
         $cashSession->load('cashier');
         $report = $this->buildReportPayload($cashSession, $stats);
@@ -305,6 +348,66 @@ class CashRegisterSessionController extends Controller
             'message' => 'Turno de caja cerrado exitosamente.',
             'session' => $cashSession,
             'report'  => $report,
+        ]);
+    }
+
+    /**
+     * Reabre una caja cerrada para corregirla (docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §3.4): guarda su cierre en el
+     * historial y la deja abierta para registrar lo que faltó y volver a cerrarla con un motivo. El POS no la ve
+     * (solo muestra cajas de hoy) y no recibe ventas de otros días. Permiso «Corregir cajas cerradas».
+     */
+    public function reopen(Request $request, CashRegisterSession $cashSession): JsonResponse
+    {
+        $validated = $request->validate(['reason' => 'required|string|min:10|max:500'], [
+            'reason.required' => 'Escribe por qué se reabre la caja.',
+            'reason.min'      => 'El motivo debe tener al menos 10 caracteres.',
+        ]);
+        if ($cashSession->status !== 'closed') {
+            return response()->json(['message' => 'Solo se puede reabrir una caja cerrada.'], 422);
+        }
+
+        $reason = trim($validated['reason']);
+        DB::transaction(function () use ($cashSession, $request, $reason) {
+            CashSessionClosing::create([
+                'cash_register_session_id' => $cashSession->id,
+                'expected_closing'         => $cashSession->expected_closing,
+                'actual_closing'           => $cashSession->actual_closing,
+                'difference'               => $cashSession->difference,
+                'total_expenses'           => $cashSession->total_expenses,
+                'cash_withdrawn'           => $cashSession->cash_withdrawn,
+                'cash_left_for_next'       => $cashSession->cash_left_for_next,
+                'bill_breakdown'           => $cashSession->bill_breakdown,
+                'diff_note'                => $cashSession->diff_note,
+                'closed_at'                => $cashSession->closed_at,
+                'reopened_by'              => $request->user()->id,
+                'reopened_at'              => now(),
+                'reopen_reason'            => $reason,
+            ]);
+            $cashSession->update(['status' => 'open', 'reopened_at' => now()]);
+        });
+
+        AuditLogger::log(
+            'cash_session_reopened',
+            'Sales',
+            sprintf(
+                'Caja #%d del %s reabierta por %s para corregir. Cierre anterior: teórico Bs %s, contado Bs %s, diferencia Bs %s. Motivo: %s',
+                $cashSession->id,
+                $cashSession->opened_at->format('d/m/Y'),
+                $request->user()->name,
+                number_format((float) $cashSession->expected_closing, 2),
+                number_format((float) $cashSession->actual_closing, 2),
+                number_format((float) $cashSession->difference, 2),
+                $reason
+            ),
+            $request->user()->id
+        );
+
+        $cashSession->refresh()->load('cashier');
+
+        return response()->json([
+            'message' => 'Caja reabierta para corregir.',
+            'session' => $cashSession,
+            'stats'   => $this->calculateSessionStats($cashSession),
         ]);
     }
 
@@ -613,6 +716,47 @@ class CashRegisterSessionController extends Controller
             'movements'         => $movements,
             'summary'           => $stats,
             'recalculated'      => $this->recalculatedClosing($session, $stats),
+            'closings'          => $session->closings()->with(['reopenedBy:id,name', 'reclosedBy:id,name'])->get()
+                ->map(fn (CashSessionClosing $c) => [
+                    'closed_at'          => $c->closed_at?->toIso8601String(),
+                    'expected_closing'   => (float) $c->expected_closing,
+                    'actual_closing'     => (float) $c->actual_closing,
+                    'difference'         => (float) $c->difference,
+                    'cash_left_for_next' => $c->cash_left_for_next !== null ? (float) $c->cash_left_for_next : null,
+                    'reopened_by'        => $c->reopenedBy?->name,
+                    'reopened_at'        => $c->reopened_at?->toIso8601String(),
+                    'reopen_reason'      => $c->reopen_reason,
+                    'reclosed_by'        => $c->reclosedBy?->name,
+                    'reclosed_at'        => $c->reclosed_at?->toIso8601String(),
+                    'reclose_reason'     => $c->reclose_reason,
+                ])->values()->all(),
+            'chain'             => $this->nextSessionChain($session),
+        ];
+    }
+
+    /**
+     * Caja siguiente: con qué fondo abrió frente a lo que esta caja dejó «para mañana». Si una corrección cambió
+     * ese fondo, la caja siguiente no se toca sola: el reporte lo avisa.
+     *
+     * @return array{next_id: int, next_opened_at: ?string, next_opening_amount: float, left_for_next: float, matches: bool}|null
+     */
+    private function nextSessionChain(CashRegisterSession $session): ?array
+    {
+        if ($session->status !== 'closed' || $session->cash_left_for_next === null) {
+            return null;
+        }
+        $next = CashRegisterSession::where('opened_at', '>', $session->opened_at)->orderBy('opened_at')->first();
+        if (!$next) {
+            return null;
+        }
+        $left = (float) $session->cash_left_for_next;
+
+        return [
+            'next_id'             => $next->id,
+            'next_opened_at'      => $next->opened_at?->toIso8601String(),
+            'next_opening_amount' => (float) $next->opening_amount,
+            'left_for_next'       => $left,
+            'matches'             => abs($left - (float) $next->opening_amount) < 0.005,
         ];
     }
 

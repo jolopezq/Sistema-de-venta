@@ -31,6 +31,12 @@ se renombra con la fecha de la actualización de producción.
   - **Caja de un día pasado:** se abre a nombre del cajero que vendió. Sus egresos quedan con la fecha de ese día (`occurred_at`), y Finanzas los cuenta en su mes, no en el de carga.
   - **Ventas sin sincronizar:** Control diario avisa si el dispositivo tiene ventas de ese día pendientes, para no cargarlas dos veces.
   - **Vendedor:** el editor dice «Vendida por», con «Yo (quien registra)» por defecto, y conserva el método de pago entre comandas.
+- **Corregir cajas cerradas** (Fase 4): con el permiso *Corregir cajas cerradas*, en Control diario se **reabre** una caja con un motivo, se registra lo que faltó (egresos con la fecha de ese día, tickets) y se **vuelve a cerrar** con la misma pantalla de arqueo.
+  - El conteo parte del cierre anterior y el nuevo cierre pide el motivo de la corrección.
+  - El cierre anterior queda en el historial (`cash_session_closings`) y el ticket muestra «Caja rectificada» con los motivos. El cierre conserva la fecha y hora original.
+  - El arqueo nunca se recalcula solo. El POS no ve una caja reabierta de otro día y esta no recibe ventas nuevas.
+  - Si la corrección cambió el «fondo para mañana», el ticket avisa con qué fondo abrió la caja siguiente.
+  - Auditoría: `cash_session_reopened` y `cash_session_reclosed`, con los valores antes y después.
 
 ### Corregido
 - **Cajas abiertas con fecha pasada (Control diario):** al cerrarlas quedaban con la fecha del cierre real, días o semanas después. Hasta ese día absorbían cualquier venta cargada o editada para esos días.

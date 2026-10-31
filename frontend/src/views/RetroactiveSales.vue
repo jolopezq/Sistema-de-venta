@@ -56,6 +56,35 @@ async function saveStartDate(date) {
   }
 }
 
+// Corregir cajas cerradas: reabrir con motivo (permiso por persona «Corregir cajas cerradas»)
+const canCorrect = computed(() => authStore.hasPermission('register_corrections', 'edit'));
+const isReopened = computed(() => Boolean(currentSession.value?.reopened_at) && currentSession.value?.status === 'open');
+const reopenOpen = ref(false);
+const reopenReason = ref('');
+const reopenError = ref('');
+const reopening = ref(false);
+async function reopenSession() {
+  reopenError.value = '';
+  if (reopenReason.value.trim().length < 10) {
+    reopenError.value = 'Escribe el motivo (al menos 10 caracteres).';
+    return;
+  }
+  reopening.value = true;
+  try {
+    await apiFetch(`/cash-sessions/${currentSession.value.id}/reopen`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reopenReason.value.trim() }),
+    });
+    reopenOpen.value = false;
+    reopenReason.value = '';
+    await loadDayData(selectedDate.value);
+  } catch (err) {
+    reopenError.value = err.message || 'No se pudo reabrir la caja.';
+  } finally {
+    reopening.value = false;
+  }
+}
+
 // Ventas de este dispositivo de ese día que aún no llegaron al servidor: cargarlas a mano las duplicaría
 const unsyncedForDay = ref(0);
 async function countUnsynced(date) {
@@ -700,9 +729,39 @@ watch(selectedDate, (newDate) => {
             <button class="btn btn-secondary btn-full" @click="showReportModal = true">
               📄 Ver Ticket Completo de Cierre
             </button>
+
+            <!-- Corregir la caja: se reabre con motivo; el cierre actual queda en el historial -->
+            <template v-if="canCorrect">
+              <button v-if="!reopenOpen" type="button" class="btn btn-outline btn-full" @click="reopenOpen = true">
+                🛠️ Reabrir para corregir
+              </button>
+              <div v-else class="cd-reopen-box">
+                <label for="cd-reopen-reason"><strong>¿Por qué se reabre?</strong> Queda en el historial de la caja y en la auditoría.</label>
+                <textarea
+                  id="cd-reopen-reason"
+                  v-model="reopenReason"
+                  rows="2"
+                  class="cd-reopen-text"
+                  placeholder="Ej.: el conteo se copió mal; faltó registrar un egreso del papel"
+                  :aria-invalid="reopenError ? 'true' : 'false'"
+                ></textarea>
+                <p v-if="reopenError" class="cd-reopen-error" role="alert">{{ reopenError }}</p>
+                <div class="cd-reopen-actions">
+                  <button type="button" class="btn btn-outline" :disabled="reopening" @click="reopenOpen = false; reopenError = ''">Cancelar</button>
+                  <button type="button" class="btn btn-primary" :disabled="reopening" @click="reopenSession">
+                    {{ reopening ? 'Reabriendo…' : 'Reabrir caja' }}
+                  </button>
+                </div>
+              </div>
+            </template>
           </div>
 
           <!-- BOTONES DE ACCIÓN RÁPIDA (Solo si la sesión está abierta) -->
+          <div v-if="isReopened" class="cd-day-notice is-correcting" role="status">
+            <strong>Caja reabierta para corregir.</strong> Registra lo que faltó (egresos, ventas) y vuelve a cerrarla
+            con el conteo correcto. El cierre anterior queda en el historial del ticket.
+          </div>
+
           <div v-if="isSessionOpen" class="arqueo-actions">
             <button
               class="btn btn-expense"
@@ -715,7 +774,7 @@ watch(selectedDate, (newDate) => {
               class="btn btn-close-day"
               @click="showCloseWizard = true"
             >
-              🔒 Realizar Arqueo y Cerrar Día
+              {{ isReopened ? '🔒 Corregir y volver a cerrar' : '🔒 Realizar Arqueo y Cerrar Día' }}
             </button>
           </div>
 
@@ -1455,6 +1514,22 @@ watch(selectedDate, (newDate) => {
 }
 .cd-day-notice.is-historical { background: var(--acai-50); color: var(--acai-text); }
 .cd-day-notice.is-warning { background: var(--danger-100); color: var(--danger-text); }
+.cd-day-notice.is-correcting { background: var(--passion-100); color: var(--passion-text); margin-top: 0.6rem; }
+.cd-reopen-box { display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem; color: var(--ink-700); }
+.cd-reopen-text {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+.cd-reopen-text[aria-invalid="true"] { border-color: var(--danger-500); }
+.cd-reopen-error { margin: 0; color: var(--danger-text); font-weight: 600; }
+.cd-reopen-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .cd-start-line {
   margin: 4px 0 0;
   font-size: 0.78rem;

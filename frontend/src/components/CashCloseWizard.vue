@@ -33,6 +33,10 @@ const resolvedStats   = computed(() => freshStats.value || props.stats || turnoS
 
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authStore.user?.role));
 
+// Caja reabierta para corregir (docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §3.4): el nuevo cierre pide un motivo
+const isCorrection = computed(() => Boolean(resolvedSession.value?.reopened_at));
+const correctionReason = ref('');
+
 // 0: Revisión previa, 1: Conteo, 2: Resumen/Arqueo, 3: Reporte
 const step = ref(0);
 const isSubmitting = ref(false);
@@ -156,6 +160,7 @@ const difference      = computed(() => Number((countedTotal.value - expectedCash
 // Validación de notas obligatorias si hay faltante y distribución válida
 const canProceedToClose = computed(() => {
   if (distributionError.value) return false;
+  if (isCorrection.value && correctionReason.value.trim().length < 10) return false;
   if (difference.value < 0) {
     return diffNote.value.trim().length >= 5;
   }
@@ -248,6 +253,16 @@ function saveProgress() {
 // Cargar progreso previo de esta misma caja (el de otra caja se ignora) y revisar antes de contar
 onMounted(() => {
   const parsed = readCashCloseProgress(resolvedSession.value?.id);
+  // Corrección: parte del conteo guardado en el cierre anterior, para cambiar solo lo que estaba mal
+  if (!parsed && isCorrection.value) {
+    const s = resolvedSession.value;
+    if (s?.bill_breakdown) billCounts.value = sanitizeCounts({ ...billCounts.value, ...s.bill_breakdown });
+    if (s?.diff_note) diffNote.value = s.diff_note;
+    if (s?.cash_left_for_next != null) {
+      cashLeftForNext.value = moneyFromText(String(s.cash_left_for_next));
+      cashLeftText.value = String(cashLeftForNext.value);
+    }
+  }
   if (parsed) {
     if (parsed.billCounts) billCounts.value = sanitizeCounts({ ...billCounts.value, ...parsed.billCounts });
     if (parsed.diffNote) diffNote.value = parsed.diffNote;
@@ -285,8 +300,10 @@ function prevStep() {
 
 async function handleConfirmClose() {
   if (!canProceedToClose.value) {
-    errorMessage.value = distributionError.value ||
-      'Por favor ingresa un motivo explicativo para el faltante.';
+    errorMessage.value = distributionError.value
+      || (isCorrection.value && correctionReason.value.trim().length < 10
+        ? 'Escribe el motivo de la corrección (al menos 10 caracteres).'
+        : 'Por favor ingresa un motivo explicativo para el faltante.');
     return;
   }
 
@@ -314,6 +331,7 @@ async function handleConfirmClose() {
       expected_seen:      expectedCash.value,
       unsynced_sales:     unsynced,
       force_reason:       unsynced > 0 ? forceReason.value.trim() : null,
+      correction_reason:  isCorrection.value ? correctionReason.value.trim() : null,
     };
 
     // Usar el ID de la sesión resuelta (histórica o activa)
@@ -615,6 +633,23 @@ function handleFinish() {
                   placeholder="Ej.: propina no registrada, redondeo"
                   class="diff-input"
                 />
+              </div>
+
+              <!-- Caja reabierta para corregir: motivo del nuevo cierre (queda en el historial) -->
+              <div v-if="isCorrection" class="diff-note-box">
+                <label class="required-label" for="correction-reason-field">
+                  <strong>Motivo de la corrección (obligatorio)</strong>
+                </label>
+                <textarea
+                  id="correction-reason-field"
+                  v-model="correctionReason"
+                  rows="2"
+                  class="diff-textarea"
+                  placeholder="Qué se corrigió: el conteo se copió mal, faltaba un egreso…"
+                ></textarea>
+                <small v-if="correctionReason.trim().length < 10" class="text-danger">
+                  Escribe al menos 10 caracteres.
+                </small>
               </div>
             </div>
 

@@ -18,6 +18,14 @@ class UserPermission extends Model
         'granted_by',
     ];
 
+    /** Un cambio se aplica desde la próxima consulta: se vacía la caché de permisos de esta petición. */
+    protected static function booted(): void
+    {
+        $flush = fn () => app(\App\Services\PermissionService::class)->clearCache();
+        static::saved($flush);
+        static::deleted($flush);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);
