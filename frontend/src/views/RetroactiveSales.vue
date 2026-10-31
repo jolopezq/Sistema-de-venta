@@ -1340,6 +1340,11 @@ watch(selectedDate, (newDate) => {
   border-color: #94a3b8;
   background: #fcfcfd;
 }
+/* En modo oscuro la caja cerrada usaba el fondo claro y su texto quedaba ilegible (contraste 1,5) */
+html.dark .arqueo-card.session-closed {
+  background: var(--surface);
+  border-color: var(--border);
+}
 
 .arqueo-header {
   display: flex;
