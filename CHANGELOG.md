@@ -4,6 +4,18 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
+## [Sin publicar]
+
+### Agregado
+- **Recuperar la contraseña con un código por correo** ([plan](docs/PLAN_RECUPERAR_CONTRASENA.md)): «¿Olvidaste tu contraseña?» en el login
+  lleva a 3 pasos (correo → código de 6 dígitos → contraseña nueva). El código vence en 15 minutos, admite 5 intentos y sirve una vez; la
+  respuesta no revela si el correo existe; hay límite de pedidos e intentos; al cambiarla se cierran todas las sesiones del usuario, llega un
+  aviso por correo y queda en Auditoría. Envío por la API HTTPS de Resend (`MAIL_MAILER=resend-api`, sin paquetes nuevos) y
+  `php artisan ohana:probar-correo` para comprobar la configuración. Migración nueva `password_reset_codes`.
+
+### Cambiado
+- **Login en producción**: ya no aparece escrita la cuenta de ejemplo (`admin@example.com` / `password`); solo en desarrollo.
+
 ## [2026-10-23]
 
 ### Cambiado

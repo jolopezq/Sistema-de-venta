@@ -22,6 +22,8 @@ export function landingFor(authStore) {
 const routes = [
   { path: '/', redirect: '/pos' },
   { path: '/login', name: 'Login', component: Login },
+  // Recuperar la contraseña con un código enviado al correo (pública)
+  { path: '/recuperar-contrasena', name: 'RecoverPassword', component: () => import('../views/RecoverPassword.vue') },
   { path: '/sin-acceso', name: 'SinAcceso', component: SinAcceso, meta: { requiresAuth: true } },
   { path: '/pos', name: 'Pos', component: Pos, meta: { requiresAuth: true, requiredPermission: { module: 'pos', level: 'read' }, noKitchen: true } },
   { path: '/turno', name: 'Turno', component: Turno, meta: { requiresAuth: true, requiredPermission: { module: 'register_self', level: 'read' }, noKitchen: true } },
@@ -51,7 +53,7 @@ router.beforeEach(async (to, from, next) => {
     return next('/login');
   }
 
-  if (to.path === '/login' && authStore.isAuthenticated) {
+  if ((to.path === '/login' || to.path === '/recuperar-contrasena') && authStore.isAuthenticated) {
     return next(landingFor(authStore));
   }
 

@@ -43,5 +43,25 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('login', function (Request $request) {
             return Limit::perMinute(10)->by(strtolower((string) $request->input('email')) . '|' . $request->ip());
         });
+
+        // Recuperar contraseña: pocos correos por dirección e IP, y pocos intentos de código por IP y por correo.
+        $tooMany = fn () => response()->json(['message' => 'Demasiados intentos. Espera unos minutos y vuelve a intentar.'], 429);
+        RateLimiter::for('password-code', function (Request $request) use ($tooMany) {
+            $email = strtolower(trim((string) $request->input('email')));
+            return [
+                Limit::perMinutes(15, 3)->by('code|' . $email . '|' . $request->ip())->response($tooMany),
+                Limit::perHour(10)->by('code-ip|' . $request->ip())->response($tooMany),
+            ];
+        });
+        RateLimiter::for('password-verify', function (Request $request) use ($tooMany) {
+            $email = strtolower(trim((string) $request->input('email')));
+            return [
+                Limit::perMinute(10)->by('verify-ip|' . $request->ip())->response($tooMany),
+                Limit::perMinutes(15, 15)->by('verify|' . $email)->response($tooMany),
+            ];
+        });
+
+        // Envío por la API HTTPS de Resend sin paquetes nuevos (MAIL_MAILER=resend-api)
+        \Illuminate\Support\Facades\Mail::extend('resend-api', fn (array $config) => new \App\Mail\Transport\ResendApiTransport((string) ($config['key'] ?? config('services.resend.key'))));
     }
 }

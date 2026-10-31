@@ -3,9 +3,12 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-23)
-- **Rama de trabajo:** `feat/control-diario-flujo-opciones-toppings`, fusionada en `main` local el 2026-10-23 para publicar en el VPS por paquete (`deploy/vps/04-actualizar.sh`). **No subida a GitHub**: al hacer `git push origin main` se actualiza también la laptop de caja (vigilante).
-- **Último cambio (2026-10-23):** Control diario con el configurador de Ventas y diseño para la portátil ([PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md](PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md), secciones 4.5 y 8):
+## Estado actual (2026-10-30)
+- **Rama de trabajo:** `feat/recuperar-contrasena` (desde `main` local `62c6f51`).
+- **Último cambio (2026-10-30):** Recuperar la contraseña con un código por correo ([PLAN_RECUPERAR_CONTRASENA.md](PLAN_RECUPERAR_CONTRASENA.md)). Probado contra el backend real (22/22), envío a Resend con `Http::fake` (11/11), navegador de punta a punta en 1366 × 611, 1093 × 489 y 390 × 844 (51/51), 15 pruebas PHPUnit en verde y 12 E2E (48 ejecuciones en 4 perfiles) en verde.
+  - **Pendiente:** Configurar Resend (sección 4 del plan: dominio `avisos.ohana-pos.com`, clave en `.env` del VPS y de la laptop) y probar envío real con `php artisan ohana:probar-correo tu@correo.com`.
+
+- **Cambio anterior (2026-10-23):** Control diario con el configurador de Ventas y diseño para la portátil ([PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md](PLAN_VENTAS_MULTI_ITEM_Y_TOPPINGS.md), secciones 4.5 y 8):
   - `AdminSaleEditor.vue`: productos con opciones abren `ModifierModal`; filas tipo ticket con píldoras, edición con fusión, «Precio y nota» plegado; datos de la venta en una línea con el origen visible; pestañas `CategoryFilter`; barra fija (`.cd-dock`, z-index 30) con total y Registrar venta; motivos rápidos; `--primary` mapeado a açaí.
   - `ModifierModal.vue`: precio base 0 exige un extra con precio (afecta Ventas).
   - `RetroactiveSales.vue`: `.editor-wrapper` con `overflow: clip` (con `hidden` la barra fija no funciona); cabecera en una línea en la portátil y título del editor oculto a 125 %.

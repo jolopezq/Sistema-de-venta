@@ -65,6 +65,12 @@ return [
             'transport' => 'resend',
         ],
 
+        // Resend por su API HTTPS, sin el paquete resend/resend-php (ver App\Mail\Transport\ResendApiTransport)
+        'resend-api' => [
+            'transport' => 'resend-api',
+            'key' => env('RESEND_API_KEY'),
+        ],
+
         'sendmail' => [
             'transport' => 'sendmail',
             'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
