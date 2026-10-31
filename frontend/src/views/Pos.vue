@@ -175,30 +175,21 @@ function handleConfirmModifiers({ product, modifiers, finalPrice, itemNote, alle
     price_per_gram:  product.price_per_gram
   };
 
-  const quantity = isWeight ? 1 : 1;
-
   if (editingCartKey) {
     // MODO EDICIÓN: reemplaza el ítem en su posición preservando cantidad
     cart.updateItem(editingCartKey, updatedProduct, itemNote, allergenFlags);
   } else {
-    // MODO CREACIÓN: agrega un nuevo ítem al carrito
-    cart.addItem(updatedProduct, quantity, itemNote, allergenFlags);
+    // MODO CREACIÓN: agrega un ítem al carrito (cada bowl por peso es una línea nueva)
+    cart.addItem(updatedProduct, 1, itemNote, allergenFlags);
   }
 
   selectedProduct.value = null;
   editingCartItem.value = null;
 }
 
+// «+» y «−» del ticket. Un producto por peso no tiene «+» (cada bowl se pesa aparte) y «Quitar» lo saca entero.
 function handleIncrease(item) {
-  // Pass the exact same configuration back to addItem to increment the existing cartKey
-  cart.addItem({ 
-    id: item.product_id, 
-    name: item.name, 
-    price: item.unit_price, 
-    modifiers: item.modifiers,
-    base_price: item.base_price,
-    is_takeaway: item.is_takeaway
-  }, 1, item.item_note, item.allergen_flags);
+  cart.increaseItem(item.cart_key);
 }
 
 function handleToggleTakeaway(item) {
@@ -206,15 +197,7 @@ function handleToggleTakeaway(item) {
 }
 
 function handleDecrease(item) {
-  const storeItem = cart.items.find(i => i.cart_key === item.cart_key);
-  if (storeItem) {
-    if (storeItem.quantity > 1) {
-      storeItem.quantity -= 1;
-      storeItem.subtotal = storeItem.quantity * storeItem.unit_price;
-    } else {
-      cart.removeItem(item.cart_key);
-    }
-  }
+  cart.decreaseItem(item.cart_key);
 }
 
 const showCheckout = ref(false);

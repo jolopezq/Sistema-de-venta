@@ -76,9 +76,20 @@ function getModPillClass(groupName = '') {
     </div>
 
     <div class="ticket-item-actions">
-      <div class="qty-control">
+      <!-- Por peso: cada bowl se pesa aparte, así que no hay «+»; «Quitar» saca este bowl y deja los demás -->
+      <button
+        v-if="item.is_weight_based"
+        type="button"
+        class="btn-remove-item"
+        :aria-label="`Quitar ${item.name} de ${item.weight_grams || item.quantity} g`"
+        @click.stop="emit('decrease', item)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
+        Quitar
+      </button>
+      <div v-else class="qty-control">
         <button type="button" :aria-label="`Quitar uno de ${item.name}`" @click="emit('decrease', item)">−</button>
-        <span class="qty-val" aria-live="polite">{{ item.is_weight_based ? (item.weight_grams ? item.weight_grams + ' g' : item.quantity + ' g') : item.quantity }}</span>
+        <span class="qty-val" aria-live="polite">{{ item.quantity }}</span>
         <button type="button" :aria-label="`Agregar otro ${item.name}`" @click="emit('increase', item)">+</button>
       </div>
       <button
@@ -183,7 +194,26 @@ html.dark .btn-adjust-price {
   font-weight: 600;
   cursor: pointer;
 }
-.btn-edit-item svg { width: 13px; height: 13px; }
+.btn-edit-item svg,
+.btn-remove-item svg { width: 13px; height: 13px; }
+/* Quitar un bowl por peso: mismo tamaño que «Editar», en rojo para que no se confunda */
+.btn-remove-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--danger-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-remove-item:hover { background: var(--danger-100); border-color: transparent; }
+.btn-remove-item:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
 .btn-edit-item:hover { background: var(--acai-50); color: var(--acai-text); border-color: transparent; }
 .btn-edit-item:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
 

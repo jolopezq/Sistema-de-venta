@@ -36,6 +36,17 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
     - Fase 5 (opcional): importar el histórico desde una planilla.
     - Esperan las decisiones D1–D6 del dueño (sección 6 del plan).
 
+- **Rama `fix/autoservicio-por-peso` (sin publicar):** corrige el Autoservicio en el ticket del POS. El detalle está en el CHANGELOG, «Sin publicar».
+  - Las líneas del carrito tienen un id fijo, y la regla para juntarlas está en `frontend/src/utils/cartLines.js`. `cart.js` solo la llama.
+  - Se borró `cancelAndRestoreSale`, que nadie usaba y reconstruía el ticket sin los gramos.
+  - Pruebas:
+    - `npm run test:unit`: 28 pruebas, 12 nuevas de `cartLines`.
+    - `e2e/autoservicio-peso.spec.js`: 7 pruebas. Sobre el código anterior, 6 fallan.
+    - E2E completo: 193 en verde. Las 3 de teléfono pasan contra el backend real.
+    - Venta real de dos bowls contra el backend en PHP 8.4 (WebAssembly): 2 ítems de cantidad 1, con sus gramos, sin discrepancia de precio.
+    - `vite build` sin errores. Contraste de «Quitar»: 6,95 en claro y 8,63 en oscuro.
+  - **Para publicar:** solo frontend, sin migraciones; paquete y `04-actualizar.sh`.
+
 - **Publicación 2026-10-30 (`main` local, listo para el VPS y la laptop):** reúne la rama `feat/inventario-portatil` y `feat/recuperar-contrasena`.
   - Inventario en la portátil, fases 1 a 5; Finanzas v2, fases 1 y 2; plan v1 de Finanzas (Compras sugeridas, Informe de inventario, Recetas base por pasos, Resumen); correcciones de la auditoría (`7e29d6c`).
   - Recuperar la contraseña con un código por correo ([PLAN_RECUPERAR_CONTRASENA.md](PLAN_RECUPERAR_CONTRASENA.md)), con la migración `password_reset_codes`.

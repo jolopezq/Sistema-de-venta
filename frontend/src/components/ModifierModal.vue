@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
+import { ref, watch, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { useCatalogStore } from '../stores/catalog';
 import { productPrice, optionPrice, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
 import { optionLowStock } from '../utils/stockRecipe';
@@ -33,7 +33,11 @@ const errorMessages = ref({});
 const itemNote = ref('');
 const selectedAllergens = ref([]);
 const isTakeaway = ref(false);
-const weightGrams = ref(350);
+// Gramos que marca la balanza. Empieza vacío en cada bowl nuevo: sin peso escrito no se puede agregar
+// (antes venía 350 g o el peso del bowl anterior, y se cobraba eso si no se cambiaba).
+const weightGrams = ref(null);
+const weightInput = ref(null);
+const weightMissing = computed(() => Boolean(props.product?.is_weight_based) && !(Number(weightGrams.value) > 0));
 
 const isOptionSelected = (groupId, optionId) => {
   return (selections.value[groupId] || []).includes(optionId);
@@ -52,7 +56,7 @@ watch(() => props.show, (newVal) => {
       itemNote.value = props.initialData.itemNote || '';
       selectedAllergens.value = [...(props.initialData.allergenFlags || [])];
       isTakeaway.value = props.initialData.isTakeaway || false;
-      weightGrams.value = props.initialData.weightGrams || 350;
+      weightGrams.value = props.initialData.weightGrams || null;
 
       // Reconstruye el array de selecciones por groupId deduplicando option_ids guardados
       const preloaded = {};
@@ -73,6 +77,7 @@ watch(() => props.show, (newVal) => {
       itemNote.value = '';
       selectedAllergens.value = [];
       isTakeaway.value = false;
+      weightGrams.value = null;
       if (filteredGroups.value) {
         filteredGroups.value.forEach(og => {
           const isFruitGroup = (og.name || '').toLowerCase().includes('fruta');
@@ -83,6 +88,10 @@ watch(() => props.show, (newVal) => {
         });
       }
       selections.value = initialSelections;
+    }
+
+    if (props.product.is_weight_based && !window.matchMedia?.('(pointer: coarse)').matches) {
+      nextTick(() => weightInput.value?.focus());
     }
   }
 });
@@ -186,6 +195,7 @@ const needsPricedOption = computed(() =>
 );
 
 const isValid = computed(() => {
+  if (weightMissing.value) return false;
   if (!filteredGroups.value || filteredGroups.value.length === 0) return true;
   if (needsPricedOption.value && extrasPrice.value <= 0) return false;
   return filteredGroups.value.every(og => {
@@ -196,6 +206,7 @@ const isValid = computed(() => {
 });
 
 const confirmButtonText = computed(() => {
+  if (weightMissing.value) return 'Escribe el peso';
   if (isEditMode.value) {
     return 'Guardar cambios';
   }
@@ -343,14 +354,19 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
 
           <div class="weight-config-row">
             <div class="weight-input-box">
-              <label>Gramos:</label>
-              <input 
-                type="number" 
-                min="1" 
-                step="10" 
-                v-model.number="weightGrams" 
+              <label for="mm-weight">Gramos:</label>
+              <input
+                id="mm-weight"
+                ref="weightInput"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                step="1"
+                required
+                v-model.number="weightGrams"
                 class="weight-g-input"
-                placeholder="Ej: 350" 
+                aria-describedby="mm-weight-hint"
+                :aria-invalid="weightMissing ? 'true' : 'false'"
               />
               <span class="g-tag">g</span>
             </div>
@@ -359,6 +375,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
               <span class="weight-subtotal-tag">Base: Bs {{ Math.round((Number(weightGrams) || 0) * (Number(product.price_per_gram) || 0)) }}</span>
             </div>
           </div>
+          <p id="mm-weight-hint" class="weight-hint">Escribe los gramos que marca la balanza para este bowl.</p>
         </div>
 
         <!-- BLOQUE 1: TAMAÑOS (Selección Única) -->
@@ -1471,6 +1488,15 @@ html.dark .dest-segment-btn--takeaway.active {
 }
 .weight-g-input:focus {
   outline: none;
+}
+/* El campo no tiene borde propio: el foco se marca en la caja */
+.weight-input-box:focus-within {
+  box-shadow: 0 0 0 3px rgba(217, 70, 239, 0.35);
+}
+.weight-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #6b2172;
 }
 .g-tag {
   font-size: 13px;
