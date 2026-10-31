@@ -23,6 +23,11 @@ use App\Http\Controllers\OptionRecipeController;
 
 // --- Rutas Públicas ---
 Route::post('/login', [AuthController::class, 'login'])->name('login')->middleware('throttle:login');
+
+// Recuperar la contraseña con un código enviado al correo (docs/PLAN_RECUPERAR_CONTRASENA.md)
+Route::post('/password/code', [\App\Http\Controllers\PasswordResetController::class, 'sendCode'])->middleware('throttle:password-code');
+Route::post('/password/verify', [\App\Http\Controllers\PasswordResetController::class, 'verifyCode'])->middleware('throttle:password-verify');
+Route::post('/password/reset', [\App\Http\Controllers\PasswordResetController::class, 'reset'])->middleware('throttle:password-verify');
 Route::get('/ping', function () { return response()->json(['status' => 'ok']); });
 
 // --- Rutas Protegidas ---

@@ -3,10 +3,14 @@ import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useCatalogStore } from '../stores/catalog';
 import { useThemeStore } from '../stores/theme';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
-const email = ref('admin@example.com');
-const password = ref('password');
+const route = useRoute();
+// Cuentas de ejemplo solo en desarrollo: en producción el formulario empieza vacío
+const email = ref(typeof route.query.email === 'string' ? route.query.email : (import.meta.env.DEV ? 'admin@example.com' : ''));
+const password = ref(import.meta.env.DEV && !route.query.email ? 'password' : '');
+// Al volver de «Recuperar contraseña»
+const passwordChanged = route.query.restablecida === '1';
 const errorMsg = ref('');
 const formErrors = ref({});
 const isLoading = ref(false);
@@ -61,6 +65,11 @@ async function handleLogin() {
       <h1>Ohana Açaí POS</h1>
       <p class="tagline">Sistema de Gestión y Caja</p>
 
+      <div v-if="passwordChanged && !errorMsg" class="login-ok" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+        <span>Listo: tu contraseña se cambió. Inicia sesión con la nueva.</span>
+      </div>
+
       <div v-if="errorMsg" class="error-banner">
         <span>⚠️</span>
         <span>{{ errorMsg }}</span>
@@ -74,8 +83,9 @@ async function handleLogin() {
 
       <div class="field">
         <label>Contraseña o PIN</label>
-        <input type="password" v-model="password" required placeholder="••••••••" :class="{'has-error': formErrors.password}" />
+        <input type="password" v-model="password" required placeholder="••••••••" autocomplete="current-password" :class="{'has-error': formErrors.password}" />
         <span v-if="formErrors.password" class="error-text">{{ formErrors.password[0] }}</span>
+        <router-link class="login-forgot" :to="{ path: '/recuperar-contrasena', query: email ? { email } : {} }">¿Olvidaste tu contraseña?</router-link>
       </div>
 
       <button type="submit" class="btn btn-primary" :disabled="isLoading">
@@ -110,6 +120,29 @@ async function handleLogin() {
 /* All other classes (.login-card, .login-logo, .field, .btn, .offline-banner)
    come from the global style.css extracted from the prototype */
 
+.login-forgot {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--acai-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.login-forgot:focus-visible { outline: 3px solid var(--acai-500); outline-offset: 2px; border-radius: 4px; }
+.login-ok {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--lime-100);
+  color: var(--lime-700);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.login-ok svg { width: 18px; height: 18px; flex-shrink: 0; }
 .has-error {
   border-color: var(--danger-500) !important;
   background-color: var(--danger-100) !important;
