@@ -9,6 +9,14 @@ se renombra con la fecha de la actualización de producción.
 ### Agregado
 - `deploy/vps/08-configurar-correo.sh`: activa el envío por Resend en el VPS. Pide la clave sin mostrarla, ajusta el `.env`, corre `config:cache`, recarga PHP y envía un correo de prueba.
 
+### Corregido
+- **Autoservicio (producto por peso) en el ticket del POS:**
+  - Un segundo bowl con el mismo destino y los mismos toppings se sumaba al primero: quedaba cantidad 2 al precio del primero y se perdían los gramos del segundo. Con 151 g y 200 g se cobraban Bs 72 en vez de Bs 84, y el inventario descontaba 302 g en vez de 351 g. Ahora cada bowl es su propia línea.
+  - El «+» de un bowl duplicaba el precio y seguía mostrando los mismos gramos. Ahora no hay «+»: **Quitar** saca ese bowl y **Editar** corrige su peso sin tocar los demás.
+  - El peso ya no viene escrito: el campo empieza vacío en cada bowl, recibe el foco y sin gramos no se puede agregar. Antes traía 350 g, o el peso del bowl anterior.
+  - En producción no había ventas afectadas (consulta del 2026-10-31: ningún producto por peso con cantidad mayor que 1).
+- **Destino de las líneas del ticket:** al cambiar una línea a «Para llevar», el mismo producto agregado después «En mesa» se sumaba a ella y salía para llevar. Ahora cada línea tiene un id fijo y solo se juntan líneas con la configuración actual idéntica (`src/utils/cartLines.js`, con pruebas en `cartLines.test.mjs`).
+
 ## [2026-10-30]
 
 ### Agregado

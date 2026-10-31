@@ -1,20 +1,7 @@
 import { defineStore } from 'pinia';
 import { db } from '../db/database';
 import { stockUsage } from '../utils/stockRecipe';
-
-/**
- * Genera el cart_key único para un ítem dado su configuración.
- * Centralizado para que addItem y updateItem usen la misma lógica.
- */
-function buildCartKey(productId, modifiers = [], itemNote = '', allergenFlags = [], isTakeaway = false) {
-  const modifiersHash = modifiers && modifiers.length > 0
-    ? JSON.stringify(modifiers.map(m => `${m.option_id}:${m.quantity || 1}`).sort())
-    : '';
-  const notesHash = itemNote ? encodeURIComponent(itemNote) : '';
-  const allergensHash = allergenFlags.length > 0 ? [...allergenFlags].sort().join(',') : '';
-  const takeawayHash = isTakeaway ? '-takeaway' : '';
-  return `${productId}-${modifiersHash}-${notesHash}-${allergensHash}${takeawayHash}`;
-}
+import { makeLine, addLine, replaceLine, increaseLine, decreaseLine } from '../utils/cartLines';
 
 /**
  * Suma (sign = 1) o resta (sign = -1) al stock local lo que consume una línea de venta, en memoria y en
@@ -108,93 +95,36 @@ export const useCartStore = defineStore('cart', {
         item.is_takeaway = val;
       });
     },
+    /**
+     * Agrega un producto al ticket. Si ya hay una línea con la misma configuración, suma la cantidad;
+     * un producto por peso entra siempre como línea nueva (reglas en utils/cartLines.js).
+     */
     addItem(product, quantity = 1, itemNote = '', allergenFlags = []) {
-      const cartKey = buildCartKey(
-        product.id,
-        product.modifiers || [],
-        itemNote,
-        allergenFlags,
-        product.is_takeaway || false
-      );
-
-      const existing = this.items.find(i => i.cart_key === cartKey);
-      if (existing) {
-        existing.quantity += quantity;
-        existing.subtotal = existing.quantity * existing.unit_price;
-      } else {
-        this.items.push({
-          cart_key: cartKey,
-          product_id: product.id,
-          name: product.name,
-          quantity: quantity,
-          unit_price: product.price,
-          subtotal: quantity * product.price,
-          modifiers: product.modifiers || [],
-          base_price: product.base_price || product.price,
-          item_note: itemNote,
-          allergen_flags: allergenFlags,
-          is_takeaway: product.is_takeaway || false,
-          is_weight_based: Boolean(product.is_weight_based),
-          weight_grams: product.weight_grams || null,
-          price_per_gram: product.price_per_gram || null,
-          // Ajuste de precio de la línea (solo PedidosYa): precio del tarifario y motivo
-          catalog_unit_price: null,
-          price_override_reason: null
-        });
-      }
+      addLine(this.items, makeLine(product, quantity, itemNote, allergenFlags));
     },
 
     /**
-     * Actualiza un ítem ya existente en el carrito manteniendo su posición y cantidad.
-     * Si la nueva configuración coincide con otro ítem existente, fusiona las cantidades.
+     * Actualiza una línea del ticket en su lugar, con su cantidad. Si la nueva configuración coincide con
+     * otra línea, se juntan las cantidades; un producto por peso no se junta nunca.
      *
-     * @param {string} oldCartKey      - cart_key del ítem a reemplazar
-     * @param {Object} updatedProduct  - { id, name, price, modifiers, base_price, is_takeaway }
+     * @param {string} oldCartKey      - cart_key de la línea editada
+     * @param {Object} updatedProduct  - { id, name, price, modifiers, base_price, is_takeaway, is_weight_based, weight_grams, price_per_gram }
      * @param {string} itemNote        - Nota de cocina actualizada
      * @param {Array}  allergenFlags   - Alérgenos actualizados
      */
     updateItem(oldCartKey, updatedProduct, itemNote = '', allergenFlags = []) {
-      const idx = this.items.findIndex(i => i.cart_key === oldCartKey);
-      if (idx === -1) return; // Ítem no encontrado, noop seguro
+      // Editar la configuración recalcula el precio desde el tarifario: el ajuste se descarta
+      replaceLine(this.items, oldCartKey, makeLine(updatedProduct, 1, itemNote, allergenFlags));
+    },
 
-      const oldItem = this.items[idx];
-      const newCartKey = buildCartKey(
-        updatedProduct.id,
-        updatedProduct.modifiers || [],
-        itemNote,
-        allergenFlags,
-        updatedProduct.is_takeaway || false
-      );
+    /** Una unidad más de la línea. En un producto por peso no hace nada (cada bowl se pesa aparte). */
+    increaseItem(cartKey) {
+      return increaseLine(this.items, cartKey);
+    },
 
-      // Si la nueva key ya existe (misma config que otro ítem), fusionamos cantidades
-      const duplicateIdx = this.items.findIndex((i, j) => i.cart_key === newCartKey && j !== idx);
-      if (duplicateIdx !== -1) {
-        this.items[duplicateIdx].quantity += oldItem.quantity;
-        this.items[duplicateIdx].subtotal = this.items[duplicateIdx].quantity * this.items[duplicateIdx].unit_price;
-        this.items.splice(idx, 1);
-        return;
-      }
-
-      // Reemplaza in-place preservando cantidad y posición
-      this.items.splice(idx, 1, {
-        cart_key: newCartKey,
-        product_id: updatedProduct.id,
-        name: updatedProduct.name,
-        quantity: oldItem.quantity,
-        unit_price: updatedProduct.price,
-        subtotal: oldItem.quantity * updatedProduct.price,
-        modifiers: updatedProduct.modifiers || [],
-        base_price: updatedProduct.base_price || updatedProduct.price,
-        item_note: itemNote,
-        allergen_flags: allergenFlags,
-        is_takeaway: updatedProduct.is_takeaway || false,
-        is_weight_based: Boolean(updatedProduct.is_weight_based),
-        weight_grams: updatedProduct.weight_grams || null,
-        price_per_gram: updatedProduct.price_per_gram || null,
-        // Editar la configuración recalcula el precio desde el tarifario: el ajuste se descarta
-        catalog_unit_price: null,
-        price_override_reason: null
-      });
+    /** Una unidad menos; con una sola unidad, o en un producto por peso, quita la línea. */
+    decreaseItem(cartKey) {
+      return decreaseLine(this.items, cartKey);
     },
 
     /**
@@ -351,76 +281,6 @@ export const useCartStore = defineStore('cart', {
       this.channel = 'pos';
 
       return sale; // Devolvemos la venta para mostrar el recibo
-    },
-
-    /**
-     * Cancela una venta recién generada (antes de que el cajero confirme en la comanda)
-     * y restaura el estado: elimina de IndexedDB y revierte el stock local.
-     * Los items YA están en cart.items porque clearCart() aún no fue llamado.
-     */
-    async cancelAndRestoreSale(sale) {
-      if (!sale) return;
-
-      // 1. Eliminar la venta de IndexedDB
-      if (sale.id) {
-        try {
-          await db.sales.delete(sale.id);
-        } catch (e) {
-          console.warn("No se pudo eliminar la venta de IndexedDB:", e);
-        }
-      }
-
-      // 2. Revertir el stock local descontado durante checkout()
-      try {
-        const { useCatalogStore } = await import('./catalog.js');
-        const catalog = useCatalogStore();
-
-        if (catalog && catalog.ingredients && sale.items) {
-          await db.transaction('rw', db.ingredients, async () => {
-            for (const item of sale.items) {
-              const product = (catalog.products || []).find(p => p.id === item.product_id);
-              await adjustLocalStock(catalog, stockUsage(product, item), 1);
-            }
-          });
-        }
-      } catch (err) {
-        console.error("Error restaurando stock local:", err);
-      }
-
-      // 3. Actualizar contador de pendientes
-      try {
-        const { useNetworkStore } = await import('./network.js');
-        await useNetworkStore().updatePendingCount();
-      } catch (err) {
-        console.warn("Error actualizando networkStore:", err);
-      }
-
-      // 4. Garantizar SIEMPRE la reconstrucción de los ítems en el carrito
-      if (sale && Array.isArray(sale.items) && sale.items.length > 0) {
-        this.items = sale.items.map(i => ({
-          cart_key: buildCartKey(
-            i.product_id,
-            i.modifiers || [],
-            i.item_note || '',
-            i.allergen_flags || [],
-            i.is_takeaway || false
-          ),
-          product_id: i.product_id,
-          name: i.name,
-          quantity: i.quantity || 1,
-          unit_price: Number(i.unit_price) || 0,
-          subtotal: Number(i.subtotal) || (Number(i.unit_price) * (i.quantity || 1)),
-          modifiers: i.modifiers || [],
-          base_price: Number(i.base_price) || Number(i.unit_price) || 0,
-          item_note: i.item_note || '',
-          allergen_flags: i.allergen_flags || [],
-          is_takeaway: i.is_takeaway || false,
-          catalog_unit_price: i.price_override_reason ? (Number(i.catalog_unit_price) || null) : null,
-          price_override_reason: i.price_override_reason || null
-        }));
-        this.customerId = sale.customer_id || null;
-        this.channel = sale.source === 'pedidosya' ? 'pedidosya' : 'pos';
-      }
     }
   }
 });
