@@ -11,6 +11,13 @@ const props = defineProps({
 const reportData = computed(() => props.report || {});
 const session = computed(() => reportData.value.session || {});
 const summary = computed(() => reportData.value.summary || {});
+// Caja cerrada que cambió después del cierre (venta editada, anulada o sincronizada tarde, egreso):
+// el cierre guardado se muestra tal cual se firmó y, aparte, el teórico y la diferencia con las cifras de hoy.
+const recalc = computed(() => (reportData.value.recalculated?.changed ? reportData.value.recalculated : null));
+
+const money = (n) => Number(n || 0).toFixed(2);
+const signed = (n) => `${Number(n) > 0 ? '+' : ''}Bs ${money(n)}`;
+const diffLabel = (n) => (Number(n) === 0 ? 'Exacto' : Number(n) > 0 ? 'Sobrante' : 'Faltante');
 
 function formatDate(dateStr) {
   if (!dateStr) return '--:--';
@@ -127,24 +134,48 @@ function formatDate(dateStr) {
         <span>(-) Egresos Efectivo:</span>
         <span class="text-danger">Bs {{ Number(summary.cash_expenses ?? summary.total_expenses ?? 0).toFixed(2) }}</span>
       </div>
+      <!-- Las filas de arriba son las cifras de hoy: si la caja cambió después del cierre, suman el teórico de hoy -->
       <div class="row highlight-row">
-        <span>(=) Efectivo Teórico:</span>
-        <strong>Bs {{ Number(reportData.expected_closing || 0).toFixed(2) }}</strong>
+        <span>(=) Efectivo Teórico{{ recalc ? ' hoy' : '' }}:</span>
+        <strong>Bs {{ money(recalc ? recalc.expected_closing : reportData.expected_closing) }}</strong>
+      </div>
+      <div v-if="recalc" class="row">
+        <span>Teórico al cierre:</span>
+        <span>Bs {{ money(reportData.expected_closing) }}</span>
       </div>
       <div class="row highlight-row">
         <span>Efectivo Contado:</span>
-        <strong>Bs {{ Number(reportData.actual_closing || 0).toFixed(2) }}</strong>
+        <strong>Bs {{ money(reportData.actual_closing) }}</strong>
       </div>
       <div class="row diff-row">
-        <span>DIFERENCIA:</span>
+        <span>{{ recalc ? 'DIF. AL CIERRE' : 'DIFERENCIA' }}:</span>
         <strong :class="Number(reportData.difference) < 0 ? 'text-danger' : 'text-success'">
-          {{ Number(reportData.difference) > 0 ? '+' : '' }} Bs {{ Number(reportData.difference || 0).toFixed(2) }}
-          ({{ Number(reportData.difference) === 0 ? 'Exacto' : Number(reportData.difference) > 0 ? 'Sobrante' : 'Faltante' }})
+          {{ signed(reportData.difference) }} ({{ diffLabel(reportData.difference) }})
+        </strong>
+      </div>
+      <div v-if="recalc" class="row diff-row diff-row--today">
+        <span>Diferencia hoy:</span>
+        <strong :class="Number(recalc.difference) < 0 ? 'text-danger' : 'text-success'">
+          {{ signed(recalc.difference) }} ({{ diffLabel(recalc.difference) }})
         </strong>
       </div>
       <div class="row" v-if="Number(summary.non_cash_expenses || 0) > 0">
         <span>Egresos QR/Tarjeta (no salen de gaveta):</span>
         <span>Bs {{ Number(summary.non_cash_expenses || 0).toFixed(2) }}</span>
+      </div>
+    </div>
+
+    <!-- CAMBIOS DESPUÉS DEL CIERRE -->
+    <div v-if="recalc" class="changed-after-close" role="note">
+      <div class="divider">--------------------------------</div>
+      <div class="section-title">CAMBIOS DESPUÉS DEL CIERRE</div>
+      <p class="changed-text">
+        Las ventas o egresos de esta caja cambiaron después de cerrarla. El cierre guardado no se modifica;
+        la diferencia de hoy es la que daría con las cifras actuales.
+      </p>
+      <div v-for="(c, i) in recalc.changes" :key="i" class="changed-item">
+        <span>{{ formatDate(c.at) }}{{ c.user ? ` · ${c.user}` : '' }}</span>
+        <span>{{ c.description }}</span>
       </div>
     </div>
 
@@ -295,6 +326,22 @@ function formatDate(dateStr) {
 
 .diff-note {
   margin-top: 6px;
+}
+
+.row.diff-row--today {
+  border-top: 1px dashed black;
+}
+
+.changed-text {
+  margin: 0 0 4px;
+  font-size: 10.5px;
+}
+
+.changed-item {
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  margin-bottom: 3px;
 }
 
 .note-title {

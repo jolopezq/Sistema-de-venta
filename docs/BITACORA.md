@@ -3,7 +3,19 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-30)
+## Estado actual (2026-10-31)
+- **Rama `fix/caja-cerrada` (sin publicar):** pasos 1 y 2 del análisis «modificar cajas cerradas». El detalle está en el CHANGELOG, «Sin publicar».
+  - `CashSessionResolver`: una venta solo entra a una caja abierta el mismo día. Una caja de fecha pasada cerrada semanas después ya no absorbe ventas.
+  - Reporte de caja: bloque `recalculated` con el teórico y la diferencia de hoy y los cambios auditados (`closed_session_sale_change`). El cierre guardado no se toca.
+  - Pruebas:
+    - PHPUnit 365/365, con 4 pruebas nuevas en `CashSessionLinkTest`; las 2 de la ventana fallan con el código anterior.
+    - E2E: `caja-cerrada.spec.js` (2); suite completa 190 en verde, con una prueba de cobro intermitente que pasa 3 de 3 al repetirla.
+    - Venta real anulada en una caja cerrada contra el backend en PHP 8.4 (WebAssembly).
+    - `vite build` sin errores. Contraste del aviso: 4,94 en claro y 6,99 en oscuro.
+  - **Pendiente de ese análisis:**
+    - Paso 3: «Reabrir caja para corregir» (solo super admin, con motivo y con historial de cierres), y egresos con la fecha de la caja, porque Finanzas los cuenta por `created_at`.
+    - Paso 4: comandas viejas que no descuenten stock si son anteriores al último conteo de cada insumo, y decidir si suman puntos.
+
 - **Publicación 2026-10-30 (`main` local, listo para el VPS y la laptop):** reúne la rama `feat/inventario-portatil` y `feat/recuperar-contrasena`.
   - Inventario en la portátil, fases 1 a 5; Finanzas v2, fases 1 y 2; plan v1 de Finanzas (Compras sugeridas, Informe de inventario, Recetas base por pasos, Resumen); correcciones de la auditoría (`7e29d6c`).
   - Recuperar la contraseña con un código por correo ([PLAN_RECUPERAR_CONTRASENA.md](PLAN_RECUPERAR_CONTRASENA.md)), con la migración `password_reset_codes`.

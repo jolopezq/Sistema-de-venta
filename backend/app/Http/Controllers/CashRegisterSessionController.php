@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\CashRegisterSession;
 use App\Models\CashMovement;
 use App\Models\Sale;
@@ -584,6 +585,46 @@ class CashRegisterSessionController extends Controller
             'bill_breakdown'    => $session->bill_breakdown,
             'movements'         => $movements,
             'summary'           => $stats,
+            'recalculated'      => $this->recalculatedClosing($session, $stats),
+        ];
+    }
+
+    /**
+     * Arqueo de una caja cerrada con las cifras de hoy. El cierre guardado (teórico, contado y diferencia) no se
+     * toca: es lo que se firmó. Pero si después se editó, anuló o sincronizó tarde una venta, o cambió un egreso,
+     * el teórico de hoy ya no es el del cierre y el reporte lo dice, junto con los cambios auditados.
+     *
+     * @return array{changed: bool, expected_closing: float, difference: float, total_expenses: float, changes: array}|null
+     */
+    private function recalculatedClosing(CashRegisterSession $session, array $stats): ?array
+    {
+        if ($session->status !== 'closed' || $session->expected_closing === null) {
+            return null;
+        }
+
+        $expectedNow = (float) $stats['expected_cash'];
+        $changed = abs($expectedNow - (float) $session->expected_closing) > 0.005
+            || abs((float) $stats['total_expenses'] - (float) $session->total_expenses) > 0.005;
+
+        // SaleSyncService::auditClosedSessionChange escribe «… afecta la caja #ID, cerrada el …»
+        $changes = AuditLog::with('user:id,name')
+            ->where('action', 'closed_session_sale_change')
+            ->where('description', 'like', "%afecta la caja #{$session->id},%")
+            ->latest('id')
+            ->limit(10)
+            ->get()
+            ->map(fn (AuditLog $log) => [
+                'at'          => $log->created_at?->toIso8601String(),
+                'user'        => $log->user?->name,
+                'description' => strstr($log->description, ' afecta la caja', true) ?: $log->description,
+            ])->values()->all();
+
+        return [
+            'changed'          => $changed,
+            'expected_closing' => $expectedNow,
+            'difference'       => round((float) $session->actual_closing - $expectedNow, 2),
+            'total_expenses'   => (float) $stats['total_expenses'],
+            'changes'          => $changes,
         ];
     }
 }

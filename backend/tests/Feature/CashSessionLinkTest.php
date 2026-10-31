@@ -141,6 +141,85 @@ class CashSessionLinkTest extends TestCase
         $response->assertJsonPath('stats.cash_sales', 60);
     }
 
+    public function test_backdated_session_closed_weeks_later_only_takes_sales_of_its_own_day(): void
+    {
+        // Caja del 1 de octubre abierta desde Control diario y cerrada el 4 (como las cajas #9 y #10 del VPS)
+        $response = $this->actingAs($this->admin)->postJson('/api/cash-sessions', [
+            'opening_amount' => 0, 'date' => '2026-10-01',
+        ])->assertCreated();
+        $backdated = CashRegisterSession::find($response->json('session.id'));
+        $this->actingAs($this->admin)->postJson("/api/cash-sessions/{$backdated->id}/close", [
+            'actual_closing' => 0, 'cash_withdrawn' => 0, 'cash_left_for_next' => 0,
+        ])->assertOk();
+        $this->assertTrue($backdated->fresh()->closed_at->isSameDay(now()));
+
+        $sameDay = $this->syncSale(Carbon::parse('2026-10-01 18:00', config('app.timezone')));
+        $twoDaysLater = $this->syncSale(Carbon::parse('2026-10-03 12:00', config('app.timezone')), $this->admin);
+
+        $this->assertSame($backdated->id, Sale::find($sameDay)->cash_register_session_id);
+        $this->assertNull(Sale::find($twoDaysLater)->cash_register_session_id);
+    }
+
+    public function test_backdated_sale_registered_in_control_diario_goes_to_its_own_days_session(): void
+    {
+        // Caja retroactiva del 1 (cerrada hoy) y caja real del 2: una venta cargada para el 2 va a la del 2
+        $first = $this->openSession($this->admin, Carbon::parse('2026-10-01 00:00', config('app.timezone')));
+        $first->update(['status' => 'closed', 'closed_at' => now()]);
+        $second = $this->openSession($this->cashier, Carbon::parse('2026-10-02 09:00', config('app.timezone')));
+        $second->update(['status' => 'closed', 'closed_at' => Carbon::parse('2026-10-02 21:00', config('app.timezone'))]);
+
+        $this->actingAs($this->admin)->postJson('/api/admin/sales', [
+            'created_at' => Carbon::parse('2026-10-02 15:00', config('app.timezone'))->toIso8601String(),
+            'cashier_id' => $this->admin->id,
+            'subtotal' => 30, 'total_amount' => 30, 'edit_reason' => 'Comanda de papel',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1, 'unit_price' => 30, 'subtotal' => 30]],
+            'payments' => [['method' => 'cash', 'amount' => 30]],
+        ])->assertCreated();
+
+        $this->assertSame($second->id, Sale::latest('created_at')->first()->cash_register_session_id);
+    }
+
+    public function test_report_of_closed_session_keeps_saved_closing_and_shows_it_recalculated_after_an_edit(): void
+    {
+        $session = $this->openSession($this->cashier, now()->subHours(3));
+        $id = $this->syncSale(now()->subHours(2));
+        $this->actingAs($this->cashier)->postJson("/api/cash-sessions/{$session->id}/close", [
+            'actual_closing' => 30, 'cash_withdrawn' => 30, 'cash_left_for_next' => 0,
+        ])->assertOk();
+
+        $this->actingAs($this->admin)->getJson("/api/cash-sessions/{$session->id}/report")
+            ->assertOk()
+            ->assertJsonPath('recalculated.changed', false)
+            ->assertJsonPath('recalculated.changes', []);
+
+        // Se cobró con QR, no en efectivo: el teórico de esa caja baja a 0 y aparece un sobrante de Bs 30
+        $this->actingAs($this->admin)->putJson("/api/admin/sales/{$id}", [
+            'created_at' => now()->subHours(2)->toIso8601String(),
+            'subtotal' => 30, 'total_amount' => 30, 'edit_reason' => 'Era QR',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1, 'unit_price' => 30, 'subtotal' => 30]],
+            'payments' => [['method' => 'qr', 'amount' => 30]],
+        ])->assertOk();
+
+        $report = $this->actingAs($this->admin)->getJson("/api/cash-sessions/{$session->id}/report")->assertOk();
+        $this->assertEquals(30, $report->json('expected_closing'));
+        $this->assertEquals(0, $report->json('difference'));
+        $this->assertTrue($report->json('recalculated.changed'));
+        $this->assertEquals(0, $report->json('recalculated.expected_closing'));
+        $this->assertEquals(30, $report->json('recalculated.difference'));
+        $this->assertStringStartsWith('Edición de venta Ticket #', $report->json('recalculated.changes.0.description'));
+        $this->assertSame($this->admin->name, $report->json('recalculated.changes.0.user'));
+        $this->assertEquals(30, $session->fresh()->expected_closing);
+    }
+
+    public function test_report_of_open_session_has_no_recalculated_block(): void
+    {
+        $session = $this->openSession($this->cashier, now()->subHour());
+
+        $this->actingAs($this->cashier)->getJson("/api/cash-sessions/{$session->id}/report")
+            ->assertOk()
+            ->assertJsonPath('recalculated', null);
+    }
+
     private function openSession(User $user, Carbon $openedAt): CashRegisterSession
     {
         return CashRegisterSession::create([

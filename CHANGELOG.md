@@ -8,6 +8,15 @@ se renombra con la fecha de la actualización de producción.
 
 ### Agregado
 - `deploy/vps/08-configurar-correo.sh`: activa el envío por Resend en el VPS. Pide la clave sin mostrarla, ajusta el `.env`, corre `config:cache`, recarga PHP y envía un correo de prueba.
+- **Caja cerrada que cambió después del cierre:** si después se edita, anula o sincroniza tarde una venta, el ticket de cierre y Control diario lo avisan.
+  - Muestran el cierre guardado tal cual se firmó y, aparte, el efectivo teórico y la diferencia con las cifras de hoy.
+  - El ticket lista los cambios auditados: fecha, quién y qué ticket.
+  - Antes, el ticket sumaba las ventas de hoy pero mostraba el teórico del cierre, y las filas no cuadraban.
+
+### Corregido
+- **Cajas abiertas con fecha pasada (Control diario):** al cerrarlas quedaban con la fecha del cierre real, días o semanas después. Hasta ese día absorbían cualquier venta cargada o editada para esos días.
+  - Ahora una venta solo entra a una caja abierta el mismo día, como ya pasaba con las cajas abiertas.
+  - En el VPS había dos cajas así: #9 (1 al 21 de octubre) y #10 (2 al 24 de octubre). Todavía no tenían ventas de otros días, así que no hubo que reparar datos.
 
 ## [2026-10-30]
 

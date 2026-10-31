@@ -53,6 +53,8 @@ const isToday = computed(() => selectedDate.value === todayStr);
 // Estado de la sesión
 const isSessionOpen = computed(() => currentSession.value && currentSession.value.status === 'open');
 const isSessionClosed = computed(() => currentSession.value && currentSession.value.status === 'closed');
+// Caja cerrada cuyas ventas o egresos cambiaron después del cierre (el reporte trae el arqueo recalculado)
+const closedRecalc = computed(() => (closedReport.value?.recalculated?.changed ? closedReport.value.recalculated : null));
 
 // Cálculos del Arqueo en tiempo real
 const openingAmount = computed(() => {
@@ -601,6 +603,13 @@ watch(selectedDate, (newDate) => {
             <p v-if="currentSession.diff_note" class="diff-note">
               <em>Nota: {{ currentSession.diff_note }}</em>
             </p>
+            <div v-if="closedRecalc" class="closed-changed" role="status">
+              <strong>Cambió después del cierre.</strong>
+              Con las ventas y egresos de hoy, el efectivo teórico es Bs {{ formatCurrency(closedRecalc.expected_closing) }}
+              (al cierre: Bs {{ formatCurrency(closedReport.expected_closing) }}) y la diferencia sería
+              {{ closedRecalc.difference >= 0 ? '+' : '' }}Bs {{ formatCurrency(closedRecalc.difference) }}.
+              El cierre guardado no cambia: los detalles están en el ticket completo.
+            </div>
             <button class="btn btn-secondary btn-full" @click="showReportModal = true">
               📄 Ver Ticket Completo de Cierre
             </button>
@@ -1350,6 +1359,15 @@ watch(selectedDate, (newDate) => {
 }
 
 /* CAJA DE CIERRE REGISTRADO */
+.closed-changed {
+  background: var(--passion-100);
+  color: var(--passion-text);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.closed-changed strong { display: block; margin-bottom: 2px; }
 .closed-summary-box {
   background: var(--tw-bg-f8fafc);
   border: 1px solid var(--tw-bg-e2e8f0);
