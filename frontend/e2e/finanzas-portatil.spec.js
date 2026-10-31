@@ -80,7 +80,7 @@ test.describe('Finanzas — portátil de caja', () => {
         hero: r('.hero')?.height ?? 0,
         main: r('.sum-main'),
         side: r('.sum-side'),
-        stmtTop: r('.fin-statement')?.top ?? 0,
+        stmtTop: r('.sum-main')?.top ?? 0,
         grossProfitBottom: rows[2] ?? 0, // Utilidad bruta
       };
     });
@@ -342,26 +342,28 @@ test.describe('Finanzas v2 — Fase 1: formularios', () => {
 
     const nav = page.locator('.iim-nav');
     await expect(nav).toBeVisible();
-    await expect(nav.getByRole('tab')).toHaveCount(5);
+    // Botones simples con aria-current (no pestañas ARIA: no hay navegación con flechas)
+    await expect(nav.getByRole('button')).toHaveCount(5);
+    await expect(nav.getByRole('button', { name: /Indicadores del mes/ })).toHaveAttribute('aria-current', 'true');
 
     // 1. Indicadores del mes activo por defecto
     await expect(modal.getByRole('cell', { name: 'Valor del inventario' })).toBeVisible();
 
     // 2. Cobertura y Quiebres
-    await nav.getByRole('tab', { name: /Cobertura y Quiebres/ }).click();
+    await nav.getByRole('button', { name: /Cobertura y Quiebres/ }).click();
     await expect(modal.getByRole('cell', { name: 'Valor del inventario' })).toHaveCount(0);
     await expect(modal.getByRole('heading', { name: /Cobertura/ })).toBeVisible();
 
     // 3. Mermas y Conteos
-    await nav.getByRole('tab', { name: /Mermas y Conteos/ }).click();
+    await nav.getByRole('button', { name: /Mermas y Conteos/ }).click();
     await expect(modal.getByRole('heading', { name: /Merma por insumo/ })).toBeVisible();
 
     // 4. Valorización
-    await nav.getByRole('tab', { name: /Valorización/ }).click();
+    await nav.getByRole('button', { name: /Valorización/ }).click();
     await expect(modal.getByRole('heading', { name: /Dónde está el valor/ })).toBeVisible();
 
     // 5. Ver todo
-    await nav.getByRole('tab', { name: 'Ver todo' }).click();
+    await nav.getByRole('button', { name: 'Ver todo' }).click();
     await expect(modal.getByRole('cell', { name: 'Valor del inventario' })).toBeVisible();
     await expect(modal.getByRole('heading', { name: /Cobertura/ })).toBeVisible();
 
@@ -403,13 +405,16 @@ test.describe('Finanzas v2 — Fase 1: formularios', () => {
 
     const stepper = page.locator('.brw-stepper');
     await expect(stepper).toBeVisible();
-    await expect(stepper.getByRole('tab')).toHaveCount(3);
+    await expect(stepper.getByRole('button')).toHaveCount(3);
+    await expect(stepper.getByRole('button', { name: /1\. Costo de componentes/ })).toHaveAttribute('aria-current', 'step');
 
     // --- PASO 1: Componentes ---
     await expect(modal.getByRole('columnheader', { name: 'Componente' })).toBeVisible();
     await expect(modal.getByRole('button', { name: /← Anterior/ })).toHaveCount(0);
     const nextToProducts = modal.getByRole('button', { name: /Siguiente: Productos/ });
     await expect(nextToProducts).toBeVisible();
+    // «Aplicar» solo aparece en el paso 3, después de revisar productos y opciones
+    await expect(modal.getByRole('button', { name: /Aplicar a|Guardar costos/ })).toHaveCount(0);
 
     // Avanzar a Paso 2
     await nextToProducts.click();
@@ -436,7 +441,7 @@ test.describe('Finanzas v2 — Fase 1: formularios', () => {
     await expect(applyBtn).toBeVisible();
 
     // Navegar directamente hacia atrás haciendo clic en el stepper
-    await stepper.getByRole('tab', { name: /1\. Costo de componentes/ }).click();
+    await stepper.getByRole('button', { name: /1\. Costo de componentes/ }).click();
     await expect(modal.getByRole('columnheader', { name: 'Componente' })).toBeVisible();
 
     // Cerrar modal

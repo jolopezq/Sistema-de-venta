@@ -661,7 +661,8 @@ html.dark .fin-page .fin-toast.error { background: var(--danger-100); color: var
   .fin-page .fin-tabs { position: sticky; top: 0; z-index: 40; }
   .fin-page .fin-card-head { padding: 6px 12px; }
   .fin-page .fin-card-head h2 { font-size: 15px; }
-  .fin-page .fin-card-head p { display: none; }
+  /* Las descripciones de las tarjetas (ej. «lo que se pagó desde la caja…») se mantienen visibles;
+     solo se oculta el subtítulo cuando hay poco espacio y el título ya es claro por sí solo */
   .fin-page .fin-statement th,
   .fin-page .fin-statement td { padding: 5px 12px; }
 }

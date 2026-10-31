@@ -6,6 +6,13 @@ se renombra con la fecha de la actualización de producción.
 
 ## [Sin publicar]
 
+### Agregado
+- **Recuperar la contraseña con un código por correo** ([plan](docs/PLAN_RECUPERAR_CONTRASENA.md)): «¿Olvidaste tu contraseña?» en el login
+  lleva a 3 pasos (correo → código de 6 dígitos → contraseña nueva). El código vence en 15 minutos, admite 5 intentos y sirve una vez; la
+  respuesta no revela si el correo existe; hay límite de pedidos e intentos; al cambiarla se cierran todas las sesiones del usuario, llega un
+  aviso por correo y queda en Auditoría. Envío por la API HTTPS de Resend (`MAIL_MAILER=resend-api`, sin paquetes nuevos) y
+  `php artisan ohana:probar-correo` para comprobar la configuración. Migración nueva `password_reset_codes`.
+
 ### Corregido
 - **Inventario: el modal de insumo no se podía guardar** ([plan](docs/PLAN_REDISENO_INVENTARIO_PORTATIL.md)): medía 1026 px y quedaba cortado
   arriba y abajo en todas las pantallas (incluso 1440 × 900); «Guardar» era inalcanzable. Ahora usa `FinanceModal` en tres columnas
@@ -41,7 +48,7 @@ se renombra con la fecha de la actualización de producción.
   (96 px) y las notas de advertencia consumían hasta 170 px verticales dejando visible solo 1 insumo al 125 %; además, la unidad de medida
   hacía wrap cayendo 35 px debajo del campo numérico. Se reemplazaron por una franja horizontal compacta `.rm-kpis` (38 px) con badges de alerta
   integrados con tooltip nativo, cabecera de proveedor en una línea horizontal (~32 px) y cantidades sin quiebre de línea (`.rm-qty { flex-wrap: nowrap }`).
-  Ahora se ven ≥ 4 insumos al 125 % y ≥ 6 al 100 % en el primer pantallazo sin scroll, con la unidad alineada al campo.
+  Emojis ⚠ ℹ sustituidos por iconos SVG de trazo; instrucciones visibles sin necesidad de hover; texto del grupo sin proveedor aclarado.
 - **Informe de inventario en la portátil de caja** ([plan v1 Fase 3](docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL_v1.md)): el modal apilaba 6 tablas
   analíticas en más de 1.300 px verticales, obligando a un desplazamiento masivo en pantallas de 489 px de alto útil. Ahora cuenta con una barra
   superior de pestañas/chips (`1. Indicadores del mes`, `2. Cobertura y Quiebres`, `3. Mermas y Conteos`, `4. Valorización`, `Ver todo`), reduciendo
@@ -50,16 +57,22 @@ se renombra con la fecha de la actualización de producción.
 - **Cargar recetas base en la portátil de caja** ([plan v1 Fase 4](docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL_v1.md)): el asistente apilaba más de
   3.300 px de formulario continuo con tres etapas mezcladas. Ahora se organiza en un stepper de 3 pasos (`1. Costo de componentes`,
   `2. Recetas de productos`, `3. Ajustes de opciones`) navegables con botones `← Anterior`, `Siguiente →` o clic directo en los chips superiores.
-  Incluye herramientas de selección rápida (`Todos`, `Solo sin receta/ajuste`, `Ninguno`) y tabla compacta de componentes, conteniendo cada paso
-  en < 360 px de alto útil en la pantalla de la caja.
+  Incluye herramientas de selección rápida (`Todos`, `Solo sin receta/ajuste`, `Ninguno`) y tabla compacta de componentes; cada paso se
+  muestra de forma aislada sin mezclar las tres secciones. El botón «Aplicar» solo aparece en el paso 3, tras revisar costos, productos y opciones.
 - **Resumen de Finanzas en dos columnas estables al 125 % DPI** ([plan v1 Fase 5](docs/PLAN_MEJORA_UI_FINANZAS_PORTATIL_v1.md)): en pantallas
   con escala DPI o anchos reducidos, la cuadrícula `.sum-grid` podía quebrar sus columnas y apilar el Punto de Equilibrio y la Reposición al
   fondo a más de 1.400 px de scroll. Con flex proporcional estabilizado (`.sum-main: 1 1 480px`, `.sum-side: 0 0 280px` y versión ajustada a
   `max-height: 520px`), el Estado de Resultados a la izquierda y el Punto de Equilibrio a la derecha se conservan siempre lado a lado sin colapsar,
   con el botón «Ver compras sugeridas» visible de inmediato.
+- **Correcciones de la auditoría de accesibilidad (portátil):**
+  - Contraste de los números del stepper en Cargar recetas base: el paso activo pasa a texto blanco sobre morado (antes 2,83 por `--on-accent`, que es oscuro) y los demás a `--ink-900`.
+  - Pestañas del informe de inventario y del stepper de recetas: se eliminó `role="tablist"/"tab"` que exigía navegación con flechas no implementada; ahora son botones simples con `aria-current`.
+  - Cabecera del Resumen al 125 %: todas las fuentes subidas de 10–11 px a ≥ 12 px, botones de acción de 24 px a ≥ 28 px de alto.
+  - Descripciones de las tarjetas de Finanzas: visible de nuevo al 125 % (la regla `display: none` afectaba todas las pestañas, no solo el encabezado).
 - **Finanzas con teclado**: «Registrar gasto» empieza en Monto, «Gasto fijo» en Concepto, «Categoría» y «+ Nueva categoría…» en Nombre.
 
 ### Cambiado
+- **Login en producción**: ya no aparece escrita la cuenta de ejemplo (`admin@example.com` / `password`); solo en desarrollo.
 - **Inventario: Categorías, Proveedores, confirmación y aviso con `FinanceModal`**: lista con herramientas y formulario al lado, la acción
   principal en el pie, Escape y ✕ en todos; el borrado nombra el insumo, la categoría o el proveedor, y el foco queda en «Cancelar».
 - **`FinanceModal`**: prop `size` (`''`, `'wide'`, `'xl'` de 920 px), compatible con `wide`.

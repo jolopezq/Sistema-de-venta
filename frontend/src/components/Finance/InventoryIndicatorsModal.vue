@@ -76,15 +76,14 @@ function print() {
 <template>
   <FinanceModal wide :title="`Informe de inventario · ${periodText}`" subtitle="Los indicadores del mes con su meta y el detalle que los explica." @close="emit('close')">
     <!-- Barra de pestañas compacta (chips segmentados) -->
-    <div class="iim-nav" role="tablist" aria-label="Secciones del informe de inventario">
+    <div class="iim-nav" aria-label="Secciones del informe de inventario">
       <button
         v-for="t in TABS"
         :key="t.id"
         class="fin-chip"
         :class="{ active: activeTab === t.id }"
         type="button"
-        role="tab"
-        :aria-selected="activeTab === t.id"
+        :aria-current="activeTab === t.id || undefined"
         @click="activeTab = t.id"
       >
         {{ t.label }}

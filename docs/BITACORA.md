@@ -3,7 +3,9 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-23)
+## Estado actual (2026-10-30)
+- **Nuevo (2026-10-30, sin commit):** recuperar la contraseña con un código por correo ([PLAN_RECUPERAR_CONTRASENA.md](PLAN_RECUPERAR_CONTRASENA.md)). Probado contra el backend real (22/22), envío a Resend con `Http::fake` (11/11), navegador de punta a punta en 1366 × 611, 1093 × 489 y 390 × 844 (51/51) y 12 E2E nuevas; suite completa en verde. **Pendiente:** el dueño configura Resend (sección 4 del plan: dominio `avisos.ohana-pos.com`, clave solo en el `.env` del VPS y de la laptop) y corre `php artisan test` en la Mac (en la nube PHPUnit no corre con `RefreshDatabase`). Hacer el commit en una rama propia: `feat/inventario-portatil` tiene cambios sin commit de otra sesión.
+
 - **Rama de trabajo:** `feat/inventario-portatil` (desde `main` local `62c6f51`). Commits locales: `16d9764` (inventario fases 1-5), `714fa75` (finanzas fase 1), `01ee46c` (herramientas toshiba). Sin push a GitHub ni VPS.
 - **En curso (2026-10-23):** Finanzas, segunda vuelta en la portátil ([PLAN_MEJORA_UI_FINANZAS_PORTATIL.md](PLAN_MEJORA_UI_FINANZAS_PORTATIL.md) v2).
   - **Fase 1 (hecha, `714fa75`):** categorías sin preseleccionar, avisos junto al campo, título «Registrar gasto», foco inicial en Monto/Concepto/Nombre.

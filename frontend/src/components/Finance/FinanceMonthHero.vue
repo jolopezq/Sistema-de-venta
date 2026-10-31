@@ -338,20 +338,20 @@ function shortWarningMessage(w) {
   }
   .hero-text { gap: 2px; }
   .hero-title { font-size: 20px; line-height: 1.1; }
-  .hero-lead { font-size: 11px; line-height: 1.3; }
+  .hero-lead { font-size: 12px; line-height: 1.3; }
   .hero-bar { height: 12px; }
-  .hero-legend { margin-top: 3px; gap: 2px 8px; font-size: 10.5px; }
+  .hero-legend { margin-top: 3px; gap: 2px 8px; font-size: 12px; }
   .hero-swatch { width: 8px; height: 8px; }
   .hero-trust { padding: 4px 10px; border-radius: 10px; }
-  .hero-trust-title { margin: 1px 0 2px; font-size: 11px; }
+  .hero-trust-title { margin: 1px 0 2px; font-size: 12px; }
   .hero-trust ul { display: flex; flex-direction: column; gap: 2px; }
   .hero-trust li { padding: 2px 0; gap: 4px 8px; }
-  .hero-trust-text { flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.25; gap: 5px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hero-trust-text { flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.25; gap: 5px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hero-trust-full { display: none; }
   .hero-trust-short { display: inline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hero-trust li .fin-btn { padding: 2px 7px; min-height: 24px; height: 24px; font-size: 11px; flex-shrink: 0; }
-  .hero-trust-ok { padding: 3px 0; font-size: 11px; }
-  .hero-updating { top: 6px; right: 10px; font-size: 10px; padding: 1px 6px; }
+  .hero-trust li .fin-btn { padding: 2px 8px; min-height: 28px; font-size: 12px; flex-shrink: 0; }
+  .hero-trust-ok { padding: 3px 0; font-size: 12px; }
+  .hero-updating { top: 6px; right: 10px; font-size: 12px; padding: 1px 6px; }
 }
 
 @media (max-width: 760px) {

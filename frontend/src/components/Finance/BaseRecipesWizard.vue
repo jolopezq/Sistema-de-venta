@@ -154,16 +154,15 @@ async function apply() {
   >
     <div v-if="loading" class="fin-loading">Revisando el catálogo…</div>
     <template v-else-if="preview">
-      <!-- Stepper de 3 pasos accesible -->
-      <nav class="brw-stepper" role="tablist" aria-label="Pasos para cargar recetas base">
+      <!-- Stepper de 3 pasos accesible (botones simples, sin role=tab que exigiría flechas) -->
+      <nav class="brw-stepper" aria-label="Pasos para cargar recetas base">
         <button
           v-for="s in STEPS"
           :key="s.number"
           class="brw-step"
           :class="{ active: currentStep === s.number, done: currentStep > s.number }"
           type="button"
-          role="tab"
-          :aria-selected="currentStep === s.number"
+          :aria-current="currentStep === s.number ? 'step' : undefined"
           @click="currentStep = s.number"
         >
           <span class="brw-step-badge">{{ s.number }}</span>
@@ -296,6 +295,7 @@ async function apply() {
           Siguiente: {{ currentStep === 1 ? 'Productos' : 'Opciones' }} →
         </button>
         <button
+          v-if="currentStep === 3"
           class="fin-btn fin-btn-primary"
           type="button"
           :disabled="saving || loading || !preview"
@@ -352,12 +352,13 @@ async function apply() {
   font-size: 11.5px;
   font-weight: 700;
   background: var(--ink-100);
-  color: var(--ink-700);
+  color: var(--ink-900);
   flex-shrink: 0;
 }
 .brw-step.active .brw-step-badge {
   background: var(--acai-500);
-  color: var(--on-accent, #fff);
+  /* Texto claro sobre el morado (--on-accent es oscuro: daba 2,83 de contraste) */
+  color: #fff;
 }
 .brw-step.done .brw-step-badge {
   background: var(--ink-300);

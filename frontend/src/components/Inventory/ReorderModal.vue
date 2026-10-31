@@ -205,17 +205,20 @@ function toPurchase(group) {
               class="fin-badge warn rm-badge-alert"
               :title="`${estimated} ${estimated === 1 ? 'insumo usa' : 'insumos usan'} una estimación o pocos datos (aún sin 4 semanas de ventas): revisa esas cantidades antes de pedir.`"
             >
-              ⚠ {{ estimated }} {{ estimated === 1 ? 'con estimación' : 'con estimaciones' }}
+              <svg class="rm-badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6" /><path d="M12 16.5v.5" /></svg>
+              {{ estimated }} {{ estimated === 1 ? 'con estimación' : 'con estimaciones' }}
             </span>
             <span
               v-if="noData"
               class="fin-badge info rm-badge-alert"
               :title="`${noData} ${noData === 1 ? 'insumo no tiene' : 'insumos no tienen'} datos para calcular su reposición. Completa su consumo diario estimado o un punto de reorden manual en «Editar».`"
             >
-              ℹ {{ noData }} sin datos
+              <svg class="rm-badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6" /><path d="M12 7.5v.5" /></svg>
+              {{ noData }} sin datos
             </span>
           </div>
         </div>
+        <p v-if="estimated" class="rm-note fin-small fin-muted">Revisa esas cantidades antes de pedir: {{ estimated }} {{ estimated === 1 ? 'insumo usa' : 'insumos usan' }} estimación por pocos datos de ventas.</p>
 
         <p v-if="!groups.length" class="fin-empty">No hay nada que pedir por ahora: todo lo controlado está sobre su punto de reorden.</p>
 
@@ -227,7 +230,7 @@ function toPurchase(group) {
                 · Llega en {{ g.supplier.delivery_days }} {{ g.supplier.delivery_days === 1 ? 'día' : 'días' }}<template v-if="g.supplier.order_days"> · pedidos: {{ g.supplier.order_days }}</template><template v-if="g.supplier.phone"> · {{ g.supplier.phone }}</template>
               </span>
               <span v-else-if="g.daily" class="fin-small fin-muted rm-group-meta">· Cubre hoy</span>
-              <span v-else class="fin-small fin-muted rm-group-meta">· Sin proveedor fijo</span>
+              <span v-else class="fin-small fin-muted rm-group-meta">· Asigna un proveedor desde «Editar» en Inventario</span>
             </div>
             <div class="rm-group-actions">
               <button class="fin-btn fin-btn-secondary fin-btn-sm" type="button" :disabled="!chosen(g).length" @click="copy(textFor(g))">Copiar</button>
@@ -339,6 +342,24 @@ function toPurchase(group) {
   cursor: help;
   font-size: 11px;
   padding: 2px 7px;
+}
+.rm-badge-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  vertical-align: -1px;
+}
+.rm-note {
+  margin: 4px 0 0;
+  padding: 0;
+  line-height: 1.4;
+}
+/* Compactar la línea de detalle (base, consumo, vida útil) a una sola línea */
+.rm-table td .fin-small.fin-muted {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
 }
 .rm-group {
   display: flex;
