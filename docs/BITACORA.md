@@ -4,6 +4,22 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-31)
+- **Rama `feat/dias-pasados-permisos` (sin publicar; parte de `fix/caja-cerrada`):** fases 1 a 4 de [PLAN_DIAS_PASADOS_Y_PERMISOS.md](PLAN_DIAS_PASADOS_Y_PERMISOS.md), con un commit por fase. El detalle está en el CHANGELOG, «Sin publicar».
+  - **Fase 1:** permisos por persona (`user_permissions`), módulos `sales_history`, `register_corrections` y `finance`, y protecciones del Super Admin.
+  - **Fase 2:** Finanzas por permiso, con modo solo lectura.
+  - **Fase 3:** días pasados: ventas históricas, regla de stock por conteo posterior, N.º de comanda, caja a nombre del cajero y `occurred_at` en los egresos.
+  - **Fase 4:** reabrir para corregir, con `cash_session_closings`.
+  - **Migraciones nuevas:** `2026_10_31_000001` a `000003`. Las tres son aditivas, y la segunda copia `created_at` en `occurred_at` de los egresos existentes.
+  - **Pruebas:**
+    - PHPUnit 391/391 (2.510 aserciones).
+    - E2E: 206 en verde. Dos pruebas de cobro (`checkout-portatil`) fallan a veces bajo carga y pasan al repetirlas; ya fallaban así antes de esta rama.
+    - `npm run test:unit` 16/16; `vite build` sin errores.
+    - Contraste AA en las pantallas nuevas a 1366 × 611 (claro) y 1093 × 489 (oscuro). Se corrigió el panel de caja cerrada en modo oscuro.
+  - **Al publicar:**
+    - correr `04-actualizar.sh` (aplica las migraciones);
+    - en Usuarios, dar *Finanzas* y *Corregir cajas cerradas* a quien corresponda; por defecto, ningún administrador los tiene;
+    - revisar en Control diario la fecha de inicio del sistema: por defecto es la primera venta del POS.
+
 - **Rama `fix/caja-cerrada` (sin publicar):** pasos 1 y 2 del análisis «modificar cajas cerradas». El detalle está en el CHANGELOG, «Sin publicar».
   - `CashSessionResolver`: una venta solo entra a una caja abierta el mismo día. Una caja de fecha pasada cerrada semanas después ya no absorbe ventas.
   - Reporte de caja: bloque `recalculated` con el teórico y la diferencia de hoy y los cambios auditados (`closed_session_sale_change`). El cierre guardado no se toca.

@@ -3,7 +3,22 @@
 > **Pedido del dueño (2026-10-31):** cargar los registros de antes de que existiera el sistema; poder cargar a mano las
 > ventas de un día en que el sistema falle; corregir cajas ya cerradas; y dar esos privilegios, y también Finanzas, a la
 > persona que él elija, sea haciéndola super usuario o dándole solo ese módulo a un administrador.
-> **Estado:** la Fase 0 está hecha en la rama `fix/caja-cerrada`, sin publicar. Las demás fases son plan.
+> **Estado (2026-10-31):** fases 0 a 4 implementadas, sin publicar.
+> - Fase 0: rama `fix/caja-cerrada`.
+> - Fases 1 a 4: rama `feat/dias-pasados-permisos`, que parte de la anterior.
+> - La Fase 5 (importar el histórico desde una planilla) no se hace: el histórico está en papel (D3).
+>
+> **Decisiones del dueño (2026-10-31):**
+> - D1: los administradores conservan *Ventas de días pasados*.
+> - D2: Finanzas tiene dos niveles, Ver y Editar.
+> - D3: el histórico está en papel y son varios días.
+> - D4: las ventas históricas no suman puntos.
+> - D5: el inventario todavía no tiene datos reales, así que no hay conteos ni cargas iniciales que respetar.
+> - D6: nombrar Super Admin pide la contraseña.
+>
+> **Diferencias con el plan original:**
+> - Los tres módulos por persona no tienen filas en `role_permissions`: sus valores por defecto viven en `PermissionService::DEFAULTS` y no aparecen en la matriz de roles. Así la pantalla de roles sigue entrando en la portátil.
+> - Forzar el cierre con ventas sin sincronizar sigue con `isAdmin()`.
 > **Base:** código de `main` al 2026-10-31 (`bff4a71`). Las referencias a archivos son de ese commit.
 
 ---
