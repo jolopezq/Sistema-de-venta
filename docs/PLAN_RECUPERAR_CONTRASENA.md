@@ -4,7 +4,8 @@
 > **Alcance decidido:** solo recuperar la contraseña. El inicio de sesión normal no cambia.
 > **Envío:** Resend, desde el dominio propio `ohana-pos.com`, por su API HTTPS.
 > **Estado:** publicado en el VPS el 2026-10-30 (`3d5220c`). Producción es solo el VPS (`pos.ohana-pos.com`); la laptop de caja es un navegador más.
-> **Falta:** configurar Resend (sección 4). Hasta entonces el código **no llega**: con `MAIL_MAILER=log` y `LOG_LEVEL=warning` no sale por correo ni queda en el log (comprobado el 2026-10-31).
+> **Correo activo desde el 2026-10-31:** Resend con el dominio `avisos.ohana-pos.com` verificado (región São Paulo, registros DNS puestos por *Auto configure* en Cloudflare). La clave `ohana-pos-vps` tiene permiso *Sending access* y está solo en el `.env` del VPS. La prueba de `08-configurar-correo.sh` llegó como *Delivered* a `jolopez.freelancer@gmail.com`.
+> Antes de eso el código no llegaba: con `MAIL_MAILER=log` y `LOG_LEVEL=warning` no salía por correo ni quedaba en el log.
 
 ---
 

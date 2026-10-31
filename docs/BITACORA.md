@@ -10,7 +10,12 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
   - Pruebas sobre el árbol publicado: PHPUnit 361/361 (PHP 8.4 en WebAssembly, con `mockConsoleOutput = false` solo en la copia de prueba porque Mockery cae en WebAssembly), E2E 184 + 3 de teléfono, `vite build` sin errores, contraste 0 bajo AA en Finanzas e Inventario a 1366 × 611 y 1093 × 489.
   - **Publicada en el VPS** el 2026-10-30 (`62c6f512 → 3d5220cb`, 67 migraciones). Producción es solo el VPS; la laptop de caja es un navegador.
   - **2026-10-31, «no llega el código»:** el VPS tenía `MAIL_MAILER=log` y no tenía `RESEND_API_KEY`. Con `LOG_LEVEL=warning`, el código tampoco quedó en el log. Se agregó `deploy/vps/08-configurar-correo.sh`, que pide la clave sin mostrarla, ajusta el `.env`, recarga la configuración y envía una prueba.
-  - **Pendiente del dueño:** dominio `avisos.ohana-pos.com` y clave en resend.com (sección 4.1 del plan), luego `08-configurar-correo.sh` (sección 4.2).
+  - **Correo activo (2026-10-31, 01:14):**
+    - Cuenta de Resend con `jolopez.quintana@gmail.com`.
+    - Dominio `avisos.ohana-pos.com` verificado; los DNS los puso *Auto configure* en Cloudflare.
+    - Clave `ohana-pos-vps` con *Sending access*, guardada solo en el `.env` del VPS.
+    - Prueba entregada (*Delivered*).
+  - **Pendiente:** pasar la clave a «solo `avisos.ohana-pos.com`»; al crearla el dominio aún no estaba verificado y quedó en «All domains».
   - **Pendiente de Finanzas v2:** Fase 4 (Costos y margen al 125 %).
 
 - **En curso (2026-10-23):** Finanzas, segunda vuelta en la portátil ([PLAN_MEJORA_UI_FINANZAS_PORTATIL.md](PLAN_MEJORA_UI_FINANZAS_PORTATIL.md) v2).
