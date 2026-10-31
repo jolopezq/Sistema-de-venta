@@ -4,9 +4,13 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-30)
-- **Nuevo (2026-10-30, sin commit):** recuperar la contraseña con un código por correo ([PLAN_RECUPERAR_CONTRASENA.md](PLAN_RECUPERAR_CONTRASENA.md)). Probado contra el backend real (22/22), envío a Resend con `Http::fake` (11/11), navegador de punta a punta en 1366 × 611, 1093 × 489 y 390 × 844 (51/51) y 12 E2E nuevas; suite completa en verde. **Pendiente:** el dueño configura Resend (sección 4 del plan: dominio `avisos.ohana-pos.com`, clave solo en el `.env` del VPS y de la laptop) y corre `php artisan test` en la Mac (en la nube PHPUnit no corre con `RefreshDatabase`). Hacer el commit en una rama propia: `feat/inventario-portatil` tiene cambios sin commit de otra sesión.
+- **Publicación 2026-10-30 (`main` local, listo para el VPS y la laptop):** reúne la rama `feat/inventario-portatil` y `feat/recuperar-contrasena`.
+  - Inventario en la portátil, fases 1 a 5; Finanzas v2, fases 1 y 2; plan v1 de Finanzas (Compras sugeridas, Informe de inventario, Recetas base por pasos, Resumen); correcciones de la auditoría (`7e29d6c`).
+  - Recuperar la contraseña con un código por correo ([PLAN_RECUPERAR_CONTRASENA.md](PLAN_RECUPERAR_CONTRASENA.md)), con la migración `password_reset_codes`.
+  - Pruebas sobre el árbol publicado: PHPUnit 361/361 (PHP 8.4 en WebAssembly, con `mockConsoleOutput = false` solo en la copia de prueba porque Mockery cae en WebAssembly), E2E 184 + 3 de teléfono, `vite build` sin errores, contraste 0 bajo AA en Finanzas e Inventario a 1366 × 611 y 1093 × 489.
+  - **Pendiente del dueño:** correr `04-actualizar.sh` en el VPS con el paquete, `git push origin main` para la laptop, y configurar Resend (sección 4 del plan); hasta entonces el código de recuperación no sale por correo.
+  - **Pendiente de Finanzas v2:** Fase 4 (Costos y margen al 125 %).
 
-- **Rama de trabajo:** `feat/inventario-portatil` (desde `main` local `62c6f51`). Commits locales: `16d9764` (inventario fases 1-5), `714fa75` (finanzas fase 1), `01ee46c` (herramientas toshiba). Sin push a GitHub ni VPS.
 - **En curso (2026-10-23):** Finanzas, segunda vuelta en la portátil ([PLAN_MEJORA_UI_FINANZAS_PORTATIL.md](PLAN_MEJORA_UI_FINANZAS_PORTATIL.md) v2).
   - **Fase 1 (hecha, `714fa75`):** categorías sin preseleccionar, avisos junto al campo, título «Registrar gasto», foco inicial en Monto/Concepto/Nombre.
   - **Fase 2 (hecha, `1c12cc8`):** cabecera del Resumen compactada al 125 % (`FinanceMonthHero.vue`, `finance.css`). En `max-height: 520px` se reemplazaron las 3 filas verticales por 2 columnas horizontales y avisos resumidos con tooltip completo en `title`. Altura reducida de 281/256 px a 116 px; Estado de resultados y Punto de equilibrio inician en y = 261 px (antes 426-500 px), dejando 5 filas de cifras visibles sin scroll. Test 3b agregado en `finanzas-portatil.spec.js` (37/37 en verde).

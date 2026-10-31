@@ -4,7 +4,7 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
-## [Sin publicar]
+## [2026-10-30]
 
 ### Agregado
 - **Recuperar la contraseña con un código por correo** ([plan](docs/PLAN_RECUPERAR_CONTRASENA.md)): «¿Olvidaste tu contraseña?» en el login
