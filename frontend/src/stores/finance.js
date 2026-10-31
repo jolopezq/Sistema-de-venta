@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { apiFetch } from '../services/api';
+import { useAuthStore } from './auth';
 
 /**
  * Estado compartido del módulo de Finanzas: período, datos de cada pestaña, avisos y diálogos.
@@ -256,7 +257,11 @@ export const useFinanceStore = defineStore('finance', () => {
     if (resolve) resolve(result);
   }
 
+  // Finanzas por persona: con «Ver» se consulta todo, pero no se ofrecen acciones que la API rechaza (403)
+  const canEdit = computed(() => useAuthStore().hasPermission('finance', 'edit'));
+
   return {
+    canEdit,
     year, month, periodLabel, periodQuery, isCurrentMonth,
     pnl, categories, activeCategories, expenses, expenseTotals, expenseFilter, templates, recurringPeriod,
     cashMovements, settlements, suppliers, costs, breakEven, inventoryIndicators, loading, errors, counts,

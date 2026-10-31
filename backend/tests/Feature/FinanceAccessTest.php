@@ -111,4 +111,43 @@ class FinanceAccessTest extends TestCase
             'amount' => 1500.00,
         ]);
     }
+
+    /** Finanzas por persona (docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md, Fase 2): «Ver» consulta, «Editar» registra. */
+    public function test_admin_with_finance_read_can_consult_but_not_write(): void
+    {
+        \App\Models\UserPermission::create(['user_id' => $this->admin->id, 'module' => 'finance', 'access_level' => 'read']);
+        $category = ExpenseCategory::firstOrCreate(
+            ['name' => 'Helado y açaí'],
+            ['section' => 'cost_of_sales', 'group_name' => 'Insumos', 'sort_order' => 1, 'is_active' => true]
+        );
+
+        foreach (['/api/finance/pnl?year=2026&month=9', '/api/finance/break-even?year=2026&month=9', '/api/finance/expenses?year=2026&month=9',
+                  '/api/finance/cash-movements?year=2026&month=9', '/api/finance/costs', '/api/finance/recurring-expenses'] as $uri) {
+            $this->actingAs($this->admin)->getJson($uri)->assertOk();
+        }
+        $this->actingAs($this->admin)->postJson('/api/finance/expenses', [
+            'date' => '2026-09-15', 'expense_category_id' => $category->id, 'amount' => 10, 'payment_method' => 'cash',
+        ])->assertForbidden();
+        $this->actingAs($this->admin)->postJson('/api/finance/recurring-expenses/generate', ['year' => 2026, 'month' => 9])->assertForbidden();
+        $this->actingAs($this->admin)->postJson('/api/finance/categories', ['name' => 'X'])->assertForbidden();
+    }
+
+    public function test_admin_with_finance_edit_can_register_expenses(): void
+    {
+        \App\Models\UserPermission::create(['user_id' => $this->admin->id, 'module' => 'finance', 'access_level' => 'edit']);
+        $category = ExpenseCategory::firstOrCreate(
+            ['name' => 'Helado y açaí'],
+            ['section' => 'cost_of_sales', 'group_name' => 'Insumos', 'sort_order' => 1, 'is_active' => true]
+        );
+
+        $this->actingAs($this->admin)->postJson('/api/finance/expenses', [
+            'date' => '2026-09-15', 'expense_category_id' => $category->id, 'amount' => 10, 'payment_method' => 'cash',
+        ])->assertCreated();
+    }
+
+    public function test_a_cashier_never_gets_finance_even_with_a_row_written_directly(): void
+    {
+        \App\Models\UserPermission::create(['user_id' => $this->cashier->id, 'module' => 'finance', 'access_level' => 'edit']);
+        $this->actingAs($this->cashier)->getJson('/api/finance/pnl')->assertForbidden();
+    }
 }

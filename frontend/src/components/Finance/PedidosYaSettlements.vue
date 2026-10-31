@@ -168,7 +168,7 @@ async function runSync() {
 }
 
 function handleIntent(intent) {
-  if (intent === 'import') importOpen.value = true;
+  if (intent === 'import' && finance.canEdit) importOpen.value = true;
   if (intent) emit('intent-done');
 }
 onMounted(() => handleIntent(props.intent));
@@ -182,7 +182,7 @@ watch(() => props.intent, handleIntent);
         <h2>PedidosYa en {{ finance.periodLabel }}</h2>
         <p>Cada semana se carga con el CSV de pedidos y el estado de cuenta. Las que cruzan dos meses se reparten por la fecha de cada pedido.</p>
       </div>
-      <button class="fin-btn fin-btn-primary" type="button" @click="importOpen = true">
+      <button v-if="finance.canEdit" class="fin-btn fin-btn-primary" type="button" @click="importOpen = true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
         Cargar semana
       </button>
@@ -221,7 +221,7 @@ watch(() => props.intent, handleIntent);
     <div v-else-if="finance.loading.settlements && !finance.settlements.length" class="fin-loading">Cargando semanas…</div>
     <div v-else-if="!finance.settlements.length" class="fin-empty">
       No hay semanas de PedidosYa cargadas en {{ finance.periodLabel }}.
-      <div style="margin-top: 8px"><button class="fin-btn-link" type="button" @click="importOpen = true">Cargar la primera</button></div>
+      <div style="margin-top: 8px"><button v-if="finance.canEdit" class="fin-btn-link" type="button" @click="importOpen = true">Cargar la primera</button></div>
     </div>
     <div v-else class="fin-table-wrap">
       <table class="fin-table stack">
@@ -259,7 +259,7 @@ watch(() => props.intent, handleIntent);
             </td>
             <td class="actions">
               <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="openDetail(st)">Ver detalle</button>
-              <button class="fin-icon-btn danger" type="button" :aria-label="`Eliminar semana ${formatDay(st.start_date)}`" @click="remove(st)">
+              <button v-if="finance.canEdit" class="fin-icon-btn danger" type="button" :aria-label="`Eliminar semana ${formatDay(st.start_date)}`" @click="remove(st)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
               </button>
             </td>
@@ -291,7 +291,7 @@ watch(() => props.intent, handleIntent);
           {{ report.control.without_sale ? `${report.control.without_sale} pedidos sin venta en el POS` : 'Todos los pedidos tienen venta' }}
         </span>
         <span class="fin-spacer"></span>
-        <button v-if="report.control.without_sale" class="fin-btn fin-btn-primary fin-btn-sm" type="button" @click="openSalesSync">Crear o vincular ventas</button>
+        <button v-if="(report.control.without_sale) && finance.canEdit" class="fin-btn fin-btn-primary fin-btn-sm" type="button" @click="openSalesSync">Crear o vincular ventas</button>
         <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="printReport">Imprimir</button>
       </div>
 

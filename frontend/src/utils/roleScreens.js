@@ -88,9 +88,13 @@ export function screensFor(role, levelOf) {
     },
   ];
 
-  // Pantallas exclusivas de Super Admin en Sistema
+  // Sistema: Finanzas es un permiso por persona (Ver / Editar); Usuarios y Auditoría, solo del Super Admin
   const superAdminScreens = [
-    { id: 'finance', name: 'Finanzas', route: '/finanzas', section: 'Sistema', icon: 'finance', isVisible: isSuperAdmin, isReadOnly: false },
+    {
+      id: 'finance', name: 'Finanzas', route: '/finanzas', section: 'Sistema', icon: 'finance',
+      isVisible: isSuperAdmin || (isAdmin && getLevel('finance') !== 'none'),
+      isReadOnly: !isSuperAdmin && getLevel('finance') === 'read',
+    },
     { id: 'users', name: 'Usuarios', route: '/users', section: 'Sistema', icon: 'users', isVisible: isSuperAdmin, isReadOnly: false },
     { id: 'audit', name: 'Auditoría', route: '/audit-logs', section: 'Sistema', icon: 'audit', isVisible: isSuperAdmin, isReadOnly: false },
   ];
@@ -119,6 +123,8 @@ export function screensFor(role, levelOf) {
       landing = '/inventario';
     } else if (isAdmin && getLevel('sales_history') === 'edit') {
       landing = '/admin/ventas-retroactivas';
+    } else if (isAdmin && getLevel('finance') !== 'none') {
+      landing = '/finanzas';
     } else {
       landing = '/sin-acceso';
     }

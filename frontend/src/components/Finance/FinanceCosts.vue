@@ -130,7 +130,7 @@ function recipeText(recipe) {
           <template v-else>El margen PedidosYa aún no descuenta la comisión (no hay semanas importadas).</template>
         </p>
       </div>
-      <button class="fin-btn fin-btn-primary" type="button" @click="wizardOpen = true">Cargar recetas base</button>
+      <button v-if="finance.canEdit" class="fin-btn fin-btn-primary" type="button" @click="wizardOpen = true">Cargar recetas base</button>
     </div>
     <div v-if="finance.errors.costs" class="fin-error">{{ finance.errors.costs }}</div>
     <div v-else-if="!data" class="fin-loading">Cargando costos…</div>
@@ -182,7 +182,7 @@ function recipeText(recipe) {
                 </div>
               </td>
               <td class="actions">
-                <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="editProduct(p)">Receta</button>
+                <button v-if="finance.canEdit" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="editProduct(p)">Receta</button>
               </td>
             </tr>
             <template v-if="expanded.has(p.id)">
@@ -220,7 +220,7 @@ function recipeText(recipe) {
       </div>
     </div>
     <div class="fin-card-body fin-chips">
-      <button v-for="p in withoutRecipe" :key="p.id" class="fin-chip" type="button" @click="editProduct(p)">+ {{ p.name }}</button>
+      <template v-if="finance.canEdit"><button v-for="p in withoutRecipe" :key="p.id" class="fin-chip" type="button" @click="editProduct(p)">+ {{ p.name }}</button></template>
     </div>
   </div>
 
@@ -251,7 +251,7 @@ function recipeText(recipe) {
                 <span v-else class="fin-muted">Sin ajuste</span>
               </td>
               <td class="actions">
-                <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="editOption(o)">Ajuste</button>
+                <button v-if="finance.canEdit" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="editOption(o)">Ajuste</button>
               </td>
             </tr>
           </template>
@@ -342,7 +342,7 @@ function recipeText(recipe) {
               </span>
             </td>
             <td class="actions">
-              <button v-if="!c.tracks_stock" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="composing = c">
+              <button v-if="(!c.tracks_stock) && finance.canEdit" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="composing = c">
                 {{ c.composition.length ? 'Composición' : 'Agregar composición' }}
               </button>
             </td>

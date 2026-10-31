@@ -12,7 +12,7 @@ import FinanceConfirm from '../components/Finance/FinanceConfirm.vue';
 import '../components/Finance/finance.css';
 
 /**
- * Módulo de Finanzas (solo dueño). La vista solo arma el encabezado, el selector de mes y las pestañas;
+ * Módulo de Finanzas (permiso por persona: «Ver» consulta, «Editar» registra; el Super Admin siempre edita). La vista solo arma el encabezado, el selector de mes y las pestañas;
  * cada pestaña es un componente y los datos viven en el store `finance`.
  */
 const route = useRoute();
@@ -66,7 +66,7 @@ onMounted(() => finance.loadAll());
     <div class="fin-nav">
     <header class="fin-head">
       <div>
-        <h1>Finanzas</h1>
+        <h1>Finanzas <span v-if="!finance.canEdit" class="fin-readonly-chip">Solo lectura</span></h1>
         <p>Estado de resultados, compras, gastos fijos y PedidosYa</p>
       </div>
       <div class="fin-period" role="group" aria-label="Mes del reporte">

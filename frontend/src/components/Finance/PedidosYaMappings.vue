@@ -71,7 +71,7 @@ async function remove(m) {
               <td data-label="Tipo">{{ m.entity_type === 'product' ? 'Producto' : 'Opción' }}</td>
               <td data-label="POS">{{ m.target }}</td>
               <td class="actions">
-                <button class="fin-icon-btn danger" type="button" :aria-label="`Quitar ${m.name}`" @click="remove(m)">
+                <button v-if="finance.canEdit" class="fin-icon-btn danger" type="button" :aria-label="`Quitar ${m.name}`" @click="remove(m)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
                 </button>
               </td>

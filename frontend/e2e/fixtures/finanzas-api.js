@@ -96,11 +96,11 @@ const settlements = [
   { id: 2, week_start: '2026-10-12', week_end: '2026-10-18', gross: 1650, commission: 250, net: 1400, orders_count: 60, status: 'ok', checks: [] },
 ];
 
-export async function mockFinanzas(page, { warnings = true } = {}) {
+export async function mockFinanzas(page, { warnings = true, me = ME } = {}) {
   await page.addInitScript(() => localStorage.setItem('auth_token', 'mock_owner_jwt'));
   await page.route('**/api/**', (r) => r.fulfill(json({ data: [] })));
   const get = (pattern, body) => page.route(pattern, (r) => (r.request().method() === 'GET' ? r.fulfill(json(typeof body === 'function' ? body() : body)) : r.fulfill(json({ message: 'ok' }))));
-  await get('**/api/me', ME);
+  await get('**/api/me', me);
   await get('**/api/inventory/reorder-summary', { count: 0, items: [] });
   await get('**/api/cash-sessions/active', { session: null, stats: null, sales_session_id: null });
   await get('**/api/finance/pnl*', () => pnl(warnings));

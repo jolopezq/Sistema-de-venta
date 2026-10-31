@@ -61,7 +61,7 @@ const stockTone = (status) => REORDER_STATUS[status]?.tone || 'err';
             >
               Ver semanas
             </button>
-            <button v-else class="fin-btn fin-btn-ghost" type="button" @click="navigate('pedidosya', 'import')">Cargar semana</button>
+            <button v-else-if="finance.canEdit" class="fin-btn fin-btn-ghost" type="button" @click="navigate('pedidosya', 'import')">Cargar semana</button>
           </div>
           <template v-if="pya.settlements_count">
             <dl class="sum-pya-facts fin-num">

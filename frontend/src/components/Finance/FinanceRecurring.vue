@@ -178,7 +178,7 @@ watch(() => props.intent, handleIntent);
         <h2>Gastos fijos de {{ finance.periodLabel }}</h2>
         <p>Entran al Estado de Resultados cuando se generan. Bimestrales, trimestrales y anuales aparecen solo en su mes.</p>
       </div>
-      <button
+      <button v-if="finance.canEdit"
         class="fin-btn fin-btn-primary"
         type="button"
         :disabled="!pending.length || generating"
@@ -217,8 +217,8 @@ watch(() => props.intent, handleIntent);
               <div v-if="i.expense && i.status === 'generated'" class="fin-cell-sub">{{ formatDay(i.expense.date) }}</div>
             </td>
             <td class="actions">
-              <button v-if="i.status === 'pending'" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" :disabled="generating" @click="generate([i.id])">Generar</button>
-              <button v-else-if="i.status === 'dismissed'" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" :disabled="generating" @click="generate([i.id])">Recuperar</button>
+              <button v-if="(i.status === 'pending') && finance.canEdit" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" :disabled="generating" @click="generate([i.id])">Generar</button>
+              <button v-else-if="(i.status === 'dismissed') && finance.canEdit" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" :disabled="generating" @click="generate([i.id])">Recuperar</button>
             </td>
           </tr>
         </tbody>
@@ -233,7 +233,7 @@ watch(() => props.intent, handleIntent);
         <h2>Lista de gastos fijos</h2>
         <p>Salarios, alquiler, internet, servicios, cuota del régimen simplificado… Cambiar un monto no modifica los meses ya generados.</p>
       </div>
-      <button class="fin-btn fin-btn-secondary" type="button" @click="openNew">
+      <button v-if="finance.canEdit" class="fin-btn fin-btn-secondary" type="button" @click="openNew">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14" /></svg>
         Agregar gasto fijo
       </button>
@@ -265,11 +265,11 @@ watch(() => props.intent, handleIntent);
             <td data-label="Pago">{{ PAYMENT_METHODS[t.payment_method] || '—' }}</td>
             <td data-label="Monto" class="right fin-num fin-cell-main">{{ formatBs(t.amount) }}</td>
             <td class="actions">
-              <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="toggle(t)">{{ t.is_active ? 'Pausar' : 'Activar' }}</button>
-              <button class="fin-icon-btn" type="button" :aria-label="`Editar ${t.name}`" @click="openEdit(t)">
+              <button v-if="finance.canEdit" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="toggle(t)">{{ t.is_active ? 'Pausar' : 'Activar' }}</button>
+              <button v-if="finance.canEdit" class="fin-icon-btn" type="button" :aria-label="`Editar ${t.name}`" @click="openEdit(t)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <button class="fin-icon-btn danger" type="button" :aria-label="`Eliminar ${t.name}`" @click="remove(t)">
+              <button v-if="finance.canEdit" class="fin-icon-btn danger" type="button" :aria-label="`Eliminar ${t.name}`" @click="remove(t)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
               </button>
             </td>

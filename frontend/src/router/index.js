@@ -33,7 +33,7 @@ const routes = [
   { path: '/admin/ventas-retroactivas', name: 'RetroactiveSales', component: RetroactiveSales, meta: { requiresAuth: true, requiredPermission: { module: 'sales_history', level: 'edit' }, adminOnly: true } },
   { path: '/users', name: 'AdminUsers', component: AdminUsers, meta: { requiresAuth: true, requiredPermission: { module: 'users', level: 'read' }, superAdminOnly: true } },
   { path: '/audit-logs', name: 'AuditLogs', component: AuditLogs, meta: { requiresAuth: true, requiredPermission: { module: 'audit', level: 'read' }, superAdminOnly: true } },
-  { path: '/finanzas', name: 'Finance', component: () => import('../views/Finance.vue'), meta: { requiresAuth: true, superAdminOnly: true } },
+  { path: '/finanzas', name: 'Finance', component: () => import('../views/Finance.vue'), meta: { requiresAuth: true, requiredPermission: { module: 'finance', level: 'read' }, adminOnly: true } },
 ];
 
 export const router = createRouter({

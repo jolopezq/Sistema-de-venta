@@ -157,20 +157,39 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/system/backup/download', [\App\Http\Controllers\SystemBackupController::class, 'download'])->middleware('throttle:5,60');
         Route::post('/system/backup/restore', [\App\Http\Controllers\SystemBackupController::class, 'restore'])->middleware('throttle:5,60');
 
-        // Módulo de Finanzas (Solo Super Admin)
-        Route::prefix('finance')->group(function () {
+    });
+
+    // Módulo de Finanzas: permiso por persona «Finanzas» (Ver = consultar, Editar = registrar).
+    // El rol admin es la segunda llave; el Super Admin siempre tiene edición.
+    Route::middleware(['admin'])->prefix('finance')->group(function () {
+        Route::middleware(['perm:finance,read'])->group(function () {
             Route::get('/pnl', [\App\Http\Controllers\FinanceReportController::class, 'pnl']);
             Route::get('/break-even', [\App\Http\Controllers\FinanceReportController::class, 'breakEven']);
             Route::get('/inventory-indicators', [\App\Http\Controllers\InventoryIndicatorsController::class, 'index']);
-
-            // Costos por receta y margen (componentes, recetas, ajustes de opciones y asistente de recetas base)
             Route::get('/costs', [\App\Http\Controllers\FinanceCostController::class, 'index']);
+            Route::get('/costs/base-recipes', [\App\Http\Controllers\FinanceCostController::class, 'baseRecipesPreview']);
+            Route::get('/suppliers', [\App\Http\Controllers\FinanceExpenseController::class, 'suppliers']);
+            Route::apiResource('expenses', \App\Http\Controllers\FinanceExpenseController::class)
+                ->only(['index', 'show'])
+                ->parameters(['expenses' => 'financeExpense']);
+            Route::get('/cash-movements', [\App\Http\Controllers\FinanceCashMovementController::class, 'index']);
+            Route::get('/recurring-expenses/pending', [\App\Http\Controllers\RecurringExpenseController::class, 'pending']);
+            Route::apiResource('recurring-expenses', \App\Http\Controllers\RecurringExpenseController::class)->only(['index', 'show']);
+            Route::get('/pedidosya-settlements/{settlement}/sales', [\App\Http\Controllers\PedidosYaSettlementController::class, 'salesPreview']);
+            Route::get('/pedidosya-settlements/{settlement}/report', [\App\Http\Controllers\PedidosYaSettlementController::class, 'report']);
+            Route::get('/pedidosya-mappings', [\App\Http\Controllers\PedidosYaMappingController::class, 'index']);
+            Route::apiResource('pedidosya-settlements', \App\Http\Controllers\PedidosYaSettlementController::class)
+                ->only(['index', 'show'])
+                ->parameters(['pedidosya-settlements' => 'settlement']);
+        });
+
+        Route::middleware(['perm:finance,edit'])->group(function () {
+            // Costos por receta y margen (componentes, recetas, ajustes de opciones y asistente de recetas base)
             Route::post('/costs/components', [\App\Http\Controllers\FinanceCostController::class, 'storeComponent']);
             Route::put('/costs/components/{ingredient}', [\App\Http\Controllers\FinanceCostController::class, 'updateComponent']);
             Route::put('/costs/components/{ingredient}/composition', [\App\Http\Controllers\FinanceCostController::class, 'updateComposition']);
             Route::put('/costs/products/{product}/recipe', [\App\Http\Controllers\FinanceCostController::class, 'updateProductRecipe']);
             Route::put('/costs/options/{option}/recipe', [\App\Http\Controllers\FinanceCostController::class, 'updateOptionRecipe']);
-            Route::get('/costs/base-recipes', [\App\Http\Controllers\FinanceCostController::class, 'baseRecipesPreview']);
             Route::post('/costs/base-recipes', [\App\Http\Controllers\FinanceCostController::class, 'applyBaseRecipes']);
 
             // Categorías de gastos
@@ -181,32 +200,25 @@ Route::middleware(['auth:sanctum'])->group(function () {
             // Compras y gastos pagados fuera de caja
             // (el parámetro se llama como en el controlador; con `{expense}` no se resolvía el modelo
             // y editar o eliminar respondía 200 sin cambiar nada)
-            Route::get('/suppliers', [\App\Http\Controllers\FinanceExpenseController::class, 'suppliers']);
             Route::apiResource('expenses', \App\Http\Controllers\FinanceExpenseController::class)
+                ->only(['store', 'update', 'destroy'])
                 ->parameters(['expenses' => 'financeExpense']);
 
-            // Egresos de caja del mes y su clasificación contable
-            Route::get('/cash-movements', [\App\Http\Controllers\FinanceCashMovementController::class, 'index']);
+            // Clasificación contable de los egresos de caja
             Route::patch('/cash-movements/{cashMovement}/category', [\App\Http\Controllers\FinanceCashMovementController::class, 'classify']);
 
-            // Gastos fijos recurrentes: propuesta y generación por mes (antes del recurso para no chocar con {id})
-            Route::get('/recurring-expenses/pending', [\App\Http\Controllers\RecurringExpenseController::class, 'pending']);
+            // Gastos fijos recurrentes: generación por mes (antes del recurso para no chocar con {id})
             Route::post('/recurring-expenses/generate', [\App\Http\Controllers\RecurringExpenseController::class, 'generate']);
-            Route::apiResource('recurring-expenses', \App\Http\Controllers\RecurringExpenseController::class);
+            Route::apiResource('recurring-expenses', \App\Http\Controllers\RecurringExpenseController::class)->only(['store', 'update', 'destroy']);
             Route::patch('/recurring-expenses/{recurringExpense}/toggle-active', [\App\Http\Controllers\RecurringExpenseController::class, 'toggleActive']);
 
-            // Liquidaciones semanales de PedidosYa (importación y conciliación)
+            // Liquidaciones semanales de PedidosYa (importación y conciliación) y equivalencias de nombres
             Route::post('/pedidosya-settlements/preview', [\App\Http\Controllers\PedidosYaSettlementController::class, 'preview']);
-            Route::get('/pedidosya-settlements/{settlement}/sales', [\App\Http\Controllers\PedidosYaSettlementController::class, 'salesPreview']);
             Route::post('/pedidosya-settlements/{settlement}/sales', [\App\Http\Controllers\PedidosYaSettlementController::class, 'syncSales']);
-            Route::get('/pedidosya-settlements/{settlement}/report', [\App\Http\Controllers\PedidosYaSettlementController::class, 'report']);
-
-            // Equivalencias de nombres PedidosYa ↔ productos y opciones del POS
-            Route::get('/pedidosya-mappings', [\App\Http\Controllers\PedidosYaMappingController::class, 'index']);
             Route::post('/pedidosya-mappings', [\App\Http\Controllers\PedidosYaMappingController::class, 'store']);
             Route::delete('/pedidosya-mappings/{mapping}', [\App\Http\Controllers\PedidosYaMappingController::class, 'destroy']);
             Route::apiResource('pedidosya-settlements', \App\Http\Controllers\PedidosYaSettlementController::class)
-                ->except(['update'])
+                ->only(['store', 'destroy'])
                 ->parameters(['pedidosya-settlements' => 'settlement']);
         });
     });

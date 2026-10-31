@@ -21,6 +21,9 @@ se renombra con la fecha de la actualización de producción.
   - Nadie puede cambiar su propio rol ni eliminar su cuenta, y no se puede quitar ni eliminar al último Super Admin.
   - Al cambiar el rol de una persona se cierran sus sesiones y queda `role_changed` en la auditoría.
 - Control diario ofrece como vendedores a cajeros y administradores (`GET /users/sellers`); antes un admin no veía la lista y la venta quedaba a su nombre.
+- **Finanzas para administradores** (Fase 2): un administrador con *Finanzas: Ver* consulta resultados, gastos, gastos fijos, costos y PedidosYa con el aviso «Solo lectura» y sin botones de registro. Con *Editar*, trabaja como el dueño.
+  - En la API, las consultas de `finance/*` piden `finance,read` y los registros `finance,edit`.
+  - Usuarios, auditoría y respaldos siguen siendo solo del Super Admin.
 
 ### Corregido
 - **Cajas abiertas con fecha pasada (Control diario):** al cerrarlas quedaban con la fecha del cierre real, días o semanas después. Hasta ese día absorbían cualquier venta cargada o editada para esos días.

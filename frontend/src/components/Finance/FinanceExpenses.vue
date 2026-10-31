@@ -232,7 +232,7 @@ async function classify(movement, categoryId) {
 
 // ---------- Acciones que llegan desde el Resumen ----------
 function handleIntent(intent) {
-  if (intent === 'new-expense') openPurchase();
+  if (intent === 'new-expense' && finance.canEdit) openPurchase();
   if (intent === 'cash') {
     onlyUnclassified.value = unclassifiedCount.value > 0;
     cashSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -252,8 +252,8 @@ watch(() => props.intent, handleIntent);
         <p>Lo que se pagó desde la caja del turno ya está abajo, en Egresos de caja: no lo registres dos veces.</p>
       </div>
       <div class="fin-row">
-        <button class="fin-btn fin-btn-secondary" type="button" @click="openNew">Registrar gasto</button>
-        <button class="fin-btn fin-btn-primary" type="button" @click="openPurchase()">
+        <button v-if="finance.canEdit" class="fin-btn fin-btn-secondary" type="button" @click="openNew">Registrar gasto</button>
+        <button v-if="finance.canEdit" class="fin-btn fin-btn-primary" type="button" @click="openPurchase()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14" /></svg>
           Registrar compra
         </button>
@@ -314,10 +314,10 @@ watch(() => props.intent, handleIntent);
             <td data-label="Pago">{{ PAYMENT_METHODS[item.payment_method] || item.payment_method }}</td>
             <td data-label="Monto" class="right fin-num fin-cell-main">{{ formatBs(item.amount) }}</td>
             <td class="actions">
-              <button class="fin-icon-btn" type="button" :aria-label="`Editar ${item.supplier || 'gasto'}`" @click="openEdit(item)">
+              <button v-if="finance.canEdit" class="fin-icon-btn" type="button" :aria-label="`Editar ${item.supplier || 'gasto'}`" @click="openEdit(item)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <button class="fin-icon-btn danger" type="button" :aria-label="`Eliminar ${item.supplier || 'gasto'}`" @click="remove(item)">
+              <button v-if="finance.canEdit" class="fin-icon-btn danger" type="button" :aria-label="`Eliminar ${item.supplier || 'gasto'}`" @click="remove(item)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
               </button>
             </td>
@@ -373,7 +373,7 @@ watch(() => props.intent, handleIntent);
                 :model-value="m.expense_category_id || ''"
                 placeholder="Sin clasificar — elegir…"
                 default-section="operating"
-                :disabled="classifying === m.id"
+                :disabled="classifying === m.id || !finance.canEdit"
                 :aria-label="`Categoría de ${m.description || 'egreso'}`"
                 @update:model-value="(id) => classify(m, id)"
               />

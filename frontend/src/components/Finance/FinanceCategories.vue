@@ -109,7 +109,7 @@ async function toggle(c) {
         <h2>{{ g.label }}</h2>
         <p>{{ g.help }}</p>
       </div>
-      <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="openNew(g.key)">
+      <button v-if="finance.canEdit" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="openNew(g.key)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14" /></svg>
         Agregar
       </button>
@@ -144,8 +144,8 @@ async function toggle(c) {
             </td>
             <td data-label="Estado"><span class="fin-badge" :class="c.is_active ? 'ok' : ''">{{ c.is_active ? 'Activa' : 'Desactivada' }}</span></td>
             <td class="actions">
-              <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="toggle(c)">{{ c.is_active ? 'Desactivar' : 'Activar' }}</button>
-              <button class="fin-icon-btn" type="button" :aria-label="`Editar ${c.name}`" @click="openEdit(c)">
+              <button v-if="finance.canEdit" class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="toggle(c)">{{ c.is_active ? 'Desactivar' : 'Activar' }}</button>
+              <button v-if="finance.canEdit" class="fin-icon-btn" type="button" :aria-label="`Editar ${c.name}`" @click="openEdit(c)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
             </td>
