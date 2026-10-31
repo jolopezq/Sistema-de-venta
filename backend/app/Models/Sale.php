@@ -49,6 +49,8 @@ class Sale extends Model
         'edited_at',
         'edit_reason',
         'source',
+        'entry_mode',
+        'paper_ref',
         'is_takeaway',
         'notes',
         'sync_status',

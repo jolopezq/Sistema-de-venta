@@ -26,6 +26,7 @@ class AdminSaleRequest extends FormRequest
         return [
             'created_at'             => ['required', 'date', 'before_or_equal:now'],
             'cashier_id'             => ['nullable', 'exists:users,id'],
+            'paper_ref'              => ['nullable', 'string', 'max:30'],
             'customer_id'            => ['nullable', 'exists:customers,id'],
             'subtotal'               => ['required', 'numeric', 'min:0'],
             'discount_amount'        => ['nullable', 'numeric'],

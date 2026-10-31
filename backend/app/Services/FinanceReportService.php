@@ -94,10 +94,10 @@ class FinanceReportService
             ->whereBetween('date', [$startDateStr, $endBound])
             ->get();
 
-        // 5. Egresos de caja registrados en los turnos del mes
+        // 5. Egresos de caja del mes, por la fecha en que ocurrieron (no la de carga)
         $cashExpenses = CashMovement::with('expenseCategory')
             ->where('type', 'expense')
-            ->whereBetween('created_at', [$startBound, $endBound])
+            ->whereBetween('occurred_at', [$startBound, $endBound])
             ->get();
 
         // 6. Los gastos fijos ya no se suman aquí: se generan como gastos reales del mes

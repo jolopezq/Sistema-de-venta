@@ -154,6 +154,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index']);
             Route::get('/audit-logs/export', [\App\Http\Controllers\AuditLogController::class, 'export']);
         });
+        Route::put('/admin/settings/system-start-date', [\App\Http\Controllers\PastDayController::class, 'setStartDate']);
         Route::post('/system/backup/download', [\App\Http\Controllers\SystemBackupController::class, 'download'])->middleware('throttle:5,60');
         Route::post('/system/backup/restore', [\App\Http\Controllers\SystemBackupController::class, 'restore'])->middleware('throttle:5,60');
 
@@ -231,6 +232,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/admin/sales', [SaleController::class, 'adminCreate']);
         Route::put('/admin/sales/{sale}', [SaleController::class, 'adminUpdate']);
         Route::get('/users/sellers', [\App\Http\Controllers\UserController::class, 'sellers']);
+        Route::get('/admin/sales/day-info', [\App\Http\Controllers\PastDayController::class, 'dayInfo']);
     });
 
     // Gestión de usuarios: reset password (super_admin o admin)

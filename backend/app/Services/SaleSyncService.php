@@ -160,9 +160,10 @@ class SaleSyncService
      *
      * @param bool $checkCatalogPrices Compara cada precio cobrado con el catálogo vigente.
      * @param array $priceAdjustments Recibe los ajustes de precio con motivo (ver resolvePriceOverride).
+     * @param bool $deductStock false en una venta histórica (anterior al inicio del sistema): no toca el inventario.
      * @return string[] Diferencias de precio encontradas (vacío si no se verifican).
      */
-    public function insertSaleItems(Sale $sale, array $itemsData, int $cashierId, bool $orderIsTakeaway, bool $checkCatalogPrices = false, array &$priceAdjustments = []): array
+    public function insertSaleItems(Sale $sale, array $itemsData, int $cashierId, bool $orderIsTakeaway, bool $checkCatalogPrices = false, array &$priceAdjustments = [], bool $deductStock = true): array
     {
         $priceMismatches = [];
         $source = $sale->source ?? 'pos';
@@ -248,7 +249,7 @@ class SaleSyncService
                 }
             }
 
-            if ($sale->status === 'completed') {
+            if ($sale->status === 'completed' && $deductStock) {
                 $this->inventoryService->deductFromRecipe(
                     $product,
                     $itemData['quantity'],
@@ -288,6 +289,8 @@ class SaleSyncService
 
             $cashierId = $data['cashier_id'] ?? $superAdminId;
             $saleId = $data['id'] ?? Str::uuid()->toString();
+            // Antes del inicio del sistema: queda como histórica, sin stock ni puntos
+            $historical = app(SystemStartDate::class)->isHistorical($createdAt);
 
             $sale = $this->saleRepository->create([
                 'id'                 => $saleId,
@@ -302,6 +305,8 @@ class SaleSyncService
                 'preparation_status' => 'delivered',
                 // Permite registrar el canal de origen ('pedidosya' o 'pos') para trazabilidad y arqueo de caja
                 'source'             => $data['source'] ?? 'manual_retroactive',
+                'entry_mode'         => $historical ? 'historical' : 'normal',
+                'paper_ref'          => $this->paperRef($data),
                 'is_takeaway'        => $orderIsTakeaway,
                 'notes'              => $data['notes'] ?? null,
                 'edit_reason'        => $data['edit_reason'],
@@ -315,7 +320,7 @@ class SaleSyncService
             $sale->saveQuietly();
 
             $priceAdjustments = [];
-            $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway, false, $priceAdjustments);
+            $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway, false, $priceAdjustments, !$historical);
             $this->auditPriceAdjustments($priceAdjustments, $orderNumber, $superAdminId);
 
             [$data['payments'], $paymentIssues] = $this->platformPaymentsIfPedidosYa($sale, $data);
@@ -332,7 +337,7 @@ class SaleSyncService
                 }
             }
 
-            if ($sale->customer_id && $sale->status === 'completed') {
+            if ($sale->customer_id && $sale->status === 'completed' && !$historical) {
                 $this->updateLoyaltyPoints($sale);
             }
 
@@ -340,7 +345,10 @@ class SaleSyncService
                 'user_id'     => $superAdminId,
                 'action'      => 'admin_sale_create',
                 'module'      => 'Sales',
-                'description' => "Registro manual/retroactivo de venta Ticket #{$orderNumber} (Total: Bs {$sale->total_amount}, Fecha: {$createdAt->format('Y-m-d H:i')}). Motivo: {$data['edit_reason']}",
+                'description' => "Registro manual/retroactivo de venta Ticket #{$orderNumber} (Total: Bs {$sale->total_amount}, Fecha: {$createdAt->format('Y-m-d H:i')})"
+                    . ($historical ? ', histórica: sin stock ni puntos' : '')
+                    . ($sale->paper_ref ? ", comanda N.º {$sale->paper_ref}" : '')
+                    . ". Motivo: {$data['edit_reason']}",
             ]);
             $this->auditPaymentIssues($paymentIssues, $orderNumber, $superAdminId);
 
@@ -363,6 +371,7 @@ class SaleSyncService
             $previousTotal = (float) $sale->total_amount;
             $previousSessionId = $sale->cash_register_session_id;
             $previousCustomer = $sale->customer_id ? $this->customerRepository->find($sale->customer_id) : null;
+            $wasHistorical = $sale->entry_mode === 'historical';
 
             // 1. Revertir inventario de los items existentes
             $saleItemIds = $sale->items()->pluck('id');
@@ -398,7 +407,8 @@ class SaleSyncService
 
             // 2. Revertir puntos de lealtad previos
             $config = LoyaltyConfig::active();
-            if ($config && $config->accumulation_rate > 0 && $previousCustomer) {
+            // (una venta histórica no sumó puntos: no hay nada que revertir)
+            if ($config && $config->accumulation_rate > 0 && $previousCustomer && !$wasHistorical) {
                 $pointsToDeduct = (int) floor($previousTotal / $config->accumulation_rate);
                 $this->customerRepository->incrementPoints($previousCustomer, -$pointsToDeduct);
             }
@@ -418,9 +428,12 @@ class SaleSyncService
             $orderIsTakeaway = !empty($data['is_takeaway']) || ($totalItemsCount > 0 && $takeawayItemsCount === $totalItemsCount);
 
             $cashierId = $data['cashier_id'] ?? $sale->cashier_id;
+            $historical = app(SystemStartDate::class)->isHistorical($createdAt);
 
             $sale->update([
                 'cashier_id'      => $cashierId,
+                'entry_mode'      => $historical ? 'historical' : 'normal',
+                'paper_ref'       => array_key_exists('paper_ref', $data) ? $this->paperRef($data) : $sale->paper_ref,
                 'customer_id'     => $data['customer_id'] ?? null,
                 'subtotal'        => $data['subtotal'],
                 'discount_amount' => $data['discount_amount'] ?? 0,
@@ -440,7 +453,7 @@ class SaleSyncService
 
             // 5. Insertar nuevos items y descontar nuevo inventario
             $priceAdjustments = [];
-            $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway, false, $priceAdjustments);
+            $this->insertSaleItems($sale, $data['items'], $cashierId, $orderIsTakeaway, false, $priceAdjustments, !$historical);
             $this->auditPriceAdjustments($priceAdjustments, $sale->order_number, $superAdminId);
 
             // 6. Insertar nuevos pagos (PedidosYa: un único pago de plataforma)
@@ -459,8 +472,8 @@ class SaleSyncService
                 }
             }
 
-            // 7. Acumular nuevos puntos de lealtad
-            if ($sale->customer_id && $sale->status === 'completed') {
+            // 7. Acumular nuevos puntos de lealtad (una venta histórica no suma)
+            if ($sale->customer_id && $sale->status === 'completed' && !$historical) {
                 $this->updateLoyaltyPoints($sale);
             }
 
@@ -611,6 +624,14 @@ class SaleSyncService
         return [$orderNumber, $dailySeq - 1];
     }
 
+    /** N.º de comanda en papel, sin espacios de más; null si no se cargó. */
+    private function paperRef(array $data): ?string
+    {
+        $ref = trim((string) ($data['paper_ref'] ?? ''));
+
+        return $ref === '' ? null : mb_substr($ref, 0, 30);
+    }
+
     /**
      * Acumula puntos de lealtad del cliente usando actualización atómica.
      */
@@ -679,7 +700,7 @@ class SaleSyncService
             }
 
             $config = LoyaltyConfig::active();
-            if ($config && $config->accumulation_rate > 0 && $sale->customer_id) {
+            if ($config && $config->accumulation_rate > 0 && $sale->customer_id && $sale->entry_mode !== 'historical') {
                 $customer = $this->customerRepository->find($sale->customer_id);
                 if ($customer) {
                     $pointsToDeduct = (int) floor($sale->total_amount / $config->accumulation_rate);

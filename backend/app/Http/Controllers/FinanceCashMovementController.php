@@ -25,16 +25,17 @@ class FinanceCashMovementController extends Controller
         $start = Carbon::create((int) $request->year, (int) $request->month, 1)->startOfMonth();
         $end = $start->copy()->endOfMonth();
 
-        // `created_at` está en hora de La Paz: límites locales del mes, sin convertir
+        // Por la fecha en que ocurrió (un egreso de un día pasado cargado después cae en su mes).
+        // Está en hora de La Paz: límites locales del mes, sin convertir
         $query = CashMovement::with(['expenseCategory', 'user:id,name'])
             ->where('type', 'expense')
-            ->whereBetween('created_at', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59']);
+            ->whereBetween('occurred_at', [$start->toDateString() . ' 00:00:00', $end->toDateString() . ' 23:59:59']);
 
         if ($request->boolean('unclassified')) {
             $query->whereNull('expense_category_id');
         }
 
-        $movements = $query->orderBy('created_at', 'desc')->get();
+        $movements = $query->orderBy('occurred_at', 'desc')->get();
 
         return response()->json([
             'data'  => $movements,

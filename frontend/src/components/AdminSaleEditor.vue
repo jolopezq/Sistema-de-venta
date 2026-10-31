@@ -87,6 +87,7 @@ watch(saleOrigin, (newOrigin) => {
 const formData = ref({
   created_at: '',
   cashier_id: '',
+  paper_ref: '',
   customer_id: '',
   is_takeaway: false,
   notes: '',
@@ -291,6 +292,7 @@ function initForm() {
     formData.value = {
       created_at: formatForDatetimeLocal(props.sale.created_at),
       cashier_id: props.sale.cashier_id || '',
+      paper_ref: props.sale.paper_ref || '',
       customer_id: props.sale.customer_id || '',
       is_takeaway: Boolean(props.sale.is_takeaway),
       notes: props.sale.notes || '',
@@ -404,7 +406,9 @@ function initForm() {
     saleOrigin.value = 'pos_mesa';
     formData.value = {
       created_at: formatForDatetimeLocal(null, props.defaultDate),
-      cashier_id: usersList.value[0]?.id || '',
+      // Vacío = quien registra; en un día sin sistema se elige el cajero que vendió
+      cashier_id: '',
+      paper_ref: '',
       customer_id: '',
       is_takeaway: false,
       notes: '',
@@ -467,6 +471,61 @@ function selectPickerCategory(id) {
 const modalChannel = computed(() => (saleOrigin.value === 'pedidosya' ? 'pedidosya' : 'pos'));
 const itemCount = computed(() => formData.value.items.reduce((n, i) => n + (Number(i.quantity) || 0), 0));
 
+// ---------- Días pasados (docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md, Fase 3) ----------
+const ROLE_LABELS = { super_admin: 'Super Admin', admin: 'Administrador', cashier: 'Cajero' };
+const saleDay = computed(() => (formData.value.created_at || '').slice(0, 10));
+// Qué pasará con el stock y los puntos según la fecha: histórica (antes del inicio del sistema) o insumos contados después
+const dayInfo = ref(null);
+let dayInfoSeq = 0;
+watch(saleDay, async (day) => {
+  dayInfo.value = null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+  const seq = ++dayInfoSeq;
+  try {
+    const info = await apiFetch(`/admin/sales/day-info?date=${day}`);
+    if (seq === dayInfoSeq) dayInfo.value = info;
+  } catch {
+    // Sin el dato se muestra el aviso general
+  }
+}, { immediate: true });
+
+function formatDay(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+const stockNotice = computed(() => {
+  const info = dayInfo.value;
+  if (info?.historical) {
+    return { kind: 'historical', text: `Venta histórica (antes del inicio del sistema, ${formatDay(info.system_start_date)}): no descuenta stock ni suma puntos. Queda en auditoría con su motivo.` };
+  }
+  if (info?.settled_count > 0) {
+    const n = info.settled_count;
+    return { kind: 'settled', text: `${n === 1 ? '1 insumo se contó' : `${n} insumos se contaron`} después de este día: ${n === 1 ? 'ese no se descuenta' : 'esos no se descuentan'}; el resto sí. Queda en auditoría con su motivo.` };
+  }
+  return { kind: '', text: 'Cada venta descuenta inventario y queda en auditoría con su motivo.' };
+});
+
+// N.º de comanda en papel ya cargado ese día (aviso, no bloquea)
+const duplicatePaper = computed(() => {
+  const ref = (formData.value.paper_ref || '').trim();
+  if (!ref) return null;
+  return (turnoStore.sales || []).find(s =>
+    (s.paper_ref || '').trim() === ref
+    && s.status !== 'voided'
+    && s.id !== props.sale?.id
+    && String(s.created_at || '').slice(0, 10) === saleDay.value
+  ) || null;
+});
+
+/** Siguiente N.º de un talonario numerado («045» → «046»); si no es un número, queda vacío. */
+function nextPaperRef(ref) {
+  const s = (ref || '').trim();
+  if (!/^\d+$/.test(s)) return '';
+  return String(Number(s) + 1).padStart(s.length, '0');
+}
+
 /** Resumen de los datos de la venta para la fila plegada. */
 const saleMetaParts = computed(() => {
   const parts = [];
@@ -479,7 +538,7 @@ const saleMetaParts = computed(() => {
     parts.push('Sin fecha');
   }
   const cashier = usersList.value.find(u => String(u.id) === String(formData.value.cashier_id));
-  parts.push(cashier ? `Registra ${cashier.name}` : 'Registra tu usuario');
+  parts.push(cashier ? `Vendió ${cashier.name}` : 'Vendió quien registra');
   const customer = catalogStore.customers.find(c => String(c.id) === String(formData.value.customer_id));
   parts.push(customer ? customer.name : 'Cliente ocasional');
   if ((formData.value.notes || '').trim()) parts.push(formData.value.notes.trim());
@@ -842,6 +901,7 @@ async function handleSave() {
           : formData.value.created_at)
       : null,
     cashier_id: formData.value.cashier_id ? Number(formData.value.cashier_id) : null,
+    paper_ref: (formData.value.paper_ref || '').trim() || null,
     customer_id: formData.value.customer_id ? Number(formData.value.customer_id) : null,
     subtotal: Number((calculatedSubtotal.value + Number(formData.value.surcharge_amount || 0)).toFixed(2)),
     discount_amount: Number(formData.value.discount_amount || 0),
@@ -893,8 +953,10 @@ async function handleSave() {
         emit('close');
       } else {
         // Modo semi-lote: reset items and payments, but keep metadata
+        const lastMethod = formData.value.payments?.[0]?.method || 'cash';
         formData.value.items = [];
-        formData.value.payments = [{ method: 'cash', amount: 0 }];
+        formData.value.payments = [{ method: lastMethod, amount: 0 }];
+        formData.value.paper_ref = nextPaperRef(formData.value.paper_ref);
         formData.value.discount_amount = 0;
         // El motivo se conserva: las ventas de un mismo talonario comparten justificación.
       }
@@ -918,20 +980,25 @@ function resetForm() {
       <!-- HEADER -->
       <div v-if="!inline" class="modal-header">
         <div class="header-titles">
-          <span class="badge-super-admin">🔒 Modo Admin / Super Admin</span>
+          <span class="badge-super-admin">🔒 Ventas de días pasados</span>
           <h3>{{ isEditMode ? `Editar Venta #${sale?.order_number}` : 'Registrar Venta Retroactiva / Manual' }}</h3>
         </div>
         <button class="close-btn" @click="$emit('close')" aria-label="Cerrar">✕</button>
       </div>
 
       <!-- AUDIT WARNING BANNER -->
-      <div v-if="inline" class="audit-warning-banner audit-warning-banner--compact">
-        Cada venta descuenta inventario y queda en auditoría con su motivo.
+      <div
+        v-if="inline"
+        class="audit-warning-banner audit-warning-banner--compact"
+        :class="stockNotice.kind ? `is-${stockNotice.kind}` : ''"
+        role="status"
+      >
+        {{ stockNotice.text }}
       </div>
       <div v-else class="audit-warning-banner">
         <span>⚠️</span>
         <div>
-          <strong>Registro con Trazabilidad:</strong> Toda modificación o creación manual recalculará stock en base a recetas y registrará un evento inmutable en los registros de auditoría.
+          <strong>Registro con trazabilidad:</strong> {{ stockNotice.text }}
         </div>
       </div>
 
@@ -960,6 +1027,20 @@ function resetForm() {
               </span>
               <span class="cd-meta-action">{{ showSaleDetails ? 'Ocultar' : 'Cambiar' }}</span>
             </button>
+            <div class="cd-paper-ref">
+              <label for="cd-f-comanda">N.º comanda</label>
+              <input
+                id="cd-f-comanda"
+                v-model="formData.paper_ref"
+                type="text"
+                inputmode="numeric"
+                maxlength="30"
+                class="form-input"
+                placeholder="—"
+                :aria-invalid="duplicatePaper ? 'true' : 'false'"
+                :aria-describedby="duplicatePaper ? 'cd-f-comanda-dup' : undefined"
+              />
+            </div>
             <div class="destination-toggle" role="group" aria-label="Origen de la venta">
               <button 
                 type="button" 
@@ -987,6 +1068,9 @@ function resetForm() {
               </button>
             </div>
           </div>
+          <p v-if="duplicatePaper" id="cd-f-comanda-dup" class="cd-paper-dup" role="alert">
+            La comanda N.º {{ formData.paper_ref.trim() }} ya está cargada ese día (Ticket #{{ duplicatePaper.order_number }}). Revisa que no sea la misma.
+          </p>
           <div v-show="showSaleDetails" id="cd-meta-fields" class="cd-meta-fields">
               <div class="form-group">
                 <label for="cd-f-fecha">Fecha y hora</label>
@@ -998,11 +1082,11 @@ function resetForm() {
             />
               </div>
               <div class="form-group">
-                <label for="cd-f-cajero">Registrada por</label>
+                <label for="cd-f-cajero">Vendida por</label>
                 <select v-model="formData.cashier_id" id="cd-f-cajero" class="form-input">
-              <option value="">-- Mismo Super Admin --</option>
+              <option value="">Yo (quien registra)</option>
               <option v-for="u in usersList" :key="u.id" :value="u.id">
-                {{ u.name }} ({{ u.role }})
+                {{ u.name }} ({{ ROLE_LABELS[u.role] || u.role }})
               </option>
             </select>
               </div>
@@ -1447,7 +1531,7 @@ function resetForm() {
         <div class="audit-reason-group">
           <div class="form-group">
             <label class="required-label">
-              <strong>📝 Justificación del Super Admin (Obligatorio para Auditoría):</strong>
+              <strong>📝 Motivo (obligatorio, queda en la auditoría):</strong>
             </label>
             <textarea 
               v-model="formData.edit_reason" 
@@ -2866,6 +2950,26 @@ function resetForm() {
   background: var(--cream-100);
   color: var(--ink-700);
   border-bottom: 1px solid var(--border);
+}
+/* Venta histórica o con insumos contados después: no descuenta (todo o parte) */
+.audit-warning-banner--compact.is-historical,
+.audit-warning-banner--compact.is-settled {
+  background: var(--acai-50);
+  color: var(--acai-text);
+  font-weight: 600;
+}
+.cd-paper-ref { display: inline-flex; align-items: center; gap: 6px; }
+.cd-paper-ref label { font-size: 12.5px; font-weight: 600; color: var(--ink-700); white-space: nowrap; }
+.cd-paper-ref .form-input { width: 76px; height: 32px; padding: 4px 8px; }
+.cd-paper-ref .form-input[aria-invalid="true"] { border-color: var(--danger-500); }
+.cd-paper-dup {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--danger-100);
+  color: var(--danger-text);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .cd-meta { display: flex; flex-direction: column; gap: 10px; }

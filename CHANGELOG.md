@@ -24,6 +24,13 @@ se renombra con la fecha de la actualización de producción.
 - **Finanzas para administradores** (Fase 2): un administrador con *Finanzas: Ver* consulta resultados, gastos, gastos fijos, costos y PedidosYa con el aviso «Solo lectura» y sin botones de registro. Con *Editar*, trabaja como el dueño.
   - En la API, las consultas de `finance/*` piden `finance,read` y los registros `finance,edit`.
   - Usuarios, auditoría y respaldos siguen siendo solo del Super Admin.
+- **Cargar días pasados en Control diario** (Fase 3): para el histórico de antes del sistema y para un día en que el sistema falle.
+  - **Venta histórica:** una venta anterior al inicio del sistema no descuenta stock ni suma puntos, y no necesita caja. Por defecto, el inicio es la primera venta del POS; el Super Admin puede cambiarlo en Control diario. Anularla o editarla tampoco quita puntos que nunca dio.
+  - **Stock con conteos posteriores:** una venta no descuenta los insumos que se contaron o cargaron después de su fecha, porque ese conteo ya la reflejó. El editor avisa cuántos.
+  - **N.º de comanda en papel:** se guarda con la venta, avisa si ya está cargada ese día y sugiere el siguiente número.
+  - **Caja de un día pasado:** se abre a nombre del cajero que vendió. Sus egresos quedan con la fecha de ese día (`occurred_at`), y Finanzas los cuenta en su mes, no en el de carga.
+  - **Ventas sin sincronizar:** Control diario avisa si el dispositivo tiene ventas de ese día pendientes, para no cargarlas dos veces.
+  - **Vendedor:** el editor dice «Vendida por», con «Yo (quien registra)» por defecto, y conserva el método de pago entre comandas.
 
 ### Corregido
 - **Cajas abiertas con fecha pasada (Control diario):** al cerrarlas quedaban con la fecha del cierre real, días o semanas después. Hasta ese día absorbían cualquier venta cargada o editada para esos días.

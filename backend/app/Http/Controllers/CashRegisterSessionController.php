@@ -79,10 +79,19 @@ class CashRegisterSessionController extends Controller
     {
         $validated = $request->validate([
             'opening_amount' => 'required|numeric|min:0',
-            'date'           => 'nullable|date_format:Y-m-d',
+            'date'           => 'nullable|date_format:Y-m-d|before_or_equal:today',
+            // Caja de un día pasado a nombre del cajero real (día sin sistema). Solo con fecha.
+            'cashier_id'     => 'nullable|integer|exists:users,id',
         ]);
 
         $userId = $request->user()->id;
+        if (!empty($validated['date']) && !empty($validated['cashier_id'])) {
+            $owner = \App\Models\User::find($validated['cashier_id']);
+            if (!in_array($owner?->role, ['super_admin', 'admin', 'cashier'], true)) {
+                return response()->json(['message' => 'La caja solo puede quedar a nombre de un cajero o un administrador.'], 422);
+            }
+            $userId = $owner->id;
+        }
         $targetDate = $validated['date'] ?? now()->format('Y-m-d');
 
         if (!empty($validated['date']) && !$this->permissionService->can($request->user(), 'sales_history', 'edit')) {
@@ -334,7 +343,23 @@ class CashRegisterSessionController extends Controller
             'amount'              => 'required|numeric|min:0.01',
             'description'         => 'required|string|min:3|max:500',
             'sale_id'             => 'nullable|uuid|exists:sales,id',
+            // Cuándo ocurrió: dentro del día de la caja. En una caja de un día pasado, por defecto el fin de ese día.
+            'occurred_at'         => 'nullable|date',
         ]);
+
+        $dayStart = $cashSession->opened_at->copy()->startOfDay();
+        $dayEnd = $cashSession->opened_at->copy()->endOfDay();
+        if (!empty($validated['occurred_at'])) {
+            $occurredAt = Carbon::parse($validated['occurred_at'])->setTimezone(config('app.timezone'));
+            if ($occurredAt->lt($dayStart) || $occurredAt->gt($dayEnd) || $occurredAt->isFuture()) {
+                return response()->json([
+                    'message' => 'La fecha del movimiento debe ser del día de esta caja (' . $dayStart->format('d/m/Y') . ') y no puede ser futura.',
+                ], 422);
+            }
+        } else {
+            $occurredAt = now()->lte($dayEnd) ? now() : $dayEnd->copy()->startOfMinute();
+        }
+        $validated['occurred_at'] = $occurredAt;
 
         $movement = DB::transaction(function () use ($validated, $request, $cashSession) {
             return CashMovement::create([
@@ -346,6 +371,7 @@ class CashRegisterSessionController extends Controller
                 'amount'                   => $validated['amount'],
                 'description'              => $validated['description'],
                 'sale_id'                  => $validated['sale_id'] ?? null,
+                'occurred_at'              => $validated['occurred_at'],
             ]);
         });
 
@@ -368,7 +394,7 @@ class CashRegisterSessionController extends Controller
 
         $movements = $cashSession->movements()
             ->with(['user:id,name', 'expenseCategory:id,name,section,group_name'])
-            ->latest('created_at')
+            ->latest('occurred_at')
             ->get();
 
         return response()->json($movements);
@@ -556,7 +582,7 @@ class CashRegisterSessionController extends Controller
         // Cargar lista de movimientos para el ticket de cierre
         $movements = $session->movements()
             ->with('user:id,name')
-            ->orderBy('created_at')
+            ->orderBy('occurred_at')
             ->get()
             ->map(fn ($m) => [
                 'id'             => $m->id,
@@ -566,6 +592,7 @@ class CashRegisterSessionController extends Controller
                 'description'    => $m->description,
                 'user'           => $m->user?->name,
                 'created_at'     => $m->created_at?->toIso8601String(),
+                'occurred_at'    => $m->occurred_at?->toIso8601String(),
             ])->toArray();
 
         return [

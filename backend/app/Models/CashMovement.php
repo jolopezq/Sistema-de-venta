@@ -31,6 +31,7 @@ class CashMovement extends Model
         'amount',
         'description',
         'sale_id',
+        'occurred_at',
         'created_at',
         'updated_at',
     ];
@@ -38,8 +39,17 @@ class CashMovement extends Model
     protected function casts(): array
     {
         return [
-            'amount' => 'decimal:2',
+            'amount'      => 'decimal:2',
+            'occurred_at' => 'datetime',
         ];
+    }
+
+    /** Cuándo ocurrió el egreso o ingreso: por defecto, al registrarlo. Un egreso de un día pasado lo trae explícito. */
+    protected static function booted(): void
+    {
+        static::creating(function (CashMovement $movement) {
+            $movement->occurred_at ??= $movement->created_at ?? now();
+        });
     }
 
     // --- Relaciones ---

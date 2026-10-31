@@ -8,12 +8,64 @@ import SaleDetailDrawer from '../components/SaleDetailDrawer.vue';
 import CashExpenseModal from '../components/CashExpenseModal.vue';
 import CashCloseWizard from '../components/CashCloseWizard.vue';
 import CashSessionReport from '../components/CashSessionReport.vue';
+import { apiFetch } from '../services/api';
+import { db } from '../db/database';
 
 const router = useRouter();
 const turnoStore = useTurnoStore();
 const authStore = useAuthStore();
 
-const isAdmin = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'super_admin');
+// Ventas de días pasados: permiso por persona (docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md)
+const canPastDays = computed(() => authStore.hasPermission('sales_history', 'edit'));
+const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin');
+const ROLE_LABELS = { super_admin: 'Super Admin', admin: 'Administrador', cashier: 'Cajero' };
+
+// Caja de un día pasado a nombre del cajero que vendió ese día
+const sellers = ref([]);
+const openFor = ref('');
+apiFetch('/users/sellers').then((r) => { sellers.value = r?.data || []; }).catch(() => {});
+
+// Día histórico (antes del inicio del sistema) e insumos contados después
+const dayInfo = ref(null);
+async function loadDayInfo(date) {
+  try {
+    dayInfo.value = await apiFetch(`/admin/sales/day-info?date=${date}`);
+  } catch {
+    dayInfo.value = null;
+  }
+}
+const isHistoricalDay = computed(() => Boolean(dayInfo.value?.historical));
+function formatDayIso(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// Super Admin: fecha de inicio del sistema (antes de ella, las ventas se cargan como históricas)
+const editingStart = ref(false);
+const startDraft = ref('');
+const startError = ref('');
+async function saveStartDate(date) {
+  startError.value = '';
+  try {
+    await apiFetch('/admin/settings/system-start-date', { method: 'PUT', body: JSON.stringify({ date: date || null }) });
+    editingStart.value = false;
+    await loadDayInfo(selectedDate.value);
+  } catch (err) {
+    startError.value = err.message || 'No se pudo guardar la fecha.';
+  }
+}
+
+// Ventas de este dispositivo de ese día que aún no llegaron al servidor: cargarlas a mano las duplicaría
+const unsyncedForDay = ref(0);
+async function countUnsynced(date) {
+  try {
+    const pending = await db.sales.where('sync_status').anyOf('pending', 'failed').toArray();
+    unsyncedForDay.value = pending.filter((s) => getLocalDateStr(new Date(s.created_at)) === date).length;
+  } catch {
+    unsyncedForDay.value = 0;
+  }
+}
 
 // Utilidad fecha local YYYY-MM-DD
 function getLocalDateStr(date = new Date()) {
@@ -232,7 +284,7 @@ async function handleOpenSession() {
   try {
     // Pasar la fecha si no es hoy
     const dateArg = selectedDate.value !== todayStr ? selectedDate.value : null;
-    const data = await turnoStore.openSession(openingFund.value, dateArg);
+    const data = await turnoStore.openSession(openingFund.value, dateArg, dateArg ? openFor.value : null);
     currentSession.value = data.session;
     currentStats.value = data.stats;
     await loadDayData(selectedDate.value);
@@ -337,6 +389,8 @@ function getOriginBadge(sale) {
 watch(selectedDate, (newDate) => {
   if (newDate) {
     loadDayData(newDate);
+    loadDayInfo(newDate);
+    countUnsynced(newDate);
   }
 }, { immediate: true });
 </script>
@@ -349,9 +403,25 @@ watch(selectedDate, (newDate) => {
       <div class="topbar-left">
         <div class="topbar-title-row">
           <h1 class="topbar-title">Centro de Control Diario y Arqueo</h1>
-          <span class="badge-role">🔒 Modo Admin</span>
+          <span class="badge-role">🔒 Ventas de días pasados</span>
         </div>
         <p class="topbar-desc">Gestión integral de ventas, gastos, fondo inicial y arqueo de caja por fecha.</p>
+        <!-- Solo en días pasados: hoy no aplica y la portátil necesita el alto para el catálogo -->
+        <p v-if="isSuperAdmin && dayInfo && !isToday" class="cd-start-line">
+          <template v-if="!editingStart">
+            Inicio del sistema: <strong>{{ formatDayIso(dayInfo.system_start_date) || 'sin ventas aún' }}</strong><span v-if="!dayInfo.start_configured"> (primera venta del POS)</span>.
+            Antes de esa fecha las ventas son históricas.
+            <button type="button" class="cd-link" @click="editingStart = true; startDraft = dayInfo.system_start_date || ''">Cambiar</button>
+          </template>
+          <template v-else>
+            <label for="cd-start-date">Inicio del sistema:</label>
+            <input id="cd-start-date" v-model="startDraft" type="date" :max="todayStr" class="cd-start-input" />
+            <button type="button" class="cd-link" @click="saveStartDate(startDraft)">Guardar</button>
+            <button v-if="dayInfo.start_configured" type="button" class="cd-link" @click="saveStartDate(null)">Usar la primera venta del POS</button>
+            <button type="button" class="cd-link" @click="editingStart = false">Cancelar</button>
+            <span v-if="startError" class="cd-start-error" role="alert">{{ startError }}</span>
+          </template>
+        </p>
       </div>
 
       <div class="topbar-right">
@@ -380,6 +450,16 @@ watch(selectedDate, (newDate) => {
         </button>
       </div>
     </header>
+
+    <!-- AVISOS DEL DÍA: histórico y ventas sin sincronizar de este dispositivo -->
+    <div v-if="isHistoricalDay" class="cd-day-notice is-historical" role="status">
+      <strong>Día histórico:</strong> es anterior al inicio del sistema ({{ formatDayIso(dayInfo.system_start_date) }}).
+      Las ventas que cargues no descuentan stock ni suman puntos, y no hace falta abrir caja: quedan sin caja y cuentan en Finanzas por su fecha.
+    </div>
+    <div v-if="unsyncedForDay > 0" class="cd-day-notice is-warning" role="alert">
+      <strong>Este dispositivo tiene {{ unsyncedForDay }} {{ unsyncedForDay === 1 ? 'venta' : 'ventas' }} de este día sin sincronizar.</strong>
+      Sincronízalas antes de cargar comandas en papel, para no cargarlas dos veces.
+    </div>
 
     <!-- BANNER: CAJA NO ABIERTA HOY (Permite abrir con fondo inicial) -->
     <div v-if="isToday && !currentSession && !isLoadingDay" class="cd-open-banner">
@@ -425,12 +505,19 @@ watch(selectedDate, (newDate) => {
         <div>
           <h3 class="banner-title">Sin Caja Registrada para el {{ selectedDate }}</h3>
           <p class="banner-desc">
-            No existe sesión de caja para este día histórico. Puedes abrir la caja de esta fecha con su fondo inicial para registrar gastos y realizar el arqueo/cierre de caja correspondiente.
+            No existe sesión de caja para este día. Puedes abrirla a nombre de quien vendió ese día, con su fondo inicial, para registrar gastos y hacer el arqueo con el conteo en papel.
           </p>
         </div>
       </div>
 
       <div class="open-banner-actions">
+        <div class="input-fund-group">
+          <label class="fund-label" for="cd-open-for">A nombre de:</label>
+          <select id="cd-open-for" v-model="openFor" class="fund-input cd-open-for">
+            <option value="">Yo (quien registra)</option>
+            <option v-for="u in sellers" :key="u.id" :value="u.id">{{ u.name }} ({{ ROLE_LABELS[u.role] || u.role }})</option>
+          </select>
+        </div>
         <div class="input-fund-group">
           <label class="fund-label">Fondo inicial (Bs):</label>
           <input
@@ -742,7 +829,7 @@ watch(selectedDate, (newDate) => {
                       👁️ Detalle
                     </button>
                     <button 
-                      v-if="isAdmin && sale.status !== 'voided'"
+                      v-if="canPastDays && sale.status !== 'voided'"
                       type="button" 
                       class="btn-table-action btn-table-edit"
                       @click="openEditSale(sale)"
@@ -780,7 +867,7 @@ watch(selectedDate, (newDate) => {
             </thead>
             <tbody>
               <tr v-for="m in movements" :key="m.id">
-                <td class="col-time">{{ formatTime(m.created_at) }}</td>
+                <td class="col-time">{{ formatTime(m.occurred_at || m.created_at) }}</td>
                 <td>
                   <span :class="m.type === 'expense' ? 'pill-expense' : 'pill-income'">
                     {{ m.type === 'expense' ? '📤 Egreso' : '📥 Ingreso Extra' }}
@@ -1357,6 +1444,39 @@ watch(selectedDate, (newDate) => {
   color: var(--tw-fg-4f46e5);
   font-size: 1.05rem;
 }
+
+/* AVISOS DEL DÍA E INICIO DEL SISTEMA */
+.cd-day-notice {
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.cd-day-notice.is-historical { background: var(--acai-50); color: var(--acai-text); }
+.cd-day-notice.is-warning { background: var(--danger-100); color: var(--danger-text); }
+.cd-start-line {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.8;
+  color: var(--ink-700);
+}
+.cd-start-line .cd-link,
+.cd-start-line .cd-start-input { margin-left: 6px; }
+.cd-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--acai-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.cd-link:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; }
+.cd-start-input { height: 28px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.cd-start-error { color: var(--danger-text); font-weight: 600; }
+.cd-open-for { min-width: 170px; }
 
 /* CAJA DE CIERRE REGISTRADO */
 .closed-changed {

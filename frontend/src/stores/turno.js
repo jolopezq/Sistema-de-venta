@@ -167,12 +167,14 @@ export const useTurnoStore = defineStore('turno', {
     /**
      * Abre un nuevo turno de caja (hoy o fecha específica).
      */
-    async openSession(openingAmount, date = null) {
+    async openSession(openingAmount, date = null, cashierId = null) {
       this.loading = true;
       this.error = null;
       try {
         const body = { opening_amount: Number(openingAmount) };
         if (date) body.date = date;
+        // Caja de un día pasado a nombre del cajero que vendió ese día (día sin sistema)
+        if (date && cashierId) body.cashier_id = Number(cashierId);
         const data = await apiFetch('/cash-sessions', {
           method: 'POST',
           body: JSON.stringify(body),

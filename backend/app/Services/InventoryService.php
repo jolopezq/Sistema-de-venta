@@ -202,6 +202,24 @@ class InventoryService
     }
 
     /**
+     * Insumos cuyo stock se fijó después de `$at`, por un conteo físico o por su carga inicial. Una venta anterior ya
+     * está reflejada en ese stock y no se descuenta otra vez: así una comanda vieja o de un día sin sistema no
+     * descuadra el inventario de hoy (docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §1).
+     *
+     * @return array<int, true> ingredient_id => true
+     */
+    public function settledAfter(\Carbon\CarbonInterface $at): array
+    {
+        $counted = DB::table('inventory_count_lines')
+            ->join('inventory_counts', 'inventory_counts.id', '=', 'inventory_count_lines.inventory_count_id')
+            ->where('inventory_counts.counted_at', '>', $at)
+            ->pluck('inventory_count_lines.ingredient_id');
+        $loaded = InventoryMovement::where('type', 'initial')->where('created_at', '>', $at)->pluck('ingredient_id');
+
+        return array_fill_keys($counted->merge($loaded)->unique()->map(fn ($id) => (int) $id)->all(), true);
+    }
+
+    /**
      * Descuenta stock de los insumos basándose en la receta del producto vendido.
      *
      * Una fila de la receta puede ser un insumo con stock o un componente de costeo con composición («Porción
@@ -216,11 +234,12 @@ class InventoryService
      */
     public function deductFromRecipe(Product $product, float $quantitySold, int $userId, SaleItem $saleItem): void
     {
+        $settled = $this->settledAfter($saleItem->sale->created_at);
         $grams = $saleItem->soldGrams($product);
         $kilosFactor = $grams !== null ? ($grams / 1000) * $quantitySold : $quantitySold;
         $composition = new CompositionService();
 
-        DB::transaction(function () use ($product, $quantitySold, $kilosFactor, $grams, $userId, $saleItem, $composition) {
+        DB::transaction(function () use ($product, $quantitySold, $kilosFactor, $grams, $userId, $saleItem, $composition, $settled) {
             foreach ($product->recipes as $recipe) {
                 // Un insumo eliminado no debe impedir guardar una venta ya cobrada
                 $source = $recipe->ingredient;
@@ -231,7 +250,7 @@ class InventoryService
                 $factor = $grams !== null && $source->unit === 'kg' ? $kilosFactor : $quantitySold;
                 foreach ($composition->stockUsage($source, (float) $recipe->quantity_required * $factor) as $ingredientId => $quantity) {
                     $deduction = round($quantity, 4);
-                    if (abs($deduction) < self::EPSILON) {
+                    if (abs($deduction) < self::EPSILON || isset($settled[$ingredientId])) {
                         continue;
                     }
 
@@ -266,8 +285,9 @@ class InventoryService
         SaleItem $saleItem
     ): void {
         $composition = new CompositionService();
+        $settled = $this->settledAfter($saleItem->sale->created_at);
 
-        DB::transaction(function () use ($saleItemOptions, $qtySold, $userId, $saleItem, $composition) {
+        DB::transaction(function () use ($saleItemOptions, $qtySold, $userId, $saleItem, $composition, $settled) {
             foreach ($saleItemOptions as $saleItemOption) {
                 $option = \App\Models\Option::with('recipes.ingredient')->find($saleItemOption->option_id);
                 if (!$option || $option->recipes->isEmpty()) {
@@ -281,7 +301,7 @@ class InventoryService
                     // Componente sin composición o insumo eliminado: no mueve stock
                     foreach ($composition->stockUsage($source, $required) as $ingredientId => $quantity) {
                         $deduction = round($quantity, 4);
-                        if (abs($deduction) < self::EPSILON) {
+                        if (abs($deduction) < self::EPSILON || isset($settled[$ingredientId])) {
                             continue;
                         }
 

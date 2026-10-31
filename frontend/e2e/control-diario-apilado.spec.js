@@ -205,7 +205,7 @@ test.describe('Comanda multi-ítem', () => {
 
   test('E. Datos de la venta plegados en una línea; el origen siempre a la vista', async ({ page }) => {
     await expect(page.locator('.cd-meta-fields')).toBeHidden();
-    await expect(page.locator('.cd-meta-part').nth(1)).toHaveText('Registra tu usuario');
+    await expect(page.locator('.cd-meta-part').nth(1)).toHaveText('Vendió quien registra');
     await expect(page.locator('.cd-meta .dest-btn')).toHaveCount(3);
     await page.locator('.cd-meta-toggle').click();
     await expect(page.locator('#cd-f-fecha')).toBeVisible();
