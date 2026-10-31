@@ -4,6 +4,13 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-10-31)
+- **Publicación 2026-10-31 (`main` local, lista para el VPS):** reúne `fix/caja-cerrada`, `feat/dias-pasados-permisos` y `fix/autoservicio-por-peso`. El detalle está en el CHANGELOG, [2026-10-31].
+  - Migraciones nuevas: `2026_10_31_000001` a `000003`, todas aditivas.
+  - Pruebas sobre el árbol fusionado (`986fc59`): PHPUnit 391/391 (2.510 aserciones), `npm run test:unit` 28/28, E2E 215/215 (incluye las 3 de teléfono contra el backend real) y `vite build` sin errores.
+  - **Después de publicar (dueño):**
+    - en Usuarios, dar *Finanzas* (Ver o Editar) y *Corregir cajas cerradas* a quien corresponda;
+    - en Control diario, revisar la fecha de inicio del sistema: por defecto es la primera venta del POS.
+
 - **Rama `feat/dias-pasados-permisos` (sin publicar; parte de `fix/caja-cerrada`):** fases 1 a 4 de [PLAN_DIAS_PASADOS_Y_PERMISOS.md](PLAN_DIAS_PASADOS_Y_PERMISOS.md), con un commit por fase. El detalle está en el CHANGELOG, «Sin publicar».
   - **Fase 1:** permisos por persona (`user_permissions`), módulos `sales_history`, `register_corrections` y `finance`, y protecciones del Super Admin.
   - **Fase 2:** Finanzas por permiso, con modo solo lectura.

@@ -4,7 +4,7 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
-## [Sin publicar]
+## [2026-10-31]
 
 ### Agregado
 - `deploy/vps/08-configurar-correo.sh`: activa el envío por Resend en el VPS. Pide la clave sin mostrarla, ajusta el `.env`, corre `config:cache`, recarga PHP y envía un correo de prueba.
@@ -42,8 +42,6 @@ se renombra con la fecha de la actualización de producción.
 - **Cajas abiertas con fecha pasada (Control diario):** al cerrarlas quedaban con la fecha del cierre real, días o semanas después. Hasta ese día absorbían cualquier venta cargada o editada para esos días.
   - Ahora una venta solo entra a una caja abierta el mismo día, como ya pasaba con las cajas abiertas.
   - En el VPS había dos cajas así: #9 (1 al 21 de octubre) y #10 (2 al 24 de octubre). Todavía no tenían ventas de otros días, así que no hubo que reparar datos.
-
-### Corregido
 - **Autoservicio (producto por peso) en el ticket del POS:**
   - Un segundo bowl con el mismo destino y los mismos toppings se sumaba al primero: quedaba cantidad 2 al precio del primero y se perdían los gramos del segundo. Con 151 g y 200 g se cobraban Bs 72 en vez de Bs 84, y el inventario descontaba 302 g en vez de 351 g. Ahora cada bowl es su propia línea.
   - El «+» de un bowl duplicaba el precio y seguía mostrando los mismos gramos. Ahora no hay «+»: **Quitar** saca ese bowl y **Editar** corrige su peso sin tocar los demás.
