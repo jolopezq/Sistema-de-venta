@@ -5,6 +5,8 @@ import { useAuthStore } from '../../stores/auth';
 import { screensFor } from '../../utils/roleScreens.js';
 import {
   PERMISSION_MODULES,
+  PERSON_PERMISSION_MODULES,
+  personRoleLevel,
   summaryPhrase,
   roleBoundariesText,
 } from '../../utils/permissionModules.js';
@@ -88,7 +90,8 @@ const hasChanges = computed(() => totalChangesCount.value > 0);
 // Verificar si algún rol queda sin pantallas disponibles
 const roleWithoutScreensNotice = computed(() => {
   for (const r of ['kitchen', 'cashier', 'admin']) {
-    const { hasAccess } = screensFor(r, (mod) => draft.value[r]?.[mod] ?? 'none');
+    const merged = withPersonDefaults(r, draft.value[r]);
+    const { hasAccess } = screensFor(r, (mod) => merged[mod] ?? 'none');
     if (!hasAccess) {
       const label = r === 'kitchen' ? 'cocina' : r === 'cashier' ? 'cajero' : 'administrador';
       return `La cuenta de ${label} quedará sin ninguna pantalla.`;
@@ -96,6 +99,15 @@ const roleWithoutScreensNotice = computed(() => {
   }
   return null;
 });
+
+// Vista previa: el borrador del rol más los permisos por persona que ese rol tiene por defecto
+// (Control diario para el administrador), que no se editan en esta matriz.
+function withPersonDefaults(role, levelsMap) {
+  const base = {};
+  PERSON_PERMISSION_MODULES.forEach(m => { base[m.id] = personRoleLevel(role, m.id); });
+  return { ...base, ...(levelsMap || {}) };
+}
+const previewPermissions = computed(() => withPersonDefaults(activeRole.value, draft.value[activeRole.value]));
 
 // Frase resumen del rol activo
 const currentSummaryPhrase = computed(() => {
@@ -298,7 +310,7 @@ onMounted(() => {
         <!-- Columna derecha: Vista previa del menú lateral -->
         <RolePreview
           :role="activeRole"
-          :permissions="draft[activeRole] || {}"
+          :permissions="previewPermissions"
         />
       </div>
     </div>

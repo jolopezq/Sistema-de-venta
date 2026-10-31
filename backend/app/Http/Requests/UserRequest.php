@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Hash;
 
 class UserRequest extends FormRequest
 {
@@ -41,7 +43,47 @@ class UserRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:20'],
             'start_date' => ['nullable', 'date'],
             'photo_url' => ['nullable', 'string', 'url'],
+            // Contraseña de quien hace el cambio: obligatoria para nombrar o quitar un Super Admin
+            'current_password' => ['nullable', 'string'],
         ];
+    }
+
+    /**
+     * Protecciones del rol Super Admin (docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §3.5):
+     * nadie cambia su propio rol; no se puede dejar el sistema sin Super Admin; nombrar o quitar
+     * un Super Admin pide la contraseña de quien lo hace.
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($v) {
+            $actor = $this->user();
+            $userParam = $this->route('user');
+            $target = $userParam ? User::find(is_object($userParam) ? $userParam->id : $userParam) : null;
+            $newRole = $this->input('role');
+            $oldRole = $target?->role;
+
+            if ($target && $actor && $target->id === $actor->id && $newRole !== $oldRole) {
+                $v->errors()->add('role', 'No puedes cambiar tu propio rol.');
+                return;
+            }
+
+            $promotes = $newRole === 'super_admin' && $oldRole !== 'super_admin';
+            $demotes = $oldRole === 'super_admin' && $newRole !== 'super_admin';
+
+            if ($demotes && User::where('role', 'super_admin')->whereKeyNot($target->id)->doesntExist()) {
+                $v->errors()->add('role', 'Es el único Super Admin: nombra a otro antes de cambiarle el rol.');
+                return;
+            }
+
+            if ($promotes || $demotes) {
+                $password = (string) $this->input('current_password', '');
+                if ($password === '') {
+                    $v->errors()->add('current_password', 'Escribe tu contraseña para confirmar este cambio.');
+                } elseif (!$actor || !Hash::check($password, $actor->password)) {
+                    $v->errors()->add('current_password', 'La contraseña no es correcta.');
+                }
+            }
+        });
     }
 
     /**

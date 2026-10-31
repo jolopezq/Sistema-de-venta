@@ -30,7 +30,7 @@ const routes = [
   { path: '/menu', name: 'Menu', component: Menu, meta: { requiresAuth: true, requiredPermission: { module: 'catalog', level: 'read' } } },
   { path: '/delivery', name: 'Delivery', component: Delivery, meta: { requiresAuth: true, requiredPermission: { module: 'delivery_ops', level: 'read' } } },
   { path: '/inventario', name: 'Inventario', component: InventoryList, meta: { requiresAuth: true, requiredPermission: { module: 'inventory', level: 'read' } } },
-  { path: '/admin/ventas-retroactivas', name: 'RetroactiveSales', component: RetroactiveSales, meta: { requiresAuth: true, requiredPermission: { module: 'pos', level: 'edit' }, adminOnly: true } },
+  { path: '/admin/ventas-retroactivas', name: 'RetroactiveSales', component: RetroactiveSales, meta: { requiresAuth: true, requiredPermission: { module: 'sales_history', level: 'edit' }, adminOnly: true } },
   { path: '/users', name: 'AdminUsers', component: AdminUsers, meta: { requiresAuth: true, requiredPermission: { module: 'users', level: 'read' }, superAdminOnly: true } },
   { path: '/audit-logs', name: 'AuditLogs', component: AuditLogs, meta: { requiresAuth: true, requiredPermission: { module: 'audit', level: 'read' }, superAdminOnly: true } },
   { path: '/finanzas', name: 'Finance', component: () => import('../views/Finance.vue'), meta: { requiresAuth: true, superAdminOnly: true } },

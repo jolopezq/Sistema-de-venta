@@ -340,6 +340,10 @@ class PermissionServiceTest extends TestCase
 
         foreach (PermissionService::DEFAULTS as $role => $modules) {
             foreach ($modules as $mod => $expectedLevel) {
+                // Los módulos por persona no tienen filas de rol: se asignan en user_permissions
+                if (in_array($mod, PermissionService::PERSON_MODULES, true)) {
+                    continue;
+                }
                 $actual = DB::table('role_permissions')
                     ->where('role', $role)
                     ->where('module', $mod)

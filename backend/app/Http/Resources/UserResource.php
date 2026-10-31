@@ -20,6 +20,11 @@ class UserResource extends JsonResource
             'ci' => $this->ci,
             'phone' => $this->phone,
             'start_date' => $this->start_date,
+            // Excepciones de permisos por persona {módulo: nivel} (solo si se cargaron): insignias en Usuarios
+            'permission_overrides' => $this->whenLoaded(
+                'permissionOverrides',
+                fn () => $this->permissionOverrides->pluck('access_level', 'module')
+            ),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

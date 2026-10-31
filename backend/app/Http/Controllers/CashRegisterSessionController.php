@@ -85,8 +85,8 @@ class CashRegisterSessionController extends Controller
         $userId = $request->user()->id;
         $targetDate = $validated['date'] ?? now()->format('Y-m-d');
 
-        if (!empty($validated['date']) && !$request->user()->isAdmin()) {
-            abort(403, 'Solo un administrador puede abrir una caja con fecha específica.');
+        if (!empty($validated['date']) && !$this->permissionService->can($request->user(), 'sales_history', 'edit')) {
+            abort(403, 'Abrir una caja con fecha pasada requiere el permiso «Ventas de días pasados».');
         }
 
         // Si se especifica una fecha, verificar si ya existe sesión para ese día

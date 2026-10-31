@@ -11,9 +11,9 @@ class AdminSaleRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Permite a admin y super_admin registrar/editar ventas retroactivas.
-        // isAdmin() devuelve true para role === 'admin' OR role === 'super_admin'.
-        return $this->user() && $this->user()->isAdmin();
+        // Ventas de días pasados (Control diario): permiso por persona, además del rol admin de la ruta.
+        return $this->user() && $this->user()->isAdmin()
+            && app(\App\Services\PermissionService::class)->can($this->user(), 'sales_history', 'edit');
     }
 
     /**

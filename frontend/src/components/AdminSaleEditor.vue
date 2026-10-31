@@ -118,7 +118,8 @@ function formatForDatetimeLocal(isoStr, customDate = null) {
 
 async function loadUsers() {
   try {
-    const res = await apiFetch('/users');
+    // Vendedores (cajeros y administradores): la gestión de usuarios es solo del Super Admin
+    const res = await apiFetch('/users/sellers');
     usersList.value = res.data || res || [];
   } catch (err) {
     console.warn('Error cargando lista de usuarios:', err);

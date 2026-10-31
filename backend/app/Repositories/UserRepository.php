@@ -23,7 +23,7 @@ class UserRepository
      */
     public function paginated(int $perPage = 20): LengthAwarePaginator
     {
-        return User::orderBy('name')->paginate($perPage);
+        return User::with('permissionOverrides')->orderBy('name')->paginate($perPage);
     }
 
     /**

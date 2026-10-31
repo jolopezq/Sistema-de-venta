@@ -12,6 +12,15 @@ se renombra con la fecha de la actualización de producción.
   - Muestran el cierre guardado tal cual se firmó y, aparte, el efectivo teórico y la diferencia con las cifras de hoy.
   - El ticket lista los cambios auditados: fecha, quién y qué ticket.
   - Antes, el ticket sumaba las ventas de hoy pero mostraba el teórico del cierre, y las filas no cuadraban.
+- **Permisos por persona** ([plan](docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md), Fase 1): en Usuarios → editar persona, el Super Admin da a un administrador *Finanzas* (Ver o Editar), *Ventas de días pasados* (Control diario) y *Corregir cajas cerradas*.
+  - Es una excepción encima del rol que nunca supera su techo: un cajero o la cocina no pueden recibirlos.
+  - La lista de usuarios muestra con insignias quién tiene permisos distintos a los de su rol.
+  - Todo cambio queda en la auditoría (`user_permissions_changed`).
+  - Los administradores siguen con *Ventas de días pasados* por defecto; *Finanzas* y *Corregir cajas* empiezan sin acceso.
+- **Super Admin protegido:** nombrar o quitar un Super Admin pide la contraseña de quien lo hace y avisa que tendrá todo.
+  - Nadie puede cambiar su propio rol ni eliminar su cuenta, y no se puede quitar ni eliminar al último Super Admin.
+  - Al cambiar el rol de una persona se cierran sus sesiones y queda `role_changed` en la auditoría.
+- Control diario ofrece como vendedores a cajeros y administradores (`GET /users/sellers`); antes un admin no veía la lista y la venta quedaba a su nombre.
 
 ### Corregido
 - **Cajas abiertas con fecha pasada (Control diario):** al cerrarlas quedaban con la fecha del cierre real, días o semanas después. Hasta ese día absorbían cualquier venta cargada o editada para esos días.

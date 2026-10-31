@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\RolePermission;
 use App\Models\User;
+use App\Models\UserPermission;
 use InvalidArgumentException;
 
 /**
@@ -13,7 +14,11 @@ use InvalidArgumentException;
  *   nivel_efectivo(usuario, módulo) =
  *       si es super_admin  => 'edit'
  *       si no              => mín( techo[rol][módulo],
- *                                  matriz[rol][módulo] ?? por_defecto[rol][módulo] )
+ *                                  excepción[usuario][módulo] ?? matriz[rol][módulo] ?? por_defecto[rol][módulo] )
+ *
+ * La excepción por persona (tabla user_permissions) reemplaza el valor del rol para esa persona, pero nunca supera el
+ * techo del rol. Los módulos de PERSON_MODULES (días pasados, corregir cajas, finanzas) se asignan por persona desde
+ * Usuarios; no aparecen en la matriz de roles. Ver docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §3.1.
  *
  *   puede(usuario, módulo, requerido) = nivel_efectivo >= requerido (none < read < edit)
  */
@@ -22,6 +27,9 @@ class PermissionService
     /** Caché por request para no repetir consultas. */
     private array $cache = [];
 
+    /** Excepciones por persona: user_id => [módulo => nivel]. */
+    private array $userCache = [];
+
     /** Valores numéricos de cada nivel de acceso. */
     public const LEVEL_VALUES = [
         'none' => 0,
@@ -29,7 +37,7 @@ class PermissionService
         'edit' => 2,
     ];
 
-    /** Lista completa de los 12 módulos del sistema. */
+    /** Lista completa de los módulos del sistema. */
     public const MODULES = [
         'pos',
         'voids',
@@ -43,6 +51,19 @@ class PermissionService
         'reports',
         'users',
         'audit',
+        'sales_history',
+        'register_corrections',
+        'finance',
+    ];
+
+    /**
+     * Módulos que se asignan por persona (Usuarios → editar persona), no en la matriz de roles:
+     * ventas de días pasados (Control diario), corregir cajas cerradas y Finanzas.
+     */
+    public const PERSON_MODULES = [
+        'sales_history',
+        'register_corrections',
+        'finance',
     ];
 
     /**
@@ -63,6 +84,9 @@ class PermissionService
         'reports'         => ['none', 'read'],
         'users'           => ['none'],
         'audit'           => ['none'],
+        'sales_history'        => ['none', 'edit'],
+        'register_corrections' => ['none', 'edit'],
+        'finance'              => ['none', 'read', 'edit'],
     ];
 
     /**
@@ -83,6 +107,9 @@ class PermissionService
             'reports'         => 'none',
             'users'           => 'none',
             'audit'           => 'none',
+            'sales_history'        => 'none',
+            'register_corrections' => 'none',
+            'finance'              => 'none',
         ],
         'cashier' => [
             'pos'             => 'edit',
@@ -97,6 +124,9 @@ class PermissionService
             'reports'         => 'none',
             'users'           => 'none',
             'audit'           => 'none',
+            'sales_history'        => 'none',
+            'register_corrections' => 'none',
+            'finance'              => 'none',
         ],
         'admin' => [
             'pos'             => 'edit',
@@ -111,6 +141,9 @@ class PermissionService
             'reports'         => 'read',
             'users'           => 'none',
             'audit'           => 'none',
+            'sales_history'        => 'edit',
+            'register_corrections' => 'edit',
+            'finance'              => 'edit',
         ],
     ];
 
@@ -132,6 +165,9 @@ class PermissionService
             'reports'         => 'none',
             'users'           => 'none',
             'audit'           => 'none',
+            'sales_history'        => 'none',
+            'register_corrections' => 'none',
+            'finance'              => 'none',
         ],
         'cashier' => [
             'pos'             => 'edit',
@@ -146,6 +182,9 @@ class PermissionService
             'reports'         => 'none',
             'users'           => 'none',
             'audit'           => 'none',
+            'sales_history'        => 'none',
+            'register_corrections' => 'none',
+            'finance'              => 'none',
         ],
         'admin' => [
             'pos'             => 'edit',
@@ -160,6 +199,9 @@ class PermissionService
             'reports'         => 'read',
             'users'           => 'none',
             'audit'           => 'none',
+            'sales_history'        => 'edit',
+            'register_corrections' => 'none',
+            'finance'              => 'none',
         ],
     ];
 
@@ -187,7 +229,8 @@ class PermissionService
             return 'none';
         }
 
-        $configured = $this->getConfiguredLevel($role, $module);
+        $override = $this->getUserOverride($user, $module);
+        $configured = $override ?? $this->getConfiguredLevel($role, $module);
         $candidate = $configured ?? (self::DEFAULTS[$role][$module] ?? 'none');
 
         // Normalización: si el valor configurado no es un nivel válido para este módulo,
@@ -326,10 +369,42 @@ class PermissionService
     }
 
     /**
+     * Excepción por persona para un módulo, o null si sigue al rol.
+     */
+    private function getUserOverride(User $user, string $module): ?string
+    {
+        if (!$user->exists) {
+            return null;
+        }
+        if (!array_key_exists($user->id, $this->userCache)) {
+            $this->userCache[$user->id] = UserPermission::where('user_id', $user->id)
+                ->pluck('access_level', 'module')
+                ->all();
+        }
+
+        return $this->userCache[$user->id][$module] ?? null;
+    }
+
+    /**
+     * Nivel que tendría una persona de ese rol sin excepción propia: mín(techo, matriz ?? por defecto),
+     * normalizado a los niveles válidos del módulo. Lo usa la ficha de permisos de Usuarios.
+     */
+    public function roleLevel(string $role, string $module): string
+    {
+        if ($role === 'super_admin') {
+            return 'edit';
+        }
+        $probe = new User(['role' => $role]);
+
+        return $this->level($probe, $module);
+    }
+
+    /**
      * Limpia la caché en memoria (esencial para tests).
      */
     public function clearCache(): void
     {
         $this->cache = [];
+        $this->userCache = [];
     }
 }

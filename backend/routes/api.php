@@ -146,6 +146,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/permissions', [\App\Http\Controllers\RolePermissionController::class, 'index']);
         Route::put('/permissions', [\App\Http\Controllers\RolePermissionController::class, 'update']);
         Route::apiResource('users', \App\Http\Controllers\UserController::class)->except(['show'])->middleware('perm:users,edit');
+        // Permisos de una persona: excepciones encima de su rol (Finanzas, días pasados, corregir cajas)
+        Route::get('/users/{user}/permissions', [\App\Http\Controllers\UserPermissionController::class, 'show'])->middleware('perm:users,edit');
+        Route::put('/users/{user}/permissions', [\App\Http\Controllers\UserPermissionController::class, 'update'])->middleware('perm:users,edit');
 
         Route::middleware(['perm:audit,read'])->group(function () {
             Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index']);
@@ -211,10 +214,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Categorías de gastos para clasificar egresos en turnos (cajeros, admin, super_admin)
     Route::get('/expense-categories', [\App\Http\Controllers\ExpenseCategoryController::class, 'index']);
 
-    // Gestión manual / retroactiva de ventas (admin y super_admin)
-    Route::middleware(['admin', 'perm:pos,edit'])->group(function () {
+    // Control diario: ventas de días pasados (permiso por persona «Ventas de días pasados»)
+    Route::middleware(['admin', 'perm:sales_history,edit'])->group(function () {
         Route::post('/admin/sales', [SaleController::class, 'adminCreate']);
         Route::put('/admin/sales/{sale}', [SaleController::class, 'adminUpdate']);
+        Route::get('/users/sellers', [\App\Http\Controllers\UserController::class, 'sellers']);
     });
 
     // Gestión de usuarios: reset password (super_admin o admin)

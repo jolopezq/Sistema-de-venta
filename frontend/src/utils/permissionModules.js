@@ -183,6 +183,53 @@ export const PERMISSION_MODULES = [
 ];
 
 /**
+ * Permisos que se dan por persona (Usuarios → editar persona), no en la matriz de roles.
+ * Solo los administradores pueden recibirlos. `adminDefault` debe coincidir con PermissionService::DEFAULTS.
+ * Ver docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §3.2.
+ */
+export const PERSON_PERMISSION_MODULES = [
+  {
+    id: 'sales_history',
+    name: 'Ventas de días pasados',
+    desc: 'Control diario: cargar, editar y anular ventas de otros días, y abrir la caja de un día pasado.',
+    levelLabels: { none: 'Sin acceso', edit: 'Cargar y corregir' },
+    badge: { none: 'Sin días pasados', edit: 'Días pasados' },
+    adminDefault: 'edit',
+  },
+  {
+    id: 'register_corrections',
+    name: 'Corregir cajas cerradas',
+    desc: 'Reabrir una caja ya cerrada, registrar lo que faltó y volver a cerrarla con un motivo.',
+    levelLabels: { none: 'Sin acceso', edit: 'Corregir' },
+    badge: { none: 'Sin corregir cajas', edit: 'Corrige cajas' },
+    adminDefault: 'none',
+  },
+  {
+    id: 'finance',
+    name: 'Finanzas',
+    desc: 'Ver resultados, costos y punto de equilibrio. Con «Editar», además registrar gastos y liquidaciones.',
+    levelLabels: { none: 'Sin acceso', read: 'Ver', edit: 'Editar' },
+    badge: { none: 'Sin finanzas', read: 'Finanzas: ver', edit: 'Finanzas' },
+    adminDefault: 'none',
+  },
+];
+
+/** Nivel de un permiso por persona según su rol, sin excepción propia. */
+export function personRoleLevel(role, moduleId) {
+  if (role === 'super_admin') return 'edit';
+  if (role !== 'admin') return 'none';
+  return PERSON_PERMISSION_MODULES.find(m => m.id === moduleId)?.adminDefault ?? 'none';
+}
+
+/** Insignias de la lista de Usuarios: los permisos por persona que difieren de su rol. */
+export function personBadges(role, overrides = {}) {
+  if (role !== 'admin' || !overrides) return [];
+  return PERSON_PERMISSION_MODULES
+    .filter(m => overrides[m.id] && overrides[m.id] !== m.adminDefault)
+    .map(m => ({ id: m.id, label: m.badge[overrides[m.id]], grants: overrides[m.id] !== 'none' }));
+}
+
+/**
  * Une elementos con comas y la conjunción 'y' (o 'e' si empieza con i/hi).
  */
 export function joinWithAnd(items) {
@@ -295,7 +342,7 @@ export function roleBoundariesText(role) {
   const subject = subjects[role] || 'El rol';
 
   // Límite universal de Super Admin
-  const superAdminOnly = 'Usuarios, auditoría, finanzas y respaldos son solo del Super Admin.';
+  const superAdminOnly = 'Usuarios, auditoría y respaldos son solo del Super Admin. Finanzas, ventas de días pasados y corregir cajas se dan por persona en Usuarios.';
 
   if (role === 'admin') {
     return superAdminOnly;

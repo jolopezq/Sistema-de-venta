@@ -82,7 +82,8 @@ export function screensFor(role, levelOf) {
       route: '/admin/ventas-retroactivas',
       section: 'Sistema',
       icon: 'retroactive',
-      isVisible: isAdmin && (isSuperAdmin || getLevel('pos') === 'edit'),
+      // Ventas de días pasados: permiso por persona (por defecto, todo administrador)
+      isVisible: isAdmin && (isSuperAdmin || getLevel('sales_history') === 'edit'),
       isReadOnly: false,
     },
   ];
@@ -116,7 +117,7 @@ export function screensFor(role, levelOf) {
       landing = '/menu';
     } else if (getLevel('inventory') === 'edit') {
       landing = '/inventario';
-    } else if (isAdmin && getLevel('pos') === 'edit') {
+    } else if (isAdmin && getLevel('sales_history') === 'edit') {
       landing = '/admin/ventas-retroactivas';
     } else {
       landing = '/sin-acceso';

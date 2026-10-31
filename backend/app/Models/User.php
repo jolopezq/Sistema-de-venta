@@ -70,6 +70,12 @@ class User extends Authenticatable
 
     // --- Helpers ---
 
+    /** Excepciones de permisos de esta persona (ver PermissionService). */
+    public function permissionOverrides(): HasMany
+    {
+        return $this->hasMany(UserPermission::class);
+    }
+
     public function isSuperAdmin(): bool
     {
         return $this->role === 'super_admin';

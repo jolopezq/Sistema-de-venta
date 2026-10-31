@@ -109,6 +109,12 @@
                     <span class="oh-badge-dot" style="background:currentColor"></span>
                     {{ ROLE_META[u.role]?.label }}
                   </span>
+                  <span
+                    v-for="b in personBadges(u.role, u.permission_overrides)"
+                    :key="b.id"
+                    class="oh-perm-badge"
+                    :class="{ 'is-removed': !b.grants }"
+                  >{{ b.label }}</span>
                 </td>
                 <td>{{ u.start_date || '-' }}</td>
                 <td>
@@ -180,15 +186,40 @@
             </div>
             <div class="oh-form-group">
               <label>Rol</label>
-              <select v-model="form.role" required :class="{'has-error': formErrors.role}">
+              <select v-model="form.role" required :disabled="isSelf" :class="{'has-error': formErrors.role}">
                 <option value="cashier">Cajero</option>
                 <option value="admin">Administrador operativo</option>
                 <option value="kitchen">Cocina (KDS)</option>
                 <option value="super_admin">Super Admin</option>
               </select>
               <span v-if="formErrors.role" class="error-text">{{ formErrors.role[0] }}</span>
+              <span v-else-if="isSelf" class="hint-text">No puedes cambiar tu propio rol.</span>
             </div>
           </div>
+
+          <!-- Nombrar o quitar un Super Admin: aviso y contraseña de quien lo hace -->
+          <div v-if="touchesSuperAdmin" class="oh-super-warning" role="note">
+            <template v-if="form.role === 'super_admin'">
+              <strong>Tendrá todos los permisos,</strong> también usuarios, auditoría y restaurar respaldos.
+              Si solo necesita Finanzas o cargar días pasados, déjalo como Administrador y dale esos permisos abajo.
+            </template>
+            <template v-else>
+              <strong>Dejará de ser Super Admin.</strong> Perderá Usuarios, Auditoría y Respaldos.
+            </template>
+            <div class="oh-form-group oh-super-password">
+              <label for="current-password">Tu contraseña, para confirmar</label>
+              <input
+                id="current-password"
+                v-model="form.current_password"
+                type="password"
+                autocomplete="current-password"
+                :class="{'has-error': formErrors.current_password}"
+              />
+              <span v-if="formErrors.current_password" class="error-text">{{ formErrors.current_password[0] }}</span>
+            </div>
+          </div>
+
+          <PersonPermissions v-model="personLevels" :role="form.role" :loading="personLoading" />
           <div class="oh-form-row">
             <div class="oh-form-group">
               <label>Email / Usuario</label>
@@ -275,6 +306,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { apiFetch } from '../services/api';
 import RolePermissionsPanel from '../components/permissions/RolePermissionsPanel.vue';
+import PersonPermissions from '../components/permissions/PersonPermissions.vue';
+import { PERSON_PERMISSION_MODULES, personBadges, personRoleLevel } from '../utils/permissionModules';
 
 const authStore = useAuthStore();
 
@@ -318,13 +351,20 @@ const ROLE_META = {
 // Data
 const users = ref([]);
 const selectedUser = ref(null);
-const form = ref({ id: null, name: '', email: '', role: 'cashier', ci: '', phone: '', start_date: '', password: '' });
+const form = ref({ id: null, name: '', email: '', role: 'cashier', ci: '', phone: '', start_date: '', password: '', current_password: '' });
+// Permisos especiales de la persona {módulo: nivel efectivo}; vacío = los de su rol
+const personLevels = ref({});
+const personLoading = ref(false);
+const originalRole = ref(null);
+const originalOverrides = ref({});
 const resetForm = ref({ password: '' });
 const formErrors = ref({});
 
 // Computed
 const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin');
 const isAdmin = computed(() => authStore.user?.role === 'admin');
+const isSelf = computed(() => Boolean(form.value.id) && form.value.id === authStore.user?.id);
+const touchesSuperAdmin = computed(() => (form.value.role === 'super_admin') !== (originalRole.value === 'super_admin'));
 
 const filteredUsers = computed(() => {
   const q = searchQuery.value.toLowerCase();
@@ -354,30 +394,69 @@ const fetchUsers = async () => {
   }
 };
 
-const openModal = (user = null) => {
+const openModal = async (user = null) => {
   if (user) {
-    form.value = { ...user, password: '' };
+    form.value = { ...user, password: '', current_password: '' };
   } else {
-    form.value = { id: null, name: '', email: '', role: 'cashier', ci: '', phone: '', start_date: '', password: '' };
+    form.value = { id: null, name: '', email: '', role: 'cashier', ci: '', phone: '', start_date: '', password: '', current_password: '' };
   }
+  originalRole.value = user ? user.role : null;
+  originalOverrides.value = { ...(user?.permission_overrides || {}) };
+  personLevels.value = {};
   formErrors.value = {};
   showUserModal.value = true;
+
+  if (user && user.role !== 'super_admin') {
+    personLoading.value = true;
+    try {
+      const res = await apiFetch(`/users/${user.id}/permissions`);
+      const levels = {};
+      PERSON_PERMISSION_MODULES.forEach(m => { levels[m.id] = res.modules?.[m.id]?.effective ?? personRoleLevel(user.role, m.id); });
+      personLevels.value = levels;
+    } catch (e) {
+      console.warn('No se pudieron cargar los permisos de la persona:', e);
+    } finally {
+      personLoading.value = false;
+    }
+  }
 };
+
+/** Excepciones a guardar: null si el nivel coincide con el de su rol. Sin cambios → null (no se llama a la API). */
+function personPermissionsPayload(role) {
+  if (role === 'super_admin') return null;
+  const rows = PERSON_PERMISSION_MODULES.map(m => {
+    const roleLevel = personRoleLevel(role, m.id);
+    const level = role === 'admin' ? (personLevels.value[m.id] ?? roleLevel) : roleLevel;
+    return { module: m.id, access_level: level === roleLevel ? null : level };
+  });
+  const changed = rows.some(r => (originalOverrides.value[r.module] ?? null) !== r.access_level);
+  return changed ? rows : null;
+}
 
 const saveUser = async () => {
   try {
     const payload = { ...form.value };
+    delete payload.permission_overrides;
     if (form.value.id && !payload.password) {
       delete payload.password;
     }
+    if (!touchesSuperAdmin.value) {
+      delete payload.current_password;
+    }
 
+    let userId = form.value.id;
     if (form.value.id) {
       await apiFetch(`/users/${form.value.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-      showToastMsg('Usuario actualizado');
     } else {
-      await apiFetch('/users', { method: 'POST', body: JSON.stringify(payload) });
-      showToastMsg('Usuario creado');
+      const created = await apiFetch('/users', { method: 'POST', body: JSON.stringify(payload) });
+      userId = created?.data?.id ?? created?.id;
     }
+
+    const permissions = personPermissionsPayload(form.value.role);
+    if (permissions && userId) {
+      await apiFetch(`/users/${userId}/permissions`, { method: 'PUT', body: JSON.stringify({ permissions }) });
+    }
+    showToastMsg(form.value.id ? 'Usuario actualizado' : 'Usuario creado');
     showUserModal.value = false;
     await fetchUsers();
   } catch (e) {
@@ -852,6 +931,42 @@ html.dark .oh-badge.role-cashier { color: #A9D18A; background: rgba(92, 122, 63,
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
+.oh-modal {
+  max-width: 600px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
+.oh-perm-badge {
+  display: inline-flex;
+  align-items: center;
+  margin: 2px 0 0 4px;
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--acai-50);
+  color: var(--acai-text);
+  white-space: nowrap;
+}
+.oh-perm-badge.is-removed {
+  background: var(--cream-200);
+  color: var(--ink-700);
+}
+
+.oh-super-warning {
+  margin: 4px 0 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--passion-100);
+  color: var(--passion-text);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.oh-super-password { margin-top: 8px; }
+.oh-super-password label { color: var(--ink-700); }
+.hint-text { font-size: 12px; color: var(--ink-500); }
+
 .oh-modal h2 {
   font-family: 'Baloo 2', cursive, sans-serif;
   font-size: 19px;
@@ -908,6 +1023,11 @@ html.dark .oh-badge.role-cashier { color: #A9D18A; background: rgba(92, 122, 63,
   justify-content: flex-end;
   gap: 10px;
   margin-top: 16px;
+  /* Con la ficha larga (permisos especiales) los botones quedan siempre a la vista */
+  position: sticky;
+  bottom: -24px;
+  padding: 12px 0;
+  background: var(--surface);
 }
 
 .oh-toast {
