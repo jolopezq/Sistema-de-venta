@@ -168,8 +168,6 @@ const toggleMultiSelect = (og, opt) => {
 };
 
 const getMinRequired = (og) => {
-  const isFruit = (og.name || '').toLowerCase().includes('fruta');
-  if (isFruit) return Math.max(og.min_selections || 0, 1);
   return og.min_selections || 0;
 };
 
@@ -181,7 +179,7 @@ const validateGroup = (groupId) => {
   errorMessages.value = {
     ...errorMessages.value,
     [groupId]: selectedCount < minReq
-      ? (og.name.toLowerCase().includes('fruta') ? 'Debes seleccionar al menos 1 fruta.' : `Selecciona al menos ${minReq} opción(es).`)
+      ? (og.name.toLowerCase().includes('fruta') ? (minReq === 1 ? 'Debes seleccionar al menos 1 fruta.' : `Debes seleccionar al menos ${minReq} frutas.`) : `Selecciona al menos ${minReq} opción(es).`)
       : null
   };
 };
@@ -219,7 +217,7 @@ const confirmButtonText = computed(() => {
           return 'Elige un tamaño';
         }
         if ((og.name || '').toLowerCase().includes('fruta')) {
-          return 'Elige al menos una fruta';
+          return minReq === 1 ? 'Elige al menos una fruta' : `Elige al menos ${minReq} frutas`;
         }
         return `Elige ${(og.name || '').toLowerCase()}`;
       }

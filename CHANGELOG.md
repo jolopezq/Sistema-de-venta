@@ -39,6 +39,7 @@ se renombra con la fecha de la actualización de producción.
   - Auditoría: `cash_session_reopened` y `cash_session_reclosed`, con los valores antes y después.
 
 ### Corregido
+- **Arma tu Bowl (Frutas opcionales):** el modal de opciones exigía seleccionar al menos 1 fruta de forma forzada, impidiendo vender solo helado sin frutas ni toppings. Ahora `ModifierModal` respeta el `min_selections` real configurado en cada grupo de opciones (el grupo «Frutas» tiene mínimo 0), permitiendo agregar y cobrar «Arma tu Bowl» sin frutas ni toppings.
 - **Cajas abiertas con fecha pasada (Control diario):** al cerrarlas quedaban con la fecha del cierre real, días o semanas después. Hasta ese día absorbían cualquier venta cargada o editada para esos días.
   - Ahora una venta solo entra a una caja abierta el mismo día, como ya pasaba con las cajas abiertas.
   - En el VPS había dos cajas así: #9 (1 al 21 de octubre) y #10 (2 al 24 de octubre). Todavía no tenían ventas de otros días, así que no hubo que reparar datos.
