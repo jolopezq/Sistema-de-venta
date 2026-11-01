@@ -29,6 +29,7 @@ Léela completa antes de tocar código. El estado vivo del trabajo está en
 - **Nunca incluyas cambios de `backend/storage/app/public/`** (imágenes subidas desde el Menú) en un commit:
   al fusionar en `main` el vigilante haría `git pull` y borraría o cambiaría imágenes en producción. Revisa
   `git status` antes de cada `git add -A` (los commits de graphify son el caso típico).
+- **Pregunta obligatoria al finalizar un plan**: una vez completado el plan de trabajo y con todas las pruebas locales en verde, **pregunta SIEMPRE al usuario si desea publicar a producción en el VPS (`pos.ohana-pos.com`)**. Si acepta, usa el script `deploy/vps/publicar.sh` (primero ensayo sin tocar producción, luego `--confirmar` con su aprobación explícita).
 - Escribe en español, como el resto del código y la documentación.
 
 ## Verificación obligatoria
