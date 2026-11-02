@@ -68,3 +68,17 @@ test('getSalePaymentText: formato texto para tablas compactas', () => {
     'Mixto: QR (Bs 40.00) + Efectivo (Bs 5.00)'
   );
 });
+
+test('cortesía (total 0 con descuento): «Cortesía», no «Efectivo»', () => {
+  const sale = { subtotal: 140, discount_amount: 140, total_amount: 0, payments: [{ method: 'cash', amount: 0 }] };
+  const badges = getSalePaymentBadges(sale);
+  assert.equal(badges.length, 1);
+  assert.equal(badges[0].label, '🎁 Cortesía');
+  assert.equal(badges[0].class, 'badge-courtesy');
+  assert.equal(getSalePaymentText(sale), 'Cortesía');
+});
+
+test('un descuento parcial sigue mostrando el método de pago', () => {
+  const sale = { subtotal: 140, discount_amount: 20, total_amount: 120, payments: [{ method: 'cash', amount: 120 }] };
+  assert.equal(getSalePaymentBadges(sale)[0].label, '💵 Efectivo');
+});

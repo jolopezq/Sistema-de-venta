@@ -67,6 +67,8 @@ export const useTurnoStore = defineStore('turno', {
     summary: {
       total_sales: 0,
       total_discounts: 0,
+      discount_count: 0,
+      courtesy_count: 0,
       sales_count: 0,
       voided_count: 0,
       cash_total: 0,
@@ -326,9 +328,13 @@ export const useTurnoStore = defineStore('turno', {
           }
         });
 
+        // Descuentos manuales de las ventas guardadas en el equipo (docs/PLAN_DESCUENTOS_CAJA.md)
+        const discounted = localSales.filter(s => s.status !== 'voided' && Number(s.discount_amount || 0) > 0);
         this.summary = {
           total_sales: total,
-          total_discounts: 0,
+          total_discounts: Math.round(discounted.reduce((sum, s) => sum + Number(s.discount_amount), 0) * 100) / 100,
+          discount_count: discounted.length,
+          courtesy_count: discounted.filter(s => Number(s.total_amount || 0) <= 0).length,
           sales_count: localSales.filter(s => s.status !== 'voided').length,
           voided_count: localSales.filter(s => s.status === 'voided').length,
           cash_total: cash,

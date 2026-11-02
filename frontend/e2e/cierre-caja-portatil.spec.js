@@ -131,6 +131,22 @@ test.describe('Cerrar caja — portátil de caja', () => {
     await expect(page.getByRole('button', { name: 'Ver el resultado' })).toBeFocused();
   });
 
+  // Descuentos del turno (docs/PLAN_DESCUENTOS_CAJA.md): la línea informativa no desborda el resultado
+  for (const vp of [{ width: 1366, height: 611 }, { width: 1093, height: 489 }]) {
+    test(`2b. Resultado con descuentos del turno entra completo en ${vp.width} × ${vp.height}`, async ({ page }) => {
+      await page.route('**/api/cash-sessions/active', (r) => r.fulfill(json({
+        ...ACTIVE,
+        stats: { ...ACTIVE.stats, total_discounts: 158, discount_count: 3, courtesy_count: 1 },
+      })));
+      await page.setViewportSize(vp);
+      await openWizard(page);
+      await counts(page).first().fill('3');
+      await page.getByRole('button', { name: 'Ver el resultado' }).click();
+      await expect(page.locator('.discount-note')).toHaveText(/3 ventas, 1 cortesía · Bs 158\.00/);
+      await expectFits(page);
+    });
+  }
+
   test('5. Tab recorre solo casillas (sin pasar por − / +)', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 611 });
     await openWizard(page);

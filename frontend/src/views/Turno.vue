@@ -446,6 +446,11 @@ async function handleRefresh() {
           <dt>Anuladas</dt>
           <dd>{{ turnoStore.summary.voided_count }}</dd>
         </div>
+        <!-- Descuentos manuales (docs/PLAN_DESCUENTOS_CAJA.md): ya están restados del total -->
+        <div v-if="turnoStore.summary.discount_count > 0" class="strip-item strip-discount" :title="`${turnoStore.summary.discount_count} ventas con descuento${turnoStore.summary.courtesy_count ? `, ${turnoStore.summary.courtesy_count} cortesías` : ''}`">
+          <dt>Descuentos</dt>
+          <dd>{{ money(turnoStore.summary.total_discounts) }} · {{ turnoStore.summary.discount_count }}</dd>
+        </div>
       </dl>
 
       <div class="table-responsive">

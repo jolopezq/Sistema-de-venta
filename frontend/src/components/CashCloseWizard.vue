@@ -538,6 +538,12 @@ function handleFinish() {
                 <strong>Bs {{ expectedCash.toFixed(2) }}</strong>
               </div>
 
+              <!-- Descuentos manuales del turno (docs/PLAN_DESCUENTOS_CAJA.md): informativo, ya restados de las ventas -->
+              <div class="box-row discount-note" v-if="resolvedStats?.discount_count > 0">
+                <span>Descuentos del turno <small class="pedidosya-note">(ya restados)</small>:</span>
+                <span>{{ resolvedStats.discount_count }} {{ resolvedStats.discount_count === 1 ? 'venta' : 'ventas' }}<template v-if="resolvedStats.courtesy_count > 0">, {{ resolvedStats.courtesy_count }} {{ resolvedStats.courtesy_count === 1 ? 'cortesía' : 'cortesías' }}</template> · Bs {{ Number(resolvedStats.total_discounts || 0).toFixed(2) }}</span>
+              </div>
+
               <details class="other-pay">
                 <summary>Otros cobros y pagos (no están en la gaveta)</summary>
                 <div class="box-row">

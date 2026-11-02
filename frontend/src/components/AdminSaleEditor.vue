@@ -5,7 +5,9 @@ import CategoryFilter from './CategoryFilter.vue';
 import { productPrice, optionPrice } from '../utils/channelPricing';
 import { useCatalogStore } from '../stores/catalog';
 import { useTurnoStore } from '../stores/turno';
+import { useAuthStore } from '../stores/auth';
 import { apiFetch } from '../services/api';
+import { maxDiscount, discountPercent, formatPercent, discountProblem, toCents } from '../utils/discount';
 
 const props = defineProps({
   visible: {
@@ -34,6 +36,8 @@ const emit = defineEmits(['close', 'saved']);
 
 const catalogStore = useCatalogStore();
 const turnoStore = useTurnoStore();
+// Descuento manual (docs/PLAN_DESCUENTOS_CAJA.md §3.8): mismas reglas que el cobro
+const authStore = useAuthStore();
 
 const isEditMode = computed(() => !!props.sale && !!props.sale.id);
 
@@ -93,6 +97,7 @@ const formData = ref({
   notes: '',
   edit_reason: '',
   discount_amount: 0,
+  discount_reason: '',
   surcharge_amount: 0,
   items: [],
   payments: [
@@ -298,6 +303,7 @@ function initForm() {
       notes: props.sale.notes || '',
       edit_reason: '',
       discount_amount: rawDiscount > 0 ? rawDiscount : 0,
+      discount_reason: props.sale.discount_reason || '',
       surcharge_amount: rawDiscount < 0 ? Math.abs(rawDiscount) : 0,
       items: (props.sale.items || []).map(i => {
         const p = getProduct(i.product_id);
@@ -414,6 +420,7 @@ function initForm() {
       notes: '',
       edit_reason: '',
       discount_amount: 0,
+      discount_reason: '',
       surcharge_amount: 0,
       items: [],
       payments: [
@@ -570,6 +577,49 @@ const calculatedTotal = computed({
     autoSyncPayments();
   }
 });
+
+// ── Descuento manual (docs/PLAN_DESCUENTOS_CAJA.md §3.8) ──
+const discountPolicy = computed(() => authStore.discount_policy);
+const isPedidosYaSale = computed(() => saleOrigin.value === 'pedidosya');
+/** Puede aplicar o cambiar un descuento: permiso «Descuentos en caja» y venta del local. */
+const canEditDiscount = computed(() => Boolean(discountPolicy.value?.allowed) && !isPedidosYaSale.value);
+/** Descuento con que se abrió la venta: si no cambia, editar otros datos no exige el permiso. */
+const originalDiscount = computed(() => (isEditMode.value ? Math.max(0, Number(props.sale?.discount_amount || 0)) : 0));
+const discountChanged = computed(() => toCents(formData.value.discount_amount) !== toCents(originalDiscount.value));
+/** El servidor compara contra el subtotal que se envía (ítems + recargo). */
+const discountBase = computed(() => calculatedSubtotal.value + Number(formData.value.surcharge_amount || 0));
+const editorDiscountMax = computed(() => maxDiscount(discountBase.value, discountPolicy.value?.max_percent || 0));
+const editorDiscountPct = computed(() => formatPercent(discountPercent(formData.value.discount_amount, discountBase.value)));
+const reasonMax = computed(() => Number(discountPolicy.value?.reason_max || 255));
+const editorDiscountIssue = computed(() => {
+  if (toCents(formData.value.discount_amount) === 0) return null;
+  if (discountChanged.value) {
+    if (isPedidosYaSale.value) return { field: 'amount', message: 'Los pedidos de PedidosYa no llevan descuento manual.' };
+    return discountProblem({
+      amount: formData.value.discount_amount,
+      reason: formData.value.discount_reason,
+      subtotal: discountBase.value,
+      policy: discountPolicy.value || undefined,
+    });
+  }
+  // Mismo monto que antes: solo se pide el motivo (lo exige el servidor siempre que haya descuento)
+  const min = Number(discountPolicy.value?.reason_min || 10);
+  return String(formData.value.discount_reason || '').trim().length < min
+    ? { field: 'reason', message: `Escribe el motivo del descuento (mínimo ${min} caracteres).` }
+    : null;
+});
+
+/** «Total a cobrar» escrito a mano: sin el permiso no puede quedar por debajo del subtotal (sería un descuento). */
+function onTotalChange(event) {
+  const val = Number(event.target.value || 0);
+  const sub = calculatedSubtotal.value;
+  if (val < sub && !canEditDiscount.value && toCents(sub - val) !== toCents(originalDiscount.value)) {
+    event.target.value = calculatedTotal.value;
+    errorMessage.value = 'Para cobrar menos que el subtotal necesitas el permiso «Descuentos en caja».';
+    return;
+  }
+  calculatedTotal.value = val;
+}
 
 const hasProductsWithoutDeliveryPrice = computed(() => {
   if (saleOrigin.value !== 'pedidosya') return false;
@@ -881,6 +931,11 @@ async function handleSave() {
     scrollToError();
     return;
   }
+  if (editorDiscountIssue.value) {
+    errorMessage.value = editorDiscountIssue.value.message;
+    scrollToError();
+    return;
+  }
   if (!formData.value.edit_reason || formData.value.edit_reason.trim().length < 5) {
     errorMessage.value = 'El motivo/justificación es obligatorio para el registro de auditoría (mínimo 5 caracteres).';
     scrollToError();
@@ -905,6 +960,7 @@ async function handleSave() {
     customer_id: formData.value.customer_id ? Number(formData.value.customer_id) : null,
     subtotal: Number((calculatedSubtotal.value + Number(formData.value.surcharge_amount || 0)).toFixed(2)),
     discount_amount: Number(formData.value.discount_amount || 0),
+    discount_reason: Number(formData.value.discount_amount || 0) > 0 ? (formData.value.discount_reason || '').trim() || null : null,
     total_amount: calculatedTotal.value,
     source: saleOrigin.value === 'pedidosya' ? 'pedidosya' : 'pos',
     is_takeaway: formData.value.is_takeaway,
@@ -958,6 +1014,7 @@ async function handleSave() {
         formData.value.payments = [{ method: lastMethod, amount: 0 }];
         formData.value.paper_ref = nextPaperRef(formData.value.paper_ref);
         formData.value.discount_amount = 0;
+        formData.value.discount_reason = '';
         // El motivo se conserva: las ventas de un mismo talonario comparten justificación.
       }
     }, 1200);
@@ -1400,16 +1457,21 @@ function resetForm() {
             <strong>Bs {{ calculatedSubtotal.toFixed(2) }}</strong>
           </div>
           <div class="total-row discount-row" v-if="saleOrigin !== 'pedidosya' || Number(formData.discount_amount) > 0">
-            <span>Descuento:</span>
-            <input 
-              type="number" 
+            <label for="ase-discount">Descuento<small v-if="canEditDiscount" class="discount-max">máx. Bs {{ editorDiscountMax.toFixed(2) }}</small></label>
+            <input
+              id="ase-discount"
+              type="number"
               min="0"
-              step="0.5" 
-              v-model.number="formData.discount_amount" 
+              step="0.5"
+              v-model.number="formData.discount_amount"
               @input="autoSyncPayments"
-              class="discount-input" 
+              class="discount-input"
+              :class="{ invalid: editorDiscountIssue?.field === 'amount' }"
+              :disabled="!canEditDiscount"
+              :title="canEditDiscount ? '' : 'Para aplicar o cambiar un descuento necesitas el permiso «Descuentos en caja»'"
               placeholder="0.00"
             />
+            <span v-if="Number(formData.discount_amount) > 0" class="discount-pct">{{ editorDiscountPct }}</span>
           </div>
           <div class="total-row surcharge-row" v-if="saleOrigin === 'pedidosya' || Number(formData.surcharge_amount) > 0">
             <span title="Cargos adicionales como empaque, bolsas o recargo de envío">🛵 Recargo / Empaque:</span>
@@ -1431,7 +1493,8 @@ function resetForm() {
                 type="number" 
                 min="0" 
                 step="0.5" 
-                v-model.lazy="calculatedTotal"
+                :value="calculatedTotal"
+                @change="onTotalChange"
                 class="discount-input"
                 style="font-weight: bold; width: 100px; padding: 0.25rem; font-size: 1rem;"
                 title="Si modificas el total final, se ajustará automáticamente como recargo o descuento."
@@ -1439,6 +1502,27 @@ function resetForm() {
             </div>
           </div>
         </div>
+
+        <!-- Motivo del descuento: obligatorio con cualquier descuento (docs/PLAN_DESCUENTOS_CAJA.md §3.8) -->
+        <div v-if="Number(formData.discount_amount) > 0" class="discount-reason-block">
+          <label for="ase-discount-reason">Motivo del descuento <span class="req">*</span></label>
+          <textarea
+            id="ase-discount-reason"
+            v-model="formData.discount_reason"
+            rows="2"
+            :maxlength="reasonMax"
+            class="form-input discount-reason-input"
+            :class="{ invalid: editorDiscountIssue?.field === 'reason' && (formData.discount_reason || '').length > 0 }"
+            placeholder="Obligatorio: por qué se descuenta (ej. pedido de 10 bowls para un evento)"
+          ></textarea>
+          <p class="discount-reason-hint" :class="{ issue: editorDiscountIssue }" role="status" aria-live="polite">
+            <template v-if="editorDiscountIssue">{{ editorDiscountIssue.message }}</template>
+            <template v-else>{{ (formData.discount_reason || '').trim().length }}/{{ reasonMax }} caracteres</template>
+          </p>
+        </div>
+        <p v-else-if="!canEditDiscount && saleOrigin !== 'pedidosya'" class="discount-perm-note">
+          Para aplicar un descuento necesitas el permiso «Descuentos en caja».
+        </p>
 
         <hr class="section-divider" />
 
@@ -2637,6 +2721,33 @@ function resetForm() {
   /* Antes heredaba fondo blanco del navegador: en modo oscuro el texto claro no se leía */
   background: var(--surface);
   color: var(--ink-900);
+}
+
+/* Descuento manual */
+.discount-max { display: block; font-size: 11px; line-height: 1.1; color: var(--ink-500); font-weight: 500; }
+.discount-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.discount-input.invalid,
+.discount-reason-input.invalid { border-color: var(--danger-500); }
+.discount-pct { font-size: 12px; font-weight: 700; color: var(--ink-700); font-variant-numeric: tabular-nums; }
+.discount-reason-block {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: start;
+  gap: 2px 12px;
+  margin-top: 8px;
+  padding: 8px 16px;
+  background: var(--cream-50, var(--tw-bg-f8fafc));
+  border-radius: 10px;
+}
+.discount-reason-block label { padding-top: 7px; font-size: 13px; font-weight: 600; color: var(--ink-700); }
+.discount-reason-block .req { color: var(--danger-text); }
+.discount-reason-input { width: 100%; box-sizing: border-box; min-height: 38px; resize: vertical; font-size: 13px; line-height: 1.35; }
+.discount-reason-hint { grid-column: 2; margin: 0; font-size: 12px; color: var(--ink-500); }
+.discount-reason-hint.issue { color: var(--acai-text); font-weight: 600; }
+.discount-perm-note { margin: 6px 16px 0; font-size: 12px; color: var(--ink-500); text-align: right; }
+@media (max-width: 640px) {
+  .discount-reason-block { grid-template-columns: 1fr; }
+  .discount-reason-hint { grid-column: 1; }
 }
 
 .surcharge-row {

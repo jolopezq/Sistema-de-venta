@@ -254,3 +254,121 @@ test.describe('Descuento en la portátil de caja', () => {
     await expectLayout(page, { vertical: false });
   });
 });
+
+// ── Control diario (docs/PLAN_DESCUENTOS_CAJA.md §3.8) ──────────────────────────────────────────────
+test.describe('Descuento en Control diario', () => {
+  const CD_CATALOG = {
+    categories: [{ id: 1, name: 'Café', sort_order: 1 }], customers: [], ingredients: [],
+    products: [{ id: 2, name: 'Café', price: 12, delivery_price: 14, category_id: 1, is_active: true, option_groups: [] }],
+  };
+
+  async function setupCd(page, { policy = ADMIN_POLICY, viewport = { width: 1366, height: 611 }, sales = [] } = {}) {
+    const calls = [];
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem('auth_token', 'mock'));
+    await page.route('**/api/**', (r) => r.fulfill(json({ data: [] })));
+    await page.route('**/api/me', (r) => r.fulfill(json({
+      user: { id: 3, name: 'Lourdes', email: 'lourdes@ohana.test', role: 'admin' },
+      permissions: [],
+      effective_permissions: { pos: 'edit', sales_history: 'edit', voids: 'edit', register_others: 'edit', pos_discounts: policy.allowed ? 'edit' : 'none' },
+      discount_policy: policy,
+    })));
+    await page.route('**/api/catalog', (r) => r.fulfill(json(CD_CATALOG)));
+    await page.route('**/api/users/sellers', (r) => r.fulfill(json({ data: [{ id: 3, name: 'Lourdes', role: 'admin' }] })));
+    await page.route('**/api/cash-sessions/active', (r) => r.fulfill(json({ session: null, stats: null })));
+    await page.route((url) => url.pathname === '/api/sales', (r) => r.fulfill(json({ sales: { data: sales, current_page: 1, last_page: 1, total: sales.length }, summary: {} })));
+    await page.route('**/api/admin/sales/day-info*', (r) => r.fulfill(json({ date: '2026-10-20', system_start_date: '2026-10-01', start_configured: false, historical: false, settled_count: 0 })));
+    await page.route('**/api/admin/sales', (r) => {
+      if (r.request().method() !== 'POST') return r.fulfill(json({ data: [] }));
+      calls.push(JSON.parse(r.request().postData()));
+      return r.fulfill(json({ sale: { id: 'n1', order_number: '201026-0009', created_at: '2026-10-20T12:00:00-04:00' } }, 201));
+    });
+    await page.goto('/admin/ventas-retroactivas');
+    await page.waitForSelector('.product-picker-card');
+    return calls;
+  }
+
+  /** 10 cafés = Bs 120. */
+  async function addCoffees(page, n = 10) {
+    for (let i = 0; i < n; i++) await page.locator('.product-picker-card').first().click();
+    await expect(page.locator('.totals-bar')).toContainText('Bs 120.00');
+  }
+
+  const cdDiscount = (page) => page.locator('#ase-discount');
+  const cdReason = (page) => page.locator('#ase-discount-reason');
+  const save = (page) => page.getByRole('button', { name: 'Registrar venta' });
+
+  test('12. Con el permiso: descuento con motivo, % y total; se envía con la venta', async ({ page }) => {
+    const calls = await setupCd(page);
+    await addCoffees(page);
+    await expect(page.locator('.discount-max')).toHaveText('máx. Bs 120.00');
+    await cdDiscount(page).fill('20');
+    await expect(page.locator('.discount-pct')).toHaveText('16.7 %');
+    await expect(cdReason(page)).toBeVisible();
+    await expect(page.locator('.discount-reason-hint')).toHaveText('Escribe el motivo del descuento (mínimo 10 caracteres).');
+
+    await page.locator('.audit-reason-group textarea').fill('Comanda en papel del día');
+    await save(page).click();
+    await expect(page.locator('.error-banner-footer, .error-banner').first()).toContainText('Escribe el motivo del descuento');
+
+    await cdReason(page).fill('Pedido de 10 cafés para la oficina');
+    await expect(page.locator('.discount-reason-hint')).toHaveText('34/255 caracteres');
+    await save(page).click();
+    await expect.poll(() => calls.length).toBe(1);
+    expect(calls[0]).toMatchObject({
+      subtotal: 120,
+      discount_amount: 20,
+      discount_reason: 'Pedido de 10 cafés para la oficina',
+      total_amount: 100,
+      payments: [{ method: 'cash', amount: 100 }],
+    });
+  });
+
+  test('12b. Cortesía en Control diario: total 0 con un pago de Bs 0', async ({ page }) => {
+    const calls = await setupCd(page);
+    await addCoffees(page);
+    await cdDiscount(page).fill('120');
+    await cdReason(page).fill('Cortesía al proveedor de frutas');
+    await page.locator('.audit-reason-group textarea').fill('Comanda en papel del día');
+    await save(page).click();
+    await expect.poll(() => calls.length).toBe(1);
+    expect(calls[0]).toMatchObject({ discount_amount: 120, total_amount: 0, payments: [{ method: 'cash', amount: 0 }] });
+  });
+
+  test('13. Sin el permiso: el descuento está deshabilitado y el total no baja del subtotal', async ({ page }) => {
+    await setupCd(page, { policy: { allowed: false, max_percent: 100, reason_min: 10, reason_max: 255 } });
+    await addCoffees(page);
+    await expect(cdDiscount(page)).toBeDisabled();
+    await expect(page.locator('.discount-perm-note')).toHaveText('Para aplicar un descuento necesitas el permiso «Descuentos en caja».');
+    const total = page.locator('.total-highlight input');
+    await total.fill('100');
+    await total.dispatchEvent('change');
+    await expect(total).toHaveValue('120');
+    await expect(page.locator('.error-banner-footer, .error-banner').first()).toContainText('necesitas el permiso «Descuentos en caja»');
+  });
+
+  test('15. La lista del día marca el descuento, su motivo y la cortesía', async ({ page }) => {
+    const day = '2026-11-02T10:00:00';
+    await setupCd(page, {
+      sales: [
+        { id: 'd1', order_number: '021126-0004', status: 'completed', created_at: day, subtotal: 140, discount_amount: 20, total_amount: 120, discount_reason: 'Pedido de 5 cafés para la oficina', payments: [{ method: 'cash', amount: 120 }], items: [{ quantity: 5, name: 'Café' }] },
+        { id: 'd2', order_number: '021126-0005', status: 'completed', created_at: day, subtotal: 24, discount_amount: 24, total_amount: 0, discount_reason: 'Cortesía al proveedor de frutas', payments: [{ method: 'cash', amount: 0 }], items: [{ quantity: 2, name: 'Café' }] },
+      ],
+    });
+    await expect(page.locator('.sale-discount-sub').first()).toHaveText('🏷️ Descuento Bs 20.00: Pedido de 5 cafés para la oficina');
+    await expect(page.locator('.sale-total-before').first()).toHaveText('de Bs 140.00');
+    await expect(page.locator('.payment-badge.badge-courtesy')).toHaveText('🎁 Cortesía');
+  });
+
+  test('14. Portátil al 125 % (1093 × 489): descuento, motivo y Guardar a la vista', async ({ page }) => {
+    await setupCd(page, { viewport: { width: 1093, height: 489 } });
+    await addCoffees(page);
+    await cdDiscount(page).fill('20');
+    await cdReason(page).scrollIntoViewIfNeeded();
+    await expect(cdDiscount(page)).toBeInViewport();
+    await expect(cdReason(page)).toBeInViewport();
+    await expect(save(page)).toBeInViewport();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+});

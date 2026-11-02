@@ -184,8 +184,12 @@ async function handleConfirmVoid() {
             <span>Bs {{ Number(sale.subtotal || sale.total_amount).toFixed(2) }}</span>
           </div>
           <div class="row" v-if="sale.discount_amount > 0">
-            <span>Descuento aplicado:</span>
+            <span>{{ Number(sale.total_amount) <= 0 ? 'Cortesía (100 %):' : 'Descuento aplicado:' }}</span>
             <span class="text-danger">− Bs {{ Number(sale.discount_amount).toFixed(2) }}</span>
+          </div>
+          <div class="row discount-reason-row" v-if="sale.discount_amount > 0 && sale.discount_reason">
+            <span>Motivo del descuento:</span>
+            <span class="sale-discount-reason">«{{ sale.discount_reason }}»</span>
           </div>
           <div class="row total-main">
             <span>Total</span>
@@ -661,4 +665,6 @@ html.dark .source-tag-pya { background: #3D1424; color: #FFB3C9; }
 }
 .sale-note { color: var(--ink-700); font-size: 12.5px; }
 .sale-edit-reason { color: var(--ink-500); font-size: 12px; font-style: italic; }
+.discount-reason-row { align-items: flex-start; gap: 12px; }
+.sale-discount-reason { color: var(--ink-700); font-size: 12px; font-style: italic; text-align: right; overflow-wrap: anywhere; }
 </style>

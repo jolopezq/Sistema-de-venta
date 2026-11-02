@@ -23,7 +23,16 @@ const chainWarning = computed(() => {
   return closings.value.length && c && !c.matches ? c : null;
 });
 
+// Descuentos manuales de la caja (docs/PLAN_DESCUENTOS_CAJA.md): quién, cuánto y por qué
+const discounts = computed(() => reportData.value.discounts || []);
+const discountsTotal = computed(() => discounts.value.reduce((sum, d) => sum + Number(d.discount_amount || 0), 0));
+
 const money = (n) => Number(n || 0).toFixed(2);
+const pct = (n) => (Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(1));
+function formatTime(dateStr) {
+  if (!dateStr) return '--:--';
+  return new Date(dateStr).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+}
 const signed = (n) => `${Number(n) > 0 ? '+' : ''}Bs ${money(n)}`;
 const diffLabel = (n) => (Number(n) === 0 ? 'Exacto' : Number(n) > 0 ? 'Sobrante' : 'Faltante');
 
@@ -170,6 +179,27 @@ function formatDate(dateStr) {
       <div class="row" v-if="Number(summary.non_cash_expenses || 0) > 0">
         <span>Egresos QR/Tarjeta (no salen de gaveta):</span>
         <span>Bs {{ Number(summary.non_cash_expenses || 0).toFixed(2) }}</span>
+      </div>
+    </div>
+
+    <!-- DESCUENTOS DEL TURNO (ya restados de las ventas) -->
+    <div v-if="discounts.length" class="discounts-section">
+      <div class="divider">--------------------------------</div>
+      <div class="section-title">DESCUENTOS ({{ discounts.length }})</div>
+      <div v-for="d in discounts" :key="d.id" class="discount-item">
+        <div class="row mini">
+          <span>{{ formatTime(d.created_at) }} #{{ d.order_number }}{{ d.cashier ? ` · ${d.cashier}` : '' }}</span>
+          <span>-Bs {{ money(d.discount_amount) }}</span>
+        </div>
+        <div class="row mini">
+          <span>{{ d.is_courtesy ? 'Cortesía (100 %)' : `${pct(d.percent)} % de Bs ${money(d.subtotal)}` }}</span>
+          <span>Cobrado Bs {{ money(d.total_amount) }}</span>
+        </div>
+        <div class="correction-text">«{{ d.discount_reason || 'sin motivo' }}»</div>
+      </div>
+      <div class="row">
+        <span>Total descuentos:</span>
+        <strong>Bs {{ money(discountsTotal) }}</strong>
       </div>
     </div>
 
@@ -365,6 +395,8 @@ function formatDate(dateStr) {
 }
 
 .correction-item { margin-bottom: 6px; }
+.discount-item { margin-bottom: 5px; }
+.discount-item .correction-text { overflow-wrap: anywhere; }
 .correction-text { font-size: 10px; margin-top: 1px; }
 
 .changed-item {

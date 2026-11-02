@@ -10,6 +10,13 @@ export const METHOD_LABELS = {
   delivery_platform: '🛵 PedidosYa',
 };
 
+/** Cortesía: descuento del 100 %, se registra con un pago en efectivo de Bs 0 (docs/PLAN_DESCUENTOS_CAJA.md §3.6). */
+export function isCourtesySale(sale) {
+  return Boolean(sale) && Number(sale.discount_amount || 0) > 0 && Number(sale.total_amount || 0) <= 0;
+}
+
+export const COURTESY_BADGE = { label: '🎁 Cortesía', class: 'badge-courtesy', method: 'courtesy' };
+
 export const METHOD_CLASSES = {
   cash: 'badge-cash',
   qr: 'badge-qr',
@@ -27,6 +34,10 @@ export const METHOD_CLASSES = {
 export function getSalePaymentBadges(sale) {
   if (!sale) {
     return [{ label: 'Sin pago', class: 'badge-gray' }];
+  }
+
+  if (isCourtesySale(sale)) {
+    return [{ ...COURTESY_BADGE }];
   }
 
   // Caso especial PedidosYa sin pagos explícitos
@@ -85,6 +96,8 @@ export function getSalePaymentText(sale) {
   const map = { cash: 'Efectivo', qr: 'QR', card: 'Tarjeta', delivery_platform: 'PedidosYa' };
 
   if (!sale) return 'Otro';
+
+  if (isCourtesySale(sale)) return 'Cortesía';
 
   if (sale.source === 'pedidosya' && (!sale.payments || sale.payments.length === 0)) {
     return 'PedidosYa';

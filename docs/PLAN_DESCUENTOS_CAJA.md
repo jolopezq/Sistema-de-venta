@@ -203,6 +203,9 @@ Solo la puede hacer un administrador o el Super Admin con el permiso. Un cajero 
 | `AdminSaleEditor.vue` (Control diario) | El mismo bloque de descuento que el cobro (ver 3.8) |
 | Listas de ventas (`paymentDisplay.js`) | Insignia «Cortesía» (ver 3.6) |
 
+> Implementado: la línea de la revisión del cierre va fuera del desplegable «Otros cobros», a la vista; cabe en la
+> portátil a 1366 × 611 y 1093 × 489 (prueba `2b` de `cierre-caja-portatil.spec.js`).
+
 **Backend del resumen** (`CashRegisterSessionController` y `SaleController`):
 
 - `total_discounts` pasa a sumar solo los descuentos positivos. Hoy no lo usa ninguna pantalla, así que el cambio no
@@ -220,8 +223,8 @@ Control diario y Turno) ya tenía un campo de descuento libre. Pasa a tener **la
   administradores, así que en la práctica llega al 100 %, con cortesía incluida. Sin el permiso:
   - el campo se ve deshabilitado, con el aviso «Necesitas el permiso Descuentos en caja»;
   - el «Total a cobrar» editable no puede quedar por debajo del subtotal: solo sirve para el recargo.
-- **Editar otros datos de una venta que ya tiene descuento** no exige el permiso, siempre que no cambien ni el monto ni
-  el motivo.
+- **Editar otros datos de una venta que ya tiene descuento** no exige el permiso, siempre que no cambie el monto. El
+  motivo sí se pide siempre que haya descuento: así se puede documentar uno viejo que no lo tenía.
 - **Servidor (`AdminSaleRequest` + `DiscountPolicy`):** aquí sí se rechaza con un error de validación, porque es un
   formulario en línea y no una venta ya cobrada:
   - descuento nuevo o cambiado sin el permiso;

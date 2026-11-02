@@ -168,6 +168,10 @@ const cardSales = computed(() => {
 // PedidosYa se informa aparte: no entra al arqueo ni al total del local
 const pedidosYaCount = computed(() => Number(currentStats.value?.pedidosya_count || 0));
 const pedidosYaTotal = computed(() => Number(currentStats.value?.pedidosya_total || 0));
+// Descuentos manuales de la caja (docs/PLAN_DESCUENTOS_CAJA.md): ya están restados de las ventas
+const discountTotal = computed(() => Number(currentStats.value?.total_discounts || 0));
+const discountCount = computed(() => Number(currentStats.value?.discount_count || 0));
+const courtesyCount = computed(() => Number(currentStats.value?.courtesy_count || 0));
 
 // Gastos en efectivo vs electrónicos
 const cashExpenses = computed(() => {
@@ -684,6 +688,11 @@ watch(selectedDate, (newDate) => {
               <strong class="row-val total-sales">Bs {{ formatCurrency(dayTotalSales) }}</strong>
             </div>
 
+            <div class="breakdown-row cd-discounts-row" v-if="discountCount > 0">
+              <span class="row-label">🏷️ Descuentos <span class="pedidosya-note">(ya restados)</span>:</span>
+              <span class="row-val">{{ discountCount }} {{ discountCount === 1 ? 'venta' : 'ventas' }}<template v-if="courtesyCount"> ({{ courtesyCount }} {{ courtesyCount === 1 ? 'cortesía' : 'cortesías' }})</template> · Bs {{ formatCurrency(discountTotal) }}</span>
+            </div>
+
             <div class="breakdown-divider"></div>
 
             <div class="breakdown-row">
@@ -856,6 +865,9 @@ watch(selectedDate, (newDate) => {
                   <div v-if="sale.notes" class="sale-note-sub">
                     💬 {{ sale.notes }}
                   </div>
+                  <div v-if="Number(sale.discount_amount) > 0" class="sale-discount-sub">
+                    🏷️ Descuento Bs {{ formatCurrency(sale.discount_amount) }}<template v-if="sale.discount_reason">: {{ sale.discount_reason }}</template>
+                  </div>
                 </td>
                 <td>
                   <div class="payments-badges-wrap">
@@ -871,6 +883,7 @@ watch(selectedDate, (newDate) => {
                 </td>
                 <td class="col-total text-right">
                   <strong>Bs {{ formatCurrency(sale.total_amount) }}</strong>
+                  <span v-if="Number(sale.discount_amount) > 0" class="sale-total-before">de Bs {{ formatCurrency(sale.subtotal) }}</span>
                 </td>
                 <td class="text-center">
                   <span v-if="sale.status === 'completed'" class="status-pill status-completed">
@@ -1927,6 +1940,25 @@ html.dark .arqueo-card.session-closed {
 .badge-gray {
   background: var(--tw-bg-f1f5f9);
   color: var(--tw-fg-64748b);
+}
+
+/* Descuento manual y cortesía (docs/PLAN_DESCUENTOS_CAJA.md) */
+.badge-courtesy {
+  background: var(--lime-100);
+  color: var(--lime-700);
+}
+.sale-discount-sub {
+  margin-top: 3px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--acai-text);
+  overflow-wrap: anywhere;
+}
+.sale-total-before {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--ink-500);
+  font-variant-numeric: tabular-nums;
 }
 
 .status-pill {
