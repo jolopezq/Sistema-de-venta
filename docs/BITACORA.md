@@ -3,7 +3,19 @@
 Registro vivo para que cualquier agente o persona retome el trabajo. Actualízala en el mismo commit
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
-## Estado actual (2026-10-31)
+## Estado actual (2026-11-02)
+- **Rama `feat/descuentos-manuales-pos` (sin publicar):** descuento manual en caja y en Control diario ([PLAN_DESCUENTOS_CAJA.md](PLAN_DESCUENTOS_CAJA.md)), un commit por fase. El detalle está en el CHANGELOG, «Sin publicar».
+  - **Decisiones del dueño:** solo con el permiso por persona *Descuentos en caja*; cajero hasta el 20 %, administrador hasta el 100 % (cortesía); motivo de texto libre obligatorio (10 a 255 caracteres); solo ventas del local; por defecto nadie tiene el permiso salvo el Super Admin; también en Control diario, adaptado a la portátil de caja.
+  - **Migración nueva:** `2026_11_02_000001_add_discount_reason_to_sales_table` (aditiva). Probada sobre una copia de la base local, que tenía pendientes todas las migraciones desde el 15/10: corrieron sin error.
+  - **Pruebas:**
+    - PHPUnit 410/410 (2.625 aserciones; 19 nuevas en `SaleDiscountTest`), con PHP 8.4 en WebAssembly y `mockConsoleOutput = false` solo en la copia de prueba.
+    - `npm run test:unit` 44/44 (`discount.test.mjs` y casos de cortesía en `paymentDisplay.test.mjs`); `vite build` sin errores.
+    - E2E del proyecto «Portátil de caja» 235 en verde, más las 3 de teléfono contra el backend de la copia. Nuevas: `descuento-caja.spec.js` (16, incluidas 1366 × 611 y 1093 × 489), 2 de cierre con descuentos y 3 de Usuarios. Las de `checkout-portatil` siguen fallando a veces bajo carga, igual que antes de esta rama.
+    - Flujo completo contra la copia: abrir caja → 3 ventas con descuento (efectivo y mixto) → cortesía del admin → cocina (pedido listo) → anular → venta con descuento en Control diario → cerrar caja (cuadra) → reporte con la sección DESCUENTOS.
+    - Contraste AA de los estados nuevos (cobro, cortesía, recibo, editor y lista de Control diario) en claro y oscuro: 0 textos bajo AA en lo nuevo. **Previo, no de esta rama:** en oscuro, los botones «Detalle» y «Editar» de la lista de Control diario quedan bajo AA (1,94 y 2,01).
+  - **Al publicar:** la migración corre con `04-actualizar.sh`. Después, en Usuarios → editar persona, dar *Descuentos en caja* a quien corresponda; nadie lo tiene por defecto.
+  - **Grafo:** no se actualizó en esta rama (la versión de graphify del entorno de trabajo es otra y reescribiría toda la caché). Correr `graphify update .` en la Mac.
+
 - **Publicación 2026-10-31 (`main` local, lista para el VPS):** reúne `fix/caja-cerrada`, `feat/dias-pasados-permisos` y `fix/autoservicio-por-peso`. El detalle está en el CHANGELOG, [2026-10-31].
   - Migraciones nuevas: `2026_10_31_000001` a `000003`, todas aditivas.
   - Pruebas sobre el árbol fusionado (`986fc59`): PHPUnit 391/391 (2.510 aserciones), `npm run test:unit` 28/28, E2E 215/215 (incluye las 3 de teléfono contra el backend real) y `vite build` sin errores.
@@ -282,6 +294,7 @@ número de orden solo para ventas nuevas.
 - Conflicto de peers npm (vue-router 5 / Vite 5).
 
 ## Decisiones tomadas
+- **Descuento manual (2026-11-02):** en la sincronización del POS un descuento fuera de regla no rechaza la venta (ya se cobró): se guarda y queda `sale_discount_violation`. En Control diario sí se rechaza, porque es un formulario en línea. La cortesía se registra con un pago en efectivo de Bs 0, sin método nuevo: `sale_payments.method` es un `enum` y en SQLite cambiarlo obliga a reconstruir la tabla.
 - **Precios en ventas del POS:** se respeta el precio cobrado y se audita la diferencia con el catálogo,
   en vez de rechazar la venta. Motivo: las 23 diferencias reales eran cambios legítimos de precio y
   rechazar bloquearía ventas ya cobradas.
@@ -299,6 +312,8 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-11-02** — Descuento manual en caja y en Control diario ([PLAN_DESCUENTOS_CAJA.md](PLAN_DESCUENTOS_CAJA.md)): permiso por persona *Descuentos en caja* (también para cajeros), topes por rol en `DiscountPolicy`, motivo obligatorio, cortesía con pago de Bs 0, auditoría `sale_discount_applied` / `sale_discount_violation` sin rechazar ventas ya cobradas, y descuentos visibles en Turno, cierre, reporte, Control diario y detalle. — `86a867f`, `eec8fb6`, `399c5c0`, `7110a5d`, `98fbad2`.
 
 - **2026-10-15 (Módulo de Usuarios, Roles y Permisos — Opción C v2: Techos por rol y congruencia integral)**:
   - Diagnóstico y auditoría: la v1 inicial conectó la tabla pero presentaba hallazgos de seguridad y consistencia (la matriz no podía ampliar accesos que los middlewares de rol bloqueaban, lecturas permitían operar en ventas y caja, bucles potenciales en el router, falta de atomicidad en guardado y falta de sincronización inter-sesiones).

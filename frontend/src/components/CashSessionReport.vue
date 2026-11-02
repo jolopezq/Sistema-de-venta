@@ -188,12 +188,12 @@ function formatDate(dateStr) {
       <div class="section-title">DESCUENTOS ({{ discounts.length }})</div>
       <div v-for="d in discounts" :key="d.id" class="discount-item">
         <div class="row mini">
-          <span>{{ formatTime(d.created_at) }} #{{ d.order_number }}{{ d.cashier ? ` · ${d.cashier}` : '' }}</span>
-          <span>-Bs {{ money(d.discount_amount) }}</span>
+          <span>#{{ d.order_number }} · {{ formatTime(d.created_at) }}</span>
+          <strong class="nowrap">-Bs {{ money(d.discount_amount) }}</strong>
         </div>
         <div class="row mini">
-          <span>{{ d.is_courtesy ? 'Cortesía (100 %)' : `${pct(d.percent)} % de Bs ${money(d.subtotal)}` }}</span>
-          <span>Cobrado Bs {{ money(d.total_amount) }}</span>
+          <span>{{ d.is_courtesy ? 'Cortesía (100 %)' : `${pct(d.percent)} % de Bs ${money(d.subtotal)}` }}{{ d.cashier ? ` · ${d.cashier}` : '' }}</span>
+          <span class="nowrap">Cobró Bs {{ money(d.total_amount) }}</span>
         </div>
         <div class="correction-text">«{{ d.discount_reason || 'sin motivo' }}»</div>
       </div>
@@ -396,6 +396,7 @@ function formatDate(dateStr) {
 
 .correction-item { margin-bottom: 6px; }
 .discount-item { margin-bottom: 5px; }
+.discount-item .nowrap { white-space: nowrap; padding-left: 6px; }
 .discount-item .correction-text { overflow-wrap: anywhere; }
 .correction-text { font-size: 10px; margin-top: 1px; }
 
