@@ -1343,14 +1343,14 @@ watch(() => turnoStore.activeSession?.id, (newId) => {
 }
 .tn-mov-pill.expense {
   background: rgba(239, 68, 68, 0.12);
-  color: #dc2626;
+  color: var(--danger-text); /* #dc2626 quedaba en 4,1:1 sobre el rojo suave */
 }
 html.dark .tn-mov-pill.expense {
   color: #f87171;
 }
 .tn-mov-pill.income {
   background: rgba(22, 163, 74, 0.12);
-  color: #16a34a;
+  color: #166534; /* #16a34a quedaba bajo 4,5:1 sobre el verde suave */
 }
 html.dark .tn-mov-pill.income {
   color: #4ade80;

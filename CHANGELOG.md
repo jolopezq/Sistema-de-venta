@@ -33,6 +33,7 @@ se renombra con la fecha de la actualización de producción.
   - **Arqueo y reporte:** `total_discounts` suma solo descuentos positivos (un importe negativo era un recargo viejo); se agregan `discount_count` y `courtesy_count`, y el reporte de caja trae la lista `discounts` con cajero, % y motivo.
 
 ### Corregido
+- **Contraste AA en las listas de gastos:** en Turno, las pastillas «Egreso» (4,1:1) e «Ingreso» quedaban bajo el mínimo en tema claro; en Control diario (tema oscuro), la insignia «📱 QR / Banco» (1,8:1) y el botón «✏️ Corregir» (1,9:1). Ahora todas pasan 4,5:1.
 - **Visualización de métodos de pago en Control diario y Turno:** cuando una comanda se cobraba con pagos mixtos/divididos (ej. QR + Efectivo), la tabla de Control diario mostraba únicamente la pastilla del primer método (`payments[0]`), ignorando los demás pagos y ocultando el efectivo o QR restante. Ahora se muestran las pastillas de cada método con su importe (`📱 QR Bs 40.00` `💵 Efectivo Bs 5.00`), y en Turno se desglosa el texto del pago mixto con sus importes.
 
 ## [2026-10-31]

@@ -1935,6 +1935,11 @@ html.dark .arqueo-card.session-closed {
   border-color: var(--tw-bg-fde047);
 }
 
+/* En oscuro el fondo pasa a ámbar oscuro: el texto marrón quedaba en 1,9:1 */
+html.dark .btn-table-edit {
+  color: var(--gold-text);
+}
+
 .btn-table-void {
   background: #fef2f2;
   color: #991b1b;
@@ -2100,6 +2105,10 @@ html.dark .badge-voided {
 .badge-qr {
   background: #eef2ff;
   color: var(--tw-fg-4f46e5);
+}
+/* En oscuro el texto pasa a índigo claro: el fondo también tiene que oscurecerse (quedaba en 1,8:1) */
+html.dark .badge-qr {
+  background: rgba(99, 102, 241, 0.18);
 }
 
 .badge-card {
