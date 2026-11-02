@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { methodLabel, methodDetail, methodWithAmount } from '../utils/cashMovementMethod';
 
 const props = defineProps({
   report: {
@@ -217,15 +218,16 @@ function formatDate(dateStr) {
         <div class="row mini">
           <span>{{ formatTime(m.occurred_at) }} · {{ m.type === 'expense' ? 'Egreso' : 'Ingreso' }}</span>
           <strong :class="m.is_voided ? 'text-danger' : ''">
-            {{ m.is_voided ? 'ANULADO' : `Bs ${money(m.amount)} (${m.payment_method === 'cash' ? 'Efectivo' : (m.payment_method === 'qr' ? 'QR' : 'Tarjeta')})` }}
+            {{ m.is_voided ? 'ANULADO' : `Bs ${money(m.amount)} (${methodLabel(m)})` }}
           </strong>
         </div>
         <div class="row mini">
           <span>{{ m.description }}</span>
           <span v-if="m.is_edited && !m.is_voided">
-            Antes: {{ m.edit_previous?.payment_method === 'cash' ? 'Efectivo' : (m.edit_previous?.payment_method === 'qr' ? 'QR' : 'Tarjeta') }} · Bs {{ money(m.edit_previous?.amount) }}
+            Antes: {{ methodWithAmount(m.edit_previous) }}
           </span>
         </div>
+        <div v-if="!m.is_voided && methodDetail(m)" class="correction-text">{{ methodDetail(m) }}</div>
         <div v-if="m.is_edited && !m.is_voided" class="correction-text">
           Corregido{{ m.edited_by ? ` por ${m.edited_by}` : '' }}: «{{ m.edit_reason }}»
         </div>

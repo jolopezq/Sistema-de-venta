@@ -15,6 +15,7 @@ import { useReorderStore } from '../stores/reorder';
 import StatusTag from '../components/StatusTag.vue';
 import FinanceModal from '../components/Finance/FinanceModal.vue';
 import VoidCashMovementModal from '../components/VoidCashMovementModal.vue';
+import { methodBadge, methodDetail, methodWithAmount } from '../utils/cashMovementMethod';
 import '../components/Finance/finance.css';
 import { getSalePaymentText } from '../utils/paymentDisplay';
 
@@ -452,8 +453,9 @@ watch(() => turnoStore.activeSession?.id, (newId) => {
               </td>
               <td>
                 <span class="tn-method-badge" :class="m.payment_method || 'cash'">
-                  {{ m.payment_method === 'cash' ? '💵 Efectivo' : (m.payment_method === 'qr' ? '📱 QR' : '💳 Tarjeta') }}
+                  {{ methodBadge(m) }}
                 </span>
+                <div v-if="methodDetail(m)" class="tn-method-detail">{{ methodDetail(m) }}</div>
               </td>
               <td class="col-desc">
                 <div class="desc-main">{{ m.description }}</div>
@@ -464,7 +466,7 @@ watch(() => turnoStore.activeSession?.id, (newId) => {
                 <div v-if="m.edit_count > 0 && !m.deleted_at" class="desc-audit desc-corrected">
                   <span class="badge-corrected">Corregido</span>
                   <span>
-                    Antes: {{ m.edit_previous?.payment_method === 'cash' ? 'Efectivo' : (m.edit_previous?.payment_method === 'qr' ? 'QR' : 'Tarjeta') }} · Bs {{ Number(m.edit_previous?.amount || 0).toFixed(2) }} — Motivo: «{{ m.edit_reason }}»
+                    Antes: {{ methodWithAmount(m.edit_previous) }} — Motivo: «{{ m.edit_reason }}»
                   </span>
                 </div>
                 <!-- Motivo si está anulado -->
@@ -1363,6 +1365,13 @@ html.dark .tn-mov-pill.income {
   border: 1px solid var(--border);
   color: var(--ink-700);
   white-space: nowrap;
+}
+.tn-method-detail {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--ink-500);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .desc-main {
   font-weight: 500;

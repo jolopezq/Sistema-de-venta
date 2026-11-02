@@ -4,15 +4,20 @@
  * Montos en centavos para no arrastrar errores de decimales.
  */
 
+import { cashPartCents } from './cashMovementMethod.js';
+
 const cents = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.round(n * 100) : 0;
 };
 
-/** Efecto de un movimiento en el efectivo esperado: un gasto en efectivo resta, un ingreso en efectivo suma. */
-export function cashEffectCents({ type, payment_method: method, amount }) {
-  if ((method || 'cash') !== 'cash') return 0;
-  return type === 'extra_income' ? cents(amount) : -cents(amount);
+/**
+ * Efecto de un movimiento en el efectivo esperado: un gasto resta su parte en efectivo (todo si es en efectivo, la parte
+ * en efectivo si está dividido), un ingreso en efectivo suma.
+ */
+export function cashEffectCents(m) {
+  const cash = cashPartCents(m);
+  return m.type === 'extra_income' ? cash : 0 - cash;
 }
 
 /**

@@ -29,3 +29,13 @@ test('diferencia con signo', () => {
   assert.equal(signedBs(0), 'Bs 0.00');
   assert.equal(signedBs(5.5), '+Bs 5.50');
 });
+
+test('gasto dividido: solo su parte en efectivo cuenta para el cierre', () => {
+  // QR 100 → 40 efectivo + 60 QR, con 260 contados (faltaban 40): la caja queda cuadrada
+  const p = closingPreview({ expected_closing: 300, actual_closing: 260, difference: -40 },
+    { type: 'expense', payment_method: 'qr', amount: 100 },
+    { type: 'expense', payment_method: 'mixed', amount: 100, cash_amount: 40 });
+  assert.equal(p.expectedAfter, 260);
+  assert.equal(p.diffAfter, 0);
+  assert.equal(cashEffectCents({ type: 'expense', payment_method: 'mixed', amount: 100, cash_amount: 40 }), -4000);
+});

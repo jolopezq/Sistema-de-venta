@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useTurnoStore } from '../stores/turno';
 import FinanceModal from './Finance/FinanceModal.vue';
 import { closingPreview, signedBs } from '../utils/closedCorrection';
+import { methodLabel as movementMethodLabel, methodDetail } from '../utils/cashMovementMethod';
 import './Finance/finance.css';
 
 /**
@@ -37,12 +38,11 @@ const movementTypeLabel = computed(() => {
   return props.movement?.type === 'expense' ? 'el gasto' : 'el ingreso';
 });
 
-const methodLabel = computed(() => {
-  const m = props.movement?.payment_method;
-  if (m === 'cash') return 'Efectivo';
-  if (m === 'qr') return 'QR';
-  if (m === 'card') return 'Tarjeta';
-  return 'Efectivo';
+// «Efectivo + QR (Bs 40.00 efectivo + Bs 60.00 QR)» si el gasto está dividido
+const methodText = computed(() => {
+  if (!props.movement) return '';
+  const detail = methodDetail(props.movement);
+  return detail ? `${movementMethodLabel(props.movement)} (${detail})` : movementMethodLabel(props.movement);
 });
 
 watch(() => props.visible, (v) => {
@@ -92,7 +92,7 @@ function handleClose() {
               {{ movement.type === 'expense' ? '📤 Egreso' : '📥 Ingreso' }}
             </span>
             <strong class="vm-amount">Bs {{ Number(movement.amount || 0).toFixed(2) }}</strong>
-            <span class="vm-method">{{ methodLabel }}</span>
+            <span class="vm-method">{{ methodText }}</span>
           </div>
           <p class="vm-desc">{{ movement.description }}</p>
         </div>

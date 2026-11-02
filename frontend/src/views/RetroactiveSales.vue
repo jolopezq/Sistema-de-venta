@@ -7,6 +7,7 @@ import AdminSaleEditor from '../components/AdminSaleEditor.vue';
 import SaleDetailDrawer from '../components/SaleDetailDrawer.vue';
 import CashExpenseModal from '../components/CashExpenseModal.vue';
 import VoidCashMovementModal from '../components/VoidCashMovementModal.vue';
+import { cashPart, nonCashPart, methodDetail, methodWithAmount } from '../utils/cashMovementMethod';
 import CashCloseWizard from '../components/CashCloseWizard.vue';
 import CashSessionReport from '../components/CashSessionReport.vue';
 import { apiFetch } from '../services/api';
@@ -199,8 +200,8 @@ const cashExpenses = computed(() => {
     return Number(currentStats.value.cash_expenses);
   }
   return movements.value
-    .filter(m => !m.deleted_at && m.type === 'expense' && (!m.payment_method || m.payment_method === 'cash'))
-    .reduce((sum, m) => sum + Number(m.amount || 0), 0);
+    .filter(m => !m.deleted_at && m.type === 'expense')
+    .reduce((sum, m) => sum + cashPart(m), 0);
 });
 
 const nonCashExpenses = computed(() => {
@@ -208,8 +209,8 @@ const nonCashExpenses = computed(() => {
     return Number(currentStats.value.non_cash_expenses);
   }
   return movements.value
-    .filter(m => !m.deleted_at && m.type === 'expense' && (m.payment_method === 'qr' || m.payment_method === 'card'))
-    .reduce((sum, m) => sum + Number(m.amount || 0), 0);
+    .filter(m => !m.deleted_at && m.type === 'expense')
+    .reduce((sum, m) => sum + nonCashPart(m), 0);
 });
 
 const totalExpenses = computed(() => {
@@ -988,9 +989,13 @@ watch(selectedDate, (newDate) => {
                   <span v-else-if="m.payment_method === 'card'" class="payment-badge badge-card">
                     💳 Tarjeta
                   </span>
+                  <span v-else-if="m.payment_method === 'mixed'" class="payment-badge badge-mixed">
+                    💵📱 Efectivo + QR
+                  </span>
                   <span v-else class="payment-badge badge-gray">
                     {{ m.payment_method || 'Efectivo' }}
                   </span>
+                  <div v-if="methodDetail(m)" class="method-detail">{{ methodDetail(m) }}</div>
                 </td>
                 <td class="col-desc">
                   <div class="desc-text">{{ m.description }}</div>
@@ -1001,7 +1006,7 @@ watch(selectedDate, (newDate) => {
                   <div v-if="m.edit_count > 0 && !m.deleted_at" class="desc-audit desc-corrected">
                     <span class="badge-corrected">Corregido</span>
                     <span>
-                      Antes: {{ m.edit_previous?.payment_method === 'cash' ? 'Efectivo' : (m.edit_previous?.payment_method === 'qr' ? 'QR' : 'Tarjeta') }} · Bs {{ Number(m.edit_previous?.amount || 0).toFixed(2) }} — Motivo: «{{ m.edit_reason }}»
+                      Antes: {{ methodWithAmount(m.edit_previous) }} — Motivo: «{{ m.edit_reason }}»
                     </span>
                   </div>
                   <!-- Línea de auditoría anulado -->
@@ -2100,6 +2105,18 @@ html.dark .badge-voided {
 .badge-card {
   background: #faf5ff;
   color: #9333ea;
+}
+
+/* Gasto dividido entre efectivo y QR (docs/PLAN_GASTO_PAGO_DIVIDIDO.md) */
+.badge-mixed {
+  background: var(--acai-50);
+  color: var(--acai-text);
+}
+.method-detail {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: var(--ink-500);
+  font-variant-numeric: tabular-nums;
 }
 
 .badge-pedidosya {
