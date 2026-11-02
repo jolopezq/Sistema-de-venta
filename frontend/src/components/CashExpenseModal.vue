@@ -17,7 +17,7 @@ const props = defineProps({
    * Si se pasa, el movimiento se registra o corrige en esa sesión.
    * Si no, se usa la sesión activa del store.
    */
-  sessionId:    { type: String, default: null },
+  sessionId:    { type: [String, Number], default: null },
   /**
    * Efectivo esperado en gaveta para la sesión específica (p. ej. desde Control Diario).
    * Si se pasa, tiene prioridad sobre el turno activo del store.

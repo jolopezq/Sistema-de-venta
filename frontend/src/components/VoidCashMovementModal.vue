@@ -12,7 +12,7 @@ import './Finance/finance.css';
 const props = defineProps({
   visible:   { type: Boolean, default: false },
   movement:  { type: Object, default: null },
-  sessionId: { type: String, default: null },
+  sessionId: { type: [String, Number], default: null },
 });
 
 const emit = defineEmits(['close', 'voided']);

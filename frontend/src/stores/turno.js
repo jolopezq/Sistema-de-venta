@@ -551,7 +551,7 @@ export const useTurnoStore = defineStore('turno', {
       if (!sId) return [];
       try {
         const data = await apiFetch(`/cash-sessions/${sId}/movements`);
-        return data || [];
+        return Array.isArray(data) ? data : (data?.data || []);
       } catch (err) {
         console.warn('Error al cargar movimientos de sesión:', err);
         return [];
