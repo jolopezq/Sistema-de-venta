@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 /**
  * Usuarios → permisos de una persona (docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md, Fase 1):
  * Finanzas, ventas de días pasados y corregir cajas se dan por persona a un administrador;
+ * «Descuentos en caja» también a un cajero (docs/PLAN_DESCUENTOS_CAJA.md §3.2);
  * nombrar a un Super Admin pide la contraseña de quien lo hace.
  */
 
@@ -17,7 +18,7 @@ const USERS = [
   { id: 3, name: 'Lourdes', email: 'lourdes@ohana.test', role: 'admin', permission_overrides: { finance: 'read', sales_history: 'none' } },
   { id: 4, name: 'Cajera', email: 'caja@ohana.test', role: 'cashier', permission_overrides: {} },
 ];
-const modulesFor = (levels) => Object.fromEntries(['sales_history', 'register_corrections', 'finance'].map((m) => [m, { effective: levels[m] }]));
+const modulesFor = (levels) => Object.fromEntries(['sales_history', 'register_corrections', 'finance', 'pos_discounts'].map((m) => [m, { effective: levels[m] ?? 'none' }]));
 
 async function setup(page) {
   const calls = [];
@@ -55,7 +56,7 @@ test('La lista muestra los permisos propios de cada administrador', async ({ pag
 test('Dar Finanzas a un administrador: guarda solo lo que difiere de su rol', async ({ page }) => {
   const calls = await setup(page);
   await row(page, 'Rox').getByTitle('Editar').click();
-  await expect(modal(page).locator('.pp-row')).toHaveCount(3);
+  await expect(modal(page).locator('.pp-row')).toHaveCount(4);
   await expect(modal(page).getByRole('button', { name: 'Ventas de días pasados: Cargar y corregir' })).toHaveAttribute('aria-pressed', 'true');
   await expect(modal(page).getByRole('button', { name: 'Finanzas: Sin acceso' })).toHaveAttribute('aria-pressed', 'true');
 
@@ -73,16 +74,48 @@ test('Dar Finanzas a un administrador: guarda solo lo que difiere de su rol', as
     { module: 'sales_history', access_level: null },
     { module: 'register_corrections', access_level: 'edit' },
     { module: 'finance', access_level: 'edit' },
+    { module: 'pos_discounts', access_level: null },
   ]);
 });
 
-test('Sin cambios en los permisos no se llama a su API; un cajero no puede recibirlos', async ({ page }) => {
+test('Sin cambios en los permisos no se llama a su API; un cajero solo puede recibir Descuentos', async ({ page }) => {
   const calls = await setup(page);
   await row(page, 'Cajera').getByTitle('Editar').click();
+  await expect(modal(page).locator('.pp-row')).toHaveCount(1);
+  await expect(modal(page).locator('.pp-row[data-module="pos_discounts"]')).toContainText('Descuentos en caja');
+  await expect(modal(page).getByRole('button', { name: 'Descuentos en caja: Sin acceso' })).toHaveAttribute('aria-pressed', 'true');
   await expect(modal(page).locator('.pp-note')).toHaveText('Finanzas, ventas de días pasados y corregir cajas solo se dan a administradores.');
   await modal(page).getByRole('button', { name: 'Guardar usuario' }).click();
   await expect.poll(() => calls.length).toBe(1);
   expect(calls[0].url).toMatch(/\/api\/users\/4$/);
+});
+
+test('Dar Descuentos en caja a un cajero', async ({ page }) => {
+  const calls = await setup(page);
+  await row(page, 'Cajera').getByTitle('Editar').click();
+  await modal(page).getByRole('button', { name: 'Descuentos en caja: Descontar' }).click();
+  await expect(modal(page).locator('.pp-row[data-module="pos_discounts"] .pp-own')).toBeVisible();
+  await expect(modal(page).getByRole('button', { name: 'Guardar usuario' })).toBeInViewport();
+  await modal(page).getByRole('button', { name: 'Guardar usuario' }).click();
+
+  await expect.poll(() => calls.length).toBe(2);
+  expect(calls[1].url).toMatch(/\/api\/users\/4\/permissions$/);
+  expect(calls[1].body.permissions).toEqual([
+    { module: 'sales_history', access_level: null },
+    { module: 'register_corrections', access_level: null },
+    { module: 'finance', access_level: null },
+    { module: 'pos_discounts', access_level: 'edit' },
+  ]);
+});
+
+test('La lista muestra el permiso de descuentos de un cajero', async ({ page }) => {
+  USERS[3].permission_overrides = { pos_discounts: 'edit' };
+  try {
+    await setup(page);
+    await expect(row(page, 'Cajera').locator('.oh-perm-badge')).toHaveText(['Descuentos']);
+  } finally {
+    USERS[3].permission_overrides = {};
+  }
 });
 
 test('Nombrar Super Admin avisa que tendrá todo y pide la contraseña', async ({ page }) => {

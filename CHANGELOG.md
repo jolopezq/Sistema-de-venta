@@ -8,7 +8,7 @@ se renombra con la fecha de la actualización de producción.
 
 ### Agregado
 - **Descuento manual en caja y en Control diario** ([plan](docs/PLAN_DESCUENTOS_CAJA.md)):
-  - **Permiso por persona *Descuentos en caja*** (`pos_discounts`). Lo puede recibir un cajero o un administrador; por defecto solo lo tiene el Super Admin. Dar o quitar el permiso queda en la auditoría.
+  - **Permiso por persona *Descuentos en caja*** (`pos_discounts`). Se da en Usuarios → editar persona y es el primero que también puede recibir un cajero (en su ficha solo aparece este). Por defecto solo lo tiene el Super Admin, y la lista de usuarios muestra la insignia «Descuentos» a quien lo tiene. Dar o quitar el permiso queda en la auditoría.
   - **Topes:** cajero hasta el 20 % del subtotal; administrador y Super Admin hasta el 100 % (cortesía). Escritos solo en `DiscountPolicy`; `/login` y `/me` los envían al POS en `discount_policy`.
   - **Motivo obligatorio** de 10 a 255 caracteres, en la columna nueva `sales.discount_reason` (no en `notes`, que va a cocina).
   - **Ventas del POS:** el servidor nunca rechaza una venta ya cobrada. Guarda el descuento y deja `sale_discount_applied`; si está fuera de regla (sin permiso, sobre el tope, sin motivo o en PedidosYa), `sale_discount_violation`.

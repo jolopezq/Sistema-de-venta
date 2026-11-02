@@ -1,11 +1,11 @@
 <script setup>
 /**
- * Permisos de una persona en la ficha de Usuarios: Finanzas, ventas de días pasados y corregir cajas.
- * Solo se dan a administradores. El valor es el nivel efectivo; al guardar, si coincide con el de su rol
- * se manda null (sigue a su rol) y si no, queda como excepción propia.
+ * Permisos de una persona en la ficha de Usuarios: Finanzas, ventas de días pasados, corregir cajas y descuentos.
+ * Los tres primeros solo se dan a administradores; «Descuentos en caja» también a cajeros. El valor es el nivel
+ * efectivo; al guardar, si coincide con el de su rol se manda null (sigue a su rol) y si no, queda como excepción propia.
  */
 import { computed } from 'vue';
-import { PERSON_PERMISSION_MODULES, personRoleLevel } from '../../utils/permissionModules';
+import { personModulesFor, personRoleLevel } from '../../utils/permissionModules';
 
 const props = defineProps({
   role: { type: String, required: true },
@@ -14,7 +14,8 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:modelValue']);
 
-const canReceive = computed(() => props.role === 'admin');
+const modules = computed(() => personModulesFor(props.role));
+const canReceive = computed(() => modules.value.length > 0);
 
 function levelOf(id) {
   return props.modelValue[id] ?? personRoleLevel(props.role, id);
@@ -33,12 +34,12 @@ function select(id, level) {
       El Super Admin tiene todos los permisos, también usuarios, auditoría y respaldos.
     </p>
     <p v-else-if="!canReceive" class="pp-note">
-      Finanzas, ventas de días pasados y corregir cajas solo se dan a administradores.
+      Esta función no recibe permisos especiales.
     </p>
     <p v-else-if="loading" class="pp-note">Cargando permisos…</p>
 
     <div v-else class="pp-list">
-      <div v-for="mod in PERSON_PERMISSION_MODULES" :key="mod.id" class="pp-row" :data-module="mod.id">
+      <div v-for="mod in modules" :key="mod.id" class="pp-row" :data-module="mod.id">
         <div class="pp-info">
           <span class="pp-name">
             {{ mod.name }}
@@ -59,6 +60,9 @@ function select(id, level) {
           >{{ mod.levelLabels[lvl] }}</button>
         </div>
       </div>
+      <p v-if="role !== 'admin'" class="pp-note">
+        Finanzas, ventas de días pasados y corregir cajas solo se dan a administradores.
+      </p>
     </div>
   </fieldset>
 </template>

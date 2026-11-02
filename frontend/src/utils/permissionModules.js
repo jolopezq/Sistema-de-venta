@@ -184,8 +184,9 @@ export const PERMISSION_MODULES = [
 
 /**
  * Permisos que se dan por persona (Usuarios → editar persona), no en la matriz de roles.
- * Solo los administradores pueden recibirlos. `adminDefault` debe coincidir con PermissionService::DEFAULTS.
- * Ver docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §3.2.
+ * `roles`: quién puede recibirlo (coincide con los techos de PermissionService::CEILINGS).
+ * `defaults`: nivel por rol sin excepción propia (coincide con PermissionService::DEFAULTS).
+ * Ver docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §3.2 y docs/PLAN_DESCUENTOS_CAJA.md §3.2.
  */
 export const PERSON_PERMISSION_MODULES = [
   {
@@ -194,7 +195,8 @@ export const PERSON_PERMISSION_MODULES = [
     desc: 'Control diario: cargar, editar y anular ventas de otros días, y abrir la caja de un día pasado.',
     levelLabels: { none: 'Sin acceso', edit: 'Cargar y corregir' },
     badge: { none: 'Sin días pasados', edit: 'Días pasados' },
-    adminDefault: 'edit',
+    roles: ['admin'],
+    defaults: { admin: 'edit' },
   },
   {
     id: 'register_corrections',
@@ -202,7 +204,8 @@ export const PERSON_PERMISSION_MODULES = [
     desc: 'Reabrir una caja ya cerrada, registrar lo que faltó y volver a cerrarla con un motivo.',
     levelLabels: { none: 'Sin acceso', edit: 'Corregir' },
     badge: { none: 'Sin corregir cajas', edit: 'Corrige cajas' },
-    adminDefault: 'none',
+    roles: ['admin'],
+    defaults: { admin: 'none' },
   },
   {
     id: 'finance',
@@ -210,22 +213,41 @@ export const PERSON_PERMISSION_MODULES = [
     desc: 'Ver resultados, costos y punto de equilibrio. Con «Editar», además registrar gastos y liquidaciones.',
     levelLabels: { none: 'Sin acceso', read: 'Ver', edit: 'Editar' },
     badge: { none: 'Sin finanzas', read: 'Finanzas: ver', edit: 'Finanzas' },
-    adminDefault: 'none',
+    roles: ['admin'],
+    defaults: { admin: 'none' },
+  },
+  {
+    id: 'pos_discounts',
+    name: 'Descuentos en caja',
+    desc: 'Aplicar un descuento con motivo al cobrar y en Control diario. Cajero: hasta el 20 %. Administrador: hasta el 100 % (cortesía).',
+    levelLabels: { none: 'Sin acceso', edit: 'Descontar' },
+    badge: { none: 'Sin descuentos', edit: 'Descuentos' },
+    roles: ['admin', 'cashier'],
+    defaults: { admin: 'none', cashier: 'none' },
   },
 ];
+
+/** ¿Puede una persona de ese rol recibir este permiso por persona? */
+export function canReceivePerson(role, moduleId) {
+  return Boolean(PERSON_PERMISSION_MODULES.find(m => m.id === moduleId)?.roles.includes(role));
+}
+
+/** Permisos por persona que se pueden dar a ese rol. */
+export function personModulesFor(role) {
+  return PERSON_PERMISSION_MODULES.filter(m => m.roles.includes(role));
+}
 
 /** Nivel de un permiso por persona según su rol, sin excepción propia. */
 export function personRoleLevel(role, moduleId) {
   if (role === 'super_admin') return 'edit';
-  if (role !== 'admin') return 'none';
-  return PERSON_PERMISSION_MODULES.find(m => m.id === moduleId)?.adminDefault ?? 'none';
+  return PERSON_PERMISSION_MODULES.find(m => m.id === moduleId)?.defaults[role] ?? 'none';
 }
 
 /** Insignias de la lista de Usuarios: los permisos por persona que difieren de su rol. */
 export function personBadges(role, overrides = {}) {
-  if (role !== 'admin' || !overrides) return [];
-  return PERSON_PERMISSION_MODULES
-    .filter(m => overrides[m.id] && overrides[m.id] !== m.adminDefault)
+  if (!overrides) return [];
+  return personModulesFor(role)
+    .filter(m => overrides[m.id] && overrides[m.id] !== personRoleLevel(role, m.id))
     .map(m => ({ id: m.id, label: m.badge[overrides[m.id]], grants: overrides[m.id] !== 'none' }));
 }
 

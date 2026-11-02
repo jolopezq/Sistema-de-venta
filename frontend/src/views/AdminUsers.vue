@@ -307,7 +307,7 @@ import { useAuthStore } from '../stores/auth';
 import { apiFetch } from '../services/api';
 import RolePermissionsPanel from '../components/permissions/RolePermissionsPanel.vue';
 import PersonPermissions from '../components/permissions/PersonPermissions.vue';
-import { PERSON_PERMISSION_MODULES, personBadges, personRoleLevel } from '../utils/permissionModules';
+import { PERSON_PERMISSION_MODULES, canReceivePerson, personBadges, personRoleLevel } from '../utils/permissionModules';
 
 const authStore = useAuthStore();
 
@@ -426,7 +426,7 @@ function personPermissionsPayload(role) {
   if (role === 'super_admin') return null;
   const rows = PERSON_PERMISSION_MODULES.map(m => {
     const roleLevel = personRoleLevel(role, m.id);
-    const level = role === 'admin' ? (personLevels.value[m.id] ?? roleLevel) : roleLevel;
+    const level = canReceivePerson(role, m.id) ? (personLevels.value[m.id] ?? roleLevel) : roleLevel;
     return { module: m.id, access_level: level === roleLevel ? null : level };
   });
   const changed = rows.some(r => (originalOverrides.value[r.module] ?? null) !== r.access_level);
