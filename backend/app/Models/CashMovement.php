@@ -32,6 +32,13 @@ class CashMovement extends Model
         'description',
         'sale_id',
         'occurred_at',
+        'edited_by',
+        'edited_at',
+        'edit_reason',
+        'edit_previous',
+        'edit_count',
+        'voided_by',
+        'void_reason',
         'created_at',
         'updated_at',
     ];
@@ -39,8 +46,11 @@ class CashMovement extends Model
     protected function casts(): array
     {
         return [
-            'amount'      => 'decimal:2',
-            'occurred_at' => 'datetime',
+            'amount'        => 'decimal:2',
+            'occurred_at'   => 'datetime',
+            'edited_at'     => 'datetime',
+            'edit_previous' => 'array',
+            'edit_count'    => 'integer',
         ];
     }
 
@@ -87,6 +97,22 @@ class CashMovement extends Model
         return $this->belongsTo(Sale::class);
     }
 
+    /**
+     * Usuario que corrigió el movimiento por última vez.
+     */
+    public function editedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'edited_by');
+    }
+
+    /**
+     * Usuario que anuló el movimiento.
+     */
+    public function voidedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'voided_by');
+    }
+
     // --- Helpers ---
 
     public function isExpense(): bool
@@ -97,5 +123,15 @@ class CashMovement extends Model
     public function isExtraIncome(): bool
     {
         return $this->type === 'extra_income';
+    }
+
+    public function isVoided(): bool
+    {
+        return $this->trashed();
+    }
+
+    public function isEdited(): bool
+    {
+        return (int) ($this->edit_count ?? 0) > 0;
     }
 }

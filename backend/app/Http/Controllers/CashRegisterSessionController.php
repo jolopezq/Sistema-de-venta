@@ -451,19 +451,7 @@ class CashRegisterSessionController extends Controller
             'occurred_at'         => 'nullable|date',
         ]);
 
-        $dayStart = $cashSession->opened_at->copy()->startOfDay();
-        $dayEnd = $cashSession->opened_at->copy()->endOfDay();
-        if (!empty($validated['occurred_at'])) {
-            $occurredAt = Carbon::parse($validated['occurred_at'])->setTimezone(config('app.timezone'));
-            if ($occurredAt->lt($dayStart) || $occurredAt->gt($dayEnd) || $occurredAt->isFuture()) {
-                return response()->json([
-                    'message' => 'La fecha del movimiento debe ser del día de esta caja (' . $dayStart->format('d/m/Y') . ') y no puede ser futura.',
-                ], 422);
-            }
-        } else {
-            $occurredAt = now()->lte($dayEnd) ? now() : $dayEnd->copy()->startOfMinute();
-        }
-        $validated['occurred_at'] = $occurredAt;
+        $validated['occurred_at'] = $this->resolveOccurredAt($cashSession, $validated['occurred_at'] ?? null);
 
         $movement = DB::transaction(function () use ($validated, $request, $cashSession) {
             return CashMovement::create([
@@ -490,14 +478,222 @@ class CashRegisterSessionController extends Controller
     }
 
     /**
-     * Listado de movimientos de una sesión de caja.
+     * Corrige un movimiento de caja existente (método, monto, descripción, categoría contable, fecha).
+     * Solo en cajas abiertas. Requiere un motivo obligatorio de 10 a 255 caracteres.
+     */
+    public function updateMovement(Request $request, CashRegisterSession $cashSession, CashMovement $cashMovement): JsonResponse
+    {
+        $this->ensureCanAccess($request, $cashSession, 'edit');
+
+        if ((int) $cashMovement->cash_register_session_id !== (int) $cashSession->id) {
+            return response()->json(['message' => 'El movimiento no pertenece a esta sesión.'], 404);
+        }
+
+        if ($cashSession->status !== 'open') {
+            return response()->json([
+                'message' => 'Esta caja está cerrada. Reábrela para corregirla.',
+            ], 422);
+        }
+
+        if ($cashMovement->trashed()) {
+            return response()->json([
+                'message' => 'El movimiento ya está anulado.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'reason'              => ['required', 'string', 'min:10', 'max:255'],
+            'payment_method'      => ['nullable', 'in:cash,qr,card'],
+            'amount'              => ['nullable', 'numeric', 'min:0.01'],
+            'description'         => ['nullable', 'string', 'min:3', 'max:500'],
+            'expense_category_id' => ['nullable', 'exists:expense_categories,id'],
+            'occurred_at'         => ['nullable', 'date'],
+        ], [
+            'reason.required' => 'El motivo de la corrección es obligatorio.',
+            'reason.min'      => 'El motivo debe tener al menos 10 caracteres.',
+        ]);
+
+        $newMethod      = $validated['payment_method'] ?? $cashMovement->payment_method ?? 'cash';
+        $newAmount      = array_key_exists('amount', $validated) ? round((float) $validated['amount'], 2) : (float) $cashMovement->amount;
+        $newDescription = array_key_exists('description', $validated) ? trim($validated['description']) : $cashMovement->description;
+        $newCategory    = array_key_exists('expense_category_id', $validated)
+            ? ($cashMovement->isExpense() ? ($validated['expense_category_id'] ?: null) : null)
+            : $cashMovement->expense_category_id;
+
+        $newOccurredAt = array_key_exists('occurred_at', $validated) && !empty($validated['occurred_at'])
+            ? $this->resolveOccurredAt($cashSession, $validated['occurred_at'])
+            : $cashMovement->occurred_at;
+
+        // Verificar si nada cambió
+        $amountMatches = abs((float) $cashMovement->amount - $newAmount) < 0.005;
+        $methodMatches = ($cashMovement->payment_method ?? 'cash') === $newMethod;
+        $descMatches   = trim((string) $cashMovement->description) === $newDescription;
+        $catMatches    = (int) ($cashMovement->expense_category_id ?? 0) === (int) ($newCategory ?? 0);
+        $dateMatches   = $cashMovement->occurred_at?->format('Y-m-d H:i') === $newOccurredAt?->format('Y-m-d H:i');
+
+        if ($amountMatches && $methodMatches && $descMatches && $catMatches && $dateMatches) {
+            return response()->json([
+                'message' => 'No hay cambios para guardar.',
+            ], 422);
+        }
+
+        $movement = DB::transaction(function () use (
+            $cashMovement, $cashSession, $request, $validated,
+            $newMethod, $newAmount, $newDescription, $newCategory, $newOccurredAt,
+            $amountMatches, $methodMatches, $descMatches, $catMatches, $dateMatches
+        ) {
+            $previous = [
+                'payment_method'      => $cashMovement->payment_method ?? 'cash',
+                'amount'              => (float) $cashMovement->amount,
+                'description'         => $cashMovement->description,
+                'expense_category_id' => $cashMovement->expense_category_id,
+                'occurred_at'         => $cashMovement->occurred_at?->toIso8601String(),
+            ];
+
+            $cashMovement->update([
+                'payment_method'      => $newMethod,
+                'amount'              => $newAmount,
+                'description'         => $newDescription,
+                'expense_category_id' => $newCategory,
+                'occurred_at'         => $newOccurredAt,
+                'edited_by'           => $request->user()->id,
+                'edited_at'           => now(),
+                'edit_reason'         => trim($validated['reason']),
+                'edit_previous'       => $previous,
+                'edit_count'          => (int) ($cashMovement->edit_count ?? 0) + 1,
+            ]);
+
+            // Detalle descriptivo para la auditoría
+            $changesDesc = [];
+            if (!$methodMatches) {
+                $prevM = $previous['payment_method'] === 'cash' ? 'Efectivo' : ($previous['payment_method'] === 'qr' ? 'QR' : 'Tarjeta');
+                $nextM = $newMethod === 'cash' ? 'Efectivo' : ($newMethod === 'qr' ? 'QR' : 'Tarjeta');
+                $changesDesc[] = "método {$prevM} → {$nextM}";
+            }
+            if (!$amountMatches) {
+                $changesDesc[] = "monto Bs " . number_format($previous['amount'], 2, '.', '') . " → Bs " . number_format($newAmount, 2, '.', '');
+            } else {
+                $changesDesc[] = "monto Bs " . number_format($newAmount, 2, '.', '') . " (sin cambio)";
+            }
+            if (!$descMatches) {
+                $changesDesc[] = "concepto actualizado";
+            }
+            if (!$catMatches) {
+                $changesDesc[] = "categoría contable actualizada";
+            }
+            if (!$dateMatches) {
+                $changesDesc[] = "fecha/hora actualizada";
+            }
+
+            $typeLabel = $cashMovement->type === 'expense' ? 'egreso' : 'ingreso';
+            AuditLog::create([
+                'user_id'     => $request->user()->id,
+                'action'      => 'cash_movement_updated',
+                'module'      => 'CashMovement',
+                'description' => "Caja #{$cashSession->id}, {$typeLabel} #{$cashMovement->id} corregido por {$request->user()->name}: " . implode('; ', $changesDesc) . ". Motivo: " . trim($validated['reason']),
+            ]);
+
+            return $cashMovement;
+        });
+
+        $stats = $this->calculateSessionStats($cashSession);
+
+        return response()->json([
+            'message'  => 'Movimiento de caja corregido correctamente.',
+            'movement' => $movement->fresh(['user:id,name', 'expenseCategory:id,name,section,group_name', 'editedBy:id,name', 'voidedBy:id,name']),
+            'stats'    => $stats,
+        ]);
+    }
+
+    /**
+     * Anula un movimiento de caja.
+     * El movimiento queda con soft delete (deleted_at), voided_by y void_reason.
+     * Deja de contar en el arqueo y en Finanzas, pero permanece visible y tachado.
+     */
+    public function voidMovement(Request $request, CashRegisterSession $cashSession, CashMovement $cashMovement): JsonResponse
+    {
+        $this->ensureCanAccess($request, $cashSession, 'edit');
+
+        if ((int) $cashMovement->cash_register_session_id !== (int) $cashSession->id) {
+            return response()->json(['message' => 'El movimiento no pertenece a esta sesión.'], 404);
+        }
+
+        if ($cashSession->status !== 'open') {
+            return response()->json([
+                'message' => 'Esta caja está cerrada. Reábrela para corregirla.',
+            ], 422);
+        }
+
+        if ($cashMovement->trashed()) {
+            return response()->json([
+                'message' => 'El movimiento ya está anulado.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'min:10', 'max:255'],
+        ], [
+            'reason.required' => 'El motivo de anulación es obligatorio.',
+            'reason.min'      => 'El motivo debe tener al menos 10 caracteres.',
+        ]);
+
+        DB::transaction(function () use ($cashMovement, $cashSession, $request, $validated) {
+            $cashMovement->update([
+                'voided_by'   => $request->user()->id,
+                'void_reason' => trim($validated['reason']),
+            ]);
+            $cashMovement->delete();
+
+            $typeLabel = $cashMovement->type === 'expense' ? 'egreso' : 'ingreso';
+            $methodLabel = $cashMovement->payment_method === 'cash' ? 'Efectivo' : ($cashMovement->payment_method === 'qr' ? 'QR' : 'Tarjeta');
+            AuditLog::create([
+                'user_id'     => $request->user()->id,
+                'action'      => 'cash_movement_voided',
+                'module'      => 'CashMovement',
+                'description' => "Caja #{$cashSession->id}, {$typeLabel} #{$cashMovement->id} de Bs " . number_format((float) $cashMovement->amount, 2, '.', '') . " ({$methodLabel}) anulado por {$request->user()->name}. Motivo: " . trim($validated['reason']),
+            ]);
+        });
+
+        $stats = $this->calculateSessionStats($cashSession);
+
+        return response()->json([
+            'message'  => 'Movimiento de caja anulado correctamente.',
+            'movement' => $cashMovement->fresh(['user:id,name', 'expenseCategory:id,name,section,group_name', 'editedBy:id,name', 'voidedBy:id,name']),
+            'stats'    => $stats,
+        ]);
+    }
+
+    /**
+     * Valida y resuelve la fecha/hora de un movimiento para que pertenezca al día de la caja y no sea futura.
+     */
+    private function resolveOccurredAt(CashRegisterSession $cashSession, ?string $occurredAtInput): Carbon
+    {
+        $dayStart = $cashSession->opened_at->copy()->startOfDay();
+        $dayEnd   = $cashSession->opened_at->copy()->endOfDay();
+
+        if (!empty($occurredAtInput)) {
+            $occurredAt = Carbon::parse($occurredAtInput)->setTimezone(config('app.timezone'));
+            if ($occurredAt->lt($dayStart) || $occurredAt->gt($dayEnd) || $occurredAt->isFuture()) {
+                abort(response()->json([
+                    'message' => 'La fecha del movimiento debe ser del día de esta caja (' . $dayStart->format('d/m/Y') . ') y no puede ser futura.',
+                ], 422));
+            }
+            return $occurredAt;
+        }
+
+        return now()->lte($dayEnd) ? now() : $dayEnd->copy()->startOfMinute();
+    }
+
+    /**
+     * Listado de movimientos de una sesión de caja (incluye anulados y datos de corrección).
      */
     public function movements(Request $request, CashRegisterSession $cashSession): JsonResponse
     {
         $this->ensureCanAccess($request, $cashSession, 'read');
 
         $movements = $cashSession->movements()
-            ->with(['user:id,name', 'expenseCategory:id,name,section,group_name'])
+            ->withTrashed()
+            ->with(['user:id,name', 'expenseCategory:id,name,section,group_name', 'editedBy:id,name', 'voidedBy:id,name'])
             ->latest('occurred_at')
             ->get();
 
@@ -687,9 +883,10 @@ class CashRegisterSessionController extends Controller
             $durationFormatted = "{$hours}h {$mins}m";
         }
 
-        // Cargar lista de movimientos para el ticket de cierre
+        // Cargar lista de movimientos para el ticket de cierre (incluye anulados y correcciones)
         $movements = $session->movements()
-            ->with('user:id,name')
+            ->withTrashed()
+            ->with(['user:id,name', 'editedBy:id,name', 'voidedBy:id,name'])
             ->orderBy('occurred_at')
             ->get()
             ->map(fn ($m) => [
@@ -701,6 +898,16 @@ class CashRegisterSessionController extends Controller
                 'user'           => $m->user?->name,
                 'created_at'     => $m->created_at?->toIso8601String(),
                 'occurred_at'    => $m->occurred_at?->toIso8601String(),
+                'is_voided'      => $m->trashed(),
+                'voided_by'      => $m->voidedBy?->name,
+                'void_reason'    => $m->void_reason,
+                'deleted_at'     => $m->deleted_at?->toIso8601String(),
+                'is_edited'      => (int) ($m->edit_count ?? 0) > 0,
+                'edited_by'      => $m->editedBy?->name,
+                'edited_at'      => $m->edited_at?->toIso8601String(),
+                'edit_reason'    => $m->edit_reason,
+                'edit_previous'  => $m->edit_previous,
+                'edit_count'     => (int) ($m->edit_count ?? 0),
             ])->toArray();
 
         return [
@@ -719,6 +926,7 @@ class CashRegisterSessionController extends Controller
             'diff_note'         => $session->diff_note,
             'bill_breakdown'    => $session->bill_breakdown,
             'movements'         => $movements,
+            'movement_corrections_count' => collect($movements)->filter(fn ($m) => $m['is_edited'] || $m['is_voided'])->count(),
             'discounts'         => $this->sessionDiscounts($session),
             'summary'           => $stats,
             'recalculated'      => $this->recalculatedClosing($session, $stats),

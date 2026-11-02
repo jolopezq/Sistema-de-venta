@@ -121,6 +121,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/cash-sessions', [CashRegisterSessionController::class, 'store']);
             Route::post('/cash-sessions/{cashSession}/close', [CashRegisterSessionController::class, 'close']);
             Route::post('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'recordMovement']);
+            Route::put('/cash-sessions/{cashSession}/movements/{cashMovement}', [CashRegisterSessionController::class, 'updateMovement'])->withTrashed();
+            Route::post('/cash-sessions/{cashSession}/movements/{cashMovement}/void', [CashRegisterSessionController::class, 'voidMovement'])->withTrashed();
         });
     });
     
