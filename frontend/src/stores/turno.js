@@ -460,6 +460,50 @@ export const useTurnoStore = defineStore('turno', {
     },
 
     /**
+     * Corrige un movimiento de caja existente en la sesión.
+     * Actualiza las stats en tiempo real sin recargar la página.
+     */
+    async updateCashMovement(sessionId, movementId, payload) {
+      const sId = sessionId || this.activeSession?.id;
+      if (!sId) throw new Error('No hay sesión de caja activa o seleccionada.');
+      this.loading = true;
+      try {
+        const data = await apiFetch(`/cash-sessions/${sId}/movements/${movementId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+        if (data.stats && (!sessionId || (this.activeSession && this.activeSession.id === sId))) {
+          this.sessionStats = data.stats;
+        }
+        return data;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    /**
+     * Anula un movimiento de caja existente con motivo obligatorio.
+     * Actualiza las stats en tiempo real sin recargar la página.
+     */
+    async voidCashMovement(sessionId, movementId, reason) {
+      const sId = sessionId || this.activeSession?.id;
+      if (!sId) throw new Error('No hay sesión de caja activa o seleccionada.');
+      this.loading = true;
+      try {
+        const data = await apiFetch(`/cash-sessions/${sId}/movements/${movementId}/void`, {
+          method: 'POST',
+          body: JSON.stringify({ reason }),
+        });
+        if (data.stats && (!sessionId || (this.activeSession && this.activeSession.id === sId))) {
+          this.sessionStats = data.stats;
+        }
+        return data;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    /**
      * Registra una venta retroactiva en fecha pasada (admin y super_admin).
      */
     async adminCreateSale(saleData) {

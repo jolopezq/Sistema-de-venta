@@ -6,15 +6,15 @@ import FinanceModal from './Finance/FinanceModal.vue';
 import './Finance/finance.css';
 
 /**
- * Modal de registro de egreso/ingreso extraordinario de efectivo.
- * Accesible para cualquier usuario con turno activo abierto.
+ * Modal de registro o corrección de egreso/ingreso extraordinario de efectivo.
+ * Accesible para cualquier usuario con turno activo abierto (o administradores).
  * Al guardar, actualiza las stats de la gaveta en tiempo real.
  */
 const props = defineProps({
   visible:      { type: Boolean, default: false },
   /**
    * ID de sesión de caja específica.
-   * Si se pasa, el movimiento se registra en esa sesión (histórica o no).
+   * Si se pasa, el movimiento se registra o corrige en esa sesión.
    * Si no, se usa la sesión activa del store.
    */
   sessionId:    { type: String, default: null },
@@ -23,6 +23,10 @@ const props = defineProps({
    * Si se pasa, tiene prioridad sobre el turno activo del store.
    */
   expectedCash: { type: Number, default: null },
+  /**
+   * Movimiento a corregir (modo edición). Si es null, opera en modo registro nuevo.
+   */
+  movement:     { type: Object, default: null },
 });
 const emit = defineEmits(['close', 'saved']);
 
@@ -33,12 +37,15 @@ const errorMsg   = ref('');
 const successMsg = ref('');
 const categories = ref([]);
 
+const isEditing = computed(() => Boolean(props.movement?.id));
+
 const form = ref({
   type: 'expense',
   payment_method: 'cash',
   amount: '',
   description: '',
   expense_category_id: null,
+  reason: '',
 });
 
 // Saldo actual en gaveta antes de este movimiento
@@ -49,15 +56,33 @@ const currentCash = computed(() => {
   return turnoStore.currentCashInDrawer;
 });
 
+// Saldo base para el cálculo disponible: si estamos corrigiendo un movimiento que
+// ya era en efectivo, sumamos de vuelta lo que salió para no generar falsos sobregiros.
+const baseCash = computed(() => {
+  let cash = currentCash.value;
+  if (isEditing.value && props.movement) {
+    const origAmt = Number(props.movement.amount || 0);
+    const origMethod = props.movement.payment_method || 'cash';
+    if (origMethod === 'cash') {
+      if (props.movement.type === 'expense') {
+        cash += origAmt;
+      } else if (props.movement.type === 'extra_income') {
+        cash -= origAmt;
+      }
+    }
+  }
+  return cash;
+});
+
 // Saldo proyectado después del movimiento (solo si es efectivo)
 const projectedCash = computed(() => {
   const amt = parseFloat(form.value.amount) || 0;
   if (form.value.payment_method !== 'cash') {
-    return currentCash.value;
+    return isEditing.value ? baseCash.value : currentCash.value;
   }
   return form.value.type === 'expense'
-    ? currentCash.value - amt
-    : currentCash.value + amt;
+    ? baseCash.value - amt
+    : baseCash.value + amt;
 });
 
 const isOverdrawn = computed(() =>
@@ -66,14 +91,27 @@ const isOverdrawn = computed(() =>
   projectedCash.value < 0
 );
 
+// Verifica si hubo algún cambio real respecto al original
+const hasChanged = computed(() => {
+  if (!isEditing.value || !props.movement) return true;
+  const m = props.movement;
+  const amt = parseFloat(form.value.amount) || 0;
+  const origAmt = parseFloat(m.amount) || 0;
+  const amountDiff = Math.abs(amt - origAmt) > 0.004;
+  const methodDiff = (m.payment_method || 'cash') !== form.value.payment_method;
+  const descDiff   = (m.description || '').trim() !== form.value.description.trim();
+  const catDiff    = (m.expense_category_id || null) !== (form.value.expense_category_id || null);
+  return amountDiff || methodDiff || descDiff || catDiff;
+});
+
 const canSubmit = computed(() => {
   const amt = parseFloat(form.value.amount);
-  return (
-    !isSaving.value &&
-    form.value.description.trim().length >= 3 &&
-    amt > 0 &&
-    !isOverdrawn.value
-  );
+  if (isSaving.value || isOverdrawn.value || isNaN(amt) || amt <= 0) return false;
+  if (form.value.description.trim().length < 3) return false;
+  if (isEditing.value) {
+    return hasChanged.value && form.value.reason.trim().length >= 10;
+  }
+  return true;
 });
 
 watch(() => props.visible, async (v) => {
@@ -82,6 +120,12 @@ watch(() => props.visible, async (v) => {
     if (categories.value.length === 0) {
       await fetchCategories();
     }
+  }
+});
+
+watch(() => props.movement, () => {
+  if (props.visible) {
+    resetForm();
   }
 });
 
@@ -95,13 +139,25 @@ async function fetchCategories() {
 }
 
 function resetForm() {
-  form.value = {
-    type: 'expense',
-    payment_method: 'cash',
-    amount: '',
-    description: '',
-    expense_category_id: null,
-  };
+  if (props.movement) {
+    form.value = {
+      type: props.movement.type || 'expense',
+      payment_method: props.movement.payment_method || 'cash',
+      amount: String(props.movement.amount ?? ''),
+      description: props.movement.description || '',
+      expense_category_id: props.movement.expense_category_id || null,
+      reason: '',
+    };
+  } else {
+    form.value = {
+      type: 'expense',
+      payment_method: 'cash',
+      amount: '',
+      description: '',
+      expense_category_id: null,
+      reason: '',
+    };
+  }
   errorMsg.value   = '';
   successMsg.value = '';
 }
@@ -112,23 +168,40 @@ async function handleSubmit() {
   errorMsg.value  = '';
   successMsg.value = '';
   try {
-    await turnoStore.recordCashMovement({
-      type:                form.value.type,
-      payment_method:      form.value.payment_method,
-      amount:              parseFloat(form.value.amount),
-      description:         form.value.description.trim(),
-      expense_category_id: form.value.type === 'expense' ? (form.value.expense_category_id || null) : null,
-    }, props.sessionId || null);
+    const sId = props.sessionId || props.movement?.cash_register_session_id || null;
     const methodLabel = form.value.payment_method === 'cash' ? 'en efectivo' : (form.value.payment_method === 'qr' ? 'por QR' : 'con tarjeta');
-    successMsg.value = form.value.type === 'expense'
-      ? `Gasto de Bs ${parseFloat(form.value.amount).toFixed(2)} ${methodLabel} registrado.`
-      : `Ingreso de Bs ${parseFloat(form.value.amount).toFixed(2)} ${methodLabel} registrado.`;
+    const amtNumber = parseFloat(form.value.amount);
+
+    if (isEditing.value && props.movement?.id) {
+      await turnoStore.updateCashMovement(sId, props.movement.id, {
+        reason:              form.value.reason.trim(),
+        payment_method:      form.value.payment_method,
+        amount:              amtNumber,
+        description:         form.value.description.trim(),
+        expense_category_id: form.value.type === 'expense' ? (form.value.expense_category_id || null) : null,
+      });
+      successMsg.value = form.value.type === 'expense'
+        ? `Gasto corregido a Bs ${amtNumber.toFixed(2)} ${methodLabel}.`
+        : `Ingreso corregido a Bs ${amtNumber.toFixed(2)} ${methodLabel}.`;
+    } else {
+      await turnoStore.recordCashMovement({
+        type:                form.value.type,
+        payment_method:      form.value.payment_method,
+        amount:              amtNumber,
+        description:         form.value.description.trim(),
+        expense_category_id: form.value.type === 'expense' ? (form.value.expense_category_id || null) : null,
+      }, sId);
+      successMsg.value = form.value.type === 'expense'
+        ? `Gasto de Bs ${amtNumber.toFixed(2)} ${methodLabel} registrado.`
+        : `Ingreso de Bs ${amtNumber.toFixed(2)} ${methodLabel} registrado.`;
+    }
+
     emit('saved');
     setTimeout(() => {
       if (successMsg.value) handleClose();
     }, 1200);
   } catch (err) {
-    errorMsg.value = err?.message || 'No se pudo registrar el movimiento. Revisa la conexión y vuelve a intentar.';
+    errorMsg.value = err?.message || 'No se pudo guardar el movimiento. Revisa la conexión y vuelve a intentar.';
   } finally {
     isSaving.value = false;
   }
@@ -146,12 +219,19 @@ function handleClose() {
     <!-- Mismas piezas que «Anotar merma»: las ventanas de Caja se ven y se usan igual -->
     <div v-if="visible" class="fin-page ce-host">
       <FinanceModal
-        :title="form.type === 'expense' ? 'Registrar gasto' : 'Registrar ingreso'"
-        subtitle="Dinero que entra o sale durante el turno, fuera de las ventas."
+        :title="isEditing ? (form.type === 'expense' ? 'Corregir gasto' : 'Corregir ingreso') : (form.type === 'expense' ? 'Registrar gasto' : 'Registrar ingreso')"
+        :subtitle="isEditing ? 'Modifica el método de pago, monto o detalle. Solo en cajas abiertas.' : 'Dinero que entra o sale durante el turno, fuera de las ventas.'"
         :busy="isSaving"
         @close="handleClose"
       >
-        <div class="ce-seg" role="radiogroup" aria-label="Tipo de movimiento">
+        <!-- Tipo de movimiento: bloqueado en modo edición (D6) -->
+        <div v-if="isEditing" class="ce-locked-banner" role="status">
+          <span class="ce-locked-pill" :class="form.type === 'expense' ? 'expense' : 'income'">
+            {{ form.type === 'expense' ? 'Egreso de dinero' : 'Ingreso de dinero' }}
+          </span>
+          <span class="ce-locked-text">El tipo no se puede cambiar. Si era un {{ form.type === 'expense' ? 'ingreso' : 'gasto' }}, anúlalo y regístralo de nuevo.</span>
+        </div>
+        <div v-else class="ce-seg" role="radiogroup" aria-label="Tipo de movimiento">
           <button
             type="button"
             role="radio"
@@ -187,6 +267,11 @@ function handleClose() {
           <p v-if="form.payment_method !== 'cash'" class="fin-hint">
             Con {{ form.payment_method === 'qr' ? 'QR' : 'tarjeta' }} queda en el control diario, pero no cambia el efectivo de la gaveta.
           </p>
+          <!-- Vista previa de gaveta al cambiar de método en modo corrección (plan 3.5) -->
+          <div v-if="isEditing && (movement?.payment_method || 'cash') !== form.payment_method" class="ce-preview-note">
+            <span class="ce-preview-icon" aria-hidden="true">💡</span>
+            <span>La gaveta pasa de <strong>Bs {{ currentCash.toFixed(2) }}</strong> a <strong>Bs {{ projectedCash.toFixed(2) }}</strong>.</span>
+          </div>
         </div>
 
         <div class="fin-grid-2 ce-amount-row">
@@ -245,6 +330,26 @@ function handleClose() {
           <p class="fin-hint ce-count">{{ form.description.length }} de 500. Mínimo 3 letras.</p>
         </div>
 
+        <!-- Campo obligatorio de motivo de corrección (plan 3.5) -->
+        <div v-if="isEditing" class="fin-field">
+          <label for="ce-reason">Motivo de la corrección <span class="text-danger">*</span></label>
+          <input
+            id="ce-reason"
+            v-model="form.reason"
+            type="text"
+            maxlength="255"
+            class="fin-input"
+            placeholder="Ej: Se pagó en efectivo de la gaveta, error de dedo al registrar"
+          />
+          <p class="fin-hint ce-count">
+            {{ form.reason.trim().length }} de 255. Mínimo 10 letras (obligatorio para auditoría).
+          </p>
+        </div>
+
+        <div v-if="isEditing && !hasChanged" class="fin-note info" role="status">
+          Modifica algún campo (método, monto o descripción) para poder guardar la corrección.
+        </div>
+
         <div v-if="errorMsg" class="fin-note err" role="alert">{{ errorMsg }}</div>
         <div v-if="successMsg" class="fin-note info" role="status">{{ successMsg }}</div>
 
@@ -252,6 +357,7 @@ function handleClose() {
           <button class="fin-btn fin-btn-ghost fin-btn-lg" type="button" :disabled="isSaving" @click="handleClose">Cancelar</button>
           <button class="fin-btn fin-btn-primary fin-btn-lg" type="button" :disabled="!canSubmit" @click="handleSubmit">
             <template v-if="isSaving">Guardando…</template>
+            <template v-else-if="isEditing">Guardar corrección</template>
             <template v-else>{{ form.type === 'expense' ? 'Registrar gasto' : 'Registrar ingreso' }}</template>
           </button>
         </template>
@@ -318,6 +424,50 @@ html.dark .ce-seg-btn.active { background: var(--acai-500); }
 .ce-drawer dd.ce-neg { color: var(--danger-text); }
 .ce-textarea { resize: vertical; min-height: 56px; }
 .ce-count { margin: 0; text-align: right; }
+
+/* Modo edición: banner con tipo bloqueado */
+.ce-locked-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.ce-locked-pill {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.ce-locked-pill.expense { background: var(--danger-100); color: var(--danger-text); }
+.ce-locked-pill.income { background: #D1FAE5; color: #065F46; }
+.ce-locked-text {
+  font-size: 12px;
+  color: var(--ink-500);
+  line-height: 1.35;
+}
+.ce-preview-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 7px 11px;
+  background: var(--acai-50);
+  border: 1px solid var(--acai-300);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--acai-text);
+}
+html.dark .ce-preview-note {
+  background: rgba(116, 72, 166, 0.15);
+  border-color: var(--acai-500);
+  color: var(--acai-300);
+}
+.ce-preview-icon { font-size: 14px; }
+
 @media (max-width: 520px) {
   .ce-amount-row { grid-template-columns: 1fr; }
 }

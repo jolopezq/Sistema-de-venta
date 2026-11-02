@@ -7,12 +7,9 @@ se renombra con la fecha de la actualización de producción.
 ## [Sin publicar]
 
 ### Agregado
-- **Corregir y anular gastos de caja** ([plan](docs/PLAN_CORREGIR_GASTOS_CAJA.md), Fase 1):
-  - **Servidor:** migración aditiva `2026_11_02_000002_add_correction_fields_to_cash_movements` con `edited_by`, `edited_at`, `edit_reason`, `edit_previous`, `edit_count`, `voided_by` y `void_reason`.
-  - **Endpoints:** `PUT /cash-sessions/{cashSession}/movements/{cashMovement}` para corregir método de pago, monto, descripción, categoría y fecha; y `POST /cash-sessions/{cashSession}/movements/{cashMovement}/void` para anulación con soft-delete.
-  - **Reglas:** solo en cajas abiertas, con motivo obligatorio de 10 a 255 caracteres. El cajero titular o un usuario con permiso sobre otras cajas pueden operar; en cajas cerradas se exige reabrir primero para corregir.
-  - **Auditoría:** registros legibles `cash_movement_updated` (mostrando cambios como `método QR → Efectivo`) y `cash_movement_voided`.
-  - **Listado y reporte:** el listado y el reporte de sesión incluyen los movimientos anulados y los datos de corrección, junto con `movement_corrections_count`.
+- **Corregir y anular gastos de caja** ([plan](docs/PLAN_CORREGIR_GASTOS_CAJA.md)):
+  - **Fase 1 (Servidor):** migración aditiva `2026_11_02_000002_add_correction_fields_to_cash_movements` con `edited_by`, `edited_at`, `edit_reason`, `edit_previous`, `edit_count`, `voided_by` y `void_reason`. Endpoints `PUT /cash-sessions/{cashSession}/movements/{cashMovement}` y `POST .../void` con motivo obligatorio (10 a 255 caracteres). Auditoría legible `cash_movement_updated` y `cash_movement_voided`. Listado y reporte actualizados con anulados y correcciones.
+  - **Fase 2 (Modal y store):** `CashExpenseModal.vue` adaptado para modo corrección (prop `movement`), cálculo de gaveta disponible sin falsos sobregiros, vista previa del cambio en la gaveta y motivo obligatorio. Modal nuevo `VoidCashMovementModal.vue` para confirmación de anulación con motivo. Acciones `updateCashMovement` y `voidCashMovement` en `turno.js`.
 - **Descuento manual en caja y en Control diario** ([plan](docs/PLAN_DESCUENTOS_CAJA.md)):
   - **Permiso por persona *Descuentos en caja*** (`pos_discounts`). Se da en Usuarios → editar persona y es el primero que también puede recibir un cajero (en su ficha solo aparece este). Por defecto solo lo tiene el Super Admin, y la lista de usuarios muestra la insignia «Descuentos» a quien lo tiene. Dar o quitar el permiso queda en la auditoría.
   - **Topes:** cajero hasta el 20 % del subtotal; administrador y Super Admin hasta el 100 % (cortesía). Escritos solo en `DiscountPolicy`; `/login` y `/me` los envían al POS en `discount_policy`.

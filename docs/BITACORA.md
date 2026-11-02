@@ -5,7 +5,8 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 
 ## Estado actual (2026-11-02)
 - **Rama `feat/editar-gastos-caja` (en curso):** corregir y anular gastos de caja ([PLAN_CORREGIR_GASTOS_CAJA.md](PLAN_CORREGIR_GASTOS_CAJA.md)), parte de `feat/descuentos-manuales-pos`.
-  - **Fase 1:** servidor listo con migración `2026_11_02_000002_add_correction_fields_to_cash_movements`, endpoints `PUT /cash-sessions/{id}/movements/{id}` y `POST .../void`, validación de caja abierta, auditoría legible (`cash_movement_updated`, `cash_movement_voided`) y reporte de caja actualizado. Pruebas PHPUnit 416/416 (6 nuevas en `CashMovementCorrectionTest`).
+  - **Fase 1:** servidor listo con migración `2026_11_02_000002_add_correction_fields_to_cash_movements`, endpoints `PUT /cash-sessions/{id}/movements/{id}` y `POST .../void`, validación de caja abierta, auditoría legible y reporte de caja actualizado. Pruebas PHPUnit 416/416.
+  - **Fase 2:** `CashExpenseModal.vue` adaptado para corrección (prop `movement`), cálculo inteligente de gaveta disponible, vista previa «La gaveta pasa de Bs X a Bs Y» y motivo obligatorio. Modal de anulación `VoidCashMovementModal.vue` y acciones `updateCashMovement` / `voidCashMovement` en `turno.js`. Unit tests 44/44 y Vite build en verde.
 
 - **Rama `feat/descuentos-manuales-pos` (publicada en VPS):** descuento manual en caja y en Control diario ([PLAN_DESCUENTOS_CAJA.md](PLAN_DESCUENTOS_CAJA.md)), un commit por fase. El detalle está en el CHANGELOG, «Sin publicar».
   - **Decisiones del dueño:** solo con el permiso por persona *Descuentos en caja*; cajero hasta el 20 %, administrador hasta el 100 % (cortesía); motivo de texto libre obligatorio (10 a 255 caracteres); solo ventas del local; por defecto nadie tiene el permiso salvo el Super Admin; también en Control diario, adaptado a la portátil de caja.
