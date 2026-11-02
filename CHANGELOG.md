@@ -12,7 +12,9 @@ se renombra con la fecha de la actualización de producción.
   - **Topes:** cajero hasta el 20 % del subtotal; administrador y Super Admin hasta el 100 % (cortesía). Escritos solo en `DiscountPolicy`; `/login` y `/me` los envían al POS en `discount_policy`.
   - **Motivo obligatorio** de 10 a 255 caracteres, en la columna nueva `sales.discount_reason` (no en `notes`, que va a cocina).
   - **Ventas del POS:** el servidor nunca rechaza una venta ya cobrada. Guarda el descuento y deja `sale_discount_applied`; si está fuera de regla (sin permiso, sobre el tope, sin motivo o en PedidosYa), `sale_discount_violation`.
-  - **Cortesía:** se registra con un pago en efectivo de Bs 0. Descuenta inventario, no suma puntos y no cambia el efectivo esperado.
+  - **Al cobrar:** el enlace «Aplicar descuento» del modal abre una fila con el monto (y su máximo), el motivo y «Quitar». El total, los billetes sugeridos, el vuelto y el pago dividido se recalculan sobre el total con descuento, y Cobrar se habilita recién con el motivo. No aparece en PedidosYa ni sin el permiso, y cada cobro empieza sin descuento. Cabe en la portátil de caja (1366 × 611 sin desplazar; al 125 %, monto, motivo, vuelto y Cobrar a la vista).
+  - La pantalla de venta cobrada muestra subtotal, descuento, total y motivo.
+  - **Cortesía:** al 100 % el modal oculta el pago y el vuelto y el botón dice «Registrar cortesía». Se registra con un pago en efectivo de Bs 0. Descuenta inventario, no suma puntos y no cambia el efectivo esperado.
   - **Control diario:** un descuento nuevo o con otro monto exige el permiso, respeta el tope y pide el motivo (aquí sí se rechaza). Editar otros datos de una venta con descuento no exige el permiso.
   - **Arqueo y reporte:** `total_discounts` suma solo descuentos positivos (un importe negativo era un recargo viejo); se agregan `discount_count` y `courtesy_count`, y el reporte de caja trae la lista `discounts` con cajero, % y motivo.
 

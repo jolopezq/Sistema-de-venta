@@ -39,6 +39,11 @@ function getPaymentLabel(method) {
 
 const money = (n) => `Bs ${Number(n || 0).toFixed(2)}`;
 const isPedidosYa = computed(() => props.sale?.source === 'pedidosya');
+// Descuento manual y cortesía (docs/PLAN_DESCUENTOS_CAJA.md)
+const discount = computed(() => Number(props.sale?.discount_amount || 0));
+const isCourtesy = computed(() => discount.value > 0 && Number(props.sale?.total_amount || 0) <= 0);
+// En una cortesía el pago en efectivo de Bs 0 no se muestra: no se cobró nada
+const shownPayments = computed(() => (isCourtesy.value ? [] : props.sale?.payments || []));
 
 // «Nueva venta» queda enfocado: Enter o espacio cierran y el POS vuelve a estar listo
 const newSaleBtn = ref(null);
@@ -60,7 +65,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
           </span>
           <div>
-            <h2 id="rc-title">{{ isPedidosYa ? 'Pedido registrado' : 'Venta cobrada' }}</h2>
+            <h2 id="rc-title">{{ isPedidosYa ? 'Pedido registrado' : (isCourtesy ? 'Cortesía registrada' : 'Venta cobrada') }}</h2>
             <p>Comanda <strong class="rc-order">{{ displayOrderNum }}</strong> enviada a preparación<span v-if="orderFullCode" class="rc-code">, código {{ orderFullCode }}</span>.</p>
           </div>
         </div>
@@ -72,14 +77,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
         </div>
 
         <dl class="rc-facts">
+          <template v-if="discount > 0">
+            <div>
+              <dt>Subtotal</dt>
+              <dd>{{ money(sale?.subtotal) }}</dd>
+            </div>
+            <div>
+              <dt>{{ isCourtesy ? 'Cortesía' : 'Descuento' }}</dt>
+              <dd class="rc-discount">−{{ money(discount) }}</dd>
+            </div>
+          </template>
           <div>
             <dt>Total</dt>
             <dd>{{ money(sale?.total_amount) }}</dd>
           </div>
-          <div v-for="(p, idx) in sale?.payments || []" :key="idx">
+          <div v-for="(p, idx) in shownPayments" :key="idx">
             <dt>{{ getPaymentLabel(p.method) }}</dt>
             <dd>{{ money(p.amount) }}</dd>
           </div>
+          <p v-if="discount > 0 && sale?.discount_reason" class="rc-reason">Motivo: {{ sale.discount_reason }}</p>
         </dl>
 
         <ul class="rc-items">
@@ -169,6 +185,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 .rc-facts div { display: flex; flex-direction: column; }
 .rc-facts dt { font-size: 12.5px; color: var(--ink-500); }
 .rc-facts dd { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+.rc-facts .rc-discount { color: var(--danger-text); }
+.rc-reason { flex: 1 1 100%; margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--ink-700); overflow-wrap: anywhere; }
 
 .rc-items {
   list-style: none;

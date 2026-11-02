@@ -1,10 +1,15 @@
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { rebalance, fillRemainder, cashDue as calcCashDue } from '../utils/splitPayments';
+import { maxDiscount, netTotal, discountPercent, formatPercent, discountProblem, toCents } from '../utils/discount';
 
 /**
  * Cobro de una venta. Lo memorable es el vuelto: arriba el total a cobrar y, apenas se marca lo recibido,
  * el vuelto en grande. Pensado para la laptop del local (1366×768): el botón de cobro queda siempre a la vista.
+ *
+ * Descuento manual (docs/PLAN_DESCUENTOS_CAJA.md): solo con el permiso «Descuentos en caja», con el tope de su
+ * rol y motivo obligatorio. Todo el cobro (pagos, vuelto, billetes) se calcula sobre `due`, el total con descuento.
+ * Al 100 % es una cortesía: no se cobra y se registra con un pago en efectivo de Bs 0.
  */
 const props = defineProps({
   show: Boolean,
@@ -15,7 +20,9 @@ const props = defineProps({
   dineInCount: { type: Number, default: 0 },
   itemsCount: { type: Number, default: 0 },
   /** 'pedidosya': lo cobra la plataforma (un solo pago, sin cliente ni cambio) */
-  channel: { type: String, default: 'pos' }
+  channel: { type: String, default: 'pos' },
+  /** auth.discount_policy: { allowed, max_percent, reason_min, reason_max }; null = sin permiso */
+  discountPolicy: { type: Object, default: null }
 });
 
 const isPedidosYa = computed(() => props.channel === 'pedidosya');
@@ -43,6 +50,63 @@ const saleNote = ref('');
 const isCashManuallyEntered = ref(false);
 const receivedInput = ref(null);
 
+// ── Descuento manual ──
+const discountOpen = ref(false);
+const discountAmount = ref('');
+const discountReason = ref('');
+/** El motivo se marca en rojo recién al salir del campo o al intentar cobrar: antes es una indicación. */
+const reasonTouched = ref(false);
+const discountInput = ref(null);
+const reasonInput = ref(null);
+const canDiscount = computed(() => !isPedidosYa.value && Boolean(props.discountPolicy?.allowed));
+const maxPercent = computed(() => Number(props.discountPolicy?.max_percent || 0));
+const reasonMax = computed(() => Number(props.discountPolicy?.reason_max || 255));
+const discountMax = computed(() => maxDiscount(props.total, maxPercent.value));
+/** Lo que se descuenta del total (lo escrito, sin pasar del subtotal). Si supera el tope, Cobrar queda bloqueado. */
+const appliedDiscount = computed(() => {
+  if (!discountOpen.value || !canDiscount.value) return 0;
+  return Math.min(toCents(discountAmount.value), toCents(props.total)) / 100;
+});
+/** Total a cobrar: el subtotal menos el descuento. */
+const due = computed(() => netTotal(props.total, appliedDiscount.value));
+const isCourtesy = computed(() => appliedDiscount.value > 0 && due.value <= 0);
+const discountIssue = computed(() => {
+  if (!discountOpen.value || !canDiscount.value) return null;
+  return discountProblem({
+    amount: discountAmount.value,
+    reason: discountReason.value,
+    subtotal: props.total,
+    policy: props.discountPolicy,
+  });
+});
+const discountPctText = computed(() => formatPercent(discountPercent(appliedDiscount.value, props.total)));
+/** El aviso es error (rojo) si el monto supera el tope o si el motivo falta después de tocarlo. */
+const discountIssueIsError = computed(() => Boolean(discountIssue.value) && (discountIssue.value.field === 'amount' || reasonTouched.value));
+
+function openDiscount() {
+  discountOpen.value = true;
+  nextTick(() => discountInput.value?.focus());
+}
+
+function removeDiscount() {
+  discountOpen.value = false;
+  discountAmount.value = '';
+  discountReason.value = '';
+  reasonTouched.value = false;
+  if (!isPedidosYa.value) focusReceived();
+}
+
+/** El descuento cambió el total: los pagos se acomodan solos (un pago = el total; dividido = la línea menos reciente). */
+watch(due, (newDue) => {
+  if (!props.show || isPedidosYa.value) return;
+  if (payments.value.length <= 1) {
+    const method = payments.value[0]?.method || currentMethod.value;
+    payments.value = [{ method, amount: newDue, touched: 0 }];
+  } else {
+    payments.value = fillRemainder(payments.value, newDue);
+  }
+});
+
 const hasMixedCapability = computed(() => {
   return props.destinationDefault === 'mixed' || (props.takeawayCount > 0 && props.dineInCount > 0);
 });
@@ -65,6 +129,11 @@ watch(() => props.show, (newVal) => {
     currentMethod.value = 'cash';
     saleNote.value = '';
     editStamp.value = 0;
+    // Cada cobro empieza sin descuento
+    discountOpen.value = false;
+    discountAmount.value = '';
+    discountReason.value = '';
+    reasonTouched.value = false;
     payments.value = [{ method: 'cash', amount: props.total, touched: 0 }];
     isCashManuallyEntered.value = false;
     cashReceived.value = props.total;
@@ -74,17 +143,17 @@ watch(() => props.show, (newVal) => {
 });
 
 const totalPaid = computed(() => payments.value.reduce((s, p) => s + Number(p.amount), 0));
-const remaining = computed(() => Math.max(0, props.total - totalPaid.value));
+const remaining = computed(() => Math.max(0, due.value - totalPaid.value));
 const hasCash = computed(() => payments.value.some((p) => p.method === 'cash'));
 const splitMode = computed(() => payments.value.length > 1);
 /** Efectivo que de verdad hay que cobrar: la línea de efectivo sin pasar de lo que falta tras QR/tarjeta */
-const cashDue = computed(() => calcCashDue(payments.value, props.total));
+const cashDue = computed(() => calcCashDue(payments.value, due.value));
 
 const change = computed(() => {
   let totalChange = 0;
 
-  if (totalPaid.value > props.total) {
-    totalChange += (totalPaid.value - props.total);
+  if (totalPaid.value > due.value) {
+    totalChange += (totalPaid.value - due.value);
   }
 
   if (hasCash.value) {
@@ -103,7 +172,12 @@ const cashShort = computed(() => {
   return Math.max(0, cashDue.value - Number(cashReceived.value || 0));
 });
 
-const isReady = computed(() => isPedidosYa.value || (totalPaid.value >= props.total && cashShort.value === 0));
+const isReady = computed(() => {
+  if (isPedidosYa.value) return true;
+  if (discountIssue.value) return false;
+  if (isCourtesy.value) return true;
+  return toCents(totalPaid.value) >= toCents(due.value) && cashShort.value === 0;
+});
 
 /** Estado que se muestra bajo lo recibido: falta, vuelto, pago justo o qué hacer con QR / tarjeta. */
 const resultState = computed(() => {
@@ -134,25 +208,31 @@ function startSplit() {
 /** El cajero escribió el monto de una línea: las demás se acomodan solas para sumar el total. */
 function onAmountInput(index, raw) {
   editStamp.value += 1;
-  payments.value = rebalance(payments.value, index, raw, props.total, editStamp.value);
+  payments.value = rebalance(payments.value, index, raw, due.value, editStamp.value);
 }
 
 function removePayment(index) {
   payments.value.splice(index, 1);
   if (payments.value.length === 0) {
-    payments.value.push({ method: currentMethod.value, amount: props.total });
+    payments.value.push({ method: currentMethod.value, amount: due.value });
   }
   if (payments.value.length === 1) {
     // De vuelta a un solo método: cubre el total completo
-    payments.value[0].amount = props.total;
+    payments.value[0].amount = due.value;
     currentMethod.value = payments.value[0].method;
   } else {
     // Quedan 2 (o más): la línea menos reciente absorbe lo que dejó la quitada
-    payments.value = fillRemainder(payments.value, props.total);
+    payments.value = fillRemainder(payments.value, due.value);
   }
 }
 
 function handleConfirm() {
+  // Enter con el descuento incompleto: el foco va al campo que falta, en vez de no hacer nada
+  if (discountIssue.value && !isSubmitting.value) {
+    reasonTouched.value = true;
+    (discountIssue.value.field === 'reason' ? reasonInput : discountInput).value?.focus();
+    return;
+  }
   if (!isReady.value || isSubmitting.value) return;
   isSubmitting.value = true;
 
@@ -172,9 +252,28 @@ function handleConfirm() {
     return;
   }
 
+  const discount = {
+    discountAmount: appliedDiscount.value,
+    discountReason: appliedDiscount.value > 0 ? discountReason.value.trim() : null,
+  };
+
+  // Cortesía: no se cobra; se registra un pago en efectivo de Bs 0 (la venta necesita al menos un pago)
+  if (isCourtesy.value) {
+    emit('confirm', {
+      customerId: selectedCustomerId.value,
+      saleNote: saleNote.value,
+      destination: orderDestination.value,
+      isTakeaway: orderDestination.value === 'takeaway',
+      payments: [{ method: 'cash', amount: 0, received: 0 }],
+      change: 0,
+      ...discount
+    });
+    return;
+  }
+
   // Si se registró más de lo cobrado, el exceso es cambio: se descuenta del efectivo
   // para que el arqueo no lo cuente como ingreso.
-  let excess = Math.max(0, totalPaid.value - props.total);
+  let excess = Math.max(0, totalPaid.value - due.value);
   const finalPayments = payments.value.map(p => {
     let amount = Number(p.amount);
     if (p.method === 'cash' && excess > 0) {
@@ -195,7 +294,8 @@ function handleConfirm() {
     destination: orderDestination.value,
     isTakeaway: orderDestination.value === 'takeaway',
     payments: finalPayments,
-    change: change.value
+    change: change.value,
+    ...discount
   });
 }
 
@@ -245,7 +345,8 @@ const itemsText = computed(() => (props.itemsCount === 1 ? '1 producto' : `${pro
 const confirmLabel = computed(() => {
   if (isSubmitting.value) return 'Guardando…';
   if (isPedidosYa.value) return 'Registrar pedido';
-  return `Cobrar ${money(props.total)}`;
+  if (isCourtesy.value) return 'Registrar cortesía';
+  return `Cobrar ${money(due.value)}`;
 });
 </script>
 
@@ -261,12 +362,58 @@ const confirmLabel = computed(() => {
         </div>
 
         <div class="co-body">
-          <div class="co-total" :class="{ pya: isPedidosYa }">
-            <span class="co-total-label">{{ isPedidosYa ? 'Total PedidosYa' : 'Total a cobrar' }}</span>
-            <strong class="co-total-amount">{{ money(total) }}</strong>
+          <div class="co-total" :class="{ pya: isPedidosYa, courtesy: isCourtesy }">
+            <span class="co-total-label">{{ isPedidosYa ? 'Total PedidosYa' : (isCourtesy ? 'Cortesía: no se cobra' : 'Total a cobrar') }}</span>
+            <strong class="co-total-amount">{{ money(due) }}</strong>
             <span class="co-total-sub">
               {{ itemsText }}<template v-if="isPedidosYa">. Lo cobra la plataforma: no entra al efectivo ni al arqueo.</template>
+              <template v-else-if="appliedDiscount > 0"> · Subtotal {{ money(total) }} · <span class="co-discount-sub">Descuento −{{ money(appliedDiscount) }} ({{ discountPctText }})</span></template>
+              <template v-if="canDiscount && !discountOpen"> · <button type="button" class="co-link co-discount-open" @click="openDiscount">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" /><circle cx="7.5" cy="7.5" r="1.5" /></svg>Aplicar descuento</button></template>
             </span>
+          </div>
+
+          <!-- Descuento manual: monto y motivo en una fila (cabe en la portátil de caja) -->
+          <div v-if="canDiscount && discountOpen" class="co-row co-discount" role="group" aria-label="Descuento">
+            <label class="co-row-label" for="co-discount">Descuento<small class="co-row-label-sub">máx. {{ money(discountMax) }}</small></label>
+            <div class="co-row-control co-discount-control">
+              <span class="co-money-input sm" :class="{ invalid: discountIssue?.field === 'amount' }">
+                <span aria-hidden="true">Bs</span>
+                <input
+                  id="co-discount"
+                  ref="discountInput"
+                  v-model="discountAmount"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  inputmode="decimal"
+                  :aria-invalid="discountIssue?.field === 'amount'"
+                  aria-describedby="co-discount-issue"
+                  @focus="$event.target.select()"
+                />
+              </span>
+              <textarea
+                id="co-discount-reason"
+                ref="reasonInput"
+                v-model="discountReason"
+                class="co-input co-discount-reason"
+                :class="{ invalid: discountIssueIsError && discountIssue?.field === 'reason' }"
+                rows="2"
+                :maxlength="reasonMax"
+                aria-label="Motivo del descuento"
+                :aria-invalid="discountIssueIsError && discountIssue?.field === 'reason'"
+                aria-describedby="co-discount-issue"
+                placeholder="Motivo (obligatorio): pedido de 10 bowls para un evento…"
+                @blur="reasonTouched = true"
+              ></textarea>
+              <button type="button" class="co-icon-btn" aria-label="Quitar descuento" title="Quitar descuento" @click="removeDiscount">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+              <p id="co-discount-issue" class="co-discount-issue" :class="{ ok: !discountIssue, hint: discountIssue && !discountIssueIsError }" role="status" aria-live="polite">
+                <template v-if="discountIssue">{{ discountIssue.message }}</template>
+                <template v-else>{{ discountReason.trim().length }}/{{ reasonMax }} caracteres</template>
+              </p>
+            </div>
           </div>
 
           <!-- PedidosYa: lo cobra la plataforma, no pasa por la caja -->
@@ -286,6 +433,13 @@ const confirmLabel = computed(() => {
           </template>
 
           <template v-else>
+            <!-- Cortesía: no hay pago, ni recibido, ni vuelto -->
+            <div v-if="isCourtesy" class="co-result courtesy" role="status">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7ZM12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7Z" /></svg>
+              <span>Esta venta no se cobra: queda como cortesía, con su motivo.</span>
+            </div>
+
+            <template v-if="!isCourtesy">
             <!-- Cómo paga -->
             <div class="co-row">
               <span id="co-method-label" class="co-row-label">Cómo paga</span>
@@ -395,6 +549,7 @@ const confirmLabel = computed(() => {
                 <span>Pasa la tarjeta y cobra cuando salga aprobada.</span>
               </template>
             </div>
+            </template>
 
             <!-- Destino del pedido -->
             <div class="co-row">
@@ -715,6 +870,51 @@ html.dark .co-seg-btn.active { background: var(--acai-500); }
   .co-result-amount { animation: none; }
 }
 
+/* Descuento manual (docs/PLAN_DESCUENTOS_CAJA.md) */
+.co-total.courtesy { background: var(--lime-100); }
+.co-total.courtesy .co-total-label { color: var(--lime-700); }
+.co-discount-sub { font-weight: 700; color: var(--ink-900); white-space: nowrap; }
+.co-discount-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  vertical-align: baseline;
+}
+.co-discount-open svg { width: 13px; height: 13px; flex-shrink: 0; }
+/* Monto | motivo | quitar en una sola línea; el aviso debajo, a lo ancho */
+.co-discount .co-discount-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 3px 8px;
+}
+.co-discount-control .co-money-input.sm input { width: 72px; }
+.co-discount-reason {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 34px;
+  height: 52px;
+  padding: 6px 10px;
+  resize: none;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.co-discount-control .co-icon-btn { width: 30px; height: 34px; }
+.co-discount-issue {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--danger-text);
+}
+.co-discount-issue.ok { font-weight: 500; color: var(--ink-500); }
+.co-discount-issue.hint { color: var(--acai-text); }
+.co-money-input.invalid,
+.co-input.invalid { border-color: var(--danger-500); }
+.co-result.courtesy { background: var(--lime-100); color: var(--lime-700); font-weight: 600; }
+
 /* Pie: siempre visible */
 .co-foot {
   display: flex;
@@ -758,6 +958,7 @@ html.screen-compact .co-split-line .co-money-input.sm { min-height: 32px; }
   .co-total-amount { font-size: 26px; }
   .co-result { min-height: 32px; padding: 5px 12px; }
   .co-result.change { min-height: 44px; }
+  .co-discount-reason { height: 34px; }
   .co-foot { padding: 8px 18px 10px; }
   .co-btn { min-height: 40px; }
 }

@@ -188,10 +188,16 @@ export const useCartStore = defineStore('cart', {
     async checkout(checkoutData) {
       if (this.items.length === 0) return null;
       
-      // checkoutData contiene: { payments: [], customerId: null, discountAmount: 0, saleNote: '' }
+      // checkoutData contiene: { payments: [], customerId: null, discountAmount: 0, discountReason: null, saleNote: '' }
       const payments = checkoutData.payments || [];
       const customerId = checkoutData.customerId || this.customerId;
-      const discountAmount = checkoutData.discountAmount || 0;
+      // Descuento manual (docs/PLAN_DESCUENTOS_CAJA.md): solo en ventas del local, en centavos para no arrastrar decimales
+      const subtotalCents = Math.round(this.subtotal * 100);
+      const discountCents = this.channel === 'pedidosya'
+        ? 0
+        : Math.min(Math.max(0, Math.round(Number(checkoutData.discountAmount || 0) * 100)), subtotalCents);
+      const discountAmount = discountCents / 100;
+      const discountReason = discountCents > 0 ? (String(checkoutData.discountReason || '').trim() || null) : null;
       const saleNote = checkoutData.saleNote || '';
       
       const now = new Date();
@@ -223,7 +229,8 @@ export const useCartStore = defineStore('cart', {
         customer_id: customerId,
         subtotal: this.subtotal,
         discount_amount: discountAmount,
-        total_amount: this.total - discountAmount,
+        discount_reason: discountReason,
+        total_amount: (subtotalCents - discountCents) / 100,
         status: 'completed',
         preparation_status: 'received',
         source: this.channel,

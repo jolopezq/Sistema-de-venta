@@ -5,6 +5,7 @@ import { useCatalogStore } from '../stores/catalog';
 import { useCartStore } from '../stores/cart';
 import { useTurnoStore } from '../stores/turno';
 import { useNetworkStore } from '../stores/network';
+import { useAuthStore } from '../stores/auth';
 import CategoryFilter from '../components/CategoryFilter.vue';
 import ProductCard from '../components/ProductCard.vue';
 import CartItem from '../components/CartItem.vue';
@@ -17,6 +18,8 @@ import { productStockRows } from '../utils/stockRecipe';
 
 const catalog = useCatalogStore();
 const cart = useCartStore();
+// Permiso y tope del descuento manual para el cobro (docs/PLAN_DESCUENTOS_CAJA.md)
+const auth = useAuthStore();
 const turno = useTurnoStore();
 const network = useNetworkStore();
 const router = useRouter();
@@ -519,6 +522,7 @@ function confirmClearCart() {
       :dineInCount="cart.dineInItemsCount"
       :itemsCount="ticketUnits"
       :channel="cart.channel"
+      :discountPolicy="auth.discount_policy"
       @close="showCheckout = false"
       @confirm="handleConfirmCheckout"
     />

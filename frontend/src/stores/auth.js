@@ -7,6 +7,8 @@ export const useAuthStore = defineStore('auth', {
     token: localStorage.getItem('auth_token') || null,
     permissions: [],
     effective_permissions: {},
+    /** Descuento manual: { allowed, max_percent, reason_min, reason_max } (docs/PLAN_DESCUENTOS_CAJA.md) */
+    discount_policy: null,
   }),
   getters: {
     isAuthenticated: (state) => !!state.token,
@@ -42,6 +44,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = response.user;
       this.permissions = response.permissions || [];
       this.effective_permissions = response.effective_permissions || {};
+      this.discount_policy = response.discount_policy || null;
       localStorage.setItem('auth_token', response.access_token);
       
       try {
@@ -63,6 +66,7 @@ export const useAuthStore = defineStore('auth', {
         this.user = null;
         this.permissions = [];
         this.effective_permissions = {};
+        this.discount_policy = null;
         localStorage.removeItem('auth_token');
       }
     },
@@ -70,11 +74,12 @@ export const useAuthStore = defineStore('auth', {
     async fetchUser() {
       if (!this.token) return;
       try {
-        // /me responde { user, permissions, effective_permissions }
+        // /me responde { user, permissions, effective_permissions, discount_policy }
         const response = await apiFetch('/me');
         this.user = response.user;
         this.permissions = response.permissions || [];
         this.effective_permissions = response.effective_permissions || {};
+        this.discount_policy = response.discount_policy || null;
       } catch (e) {
         // Solo cerrar sesión si el servidor responde explícitamente 401 (no autenticado / token revocado).
         // Si hay error de red, timeout, 5xx o el equipo está offline, la sesión local se conserva intacta.
@@ -84,6 +89,7 @@ export const useAuthStore = defineStore('auth', {
           this.user = null;
           this.permissions = [];
           this.effective_permissions = {};
+          this.discount_policy = null;
           localStorage.removeItem('auth_token');
         } else {
           console.warn('No se pudo refrescar el usuario en segundo plano (posiblemente offline o fallo de red):', e?.message || e);
