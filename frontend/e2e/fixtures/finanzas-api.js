@@ -113,6 +113,29 @@ export async function mockFinanzas(page, { warnings = true, me = ME } = {}) {
   await get('**/api/finance/costs', costs);
   await get('**/api/finance/break-even*', breakEven);
   await get('**/api/finance/inventory-indicators*', null);
+  await get('**/api/finance/pedidosya-settlements/invoices-summary*', {
+    invoices: [
+      {
+        id: 1,
+        statement_number: '7800702619',
+        invoice_number: '688161',
+        invoice_date: '2026-09-28',
+        invoice_authorization: 'AUTH123',
+        invoice_total: '362.46',
+        files: { invoice: 'pedidosya/7800702619/invoice.pdf' },
+      },
+      {
+        id: 2,
+        statement_number: '7800706345',
+        invoice_number: '691234',
+        invoice_date: '2026-10-05',
+        invoice_authorization: 'AUTH456',
+        invoice_total: '324.26',
+        files: { invoice: 'pedidosya/7800706345/invoice.pdf' },
+      },
+    ],
+    summary: { count: 2, total_amount: 686.72, total_tax_credit: 89.27 },
+  });
   await get('**/api/finance/pedidosya-settlements*', settlements);
   await get('**/api/purchases/options', {
     categories: CATS.filter((c) => c.section === 'cost_of_sales'),

@@ -90,23 +90,27 @@ export async function apiFetch(endpoint, options = {}) {
 }
 
 /**
- * Realiza una petición autenticada para descargar un archivo binario (ej: backup Gzip/CSV).
+ * Realiza una petición autenticada para descargar un archivo binario (ej: backup Gzip/CSV, PDFs, Excel).
  */
-export async function apiDownload(endpoint, bodyData = {}, defaultFilename = 'download') {
+export async function apiDownload(endpoint, bodyData = null, defaultFilename = 'download', method = null) {
   const token = localStorage.getItem('auth_token');
+  const httpMethod = method || (bodyData ? 'POST' : 'GET');
   const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/gzip, application/octet-stream, application/json',
+    'Accept': 'application/pdf, application/vnd.ms-excel, application/gzip, application/octet-stream, application/json',
   };
+
+  if (bodyData && httpMethod === 'POST') {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
-    method: 'POST',
+    method: httpMethod,
     headers,
-    body: JSON.stringify(bodyData),
+    body: bodyData && httpMethod === 'POST' ? JSON.stringify(bodyData) : undefined,
   });
 
   if (!response.ok) {

@@ -1,9 +1,10 @@
 <script setup>
 import { computed, ref, watch, onMounted } from 'vue';
-import { apiFetch } from '../../services/api';
+import { apiFetch, apiDownload } from '../../services/api';
 import { useFinanceStore, formatBs, formatDay, formatPercent, errorText } from '../../stores/finance';
 import FinanceModal from './FinanceModal.vue';
 import PedidosYaImportModal from './PedidosYaImportModal.vue';
+import PedidosYaFolderImportModal from './PedidosYaFolderImportModal.vue';
 import PedidosYaSalesPanel from './PedidosYaSalesPanel.vue';
 import PedidosYaMappings from './PedidosYaMappings.vue';
 
@@ -14,6 +15,43 @@ const finance = useFinanceStore();
 
 const pya = computed(() => finance.pnl?.pedidosya_analysis || null);
 const importOpen = ref(false);
+const folderImportOpen = ref(false);
+const viewTab = ref('settlements'); // 'settlements' | 'invoices'
+
+const invoicesData = ref({ invoices: [], summary: { count: 0, total_amount: 0, total_tax_credit: 0 } });
+const loadingInvoices = ref(false);
+
+async function loadInvoices() {
+  loadingInvoices.value = true;
+  try {
+    invoicesData.value = await apiFetch(`/finance/pedidosya-settlements/invoices-summary?year=${finance.year}&month=${finance.month}`);
+  } catch (err) {
+    finance.notify(errorText(err), 'error');
+  } finally {
+    loadingInvoices.value = false;
+  }
+}
+
+watch([() => finance.year, () => finance.month, viewTab], () => {
+  if (viewTab.value === 'invoices') {
+    loadInvoices();
+  }
+});
+
+async function downloadSettlementFile(st, type) {
+  try {
+    const ext = type === 'orders' ? 'xls' : 'pdf';
+    const num = st.statement_number || st.id;
+    await apiDownload(
+      `/finance/pedidosya-settlements/${st.id}/files/${type}`,
+      null,
+      `pedidosya_${num}_${type}.${ext}`,
+      'GET'
+    );
+  } catch (err) {
+    finance.notify(errorText(err, 'No se pudo descargar el archivo.'), 'error');
+  }
+}
 
 function retention(st) {
   const gross = Number(st.csv_gross_sales) || 0;
@@ -30,6 +68,14 @@ async function onImported(res) {
   finance.notify(res.message, res.settlement?.reconciliation?.status === 'ok' ? 'ok' : 'error');
   if (res.warnings?.length) setTimeout(() => finance.notify(res.warnings.join(' '), 'error'), 2800);
   await Promise.all([finance.loadSettlements(), finance.loadPnl()]);
+  if (viewTab.value === 'invoices') loadInvoices();
+}
+
+async function onFolderImported(res) {
+  folderImportOpen.value = false;
+  finance.notify(res.message, 'ok');
+  await Promise.all([finance.loadSettlements(), finance.loadPnl()]);
+  if (viewTab.value === 'invoices') loadInvoices();
 }
 
 async function remove(st) {
@@ -180,12 +226,18 @@ watch(() => props.intent, handleIntent);
     <div class="fin-card-head">
       <div>
         <h2>PedidosYa en {{ finance.periodLabel }}</h2>
-        <p>Cada semana se carga con el CSV de pedidos y el estado de cuenta. Las que cruzan dos meses se reparten por la fecha de cada pedido.</p>
+        <p>Cada semana se carga con el estado de cuenta y planillas oficiales. Las que cruzan dos meses se reparten por la fecha de cada pedido.</p>
       </div>
-      <button v-if="finance.canEdit" class="fin-btn fin-btn-primary" type="button" @click="importOpen = true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
-        Cargar semana
-      </button>
+      <div v-if="finance.canEdit" style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="fin-btn fin-btn-secondary" type="button" @click="folderImportOpen = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+          Importar carpeta
+        </button>
+        <button class="fin-btn fin-btn-primary" type="button" @click="importOpen = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
+          Cargar semana
+        </button>
+      </div>
     </div>
     <div v-if="pya && pya.settlements_count" class="fin-card-body">
       <div class="fin-kpis">
@@ -215,63 +267,153 @@ watch(() => props.intent, handleIntent);
 
   <div class="fin-card">
     <div class="fin-card-head">
-      <h3>Semanas del mes</h3>
+      <div class="fin-chips" role="group" aria-label="Vista de PedidosYa">
+        <button class="fin-chip" :class="{ active: viewTab === 'settlements' }" type="button" @click="viewTab = 'settlements'">
+          Semanas del mes ({{ finance.settlements.length }})
+        </button>
+        <button class="fin-chip" :class="{ active: viewTab === 'invoices' }" type="button" @click="viewTab = 'invoices'">
+          Facturas del mes (crédito fiscal)
+        </button>
+      </div>
     </div>
-    <div v-if="finance.errors.settlements" class="fin-error">{{ finance.errors.settlements }}</div>
-    <div v-else-if="finance.loading.settlements && !finance.settlements.length" class="fin-loading">Cargando semanas…</div>
-    <div v-else-if="!finance.settlements.length" class="fin-empty">
-      No hay semanas de PedidosYa cargadas en {{ finance.periodLabel }}.
-      <div style="margin-top: 8px"><button v-if="finance.canEdit" class="fin-btn-link" type="button" @click="importOpen = true">Cargar la primera</button></div>
-    </div>
-    <div v-else class="fin-table-wrap">
-      <table class="fin-table stack">
-        <thead>
-          <tr>
-            <th>Semana</th>
-            <th class="right">Pedidos</th>
-            <th class="right">Ventas brutas</th>
-            <th class="right">Liquidado</th>
-            <th class="right">Se queda PedidosYa</th>
-            <th>Conciliación</th>
-            <th class="actions"><span class="sr-only">Acciones</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="st in finance.settlements" :key="st.id">
-            <td data-label="Semana">
-              <span class="fin-cell-main fin-num">{{ formatDay(st.start_date, { year: false }) }} – {{ formatDay(st.end_date) }}</span>
-              <div class="fin-cell-sub">
-                Pago {{ formatDay(st.payout_date) }}
-                <template v-if="crossesMonth(st)"> · cruza meses (prorrateada)</template>
-              </div>
-            </td>
-            <td data-label="Pedidos" class="right fin-num">{{ st.delivered_count }} / {{ st.orders_count }}</td>
-            <td data-label="Ventas brutas" class="right fin-num">{{ formatBs(st.csv_gross_sales) }}</td>
-            <td data-label="Liquidado" class="right fin-num fin-cell-main">{{ formatBs(st.total_payout) }}</td>
-            <td data-label="Se queda" class="right fin-num">
-              {{ formatBs(retention(st).amount) }}
-              <div class="fin-cell-sub">{{ formatPercent(retention(st).percent) }}</div>
-            </td>
-            <td data-label="Conciliación">
-              <span class="fin-badge" :class="st.reconciliation?.status === 'ok' ? 'ok' : 'err'">
-                {{ st.reconciliation?.status === 'ok' ? 'Conciliada' : 'Con diferencias' }}
-              </span>
-            </td>
-            <td class="actions">
-              <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="openDetail(st)">Ver detalle</button>
-              <button v-if="finance.canEdit" class="fin-icon-btn danger" type="button" :aria-label="`Eliminar semana ${formatDay(st.start_date)}`" @click="remove(st)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+
+    <!-- Pestaña 1: Semanas del mes -->
+    <template v-if="viewTab === 'settlements'">
+      <div v-if="finance.errors.settlements" class="fin-error">{{ finance.errors.settlements }}</div>
+      <div v-else-if="finance.loading.settlements && !finance.settlements.length" class="fin-loading">Cargando semanas…</div>
+      <div v-else-if="!finance.settlements.length" class="fin-empty">
+        No hay semanas de PedidosYa cargadas en {{ finance.periodLabel }}.
+        <div style="margin-top: 8px; display: flex; gap: 8px; justify-content: center">
+          <button v-if="finance.canEdit" class="fin-btn-link" type="button" @click="folderImportOpen = true">Importar carpeta</button>
+          <span v-if="finance.canEdit">·</span>
+          <button v-if="finance.canEdit" class="fin-btn-link" type="button" @click="importOpen = true">Cargar una semana</button>
+        </div>
+      </div>
+      <div v-else class="fin-table-wrap">
+        <table class="fin-table stack">
+          <thead>
+            <tr>
+              <th>Semana</th>
+              <th class="right">Pedidos</th>
+              <th class="right">Ventas brutas</th>
+              <th class="right">Liquidado</th>
+              <th class="right">Se queda PedidosYa</th>
+              <th>Conciliación</th>
+              <th class="actions"><span class="sr-only">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="st in finance.settlements" :key="st.id">
+              <td data-label="Semana">
+                <span class="fin-cell-main fin-num">{{ formatDay(st.start_date, { year: false }) }} – {{ formatDay(st.end_date) }}</span>
+                <div class="fin-cell-sub">
+                  <template v-if="st.statement_number">Nº {{ st.statement_number }} · </template>
+                  Pago {{ formatDay(st.payout_date) }}
+                  <template v-if="crossesMonth(st)"> · cruza meses (prorrateada)</template>
+                </div>
+              </td>
+              <td data-label="Pedidos" class="right fin-num">{{ st.delivered_count }} / {{ st.orders_count }}</td>
+              <td data-label="Ventas brutas" class="right fin-num">{{ formatBs(st.csv_gross_sales) }}</td>
+              <td data-label="Liquidado" class="right fin-num fin-cell-main">{{ formatBs(st.total_payout) }}</td>
+              <td data-label="Se queda" class="right fin-num">
+                {{ formatBs(retention(st).amount) }}
+                <div class="fin-cell-sub">{{ formatPercent(retention(st).percent) }}</div>
+              </td>
+              <td data-label="Conciliación">
+                <span class="fin-badge" :class="st.reconciliation?.status === 'ok' ? 'ok' : 'err'">
+                  {{ st.reconciliation?.status === 'ok' ? 'Conciliada' : 'Con diferencias' }}
+                </span>
+              </td>
+              <td class="actions">
+                <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="openDetail(st)">Ver detalle</button>
+                <button v-if="finance.canEdit" class="fin-icon-btn danger" type="button" :aria-label="`Eliminar semana ${formatDay(st.start_date)}`" @click="remove(st)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+
+    <!-- Pestaña 2: Facturas del mes (crédito fiscal) -->
+    <template v-else-if="viewTab === 'invoices'">
+      <div v-if="loadingInvoices" class="fin-loading">Cargando facturas de PedidosYa…</div>
+      <div v-else-if="!invoicesData.invoices.length" class="fin-empty">
+        No hay facturas fiscales registradas en {{ finance.periodLabel }}.
+        <div class="fin-muted fin-small" style="margin-top: 6px">
+          Las facturas se extraen automáticamente de los PDFs al importar las carpetas de PedidosYa.
+        </div>
+      </div>
+      <div v-else class="fin-card-body" style="padding-top: 0">
+        <div class="fin-kpis" style="margin-bottom: 16px">
+          <div class="fin-kpi" style="padding: 0">
+            <span class="fin-kpi-label">Facturas emitidas</span>
+            <span class="fin-kpi-value fin-num">{{ invoicesData.summary.count }}</span>
+            <span class="fin-kpi-sub">en {{ finance.periodLabel }}</span>
+          </div>
+          <div class="fin-kpi" style="padding: 0">
+            <span class="fin-kpi-label">Total facturado</span>
+            <span class="fin-kpi-value fin-num">{{ formatBs(invoicesData.summary.total_amount) }}</span>
+            <span class="fin-kpi-sub">comisiones, publicidad y cargos</span>
+          </div>
+          <div class="fin-kpi" style="padding: 0">
+            <span class="fin-kpi-label">Crédito fiscal IVA (13%)</span>
+            <span class="fin-kpi-value fin-num">{{ formatBs(invoicesData.summary.total_tax_credit) }}</span>
+            <span class="fin-kpi-sub">crédito para el RC-IVA / IVA</span>
+          </div>
+        </div>
+
+        <div class="fin-table-wrap">
+          <table class="fin-table stack">
+            <thead>
+              <tr>
+                <th>Fecha de emisión</th>
+                <th>Nº Factura</th>
+                <th>Código de autorización</th>
+                <th class="right">Total Facturado</th>
+                <th class="right">Crédito Fiscal (13%)</th>
+                <th class="actions"><span class="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="inv in invoicesData.invoices" :key="inv.id">
+                <td data-label="Fecha">{{ formatDay(inv.invoice_date) }}</td>
+                <td data-label="Nº Factura" class="fin-cell-main">
+                  {{ inv.invoice_number }}
+                  <div class="fin-cell-sub">Liquidación Nº {{ inv.statement_number || inv.id }}</div>
+                </td>
+                <td data-label="Autorización" class="fin-small fin-muted" style="font-family: monospace; word-break: break-all">
+                  {{ inv.invoice_authorization || '—' }}
+                </td>
+                <td data-label="Total" class="right fin-num fin-cell-main">{{ formatBs(inv.invoice_total) }}</td>
+                <td data-label="Crédito IVA" class="right fin-num" style="color: var(--lime-700)">
+                  {{ formatBs(Number(inv.invoice_total) * 0.13) }}
+                </td>
+                <td class="actions">
+                  <button
+                    v-if="inv.files?.invoice"
+                    class="fin-btn fin-btn-ghost fin-btn-sm"
+                    type="button"
+                    title="Descargar factura en PDF"
+                    @click="downloadSettlementFile(inv, 'invoice')"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+                    PDF
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
   </div>
 
   <PedidosYaMappings />
 
   <PedidosYaImportModal v-if="importOpen" @close="importOpen = false" @imported="onImported" />
+  <PedidosYaFolderImportModal v-if="folderImportOpen" @close="folderImportOpen = false" @imported="onFolderImported" />
 
   <!-- Informe de la semana -->
   <FinanceModal
@@ -293,6 +435,46 @@ watch(() => props.intent, handleIntent);
         <span class="fin-spacer"></span>
         <button v-if="(report.control.without_sale) && finance.canEdit" class="fin-btn fin-btn-primary fin-btn-sm" type="button" @click="openSalesSync">Crear o vincular ventas</button>
         <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="printReport">Imprimir</button>
+      </div>
+
+      <div v-if="detail.settlement.statement_number || detail.settlement.invoice_number || detail.settlement.files" class="fin-archive-info-card">
+        <div class="fin-archive-meta">
+          <span v-if="detail.settlement.statement_number"><strong>Liquidación:</strong> Nº {{ detail.settlement.statement_number }}</span>
+          <span v-if="detail.settlement.invoice_number"><strong>Factura fiscal:</strong> Nº {{ detail.settlement.invoice_number }} ({{ formatBs(detail.settlement.invoice_total) }})</span>
+          <span v-if="detail.settlement.orders_source"><strong>Pedidos:</strong> origen {{ detail.settlement.orders_source.toUpperCase() }}</span>
+        </div>
+        <div v-if="detail.settlement.files" class="fin-file-buttons">
+          <button
+            v-if="detail.settlement.files.statement"
+            class="fin-btn fin-btn-ghost fin-btn-sm"
+            type="button"
+            title="Descargar estado de cuenta oficial"
+            @click="downloadSettlementFile(detail.settlement, 'statement')"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+            Estado de cuenta (PDF)
+          </button>
+          <button
+            v-if="detail.settlement.files.orders"
+            class="fin-btn fin-btn-ghost fin-btn-sm"
+            type="button"
+            title="Descargar planilla de pedidos oficial"
+            @click="downloadSettlementFile(detail.settlement, 'orders')"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+            Planilla de pedidos (Excel)
+          </button>
+          <button
+            v-if="detail.settlement.files.invoice"
+            class="fin-btn fin-btn-ghost fin-btn-sm"
+            type="button"
+            title="Descargar factura fiscal oficial"
+            @click="downloadSettlementFile(detail.settlement, 'invoice')"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+            Factura fiscal (PDF)
+          </button>
+        </div>
       </div>
 
       <div class="fin-grid-2" style="align-items: start">
@@ -342,6 +524,35 @@ watch(() => props.intent, handleIntent);
             </template>
             <p v-else class="fin-hint" style="margin: 6px 0 0">Registra las compras del mes para estimar el costo de los productos y la ganancia.</p>
           </div>
+        </div>
+      </div>
+
+      <!-- Detalle de reclamos si existen -->
+      <div v-if="detail.settlement.claims && detail.settlement.claims.length" style="margin-top: 14px">
+        <div class="fin-label">Detalle de cargos por reclamos ({{ detail.settlement.claims.length }})</div>
+        <div class="fin-table-wrap">
+          <table class="fin-table stack">
+            <thead>
+              <tr>
+                <th>Pedido</th>
+                <th>Fecha</th>
+                <th>Motivo</th>
+                <th>Comentarios</th>
+                <th class="right">Cargo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in detail.settlement.claims" :key="c.order_number">
+                <td data-label="Pedido" class="fin-num">#{{ c.order_number }}</td>
+                <td data-label="Fecha">{{ c.date }} {{ c.time }}</td>
+                <td data-label="Motivo"><span class="fin-badge err">{{ c.reason }}</span></td>
+                <td data-label="Comentarios" class="fin-small">{{ c.comments || '—' }}</td>
+                <td data-label="Cargo" class="right fin-num fin-cell-main" style="color: var(--danger-text)">
+                  -{{ formatBs(c.charge) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -438,3 +649,31 @@ watch(() => props.intent, handleIntent);
     </template>
   </FinanceModal>
 </template>
+
+<style scoped>
+.fin-archive-info-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  margin-top: 12px;
+}
+
+.fin-archive-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.fin-file-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+</style>
