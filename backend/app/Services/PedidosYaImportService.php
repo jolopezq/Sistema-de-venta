@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\PedidosYaSettlement;
 use App\Models\PedidosYaOrder;
 use App\Services\PedidosYa\SalesLinker;
+use App\Services\PedidosYa\StatementReader;
+use App\Services\PedidosYa\OrderListReader;
+use App\Services\PedidosYa\InvoiceReader;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +17,18 @@ use InvalidArgumentException;
 
 class PedidosYaImportService
 {
+    public function __construct(
+        protected ?StatementReader $statementReader = null,
+        protected ?OrderListReader $orderListReader = null,
+        protected ?InvoiceReader $invoiceReader = null,
+        protected ?SalesLinker $salesLinker = null,
+    ) {
+        $this->statementReader = $statementReader ?? app(StatementReader::class);
+        $this->orderListReader = $orderListReader ?? app(OrderListReader::class);
+        $this->invoiceReader   = $invoiceReader   ?? app(InvoiceReader::class);
+        $this->salesLinker     = $salesLinker     ?? app(SalesLinker::class);
+    }
+
     /**
      * Columnas obligatorias del CSV según §6.2 del Plan de Finanzas
      */
@@ -491,5 +506,462 @@ class PedidosYaImportService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Determina el estado de una semana frente a liquidaciones ya registradas (D3).
+     */
+    public function determineWeekStatus(string $startDate, string $endDate, float $totalPayout, ?string $statementNumber): array
+    {
+        // 1. Ya importada por número de liquidación
+        if (!empty($statementNumber)) {
+            $byNumber = PedidosYaSettlement::where('statement_number', $statementNumber)->first();
+            if ($byNumber) {
+                return [
+                    'status'              => 'already_imported',
+                    'existing_settlement' => $byNumber,
+                ];
+            }
+        }
+
+        // 2. Misma semana exacta (fechas iguales)
+        $sameDates = PedidosYaSettlement::whereDate('start_date', $startDate)
+            ->whereDate('end_date', $endDate)
+            ->first();
+
+        if ($sameDates) {
+            $diff = abs((float) $sameDates->total_payout - $totalPayout);
+            if ($diff < 0.05) {
+                return [
+                    'status'              => 'same_dates_same_amounts',
+                    'existing_settlement' => $sameDates,
+                ];
+            }
+            return [
+                'status'              => 'same_dates_diff_amounts',
+                'existing_settlement' => $sameDates,
+            ];
+        }
+
+        // 3. Se solapa con otra semana existente
+        $overlapping = $this->overlapping($startDate, $endDate);
+        if ($overlapping->isNotEmpty()) {
+            return [
+                'status'              => 'overlaps',
+                'existing_settlement' => $overlapping->first(),
+            ];
+        }
+
+        // 4. Nueva
+        return [
+            'status'              => 'new',
+            'existing_settlement' => null,
+        ];
+    }
+
+    /**
+     * Valida los frenos de seguridad entre PDF, Excel y factura (D6).
+     */
+    public function validateSafetyControls(array $statement, ?array $xls, ?array $invoice): array
+    {
+        $controls = [
+            'balance_ok'           => true,
+            'standard_lines_ok'    => true,
+            'xls_sales_match'      => null,
+            'xls_commission_match' => null,
+            'xls_claims_match'     => null,
+            'invoice_match'        => null,
+        ];
+        $blockers = [];
+        $warnings = [];
+
+        if ($xls) {
+            if (abs($xls['net_sales'] - $statement['net_sales']) > 0.05) {
+                $controls['xls_sales_match'] = false;
+                $blockers[] = "El Excel de pedidos no coincide con el estado de cuenta en ventas netas (Excel: Bs " . number_format($xls['net_sales'], 2) . ", PDF: Bs " . number_format($statement['net_sales'], 2) . ").";
+            } else {
+                $controls['xls_sales_match'] = true;
+            }
+
+            if (abs($xls['commission'] - $statement['service_fees']) > 0.05) {
+                $controls['xls_commission_match'] = false;
+                $blockers[] = "El Excel de pedidos no coincide con el estado de cuenta en comisiones (Excel: Bs " . number_format($xls['commission'], 2) . ", PDF: Bs " . number_format($statement['service_fees'], 2) . ").";
+            } else {
+                $controls['xls_commission_match'] = true;
+            }
+
+            if (abs($xls['total_claims'] - $statement['operating_charges']) > 0.05) {
+                $controls['xls_claims_match'] = false;
+                $blockers[] = "Los reclamos del Excel (Bs " . number_format($xls['total_claims'], 2) . ") no coinciden con los cargos operativos del PDF (Bs " . number_format($statement['operating_charges'], 2) . ").";
+            } else {
+                $controls['xls_claims_match'] = true;
+            }
+        }
+
+        if ($invoice) {
+            $expectedInvoice = round(
+                $statement['service_fees'] + $statement['operating_charges'] + $statement['advertising'] + $statement['taxes'],
+                2
+            );
+            if (abs($expectedInvoice - $invoice['invoice_total']) > 0.05) {
+                $controls['invoice_match'] = false;
+                $warnings[] = "El total de la factura fiscal (Bs " . number_format($invoice['invoice_total'], 2) . ") difiere de la suma de cargos facturables del estado de cuenta (Bs " . number_format($expectedInvoice, 2) . ").";
+            } else {
+                $controls['invoice_match'] = true;
+            }
+        }
+
+        return [
+            'controls' => $controls,
+            'blockers' => $blockers,
+            'warnings' => $warnings,
+        ];
+    }
+
+    /**
+     * Lee e interpreta los archivos de una semana sin guardarlos (previsualización).
+     */
+    public function readWeek(
+        UploadedFile|string $statementFile,
+        UploadedFile|string|null $ordersXls = null,
+        UploadedFile|string|null $invoicePdf = null,
+        UploadedFile|string|null $csvFile = null,
+        ?string $statementFilename = null,
+        ?string $statementNumber = null,
+        array $links = []
+    ): array {
+        $filename = $statementFilename ?? ($statementFile instanceof UploadedFile ? $statementFile->getClientOriginalName() : basename($statementFile));
+
+        $statement = null;
+        $readerError = null;
+        try {
+            $statement = $this->statementReader->read($statementFile, $filename);
+        } catch (\Throwable $e) {
+            $readerError = $e->getMessage();
+        }
+
+        if ($statement === null) {
+            return [
+                'statement_number'    => $statementNumber,
+                'start_date'          => null,
+                'end_date'            => null,
+                'payout_date'         => null,
+                'status'              => 'blocked',
+                'existing_settlement' => null,
+                'statement'           => null,
+                'invoice'             => null,
+                'claims'              => [],
+                'claims_count'        => 0,
+                'orders_count'        => 0,
+                'orders_source'       => null,
+                'controls'            => [
+                    'balance_ok'           => false,
+                    'standard_lines_ok'    => false,
+                    'xls_sales_match'      => null,
+                    'xls_commission_match' => null,
+                    'xls_claims_match'     => null,
+                    'invoice_match'        => null,
+                ],
+                'warnings'            => [],
+                'blockers'            => [$readerError ?: 'No se pudo leer el PDF del estado de cuenta.'],
+                'sales'               => null,
+            ];
+        }
+
+        if (empty($statement['statement_number']) && !empty($statementNumber)) {
+            $statement['statement_number'] = $statementNumber;
+        } else {
+            $statementNumber = $statement['statement_number'];
+        }
+
+        $statusInfo = $this->determineWeekStatus(
+            $statement['start_date'],
+            $statement['end_date'],
+            (float) $statement['total_payout'],
+            $statementNumber
+        );
+        $status = $statusInfo['status'];
+        $existingSettlement = $statusInfo['existing_settlement'];
+
+        $invoice = null;
+        if ($invoicePdf) {
+            try {
+                $invoice = $this->invoiceReader->read($invoicePdf);
+            } catch (\Throwable $e) {
+                // Factura opcional o no parseable
+            }
+        }
+
+        $xls = null;
+        if ($ordersXls) {
+            try {
+                $xls = $this->orderListReader->read($ordersXls);
+            } catch (\Throwable $e) {
+                // Excel no parseable
+            }
+        }
+
+        $safety = $this->validateSafetyControls($statement, $xls, $invoice);
+        $controls = $safety['controls'];
+        $blockers = $safety['blockers'];
+        $warnings = $safety['warnings'];
+
+        if ($status === 'overlaps') {
+            $blockers[] = "La semana se cruza con otra ya cargada (" . $this->weekLabel($existingSettlement) . ").";
+        } elseif ($status === 'same_dates_diff_amounts') {
+            $warnings[] = "Ya existe una liquidación en estas fechas con montos distintos (cargado: Bs {$existingSettlement->total_payout}, nuevo: Bs {$statement['total_payout']}).";
+        }
+
+        $ordersCount = 0;
+        $ordersSource = null;
+        $sales = null;
+
+        if ($csvFile) {
+            try {
+                $csv = $this->parseCsv($csvFile);
+                $weekOrders = array_values(array_filter($csv['orders'], function ($o) use ($statement) {
+                    $day = substr((string) $o['order_date'], 0, 10);
+                    return $day >= $statement['start_date'] && $day <= $statement['end_date'];
+                }));
+                $outsideCount = count($csv['orders']) - count($weekOrders);
+                if ($outsideCount > 0) {
+                    $warnings[] = "El CSV contiene {$outsideCount} pedido(s) fuera de la semana ({$statement['start_date']} al {$statement['end_date']}).";
+                }
+                $ordersCount = count($weekOrders);
+                $ordersSource = 'csv';
+                $salesAnalysis = $this->salesLinker->analyze($weekOrders, $statement['start_date'], $statement['end_date'], $links);
+                $sales = array_diff_key($salesAnalysis, ['payloads' => true]);
+            } catch (\Throwable $e) {
+                $warnings[] = "No se pudo procesar el CSV de pedidos: " . $e->getMessage();
+            }
+        } elseif ($xls) {
+            $ordersCount = $xls['orders_count'];
+            $ordersSource = 'xls';
+        }
+
+        return [
+            'statement_number'    => $statementNumber,
+            'start_date'          => $statement['start_date'],
+            'end_date'            => $statement['end_date'],
+            'payout_date'         => $statement['payout_date'],
+            'status'              => $status,
+            'existing_settlement' => $existingSettlement,
+            'statement'           => $statement,
+            'invoice'             => $invoice,
+            'claims'              => $xls['claims'] ?? [],
+            'claims_count'        => $xls['claims_count'] ?? 0,
+            'orders_count'        => $ordersCount,
+            'orders_source'       => $ordersSource,
+            'controls'            => $controls,
+            'warnings'            => $warnings,
+            'blockers'            => $blockers,
+            'sales'               => $sales,
+        ];
+    }
+
+    /**
+     * Importa una semana directamente desde los archivos de la carpeta del paquete semanal.
+     */
+    public function importSettlementFromFolder(
+        UploadedFile|string $statementFile,
+        UploadedFile|string|null $ordersXls = null,
+        UploadedFile|string|null $invoicePdf = null,
+        UploadedFile|string|null $csvFile = null,
+        ?string $statementFilename = null,
+        ?string $statementNumber = null,
+        string $salesMode = 'skip',
+        array $links = [],
+        ?string $notes = null,
+        ?int $userId = null
+    ): array {
+        $read = $this->readWeek(
+            $statementFile,
+            $ordersXls,
+            $invoicePdf,
+            $csvFile,
+            $statementFilename,
+            $statementNumber,
+            $links
+        );
+
+        if (count($read['blockers']) > 0) {
+            throw ValidationException::withMessages([
+                'statement_file' => implode(' ', $read['blockers']),
+            ]);
+        }
+
+        if ($read['status'] === 'already_imported') {
+            return [
+                'settlement' => $read['existing_settlement'],
+                'warnings'   => array_merge($read['warnings'], ['Esta semana ya había sido importada previamente.']),
+                'sales'      => null,
+                'skipped'    => true,
+            ];
+        }
+
+        if ($read['status'] === 'same_dates_diff_amounts') {
+            throw ValidationException::withMessages([
+                'statement_file' => 'Ya existe una liquidación para este período pero con montos distintos. Elimínala manualmente si deseas reemplazarla.',
+            ]);
+        }
+
+        $stNum = $read['statement_number'] ?: 'settlement_' . str_replace('-', '', $read['start_date']);
+        $folder = "pedidosya/{$stNum}";
+        $files = [];
+
+        if ($statementFile) {
+            $files['statement'] = Storage::disk('local')->putFileAs($folder, $statementFile, 'statement.pdf');
+        }
+        if ($ordersXls) {
+            $files['orders'] = Storage::disk('local')->putFileAs($folder, $ordersXls, 'orders.xls');
+        }
+        if ($invoicePdf) {
+            $files['invoice'] = Storage::disk('local')->putFileAs($folder, $invoicePdf, 'invoice.pdf');
+        }
+
+        if ($read['status'] === 'same_dates_same_amounts') {
+            $existing = $read['existing_settlement'];
+            $existing->update([
+                'statement_number'      => $read['statement_number'],
+                'invoice_number'        => $read['invoice']['invoice_number'] ?? $existing->invoice_number,
+                'invoice_date'          => $read['invoice']['invoice_date'] ?? $existing->invoice_date,
+                'invoice_authorization' => $read['invoice']['invoice_authorization'] ?? $existing->invoice_authorization,
+                'invoice_total'         => $read['invoice']['invoice_total'] ?? $existing->invoice_total,
+                'claims'                => $read['claims'] ?: $existing->claims,
+                'files'                 => array_merge($existing->files ?? [], $files),
+            ]);
+
+            return [
+                'settlement' => $existing->fresh(['orders']),
+                'warnings'   => array_merge($read['warnings'], ['Se vincularon los archivos oficiales a la liquidación existente cargada manualmente.']),
+                'sales'      => null,
+            ];
+        }
+
+        $st = $read['statement'];
+        $inv = $read['invoice'];
+        $salesResult = null;
+
+        $settlement = DB::transaction(function () use (
+            $read,
+            $st,
+            $inv,
+            $files,
+            $notes,
+            $userId,
+            $csvFile,
+            $ordersXls,
+            $salesMode,
+            $links,
+            &$salesResult
+        ) {
+            $settlement = PedidosYaSettlement::create([
+                'statement_number'      => $read['statement_number'],
+                'start_date'            => $read['start_date'],
+                'end_date'              => $read['end_date'],
+                'payout_date'           => $read['payout_date'],
+                'net_sales'             => $st['net_sales'],
+                'delivery_fees'         => $st['delivery_fees'],
+                'service_fees'          => $st['service_fees'],
+                'operating_charges'     => $st['operating_charges'],
+                'advertising'           => $st['advertising'],
+                'refunds'               => $st['refunds'],
+                'taxes'                 => $st['taxes'],
+                'total_payout'          => $st['total_payout'],
+                'calculated_payout'     => round($st['net_sales'] - $st['delivery_fees'] - $st['service_fees'] - $st['operating_charges'] - $st['advertising'] + $st['refunds'] - $st['taxes'], 2),
+                'discrepancy'           => 0.0,
+                'orders_count'          => $read['orders_count'],
+                'orders_source'         => $read['orders_source'],
+                'invoice_number'        => $inv['invoice_number'] ?? null,
+                'invoice_date'          => $inv['invoice_date'] ?? null,
+                'invoice_authorization' => $inv['invoice_authorization'] ?? null,
+                'invoice_total'         => $inv['invoice_total'] ?? null,
+                'claims'                => $read['claims'],
+                'files'                 => $files,
+                'notes'                 => $notes,
+                'user_id'               => $userId,
+            ]);
+
+            if ($csvFile) {
+                $csv = $this->parseCsv($csvFile);
+                $weekOrders = array_values(array_filter($csv['orders'], function ($o) use ($read) {
+                    $day = substr((string) $o['order_date'], 0, 10);
+                    return $day >= $read['start_date'] && $day <= $read['end_date'];
+                }));
+
+                $delivered = 0;
+                $cancelled = 0;
+                foreach ($weekOrders as $o) {
+                    if (self::isDelivered($o['status'] ?? null)) {
+                        $delivered++;
+                    } elseif (mb_strtolower((string) ($o['status'] ?? '')) === 'cancelado') {
+                        $cancelled++;
+                    }
+                    PedidosYaOrder::updateOrCreate(
+                        ['order_number' => $o['order_number']],
+                        array_merge($o, ['settlement_id' => $settlement->id])
+                    );
+                }
+
+                $settlement->update([
+                    'delivered_count'        => $delivered,
+                    'cancelled_count'        => $cancelled,
+                    'csv_gross_sales'        => round(array_sum(array_column($weekOrders, 'subtotal')), 2),
+                    'csv_commission'         => round(array_sum(array_column($weekOrders, 'commission')), 2),
+                    'csv_estimated_income'   => round(array_sum(array_column($weekOrders, 'estimated_income')), 2),
+                    'csv_pedidosya_discount' => round(array_sum(array_column($weekOrders, 'pedidosya_discount')), 2),
+                    'csv_vendor_discount'    => round(array_sum(array_column($weekOrders, 'vendor_discount')), 2),
+                ]);
+
+                if ($salesMode === 'create') {
+                    $salesResult = $this->salesLinker->sync($settlement, $links, $userId);
+                }
+            } elseif ($ordersXls) {
+                $xls = $this->orderListReader->read($ordersXls);
+                $delivered = 0;
+                $cancelled = 0;
+                foreach ($xls['orders'] as $o) {
+                    if (mb_strtolower((string) $o['status']) === 'entregado') {
+                        $delivered++;
+                    } elseif (mb_strtolower((string) $o['status']) === 'cancelado') {
+                        $cancelled++;
+                    }
+                    PedidosYaOrder::updateOrCreate(
+                        ['order_number' => $o['order_number']],
+                        [
+                            'settlement_id'      => $settlement->id,
+                            'status'             => $o['status'] ?: 'Entregado',
+                            'order_date'         => $o['order_date'] ? $o['order_date'] . ' 12:00:00' : now(),
+                            'payment_method'     => $o['payment_method'] ?? 'Online',
+                            'delivery_type'      => $o['delivery_method'] ?? 'PedidosYa',
+                            'subtotal'           => $o['gross_amount'],
+                            'commission'         => $o['commission_amount'],
+                            'tax'                => 0.0,
+                            'vendor_discount'    => 0.0,
+                            'pedidosya_discount' => 0.0,
+                            'estimated_income'   => $o['net_amount'],
+                            'items_text'         => 'Pedido PedidosYa #' . $o['order_number'],
+                            'raw_data'           => $o,
+                        ]
+                    );
+                }
+                $settlement->update([
+                    'delivered_count' => $delivered,
+                    'cancelled_count' => $cancelled,
+                ]);
+            }
+
+            return $settlement->fresh(['orders']);
+        });
+
+        if ($salesResult && count($salesResult['errors'] ?? []) > 0) {
+            $read['warnings'][] = count($salesResult['errors']) . ' pedido(s) no se pudieron registrar como venta: ' . implode(' ', $salesResult['errors']);
+        }
+
+        return [
+            'settlement' => $settlement,
+            'warnings'   => $read['warnings'],
+            'sales'      => $salesResult,
+        ];
     }
 }

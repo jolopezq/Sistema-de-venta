@@ -15,6 +15,7 @@ class PedidosYaSettlement extends Model
     protected $table = 'pedidosya_settlements';
 
     protected $fillable = [
+        'statement_number',
         'start_date',
         'end_date',
         'payout_date',
@@ -31,12 +32,19 @@ class PedidosYaSettlement extends Model
         'orders_count',
         'delivered_count',
         'cancelled_count',
+        'orders_source',
         'csv_gross_sales',
         'csv_commission',
         'csv_estimated_income',
         'csv_pedidosya_discount',
         'csv_vendor_discount',
         'zip_path',
+        'invoice_number',
+        'invoice_date',
+        'invoice_authorization',
+        'invoice_total',
+        'claims',
+        'files',
         'notes',
         'user_id',
     ];
@@ -48,6 +56,7 @@ class PedidosYaSettlement extends Model
             'start_date'           => 'date:Y-m-d',
             'end_date'             => 'date:Y-m-d',
             'payout_date'          => 'date:Y-m-d',
+            'invoice_date'         => 'date:Y-m-d',
             'net_sales'            => 'decimal:2',
             'delivery_fees'        => 'decimal:2',
             'service_fees'         => 'decimal:2',
@@ -58,6 +67,7 @@ class PedidosYaSettlement extends Model
             'total_payout'         => 'decimal:2',
             'calculated_payout'    => 'decimal:2',
             'discrepancy'          => 'decimal:2',
+            'invoice_total'        => 'decimal:2',
             'csv_gross_sales'      => 'decimal:2',
             'csv_commission'       => 'decimal:2',
             'csv_estimated_income' => 'decimal:2',
@@ -66,6 +76,8 @@ class PedidosYaSettlement extends Model
             'orders_count'         => 'integer',
             'delivered_count'      => 'integer',
             'cancelled_count'      => 'integer',
+            'claims'               => 'array',
+            'files'                => 'array',
         ];
     }
 

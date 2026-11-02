@@ -192,6 +192,7 @@ class OrderListReader
         }
 
         $grossSales = round(array_sum(array_column($orders, 'gross_amount')), 2);
+        $netSales = round(array_sum(array_column($orders, 'net_amount')), 2);
         $totalCommission = round(array_sum(array_column($orders, 'commission_amount')), 2);
         $totalClaims = round(array_sum(array_column($claims, 'charge')), 2);
 
@@ -201,6 +202,7 @@ class OrderListReader
             'orders_count' => count($orders),
             'claims_count' => count($claims),
             'gross_sales'  => $grossSales,
+            'net_sales'    => $netSales,
             'commission'   => $totalCommission,
             'total_claims' => $totalClaims,
         ];

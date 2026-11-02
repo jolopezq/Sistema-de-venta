@@ -64,8 +64,80 @@ class PedidosYaSettlementController extends Controller
         return response()->json($preview);
     }
 
+    /**
+     * Lee e interpreta los archivos de una semana sin guardarlos (previsualización del paquete).
+     */
+    public function readWeek(Request $request): JsonResponse
+    {
+        $request->validate([
+            'statement_file'   => ['required', 'file', 'max:10240'],
+            'orders_xls'       => ['nullable', 'file', 'max:20480'],
+            'invoice_pdf'      => ['nullable', 'file', 'max:10240'],
+            'orders_csv'       => ['nullable', 'file', 'max:10240'],
+            'csv_file'         => ['nullable', 'file', 'max:10240'],
+            'statement_number' => ['nullable', 'string', 'max:50'],
+            'links'            => ['nullable', 'array'],
+        ]);
+
+        $statementFile = $request->file('statement_file');
+        $ordersXls     = $request->file('orders_xls');
+        $invoicePdf    = $request->file('invoice_pdf');
+        $csvFile       = $request->file('orders_csv') ?? $request->file('csv_file');
+
+        $result = $this->importService->readWeek(
+            $statementFile,
+            $ordersXls,
+            $invoicePdf,
+            $csvFile,
+            $statementFile->getClientOriginalName(),
+            $request->input('statement_number'),
+            (array) $request->input('links', [])
+        );
+
+        return response()->json($result);
+    }
+
     public function store(Request $request): JsonResponse
     {
+        if ($request->input('mode') === 'folder') {
+            $request->validate([
+                'statement_file'   => ['required', 'file', 'max:10240'],
+                'orders_xls'       => ['nullable', 'file', 'max:20480'],
+                'invoice_pdf'      => ['nullable', 'file', 'max:10240'],
+                'orders_csv'       => ['nullable', 'file', 'max:10240'],
+                'csv_file'         => ['nullable', 'file', 'max:10240'],
+                'statement_number' => ['nullable', 'string', 'max:50'],
+                'sales_mode'       => ['nullable', 'in:create,skip'],
+                'links'            => ['nullable', 'array'],
+                'notes'            => ['nullable', 'string', 'max:1000'],
+            ]);
+
+            $statementFile = $request->file('statement_file');
+            $ordersXls     = $request->file('orders_xls');
+            $invoicePdf    = $request->file('invoice_pdf');
+            $csvFile       = $request->file('orders_csv') ?? $request->file('csv_file');
+
+            $result = $this->importService->importSettlementFromFolder(
+                $statementFile,
+                $ordersXls,
+                $invoicePdf,
+                $csvFile,
+                $statementFile->getClientOriginalName(),
+                $request->input('statement_number'),
+                $request->input('sales_mode', 'skip'),
+                (array) $request->input('links', []),
+                $request->input('notes'),
+                Auth::id()
+            );
+
+            return response()->json([
+                'message'    => 'Semana de PedidosYa importada correctamente.',
+                'settlement' => $result['settlement'],
+                'warnings'   => $result['warnings'],
+                'sales'      => $result['sales'],
+            ], 201);
+        }
+
         $validated = $request->validate([
             'csv_file'          => ['required', 'file', 'max:10240'],
             // Sin fechas, la semana se toma del CSV (lunes a domingo de sus pedidos)
@@ -214,6 +286,59 @@ class PedidosYaSettlementController extends Controller
 
         return response()->json([
             'message' => 'Liquidación de PedidosYa eliminada correctamente.',
+        ]);
+    }
+
+    /**
+     * Descarga un archivo asociado a la liquidación (statement, orders o invoice).
+     */
+    public function downloadFile(PedidosYaSettlement $settlement, string $type)
+    {
+        $allowed = ['statement', 'orders', 'invoice'];
+        if (!in_array($type, $allowed, true)) {
+            abort(404, 'Tipo de archivo no válido.');
+        }
+
+        $files = $settlement->files ?? [];
+        $path = $files[$type] ?? null;
+
+        if (!$path || !Storage::disk('local')->exists($path)) {
+            abort(404, 'El archivo solicitado no se encuentra en el servidor.');
+        }
+
+        $ext = pathinfo($path, PATHINFO_EXTENSION);
+        $stNum = $settlement->statement_number ?: $settlement->id;
+        $downloadFilename = "pedidosya_{$stNum}_{$type}.{$ext}";
+
+        return Storage::disk('local')->download($path, $downloadFilename);
+    }
+
+    /**
+     * Resumen mensual de facturas emitidas por PedidosYa para crédito fiscal (D8).
+     */
+    public function invoicesSummary(Request $request): JsonResponse
+    {
+        $query = PedidosYaSettlement::whereNotNull('invoice_number');
+
+        if ($request->filled('year') && $request->filled('month')) {
+            $start = sprintf('%04d-%02d-01', (int) $request->year, (int) $request->month);
+            $end = date('Y-m-t', strtotime($start));
+            $query->whereBetween('invoice_date', [$start, $end]);
+        } elseif ($request->filled('year')) {
+            $query->whereYear('invoice_date', $request->year);
+        }
+
+        $invoices = $query->orderBy('invoice_date', 'asc')->get();
+        $totalAmount = round((float) $invoices->sum('invoice_total'), 2);
+        $totalTaxCredit = round($totalAmount * 0.13, 2);
+
+        return response()->json([
+            'invoices' => $invoices,
+            'summary'  => [
+                'count'            => $invoices->count(),
+                'total_amount'     => $totalAmount,
+                'total_tax_credit' => $totalTaxCredit,
+            ],
         ]);
     }
 }

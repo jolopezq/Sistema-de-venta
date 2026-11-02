@@ -178,6 +178,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/cash-movements', [\App\Http\Controllers\FinanceCashMovementController::class, 'index']);
             Route::get('/recurring-expenses/pending', [\App\Http\Controllers\RecurringExpenseController::class, 'pending']);
             Route::apiResource('recurring-expenses', \App\Http\Controllers\RecurringExpenseController::class)->only(['index', 'show']);
+            Route::get('/pedidosya-settlements/invoices-summary', [\App\Http\Controllers\PedidosYaSettlementController::class, 'invoicesSummary']);
+            Route::get('/pedidosya-settlements/{settlement}/files/{type}', [\App\Http\Controllers\PedidosYaSettlementController::class, 'downloadFile']);
             Route::get('/pedidosya-settlements/{settlement}/sales', [\App\Http\Controllers\PedidosYaSettlementController::class, 'salesPreview']);
             Route::get('/pedidosya-settlements/{settlement}/report', [\App\Http\Controllers\PedidosYaSettlementController::class, 'report']);
             Route::get('/pedidosya-mappings', [\App\Http\Controllers\PedidosYaMappingController::class, 'index']);
@@ -216,6 +218,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::patch('/recurring-expenses/{recurringExpense}/toggle-active', [\App\Http\Controllers\RecurringExpenseController::class, 'toggleActive']);
 
             // Liquidaciones semanales de PedidosYa (importación y conciliación) y equivalencias de nombres
+            Route::post('/pedidosya-settlements/read-week', [\App\Http\Controllers\PedidosYaSettlementController::class, 'readWeek']);
             Route::post('/pedidosya-settlements/preview', [\App\Http\Controllers\PedidosYaSettlementController::class, 'preview']);
             Route::post('/pedidosya-settlements/{settlement}/sales', [\App\Http\Controllers\PedidosYaSettlementController::class, 'syncSales']);
             Route::post('/pedidosya-mappings', [\App\Http\Controllers\PedidosYaMappingController::class, 'store']);
