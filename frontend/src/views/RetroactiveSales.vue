@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth';
 import AdminSaleEditor from '../components/AdminSaleEditor.vue';
 import SaleDetailDrawer from '../components/SaleDetailDrawer.vue';
 import CashExpenseModal from '../components/CashExpenseModal.vue';
+import VoidCashMovementModal from '../components/VoidCashMovementModal.vue';
 import CashCloseWizard from '../components/CashCloseWizard.vue';
 import CashSessionReport from '../components/CashSessionReport.vue';
 import { apiFetch } from '../services/api';
@@ -117,9 +118,28 @@ const isLoadingDay = ref(false);
 
 // Modales
 const showExpenseModal = ref(false);
+const editingMovement = ref(null);
+const voidingMovement = ref(null);
+const isVoidMovementModalOpen = ref(false);
 const showCloseWizard = ref(false);
 const showReportModal = ref(false);
 const sessionCount = ref(0);
+
+function openEditMovement(m) {
+  editingMovement.value = m;
+  showExpenseModal.value = true;
+}
+
+function openVoidMovement(m) {
+  voidingMovement.value = m;
+  isVoidMovementModalOpen.value = true;
+}
+
+async function handleMovementVoided() {
+  voidingMovement.value = null;
+  isVoidMovementModalOpen.value = false;
+  await loadDayData(selectedDate.value);
+}
 
 // Apertura de caja rápida
 const openingFund = ref(0);
@@ -179,7 +199,7 @@ const cashExpenses = computed(() => {
     return Number(currentStats.value.cash_expenses);
   }
   return movements.value
-    .filter(m => m.type === 'expense' && (!m.payment_method || m.payment_method === 'cash'))
+    .filter(m => !m.deleted_at && m.type === 'expense' && (!m.payment_method || m.payment_method === 'cash'))
     .reduce((sum, m) => sum + Number(m.amount || 0), 0);
 });
 
@@ -188,7 +208,7 @@ const nonCashExpenses = computed(() => {
     return Number(currentStats.value.non_cash_expenses);
   }
   return movements.value
-    .filter(m => m.type === 'expense' && (m.payment_method === 'qr' || m.payment_method === 'card'))
+    .filter(m => !m.deleted_at && m.type === 'expense' && (m.payment_method === 'qr' || m.payment_method === 'card'))
     .reduce((sum, m) => sum + Number(m.amount || 0), 0);
 });
 
@@ -375,6 +395,8 @@ async function handleSaleVoided() {
  * Callback al registrar un gasto/ingreso
  */
 async function handleExpenseSaved() {
+  editingMovement.value = null;
+  showExpenseModal.value = false;
   await loadDayData(selectedDate.value);
 }
 
@@ -773,7 +795,7 @@ watch(selectedDate, (newDate) => {
           <div v-if="isSessionOpen" class="arqueo-actions">
             <button
               class="btn btn-expense"
-              @click="showExpenseModal = true"
+              @click="editingMovement = null; showExpenseModal = true"
             >
               💸 Registrar Gasto / Compra
             </button>
@@ -941,10 +963,15 @@ watch(selectedDate, (newDate) => {
                 <th>Descripción / Concepto</th>
                 <th>Registrado Por</th>
                 <th class="text-right">Monto</th>
+                <th class="text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="m in movements" :key="m.id">
+              <tr 
+                v-for="m in movements" 
+                :key="m.id"
+                :class="{ 'row-voided': Boolean(m.deleted_at) }"
+              >
                 <td class="col-time">{{ formatTime(m.occurred_at || m.created_at) }}</td>
                 <td>
                   <span :class="m.type === 'expense' ? 'pill-expense' : 'pill-income'">
@@ -965,10 +992,57 @@ watch(selectedDate, (newDate) => {
                     {{ m.payment_method || 'Efectivo' }}
                   </span>
                 </td>
-                <td class="col-desc">{{ m.description }}</td>
+                <td class="col-desc">
+                  <div class="desc-text">{{ m.description }}</div>
+                  <div v-if="m.expense_category?.name" class="desc-category">
+                    {{ m.expense_category.name }}
+                  </div>
+                  <!-- Línea de auditoría corregido -->
+                  <div v-if="m.edit_count > 0 && !m.deleted_at" class="desc-audit desc-corrected">
+                    <span class="badge-corrected">Corregido</span>
+                    <span>
+                      Antes: {{ m.edit_previous?.payment_method === 'cash' ? 'Efectivo' : (m.edit_previous?.payment_method === 'qr' ? 'QR' : 'Tarjeta') }} · Bs {{ Number(m.edit_previous?.amount || 0).toFixed(2) }} — Motivo: «{{ m.edit_reason }}»
+                    </span>
+                  </div>
+                  <!-- Línea de auditoría anulado -->
+                  <div v-if="m.deleted_at" class="desc-audit desc-voided">
+                    <span class="badge-voided">Anulado</span>
+                    <span>Motivo: «{{ m.void_reason }}»</span>
+                  </div>
+                </td>
                 <td class="col-user">{{ m.user?.name || 'Usuario' }}</td>
                 <td class="col-total text-right" :class="m.type === 'expense' ? 'text-expense' : 'text-income'">
                   <strong>{{ m.type === 'expense' ? '-' : '+' }} Bs {{ formatCurrency(m.amount) }}</strong>
+                </td>
+                <td class="col-actions text-right" @click.stop>
+                  <div class="actions-cell">
+                    <template v-if="!m.deleted_at">
+                      <template v-if="isSessionOpen">
+                        <button
+                          type="button"
+                          class="btn-table-action btn-table-edit"
+                          @click="openEditMovement(m)"
+                          title="Corregir método, monto o concepto"
+                        >
+                          ✏️ Corregir
+                        </button>
+                        <button
+                          type="button"
+                          class="btn-table-action btn-table-void"
+                          @click="openVoidMovement(m)"
+                          title="Anular este movimiento"
+                        >
+                          🗑️ Anular
+                        </button>
+                      </template>
+                      <template v-else>
+                        <span class="text-muted-notice" title="Las cajas cerradas deben reabrirse para corregir o anular movimientos">
+                          Reabre la caja para corregir
+                        </span>
+                      </template>
+                    </template>
+                    <span v-else class="text-muted void-text">Anulado</span>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -978,13 +1052,23 @@ watch(selectedDate, (newDate) => {
 
     </section>
 
-    <!-- MODAL DE REGISTRO DE GASTO -->
+    <!-- MODAL DE REGISTRO / CORRECCIÓN DE GASTO -->
     <CashExpenseModal
       :visible="showExpenseModal"
+      :movement="editingMovement"
       :sessionId="currentSession?.id"
       :expectedCash="expectedPhysicalCash"
-      @close="showExpenseModal = false"
+      @close="showExpenseModal = false; editingMovement = null"
       @saved="handleExpenseSaved"
+    />
+
+    <!-- MODAL DE ANULACIÓN DE GASTO -->
+    <VoidCashMovementModal
+      :visible="isVoidMovementModalOpen"
+      :movement="voidingMovement"
+      :sessionId="currentSession?.id"
+      @close="isVoidMovementModalOpen = false; voidingMovement = null"
+      @voided="handleMovementVoided"
     />
 
     <!-- WIZARD DE CIERRE DE CAJA Y ARQUEO -->
@@ -1843,9 +1927,92 @@ html.dark .arqueo-card.session-closed {
   border-color: var(--tw-bg-fde047);
 }
 
+.btn-table-void {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.btn-table-void:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+html.dark .btn-table-void {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
 .row-voided td {
   opacity: 0.5;
   text-decoration: line-through;
+}
+
+.row-voided td.col-actions,
+.row-voided .desc-audit {
+  text-decoration: none;
+}
+
+.desc-category {
+  font-size: 0.72rem;
+  color: var(--tw-fg-64748b);
+  margin-top: 2px;
+}
+
+.desc-audit {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.desc-corrected {
+  color: var(--ink-700);
+}
+
+.desc-voided {
+  color: #dc2626;
+}
+
+html.dark .desc-voided {
+  color: #f87171;
+}
+
+.badge-corrected {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--cream-200);
+  color: var(--ink-700);
+}
+
+.badge-voided {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+html.dark .badge-voided {
+  color: #f87171;
+}
+
+.text-muted-notice {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--ink-500);
+  font-style: italic;
+}
+
+.void-text {
+  font-size: 0.75rem;
+  color: var(--ink-500);
 }
 
 .col-time {

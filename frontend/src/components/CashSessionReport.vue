@@ -27,6 +27,12 @@ const chainWarning = computed(() => {
 const discounts = computed(() => reportData.value.discounts || []);
 const discountsTotal = computed(() => discounts.value.reduce((sum, d) => sum + Number(d.discount_amount || 0), 0));
 
+// Movimientos corregidos o anulados (docs/PLAN_CORREGIR_GASTOS_CAJA.md)
+const correctedMovements = computed(() => {
+  const movs = reportData.value.movements || [];
+  return movs.filter(m => m.is_edited || m.is_voided);
+});
+
 const money = (n) => Number(n || 0).toFixed(2);
 const pct = (n) => (Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(1));
 function formatTime(dateStr) {
@@ -200,6 +206,32 @@ function formatDate(dateStr) {
       <div class="row">
         <span>Total descuentos:</span>
         <strong>Bs {{ money(discountsTotal) }}</strong>
+      </div>
+    </div>
+
+    <!-- GASTOS Y MOVIMIENTOS CORREGIDOS O ANULADOS (docs/PLAN_CORREGIR_GASTOS_CAJA.md) -->
+    <div v-if="correctedMovements.length" class="corrections" role="note">
+      <div class="divider">--------------------------------</div>
+      <div class="section-title">MOVIMIENTOS CORREGIDOS / ANULADOS ({{ correctedMovements.length }})</div>
+      <div v-for="m in correctedMovements" :key="m.id" class="correction-item">
+        <div class="row mini">
+          <span>{{ formatTime(m.occurred_at) }} · {{ m.type === 'expense' ? 'Egreso' : 'Ingreso' }}</span>
+          <strong :class="m.is_voided ? 'text-danger' : ''">
+            {{ m.is_voided ? 'ANULADO' : `Bs ${money(m.amount)} (${m.payment_method === 'cash' ? 'Efectivo' : (m.payment_method === 'qr' ? 'QR' : 'Tarjeta')})` }}
+          </strong>
+        </div>
+        <div class="row mini">
+          <span>{{ m.description }}</span>
+          <span v-if="m.is_edited && !m.is_voided">
+            Antes: {{ m.edit_previous?.payment_method === 'cash' ? 'Efectivo' : (m.edit_previous?.payment_method === 'qr' ? 'QR' : 'Tarjeta') }} · Bs {{ money(m.edit_previous?.amount) }}
+          </span>
+        </div>
+        <div v-if="m.is_edited && !m.is_voided" class="correction-text">
+          Corregido{{ m.edited_by ? ` por ${m.edited_by}` : '' }}: «{{ m.edit_reason }}»
+        </div>
+        <div v-if="m.is_voided" class="correction-text">
+          Anulado{{ m.voided_by ? ` por ${m.voided_by}` : '' }}: «{{ m.void_reason }}»
+        </div>
       </div>
     </div>
 
