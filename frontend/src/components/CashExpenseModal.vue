@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useTurnoStore } from '../stores/turno';
 import { apiFetch } from '../services/api';
 import FinanceModal from './Finance/FinanceModal.vue';
+import { closingPreview, signedBs } from '../utils/closedCorrection';
 import './Finance/finance.css';
 
 /**
@@ -27,6 +28,11 @@ const props = defineProps({
    * Movimiento a corregir (modo edición). Si es null, opera en modo registro nuevo.
    */
   movement:     { type: Object, default: null },
+  /**
+   * Caja cerrada a la que pertenece el movimiento (Control diario, con «Corregir cajas cerradas»).
+   * Al guardar, el servidor rehace el cierre con el mismo conteo (docs/PLAN_CORREGIR_GASTOS_CAJA.md §3.8).
+   */
+  closedSession: { type: Object, default: null },
 });
 const emit = defineEmits(['close', 'saved']);
 
@@ -38,6 +44,7 @@ const successMsg = ref('');
 const categories = ref([]);
 
 const isEditing = computed(() => Boolean(props.movement?.id));
+const isClosedCorrection = computed(() => isEditing.value && Boolean(props.closedSession));
 
 const form = ref({
   type: 'expense',
@@ -85,11 +92,23 @@ const projectedCash = computed(() => {
     : baseCash.value + amt;
 });
 
+// En una caja cerrada el efectivo ya se contó: no hay gaveta que pueda quedar en negativo
 const isOverdrawn = computed(() =>
+  !isClosedCorrection.value &&
   form.value.payment_method === 'cash' &&
   form.value.type === 'expense' &&
   projectedCash.value < 0
 );
+
+// Caja cerrada: cómo quedan el teórico y la diferencia del cierre con el mismo efectivo contado
+const closing = computed(() => {
+  if (!isClosedCorrection.value) return null;
+  return closingPreview(props.closedSession, props.movement, {
+    type: form.value.type,
+    payment_method: form.value.payment_method,
+    amount: parseFloat(form.value.amount) || 0,
+  });
+});
 
 // Verifica si hubo algún cambio real respecto al original
 const hasChanged = computed(() => {
@@ -220,7 +239,7 @@ function handleClose() {
     <div v-if="visible" class="fin-page ce-host">
       <FinanceModal
         :title="isEditing ? (form.type === 'expense' ? 'Corregir gasto' : 'Corregir ingreso') : (form.type === 'expense' ? 'Registrar gasto' : 'Registrar ingreso')"
-        :subtitle="isEditing ? 'Modifica el método de pago, monto o detalle. Solo en cajas abiertas.' : 'Dinero que entra o sale durante el turno, fuera de las ventas.'"
+        :subtitle="isClosedCorrection ? 'La caja ya está cerrada: al guardar, el cierre se rehace con el mismo conteo.' : (isEditing ? 'Modifica el método de pago, monto o detalle.' : 'Dinero que entra o sale durante el turno, fuera de las ventas.')"
         :busy="isSaving"
         @close="handleClose"
       >
@@ -268,7 +287,7 @@ function handleClose() {
             Con {{ form.payment_method === 'qr' ? 'QR' : 'tarjeta' }} queda en el control diario, pero no cambia el efectivo de la gaveta.
           </p>
           <!-- Vista previa de gaveta al cambiar de método en modo corrección (plan 3.5) -->
-          <div v-if="isEditing && (movement?.payment_method || 'cash') !== form.payment_method" class="ce-preview-note">
+          <div v-if="isEditing && !isClosedCorrection && (movement?.payment_method || 'cash') !== form.payment_method" class="ce-preview-note">
             <span class="ce-preview-icon" aria-hidden="true">💡</span>
             <span>La gaveta pasa de <strong>Bs {{ currentCash.toFixed(2) }}</strong> a <strong>Bs {{ projectedCash.toFixed(2) }}</strong>.</span>
           </div>
@@ -291,7 +310,7 @@ function handleClose() {
               />
             </span>
           </div>
-          <dl class="ce-drawer">
+          <dl v-if="!isClosedCorrection" class="ce-drawer">
             <div>
               <dt>En la gaveta ahora</dt>
               <dd>Bs {{ currentCash.toFixed(2) }}</dd>
@@ -302,6 +321,25 @@ function handleClose() {
             </div>
           </dl>
         </div>
+        <!-- Caja cerrada: el cierre se rehace con el mismo efectivo contado -->
+        <div v-if="closing" class="ce-closed-note" role="status" aria-live="polite">
+          <p class="ce-closed-title">Esta caja ya está cerrada.</p>
+          <p class="ce-closed-text">
+            Al guardar, el cierre se rehace con el mismo efectivo contado (Bs {{ closing.actual.toFixed(2) }}).
+            El cierre anterior queda en el historial de la caja.
+          </p>
+          <dl class="ce-closed-grid">
+            <div>
+              <dt>Teórico</dt>
+              <dd>Bs {{ closing.expectedBefore.toFixed(2) }} → <strong>Bs {{ closing.expectedAfter.toFixed(2) }}</strong></dd>
+            </div>
+            <div>
+              <dt>Diferencia</dt>
+              <dd>{{ signedBs(closing.diffBefore) }} → <strong>{{ signedBs(closing.diffAfter) }}</strong></dd>
+            </div>
+          </dl>
+        </div>
+
         <div v-if="isOverdrawn" class="fin-note err" role="alert">
           El gasto es mayor que el efectivo de la gaveta. Revisa el monto o elige otro medio de pago.
         </div>
@@ -368,6 +406,21 @@ function handleClose() {
 
 <style scoped>
 .ce-host { display: contents; }
+/* Corrección en caja cerrada (docs/PLAN_CORREGIR_GASTOS_CAJA.md §3.8) */
+.ce-closed-note {
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--acai-50);
+  color: var(--ink-700);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.ce-closed-title { margin: 0 0 2px; font-weight: 700; color: var(--acai-text); }
+.ce-closed-text { margin: 0; }
+.ce-closed-grid { display: flex; flex-wrap: wrap; gap: 4px 22px; margin: 6px 0 0; }
+.ce-closed-grid div { display: flex; flex-direction: column; }
+.ce-closed-grid dt { font-size: 12px; color: var(--ink-500); }
+.ce-closed-grid dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--ink-900); }
 .ce-seg {
   display: grid;
   grid-template-columns: 1fr 1fr;

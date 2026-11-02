@@ -26,7 +26,7 @@ La gaveta mostraba Bs 396 (294 de fondo + 102 de ventas); con la corrección mue
 | D1 | ¿El cajero puede corregir o anular sus propios gastos? | **Sí**, los de su propia caja mientras está abierta. |
 | D2 | ¿Dónde los corrige el cajero? | En una lista **«Gastos del turno»** en Turno. |
 | D3 | ¿Un gasto anulado se oculta? | **No:** queda tachado y visible, como una venta anulada. |
-| D4 | ¿Y una caja cerrada? | Se usa el mecanismo que ya existe: **reabrir para corregir**. No hay un segundo camino. |
+| D4 | ¿Y una caja cerrada? | **Cambio del 02/11 (pedido del dueño):** se corrige **directo en Control diario**, con el permiso *Corregir cajas cerradas*. Es el mismo «reabrir y volver a cerrar», hecho en un paso y sin recontar: el cierre anterior queda en el historial (§3.8). Antes se pedía reabrir a mano. |
 | D5 | ¿Cuántos caracteres lleva el motivo? | De 10 a 255, igual que el de reabrir una caja o el de un descuento. |
 | D6 | ¿Qué se puede cambiar? | Método, monto, descripción y categoría. La fecha, solo dentro del día de la caja. **El tipo (gasto ↔ ingreso) no:** si estaba mal, se anula y se registra de nuevo. |
 | D7 | ¿De qué rama se parte? | De `feat/descuentos-manuales-pos`, que toca los mismos archivos y todavía no está en `main`. Si los descuentos se publican antes, se parte de `main`. |
@@ -191,3 +191,27 @@ Cada fase es un commit en la rama `feat/editar-gastos-caja`. Cada commit actuali
 - La migración es aditiva. Se publica con `deploy/vps/publicar.sh`: primero el ensayo y luego `--confirmar`.
 - **Los Bs 74 que motivaron el cambio:** si esa caja ya está cerrada, quien tenga *Corregir cajas cerradas* la reabre
   en Control diario, corrige el gasto con su motivo y la vuelve a cerrar.
+
+---
+
+## 3.8 Corrección directa en una caja cerrada (añadido el 2026-11-02)
+
+El dueño no veía «Corregir» en Control diario: la caja de los Bs 74 ya estaba cerrada y la pantalla pedía reabrirla.
+Pidió corregir directo ahí.
+
+- **Quién:** quien tenga *Corregir cajas cerradas* (el Super Admin siempre). Sin el permiso, la fila dice «Requiere
+  «Corregir cajas cerradas»» y el servidor responde 403. El cajero no corrige cajas cerradas.
+- **Qué hace el servidor** (`updateMovement` y `voidMovement` → `recloseWithSameCount`), en la misma transacción que la
+  corrección:
+  1. guarda el cierre anterior en `cash_session_closings`, reabierto y vuelto a cerrar por la misma persona y con el
+     mismo motivo («Corrección sin recontar (…). Motivo: …»);
+  2. recalcula el teórico y la diferencia con el **mismo efectivo contado**;
+  3. conserva la fecha del cierre, el contado, el desglose, el retiro y el fondo para mañana: la caja siguiente no cambia;
+  4. rehace la nota automática de faltante; una nota escrita por el cajero se conserva;
+  5. deja `cash_session_reclosed` en la auditoría: «corregida sin recontar … diferencia Bs −74.00 → Bs 0.00».
+- **Pantalla:** el modal de corregir y el de anular avisan «Esta caja ya está cerrada» y muestran el teórico y la
+  diferencia antes → después (`utils/closedCorrection.js`). No muestran la gaveta ni el aviso de efectivo insuficiente:
+  el efectivo ya se contó.
+- **Reporte:** «Caja rectificada 1 vez» con el cierre anterior, y la nueva diferencia.
+- **Límite conocido (previo):** Control diario muestra **una caja por día**, la última abierta. Si un día tuvo dos cajas,
+  la otra no se ve ahí.

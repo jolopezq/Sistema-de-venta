@@ -4,7 +4,8 @@ import { test, expect } from '@playwright/test';
  * Pruebas E2E de corrección y anulación de gastos de caja (docs/PLAN_CORREGIR_GASTOS_CAJA.md).
  * Cobertura:
  * - Turno (/turno): listado de «Gastos del turno», visualización de corregidos y anulados, apertura de modales.
- * - Control diario (/admin/ventas-retroactivas): tabla de Gastos e Insumos con acciones y aviso de caja cerrada.
+ * - Control diario (/admin/ventas-retroactivas): tabla de Gastos e Insumos con acciones; en una caja cerrada, corrección
+ *   directa con «Corregir cajas cerradas» (el cierre se rehace con el mismo conteo) o el aviso del permiso.
  */
 
 const ME_CASHIER = {
@@ -262,63 +263,85 @@ test.describe('Gastos en Control Diario (RetroactiveSales.vue)', () => {
     await expect(activeRow.locator('.btn-table-void')).toHaveText('🗑️ Anular');
   });
 
-  test('en caja cerrada muestra el aviso informativo «Reabre la caja para corregir»', async ({ page }) => {
+  /** Caja cerrada del caso real: el gasto de Bs 74 quedó como QR y el cierre salió con un faltante de Bs 74. */
+  async function setupClosedSession(page, me) {
+    const calls = [];
+    const CLOSED = {
+      id: 2, status: 'closed', opening_amount: 294, opened_at: '2026-11-01T12:00:00Z', closed_at: '2026-11-01T23:00:00Z',
+      expected_closing: 396, actual_closing: 322, difference: -74,
+    };
     await page.route('**/api/**', (r) => r.fulfill(json({ data: [] })));
-    await page.route('**/api/me', (r) => r.fulfill(json(ME_ADMIN)));
+    await page.route('**/api/me', (r) => r.fulfill(json(me)));
     await page.route('**/api/sales**', (r) => r.fulfill(json({
       sales: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 15 },
       summary: { total_sales: 0, total_discounts: 0, sales_count: 0, voided_count: 0 },
     })));
     await page.route('**/api/admin/sales/day-info**', (r) => r.fulfill(json({ historical: false })));
     await page.route('**/api/users/sellers', (r) => r.fulfill(json({ data: [] })));
-    await page.route('**/api/cash-sessions/active', (r) => r.fulfill(json({
-      session: {
-        id: 2,
-        status: 'closed',
-        opening_amount: 200,
-        closed_at: '2026-11-02T22:00:00Z',
-      },
-      stats: { total_sales: 500 },
-    })));
-    await page.route('**/api/cash-sessions/by-date**', (r) => r.fulfill(json({
-      session: {
-        id: 2,
-        status: 'closed',
-        opening_amount: 200,
-        closed_at: '2026-11-02T22:00:00Z',
-      },
-    })));
-    await page.route(/\/api\/cash-sessions\/2$/, (r) => r.fulfill(json({
-      session: { id: 2, status: 'closed', opening_amount: 200 },
-      stats: { total_sales: 500 },
-    })));
-    await page.route('**/api/cash-sessions/2/report', (r) => r.fulfill(json({
-      session: { id: 2, status: 'closed' },
-      summary: {},
-    })));
+    await page.route('**/api/cash-sessions/active', (r) => r.fulfill(json({ session: CLOSED, stats: { total_sales: 102 } })));
+    await page.route(/\/api\/cash-sessions\/2$/, (r) => r.fulfill(json({ session: CLOSED, stats: { total_sales: 102, expected_cash: 396 } })));
+    await page.route('**/api/cash-sessions/2/report', (r) => r.fulfill(json({ session: CLOSED, summary: {} })));
     await page.route('**/api/cash-sessions/2/movements', (r) => r.fulfill(json([
       {
-        id: 201,
-        type: 'expense',
-        payment_method: 'cash',
-        amount: 50,
-        description: 'Hielo para el día',
-        created_at: '2026-11-02T10:00:00Z',
-        user: { name: 'Cajero' },
-        deleted_at: null,
-        edit_count: 0,
+        id: 201, cash_register_session_id: 2, type: 'expense', payment_method: 'qr', amount: 74,
+        description: 'Frutas del mercado', created_at: '2026-11-01T15:00:00Z', user: { name: 'Cajero' },
+        deleted_at: null, edit_count: 0,
       },
     ])));
+    await page.route('**/api/cash-sessions/2/movements/201', (r) => {
+      calls.push(JSON.parse(r.request().postData() || '{}'));
+      return r.fulfill(json({ message: 'Movimiento corregido y cierre de caja rehecho con el mismo conteo.', movement: {}, stats: {} }));
+    });
     await page.route('**/api/catalog', (r) => r.fulfill(json({ categories: [], products: [], customers: [], ingredients: [] })));
     await page.addInitScript(() => localStorage.setItem('auth_token', 'mock_admin_jwt'));
-
     await page.goto('/admin/ventas-retroactivas');
+    await page.locator('button.tab-btn:has-text("Gastos e Insumos")').click();
+    return calls;
+  }
 
-    const tabExpenses = page.locator('button.tab-btn:has-text("Gastos e Insumos")');
-    await tabExpenses.click();
+  for (const vp of [{ width: 1366, height: 611 }, { width: 1093, height: 489 }]) {
+    test(`caja cerrada con «Corregir cajas cerradas»: corrige directo y rehace el cierre (${vp.width} × ${vp.height})`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      const calls = await setupClosedSession(page, ME_ADMIN);
+      const row = page.locator('.records-content table.cd-table tr:has-text("Frutas del mercado")');
+      await row.locator('.btn-table-edit').click();
 
-    // La fila no tiene botones de edición directa sino el aviso
-    const row = page.locator('.records-content table.cd-table tr:has-text("Hielo para el día")');
-    await expect(row.locator('.text-muted-notice')).toHaveText('Reabre la caja para corregir');
+      const modal = page.locator('.fin-modal, [role="dialog"]').filter({ hasText: 'Corregir gasto' }).first();
+      await expect(modal.locator('.ce-closed-title')).toHaveText('Esta caja ya está cerrada.');
+      await modal.getByRole('radio', { name: 'Efectivo de la gaveta' }).click();
+      await expect(modal.locator('.ce-closed-grid')).toContainText('Bs 396.00 → Bs 322.00');
+      await expect(modal.locator('.ce-closed-grid')).toContainText('−Bs 74.00 → Bs 0.00');
+      // En una caja cerrada no hay aviso de gaveta en negativo ni «En la gaveta ahora»
+      await expect(modal.locator('.ce-drawer')).toHaveCount(0);
+
+      await modal.locator('#ce-reason').fill('Se pagó con efectivo de la gaveta y no por QR');
+      const save = modal.getByRole('button', { name: 'Guardar corrección' });
+      await expect(save).toBeEnabled();
+      await expect(save).toBeInViewport();
+      await save.click();
+      await expect.poll(() => calls.length).toBe(1);
+      expect(calls[0]).toMatchObject({ payment_method: 'cash', reason: 'Se pagó con efectivo de la gaveta y no por QR' });
+    });
+  }
+
+  test('caja cerrada con «Corregir cajas cerradas»: anular muestra cómo queda el cierre', async ({ page }) => {
+    await setupClosedSession(page, ME_ADMIN);
+    const row = page.locator('.records-content table.cd-table tr:has-text("Frutas del mercado")');
+    await row.locator('.btn-table-void').click();
+    const note = page.locator('.vm-closed-note');
+    await expect(note).toContainText('Esta caja ya está cerrada.');
+    // Un gasto por QR no toca el efectivo: el cierre queda igual
+    await expect(note.locator('.vm-closed-grid')).toContainText('Bs 396.00 → Bs 396.00');
+  });
+
+  test('caja cerrada sin «Corregir cajas cerradas»: no hay acciones, solo el aviso del permiso', async ({ page }) => {
+    const meNoCorrections = {
+      ...ME_ADMIN,
+      effective_permissions: { ...ME_ADMIN.effective_permissions, register_corrections: 'none' },
+    };
+    await setupClosedSession(page, meNoCorrections);
+    const row = page.locator('.records-content table.cd-table tr:has-text("Frutas del mercado")');
+    await expect(row.locator('.btn-table-edit')).toHaveCount(0);
+    await expect(row.locator('.text-muted-notice')).toHaveText('Requiere «Corregir cajas cerradas»');
   });
 });

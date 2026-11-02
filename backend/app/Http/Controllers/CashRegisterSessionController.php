@@ -479,7 +479,8 @@ class CashRegisterSessionController extends Controller
 
     /**
      * Corrige un movimiento de caja existente (método, monto, descripción, categoría contable, fecha).
-     * Solo en cajas abiertas. Requiere un motivo obligatorio de 10 a 255 caracteres.
+     * Requiere un motivo obligatorio de 10 a 255 caracteres. En una caja cerrada, además, el permiso «Corregir cajas
+     * cerradas»: el cierre se rehace con el mismo conteo (recloseWithSameCount).
      */
     public function updateMovement(Request $request, CashRegisterSession $cashSession, CashMovement $cashMovement): JsonResponse
     {
@@ -489,11 +490,11 @@ class CashRegisterSessionController extends Controller
             return response()->json(['message' => 'El movimiento no pertenece a esta sesión.'], 404);
         }
 
-        if ($cashSession->status !== 'open') {
-            return response()->json([
-                'message' => 'Esta caja está cerrada. Reábrela para corregirla.',
-            ], 422);
+        // Caja cerrada: se corrige en un paso, con el permiso «Corregir cajas cerradas» (ver recloseWithSameCount)
+        if ($denied = $this->closedCorrectionDenied($request, $cashSession)) {
+            return $denied;
         }
+        $closedCorrection = $cashSession->status === 'closed';
 
         if ($cashMovement->trashed()) {
             return response()->json([
@@ -537,8 +538,9 @@ class CashRegisterSessionController extends Controller
             ], 422);
         }
 
+        $closing = null;
         $movement = DB::transaction(function () use (
-            $cashMovement, $cashSession, $request, $validated,
+            $cashMovement, $cashSession, $request, $validated, $closedCorrection, &$closing,
             $newMethod, $newAmount, $newDescription, $newCategory, $newOccurredAt,
             $amountMatches, $methodMatches, $descMatches, $catMatches, $dateMatches
         ) {
@@ -593,15 +595,27 @@ class CashRegisterSessionController extends Controller
                 'description' => "Caja #{$cashSession->id}, {$typeLabel} #{$cashMovement->id} corregido por {$request->user()->name}: " . implode('; ', $changesDesc) . ". Motivo: " . trim($validated['reason']),
             ]);
 
+            if ($closedCorrection) {
+                $closing = $this->recloseWithSameCount(
+                    $cashSession,
+                    $request,
+                    "{$typeLabel} #{$cashMovement->id} corregido: " . implode('; ', $changesDesc),
+                    trim($validated['reason'])
+                );
+            }
+
             return $cashMovement;
         });
 
         $stats = $this->calculateSessionStats($cashSession);
 
         return response()->json([
-            'message'  => 'Movimiento de caja corregido correctamente.',
+            'message'  => $closing
+                ? 'Movimiento corregido y cierre de caja rehecho con el mismo conteo.'
+                : 'Movimiento de caja corregido correctamente.',
             'movement' => $movement->fresh(['user:id,name', 'expenseCategory:id,name,section,group_name', 'editedBy:id,name', 'voidedBy:id,name']),
             'stats'    => $stats,
+            'closing'  => $closing,
         ]);
     }
 
@@ -609,6 +623,7 @@ class CashRegisterSessionController extends Controller
      * Anula un movimiento de caja.
      * El movimiento queda con soft delete (deleted_at), voided_by y void_reason.
      * Deja de contar en el arqueo y en Finanzas, pero permanece visible y tachado.
+     * En una caja cerrada, igual que al corregir: permiso «Corregir cajas cerradas» y cierre rehecho con el mismo conteo.
      */
     public function voidMovement(Request $request, CashRegisterSession $cashSession, CashMovement $cashMovement): JsonResponse
     {
@@ -618,11 +633,11 @@ class CashRegisterSessionController extends Controller
             return response()->json(['message' => 'El movimiento no pertenece a esta sesión.'], 404);
         }
 
-        if ($cashSession->status !== 'open') {
-            return response()->json([
-                'message' => 'Esta caja está cerrada. Reábrela para corregirla.',
-            ], 422);
+        // Caja cerrada: se corrige en un paso, con el permiso «Corregir cajas cerradas» (ver recloseWithSameCount)
+        if ($denied = $this->closedCorrectionDenied($request, $cashSession)) {
+            return $denied;
         }
+        $closedCorrection = $cashSession->status === 'closed';
 
         if ($cashMovement->trashed()) {
             return response()->json([
@@ -637,7 +652,8 @@ class CashRegisterSessionController extends Controller
             'reason.min'      => 'El motivo debe tener al menos 10 caracteres.',
         ]);
 
-        DB::transaction(function () use ($cashMovement, $cashSession, $request, $validated) {
+        $closing = null;
+        DB::transaction(function () use ($cashMovement, $cashSession, $request, $validated, $closedCorrection, &$closing) {
             $cashMovement->update([
                 'voided_by'   => $request->user()->id,
                 'void_reason' => trim($validated['reason']),
@@ -652,15 +668,132 @@ class CashRegisterSessionController extends Controller
                 'module'      => 'CashMovement',
                 'description' => "Caja #{$cashSession->id}, {$typeLabel} #{$cashMovement->id} de Bs " . number_format((float) $cashMovement->amount, 2, '.', '') . " ({$methodLabel}) anulado por {$request->user()->name}. Motivo: " . trim($validated['reason']),
             ]);
+
+            if ($closedCorrection) {
+                $closing = $this->recloseWithSameCount(
+                    $cashSession,
+                    $request,
+                    "{$typeLabel} #{$cashMovement->id} de Bs " . number_format((float) $cashMovement->amount, 2, '.', '') . " ({$methodLabel}) anulado",
+                    trim($validated['reason'])
+                );
+            }
         });
 
         $stats = $this->calculateSessionStats($cashSession);
 
         return response()->json([
-            'message'  => 'Movimiento de caja anulado correctamente.',
+            'message'  => $closing
+                ? 'Movimiento anulado y cierre de caja rehecho con el mismo conteo.'
+                : 'Movimiento de caja anulado correctamente.',
             'movement' => $cashMovement->fresh(['user:id,name', 'expenseCategory:id,name,section,group_name', 'editedBy:id,name', 'voidedBy:id,name']),
             'stats'    => $stats,
+            'closing'  => $closing,
         ]);
+    }
+
+    /**
+     * ¿Se puede corregir un movimiento de esta caja? Abierta (o reabierta): sí. Cerrada: solo con el permiso por persona
+     * «Corregir cajas cerradas». Devuelve la respuesta de error, o null si se puede seguir.
+     */
+    private function closedCorrectionDenied(Request $request, CashRegisterSession $cashSession): ?JsonResponse
+    {
+        if ($cashSession->status === 'open') {
+            return null;
+        }
+        if ($cashSession->status !== 'closed') {
+            return response()->json(['message' => 'Esta caja no admite correcciones.'], 422);
+        }
+        if (!$this->permissionService->can($request->user(), 'register_corrections', 'edit')) {
+            return response()->json([
+                'message' => 'Esta caja está cerrada. Corregirla requiere el permiso «Corregir cajas cerradas».',
+            ], 403);
+        }
+
+        return null;
+    }
+
+    /**
+     * Corrección de un movimiento en una caja cerrada (docs/PLAN_CORREGIR_GASTOS_CAJA.md, §3.8): es el mismo «reabrir y
+     * volver a cerrar» de la Fase 4, hecho en un solo paso y sin recontar el efectivo.
+     *
+     * - Guarda el cierre anterior en el historial (cash_session_closings), reabierto y vuelto a cerrar con el mismo motivo.
+     * - Recalcula el teórico y la diferencia con el mismo efectivo contado.
+     * - Conserva la fecha del cierre, el contado, el desglose, el retiro y el fondo para mañana (la caja siguiente no cambia).
+     * - La nota automática de faltante se rehace; una nota escrita por el cajero se conserva.
+     *
+     * @return array{expected_before: float, expected_after: float, actual: float, difference_before: float, difference_after: float}
+     */
+    private function recloseWithSameCount(CashRegisterSession $session, Request $request, string $what, string $reason): array
+    {
+        $user = $request->user();
+        $fullReason = "Corrección sin recontar ({$what}). Motivo: {$reason}";
+        $before = [
+            'expected'   => (float) $session->expected_closing,
+            'difference' => (float) $session->difference,
+        ];
+
+        CashSessionClosing::create([
+            'cash_register_session_id' => $session->id,
+            'expected_closing'         => $session->expected_closing,
+            'actual_closing'           => $session->actual_closing,
+            'difference'               => $session->difference,
+            'total_expenses'           => $session->total_expenses,
+            'cash_withdrawn'           => $session->cash_withdrawn,
+            'cash_left_for_next'       => $session->cash_left_for_next,
+            'bill_breakdown'           => $session->bill_breakdown,
+            'diff_note'                => $session->diff_note,
+            'closed_at'                => $session->closed_at,
+            'reopened_by'              => $user->id,
+            'reopened_at'              => now(),
+            'reopen_reason'            => $fullReason,
+            'reclosed_by'              => $user->id,
+            'reclosed_at'              => now(),
+            'reclose_reason'           => $fullReason,
+        ]);
+
+        $stats = $this->calculateSessionStats($session);
+        $expected = round((float) $stats['expected_cash'], 2);
+        $difference = round((float) $session->actual_closing - $expected, 2);
+
+        // La nota que pone el sistema («Faltante de Bs X registrado en cierre.») se rehace; la del cajero se conserva
+        $note = $session->diff_note;
+        if ($note === null || preg_match('/^Faltante de Bs [\d.,]+ registrado en cierre\.$/u', trim($note))) {
+            $note = $difference < 0 ? 'Faltante de Bs ' . number_format(abs($difference), 2) . ' registrado en cierre.' : null;
+        }
+
+        $session->update([
+            'expected_closing' => $expected,
+            'difference'       => $difference,
+            'total_expenses'   => $stats['total_expenses'],
+            'diff_note'        => $note,
+        ]);
+
+        AuditLogger::log(
+            'cash_session_reclosed',
+            'Sales',
+            sprintf(
+                'Caja #%d del %s corregida sin recontar por %s (%s). Teórico Bs %s → Bs %s; contado Bs %s (sin cambio); diferencia Bs %s → Bs %s. Motivo: %s',
+                $session->id,
+                $session->opened_at->format('d/m/Y'),
+                $user->name,
+                $what,
+                number_format($before['expected'], 2),
+                number_format($expected, 2),
+                number_format((float) $session->actual_closing, 2),
+                number_format($before['difference'], 2),
+                number_format($difference, 2),
+                $reason
+            ),
+            $user->id
+        );
+
+        return [
+            'expected_before'   => $before['expected'],
+            'expected_after'    => $expected,
+            'actual'            => (float) $session->actual_closing,
+            'difference_before' => $before['difference'],
+            'difference_after'  => $difference,
+        ];
     }
 
     /**

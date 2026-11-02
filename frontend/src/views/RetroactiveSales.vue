@@ -1017,7 +1017,8 @@ watch(selectedDate, (newDate) => {
                 <td class="col-actions text-right" @click.stop>
                   <div class="actions-cell">
                     <template v-if="!m.deleted_at">
-                      <template v-if="isSessionOpen">
+                      <!-- Caja cerrada: con «Corregir cajas cerradas» se corrige directo; el cierre se rehace con el mismo conteo -->
+                      <template v-if="isSessionOpen || (isSessionClosed && canCorrect)">
                         <button
                           type="button"
                           class="btn-table-action btn-table-edit"
@@ -1036,8 +1037,8 @@ watch(selectedDate, (newDate) => {
                         </button>
                       </template>
                       <template v-else>
-                        <span class="text-muted-notice" title="Las cajas cerradas deben reabrirse para corregir o anular movimientos">
-                          Reabre la caja para corregir
+                        <span class="text-muted-notice" title="Corregir un gasto de una caja cerrada requiere el permiso «Corregir cajas cerradas»">
+                          Requiere «Corregir cajas cerradas»
                         </span>
                       </template>
                     </template>
@@ -1058,6 +1059,7 @@ watch(selectedDate, (newDate) => {
       :movement="editingMovement"
       :sessionId="currentSession?.id"
       :expectedCash="expectedPhysicalCash"
+      :closedSession="isSessionClosed && editingMovement ? currentSession : null"
       @close="showExpenseModal = false; editingMovement = null"
       @saved="handleExpenseSaved"
     />
@@ -1067,6 +1069,7 @@ watch(selectedDate, (newDate) => {
       :visible="isVoidMovementModalOpen"
       :movement="voidingMovement"
       :sessionId="currentSession?.id"
+      :closedSession="isSessionClosed ? currentSession : null"
       @close="isVoidMovementModalOpen = false; voidingMovement = null"
       @voided="handleMovementVoided"
     />

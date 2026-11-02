@@ -236,8 +236,8 @@ class CashMovementCorrectionTest extends TestCase
     }
 
     /**
-     * Caja cerrada:
-     * - Rechaza con 422 («Esta caja está cerrada. Reábrela para corregirla.»)
+     * Caja cerrada, sin el permiso «Corregir cajas cerradas» (el cajero):
+     * - Rechaza con 403
      * - Después de reabrirla, sí se puede corregir y anular
      */
     public function test_cannot_correct_or_void_in_closed_session_without_reopening(): void
@@ -260,18 +260,18 @@ class CashMovementCorrectionTest extends TestCase
             'occurred_at'              => now()->subHours(2),
         ]);
 
-        // Intento de corregir en caja cerrada -> 422
+        // Intento de corregir en caja cerrada sin el permiso -> 403
         $this->actingAs($this->cashier)->putJson("/api/cash-sessions/{$session->id}/movements/{$movement->id}", [
             'reason'         => 'Intento de corregir gasto con caja cerrada',
             'payment_method' => 'qr',
-        ])->assertStatus(422)
-          ->assertJsonPath('message', 'Esta caja está cerrada. Reábrela para corregirla.');
+        ])->assertStatus(403)
+          ->assertJsonPath('message', 'Esta caja está cerrada. Corregirla requiere el permiso «Corregir cajas cerradas».');
 
-        // Intento de anular en caja cerrada -> 422
+        // Intento de anular en caja cerrada sin el permiso -> 403
         $this->actingAs($this->cashier)->postJson("/api/cash-sessions/{$session->id}/movements/{$movement->id}/void", [
             'reason' => 'Intento de anular gasto con caja cerrada',
-        ])->assertStatus(422)
-          ->assertJsonPath('message', 'Esta caja está cerrada. Reábrela para corregirla.');
+        ])->assertStatus(403);
+        $this->assertSame(0, \App\Models\CashSessionClosing::count());
 
         // Reabrir la caja (mecanismo oficial)
         $session->update(['status' => 'open']);
@@ -416,5 +416,132 @@ class CashMovementCorrectionTest extends TestCase
         $m2 = collect($movements)->firstWhere('id', $mov2->id);
         $this->assertTrue($m2['is_voided']);
         $this->assertEquals('Se canceló la compra y devolvieron el dinero', $m2['void_reason']);
+    }
+
+    /** Caja cerrada con un faltante de Bs 74 por un gasto mal registrado como QR (el caso real). */
+    private function closedSessionWithQrExpense(): array
+    {
+        $session = CashRegisterSession::create([
+            'cashier_id'     => $this->cashier->id,
+            'opening_amount' => 294.00,
+            'status'         => 'open',
+            'opened_at'      => now()->subHours(6),
+        ]);
+        $sale = Sale::create([
+            'id' => (string) Str::uuid(), 'cashier_id' => $this->cashier->id, 'subtotal' => 102, 'total_amount' => 102,
+            'status' => 'completed', 'cash_register_session_id' => $session->id, 'created_at' => now()->subHours(5),
+        ]);
+        SalePayment::create(['sale_id' => $sale->id, 'method' => 'cash', 'amount' => 102]);
+        $movement = CashMovement::create([
+            'cash_register_session_id' => $session->id, 'user_id' => $this->cashier->id, 'type' => 'expense',
+            'payment_method' => 'qr', 'amount' => 74, 'description' => 'Frutas del mercado', 'occurred_at' => now()->subHours(4),
+        ]);
+
+        // Se contaron Bs 322 (los 74 salieron de la gaveta): el sistema esperaba 396 → faltante de 74
+        $this->actingAs($this->cashier)->postJson("/api/cash-sessions/{$session->id}/close", [
+            'actual_closing' => 322, 'cash_withdrawn' => 222, 'cash_left_for_next' => 100,
+        ])->assertOk();
+        $session->refresh();
+        $this->assertSame(-74.0, (float) $session->difference);
+
+        return [$session, $movement];
+    }
+
+    /**
+     * Caja cerrada con el permiso «Corregir cajas cerradas» (docs/PLAN_CORREGIR_GASTOS_CAJA.md §3.8):
+     * corregir el gasto rehace el cierre con el mismo conteo, en un paso, y deja el cierre anterior en el historial.
+     */
+    public function test_closed_session_correction_recloses_with_same_count(): void
+    {
+        [$session, $movement] = $this->closedSessionWithQrExpense();
+        $closedAt = $session->closed_at->toIso8601String();
+        $superAdmin = User::factory()->create(['role' => 'super_admin', 'name' => 'Dueño']);
+
+        $res = $this->actingAs($superAdmin)->putJson("/api/cash-sessions/{$session->id}/movements/{$movement->id}", [
+            'reason'         => 'Se pagó con efectivo de la gaveta y no por QR',
+            'payment_method' => 'cash',
+        ])->assertOk()
+          ->assertJsonPath('closing.expected_before', 396)
+          ->assertJsonPath('closing.expected_after', 322)
+          ->assertJsonPath('closing.difference_before', -74)
+          ->assertJsonPath('closing.difference_after', 0);
+
+        $this->assertSame('Movimiento corregido y cierre de caja rehecho con el mismo conteo.', $res->json('message'));
+
+        $session->refresh();
+        $this->assertSame('closed', $session->status);
+        $this->assertSame(322.0, (float) $session->expected_closing);
+        $this->assertSame(322.0, (float) $session->actual_closing);
+        $this->assertSame(0.0, (float) $session->difference);
+        // Lo que se contó y se distribuyó no cambia: la caja siguiente sigue igual
+        $this->assertSame(222.0, (float) $session->cash_withdrawn);
+        $this->assertSame(100.0, (float) $session->cash_left_for_next);
+        $this->assertSame($closedAt, $session->closed_at->toIso8601String());
+        $this->assertNull($session->reopened_at);
+        // La nota automática del faltante desaparece porque ya no hay faltante
+        $this->assertNull($session->diff_note);
+
+        // Historial de cierres: el anterior, reabierto y cerrado otra vez con el motivo
+        $closing = \App\Models\CashSessionClosing::where('cash_register_session_id', $session->id)->sole();
+        $this->assertSame(-74.0, (float) $closing->difference);
+        $this->assertSame($superAdmin->id, $closing->reopened_by);
+        $this->assertSame($superAdmin->id, $closing->reclosed_by);
+        $this->assertStringContainsString('Se pagó con efectivo de la gaveta', $closing->reopen_reason);
+
+        $log = AuditLog::where('action', 'cash_session_reclosed')->latest('id')->first();
+        $this->assertStringContainsString('corregida sin recontar', $log->description);
+        $this->assertStringContainsString('diferencia Bs -74.00 → Bs 0.00', $log->description);
+        $this->assertNotNull(AuditLog::where('action', 'cash_movement_updated')->first());
+
+        // El reporte muestra «Caja rectificada 1 vez» y no un cambio después del cierre
+        $this->actingAs($superAdmin)->getJson("/api/cash-sessions/{$session->id}/report")
+            ->assertOk()
+            ->assertJsonCount(1, 'closings')
+            ->assertJsonPath('recalculated.changed', false)
+            ->assertJsonPath('difference', 0);
+    }
+
+    public function test_closed_session_void_recloses_and_keeps_cashier_note(): void
+    {
+        [$session, $movement] = $this->closedSessionWithQrExpense();
+        $session->update(['diff_note' => 'Faltan 74 de las frutas, se pagaron en efectivo']);
+        $cashExpense = CashMovement::create([
+            'cash_register_session_id' => $session->id, 'user_id' => $this->cashier->id, 'type' => 'expense',
+            'payment_method' => 'cash', 'amount' => 10, 'description' => 'Bolsas duplicadas', 'occurred_at' => now()->subHours(3),
+        ]);
+        $admin = $this->admin;
+        \App\Models\UserPermission::create(['user_id' => $admin->id, 'module' => 'register_corrections', 'access_level' => 'edit']);
+
+        // Como si el gasto de Bs 10 hubiera estado al cerrar: teórico 386, diferencia −64
+        $session->update(['expected_closing' => 386, 'difference' => -64]);
+
+        // Anularlo devuelve el teórico a 396 con el mismo contado (322): diferencia −74
+
+        $this->actingAs($admin)->postJson("/api/cash-sessions/{$session->id}/movements/{$cashExpense->id}/void", [
+            'reason' => 'Registro duplicado de las bolsas',
+        ])->assertOk()
+          ->assertJsonPath('closing.expected_after', 396)
+          ->assertJsonPath('closing.difference_after', -74);
+
+        $session->refresh();
+        $this->assertSame(-74.0, (float) $session->difference);
+        // La nota del cajero no se toca
+        $this->assertSame('Faltan 74 de las frutas, se pagaron en efectivo', $session->diff_note);
+        $this->assertSoftDeleted('cash_movements', ['id' => $cashExpense->id]);
+        $this->assertSame(1, \App\Models\CashSessionClosing::where('cash_register_session_id', $session->id)->count());
+    }
+
+    public function test_admin_without_correct_closed_permission_cannot_touch_closed_session(): void
+    {
+        [$session, $movement] = $this->closedSessionWithQrExpense();
+
+        // El administrador opera cajas de otros, pero sin «Corregir cajas cerradas» no corrige una cerrada
+        $this->actingAs($this->admin)->putJson("/api/cash-sessions/{$session->id}/movements/{$movement->id}", [
+            'reason'         => 'Se pagó con efectivo de la gaveta y no por QR',
+            'payment_method' => 'cash',
+        ])->assertStatus(403);
+
+        $this->assertSame(-74.0, (float) $session->fresh()->difference);
+        $this->assertSame('qr', $movement->fresh()->payment_method);
     }
 }

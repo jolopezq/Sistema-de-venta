@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { useTurnoStore } from '../stores/turno';
 import FinanceModal from './Finance/FinanceModal.vue';
+import { closingPreview, signedBs } from '../utils/closedCorrection';
 import './Finance/finance.css';
 
 /**
@@ -13,6 +14,8 @@ const props = defineProps({
   visible:   { type: Boolean, default: false },
   movement:  { type: Object, default: null },
   sessionId: { type: [String, Number], default: null },
+  /** Caja cerrada (Control diario): al anular, el servidor rehace el cierre con el mismo conteo. */
+  closedSession: { type: Object, default: null },
 });
 
 const emit = defineEmits(['close', 'voided']);
@@ -26,6 +29,9 @@ const errorMsg  = ref('');
 const canSubmit = computed(() => {
   return !isSaving.value && reason.value.trim().length >= 10;
 });
+
+// Caja cerrada: el cierre se rehace con el mismo efectivo contado, sin este movimiento
+const closing = computed(() => (props.closedSession && props.movement ? closingPreview(props.closedSession, props.movement, null) : null));
 
 const movementTypeLabel = computed(() => {
   return props.movement?.type === 'expense' ? 'el gasto' : 'el ingreso';
@@ -76,7 +82,7 @@ function handleClose() {
     <div v-if="visible" class="fin-page vm-host">
       <FinanceModal
         :title="movement?.type === 'expense' ? 'Anular gasto' : 'Anular ingreso'"
-        subtitle="El movimiento queda tachado y deja de contar en la gaveta y el arqueo."
+        :subtitle="closing ? 'La caja ya está cerrada: al anular, el cierre se rehace con el mismo conteo.' : 'El movimiento queda tachado y deja de contar en la gaveta y el arqueo.'"
         :busy="isSaving"
         @close="handleClose"
       >
@@ -106,6 +112,24 @@ function handleClose() {
           </p>
         </div>
 
+        <div v-if="closing" class="vm-closed-note" role="status">
+          <p class="vm-closed-title">Esta caja ya está cerrada.</p>
+          <p class="vm-closed-text">
+            Al anular, el cierre se rehace con el mismo efectivo contado (Bs {{ closing.actual.toFixed(2) }}).
+            El cierre anterior queda en el historial de la caja.
+          </p>
+          <dl class="vm-closed-grid">
+            <div>
+              <dt>Teórico</dt>
+              <dd>Bs {{ closing.expectedBefore.toFixed(2) }} → <strong>Bs {{ closing.expectedAfter.toFixed(2) }}</strong></dd>
+            </div>
+            <div>
+              <dt>Diferencia</dt>
+              <dd>{{ signedBs(closing.diffBefore) }} → <strong>{{ signedBs(closing.diffAfter) }}</strong></dd>
+            </div>
+          </dl>
+        </div>
+
         <div v-if="errorMsg" class="fin-note err" role="alert">{{ errorMsg }}</div>
 
         <template #footer>
@@ -123,6 +147,21 @@ function handleClose() {
 </template>
 
 <style scoped>
+/* Anulación en caja cerrada (docs/PLAN_CORREGIR_GASTOS_CAJA.md §3.8) */
+.vm-closed-note {
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--acai-50);
+  color: var(--ink-700);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.vm-closed-title { margin: 0 0 2px; font-weight: 700; color: var(--acai-text); }
+.vm-closed-text { margin: 0; }
+.vm-closed-grid { display: flex; flex-wrap: wrap; gap: 4px 22px; margin: 6px 0 0; }
+.vm-closed-grid div { display: flex; flex-direction: column; }
+.vm-closed-grid dt { font-size: 12px; color: var(--ink-500); }
+.vm-closed-grid dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--ink-900); }
 .vm-host { display: contents; }
 .vm-summary {
   padding: 14px 16px;

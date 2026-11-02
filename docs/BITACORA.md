@@ -4,6 +4,12 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-11-02)
+- **Rama `fix/corregir-gasto-caja-cerrada` (sin publicar; sale de `feat/editar-gastos-caja`, que está en producción):** el dueño no veía «Corregir» en Control diario porque la caja de los Bs 74 ya estaba cerrada. Ahora, con *Corregir cajas cerradas*, se corrige o anula directo y el cierre se rehace con el mismo conteo ([plan, §3.8](PLAN_CORREGIR_GASTOS_CAJA.md)).
+  - **Pruebas:** PHPUnit 419/419 (3 nuevas y 1 adaptada en `CashMovementCorrectionTest`); `npm run test:unit` 48/48 (`closedCorrection.test.mjs`); `corregir-gastos.spec.js` 8/8, con la caja cerrada a 1366 × 611 y 1093 × 489; contraste AA de los avisos nuevos en claro y oscuro (0 bajo AA); `vite build` sin errores.
+  - **Flujo contra una copia de la base:** caja con venta en efectivo de Bs 96, gasto de Bs 74 registrado como QR, cierre con faltante de Bs 74; el Super Admin lo corrige en Control diario a 1093 × 489 → teórico 390 → 316, diferencia −74 → 0, «Caja rectificada 1 vez» y la fila «Corregido: Antes QR».
+  - **Auditoría de `feat/editar-gastos-caja` (publicada el 02/11 a las 04:20):** el servidor cumple el plan. La bitácora dice «20 pruebas E2E» y «flujo validado de punta a punta», pero eran 5 pruebas repetidas en 4 tamaños, sin la portátil al 125 %, sin la gaveta 396 → 322 en pantalla y sin flujo contra una copia. Se publicó una rama de trabajo: `main` quedó 12 commits detrás de producción.
+  - **Límite previo:** Control diario muestra una sola caja por día (la última abierta).
+
 - **Rama `feat/editar-gastos-caja` (completada):** corregir y anular gastos de caja ([PLAN_CORREGIR_GASTOS_CAJA.md](PLAN_CORREGIR_GASTOS_CAJA.md)), parte de `feat/descuentos-manuales-pos`.
   - **Fase 1:** servidor listo con migración `2026_11_02_000002_add_correction_fields_to_cash_movements`, endpoints `PUT /cash-sessions/{id}/movements/{id}` y `POST .../void`, validación de caja abierta, auditoría legible y reporte de caja actualizado. Pruebas PHPUnit 416/416.
   - **Fase 2:** `CashExpenseModal.vue` adaptado para corrección (prop `movement`), cálculo inteligente de gaveta disponible, vista previa «La gaveta pasa de Bs X a Bs Y» y motivo obligatorio. Modal de anulación `VoidCashMovementModal.vue` y acciones `updateCashMovement` / `voidCashMovement` en `turno.js`. Unit tests 44/44 y Vite build en verde.
