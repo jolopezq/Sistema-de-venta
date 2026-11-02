@@ -28,6 +28,7 @@ class CashMovement extends Model
         'expense_category_id',
         'type',
         'payment_method',
+        'cash_amount',
         'amount',
         'description',
         'sale_id',
@@ -47,6 +48,7 @@ class CashMovement extends Model
     {
         return [
             'amount'        => 'decimal:2',
+            'cash_amount'   => 'decimal:2',
             'occurred_at'   => 'datetime',
             'edited_at'     => 'datetime',
             'edit_previous' => 'array',
@@ -114,6 +116,38 @@ class CashMovement extends Model
     }
 
     // --- Helpers ---
+
+    /**
+     * Parte que salió o entró por la gaveta: todo si es en efectivo, `cash_amount` si es un gasto dividido
+     * (efectivo + QR, docs/PLAN_GASTO_PAGO_DIVIDIDO.md), nada si es QR o tarjeta.
+     */
+    public function cashPart(): float
+    {
+        return match ($this->payment_method ?? 'cash') {
+            'cash'  => (float) $this->amount,
+            'mixed' => (float) $this->cash_amount,
+            default => 0.0,
+        };
+    }
+
+    /**
+     * Método en palabras, para la auditoría: «Efectivo», «QR», «Tarjeta» o, si está dividido,
+     * «Efectivo + QR (Bs 40.00 efectivo + Bs 60.00 QR)».
+     */
+    public static function methodText(?string $method, float $amount, ?float $cashAmount = null): string
+    {
+        return match ($method ?? 'cash') {
+            'cash'  => 'Efectivo',
+            'qr'    => 'QR',
+            'card'  => 'Tarjeta',
+            'mixed' => sprintf(
+                'Efectivo + QR (Bs %s efectivo + Bs %s QR)',
+                number_format((float) $cashAmount, 2, '.', ''),
+                number_format($amount - (float) $cashAmount, 2, '.', '')
+            ),
+            default => (string) $method,
+        };
+    }
 
     public function isExpense(): bool
     {

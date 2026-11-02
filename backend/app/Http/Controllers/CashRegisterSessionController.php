@@ -443,7 +443,9 @@ class CashRegisterSessionController extends Controller
         $validated = $request->validate([
             'type'                => 'required|in:expense,extra_income',
             'expense_category_id' => 'nullable|exists:expense_categories,id',
-            'payment_method'      => 'nullable|in:cash,qr,card',
+            // mixed: gasto dividido entre efectivo de la gaveta (cash_amount) y QR o banco (el resto)
+            'payment_method'      => 'nullable|in:cash,qr,card,mixed',
+            'cash_amount'         => 'nullable|numeric',
             'amount'              => 'required|numeric|min:0.01',
             'description'         => 'required|string|min:3|max:500',
             'sale_id'             => 'nullable|uuid|exists:sales,id',
@@ -451,15 +453,22 @@ class CashRegisterSessionController extends Controller
             'occurred_at'         => 'nullable|date',
         ]);
 
+        $method = $validated['payment_method'] ?? 'cash';
+        $cashAmount = $method === 'mixed' && isset($validated['cash_amount']) ? round((float) $validated['cash_amount'], 2) : null;
+        if ($error = $this->splitError($validated['type'], $method, (float) $validated['amount'], $cashAmount)) {
+            return response()->json(['message' => $error, 'errors' => ['cash_amount' => [$error]]], 422);
+        }
+
         $validated['occurred_at'] = $this->resolveOccurredAt($cashSession, $validated['occurred_at'] ?? null);
 
-        $movement = DB::transaction(function () use ($validated, $request, $cashSession) {
+        $movement = DB::transaction(function () use ($validated, $request, $cashSession, $method, $cashAmount) {
             return CashMovement::create([
                 'cash_register_session_id' => $cashSession->id,
                 'user_id'                  => $request->user()->id,
                 'expense_category_id'      => $validated['expense_category_id'] ?? null,
                 'type'                     => $validated['type'],
-                'payment_method'           => $validated['payment_method'] ?? 'cash',
+                'payment_method'           => $method,
+                'cash_amount'              => $cashAmount,
                 'amount'                   => $validated['amount'],
                 'description'              => $validated['description'],
                 'sale_id'                  => $validated['sale_id'] ?? null,
@@ -504,7 +513,8 @@ class CashRegisterSessionController extends Controller
 
         $validated = $request->validate([
             'reason'              => ['required', 'string', 'min:10', 'max:255'],
-            'payment_method'      => ['nullable', 'in:cash,qr,card'],
+            'payment_method'      => ['nullable', 'in:cash,qr,card,mixed'],
+            'cash_amount'         => ['nullable', 'numeric'],
             'amount'              => ['nullable', 'numeric', 'min:0.01'],
             'description'         => ['nullable', 'string', 'min:3', 'max:500'],
             'expense_category_id' => ['nullable', 'exists:expense_categories,id'],
@@ -525,9 +535,21 @@ class CashRegisterSessionController extends Controller
             ? $this->resolveOccurredAt($cashSession, $validated['occurred_at'])
             : $cashMovement->occurred_at;
 
+        // Gasto dividido: la parte en efectivo se toma de la petición o, si no viene, la que ya tenía
+        $newCashAmount = null;
+        if ($newMethod === 'mixed') {
+            $newCashAmount = isset($validated['cash_amount'])
+                ? round((float) $validated['cash_amount'], 2)
+                : ($cashMovement->cash_amount !== null ? (float) $cashMovement->cash_amount : null);
+        }
+        if ($error = $this->splitError($cashMovement->type, $newMethod, $newAmount, $newCashAmount)) {
+            return response()->json(['message' => $error, 'errors' => ['cash_amount' => [$error]]], 422);
+        }
+
         // Verificar si nada cambió
         $amountMatches = abs((float) $cashMovement->amount - $newAmount) < 0.005;
-        $methodMatches = ($cashMovement->payment_method ?? 'cash') === $newMethod;
+        $methodMatches = ($cashMovement->payment_method ?? 'cash') === $newMethod
+            && abs((float) ($cashMovement->cash_amount ?? 0) - (float) ($newCashAmount ?? 0)) < 0.005;
         $descMatches   = trim((string) $cashMovement->description) === $newDescription;
         $catMatches    = (int) ($cashMovement->expense_category_id ?? 0) === (int) ($newCategory ?? 0);
         $dateMatches   = $cashMovement->occurred_at?->format('Y-m-d H:i') === $newOccurredAt?->format('Y-m-d H:i');
@@ -541,11 +563,12 @@ class CashRegisterSessionController extends Controller
         $closing = null;
         $movement = DB::transaction(function () use (
             $cashMovement, $cashSession, $request, $validated, $closedCorrection, &$closing,
-            $newMethod, $newAmount, $newDescription, $newCategory, $newOccurredAt,
+            $newMethod, $newCashAmount, $newAmount, $newDescription, $newCategory, $newOccurredAt,
             $amountMatches, $methodMatches, $descMatches, $catMatches, $dateMatches
         ) {
             $previous = [
                 'payment_method'      => $cashMovement->payment_method ?? 'cash',
+                'cash_amount'         => $cashMovement->cash_amount !== null ? (float) $cashMovement->cash_amount : null,
                 'amount'              => (float) $cashMovement->amount,
                 'description'         => $cashMovement->description,
                 'expense_category_id' => $cashMovement->expense_category_id,
@@ -554,6 +577,7 @@ class CashRegisterSessionController extends Controller
 
             $cashMovement->update([
                 'payment_method'      => $newMethod,
+                'cash_amount'         => $newCashAmount,
                 'amount'              => $newAmount,
                 'description'         => $newDescription,
                 'expense_category_id' => $newCategory,
@@ -568,8 +592,8 @@ class CashRegisterSessionController extends Controller
             // Detalle descriptivo para la auditoría
             $changesDesc = [];
             if (!$methodMatches) {
-                $prevM = $previous['payment_method'] === 'cash' ? 'Efectivo' : ($previous['payment_method'] === 'qr' ? 'QR' : 'Tarjeta');
-                $nextM = $newMethod === 'cash' ? 'Efectivo' : ($newMethod === 'qr' ? 'QR' : 'Tarjeta');
+                $prevM = CashMovement::methodText($previous['payment_method'], $previous['amount'], $previous['cash_amount']);
+                $nextM = CashMovement::methodText($newMethod, $newAmount, $newCashAmount);
                 $changesDesc[] = "método {$prevM} → {$nextM}";
             }
             if (!$amountMatches) {
@@ -661,7 +685,7 @@ class CashRegisterSessionController extends Controller
             $cashMovement->delete();
 
             $typeLabel = $cashMovement->type === 'expense' ? 'egreso' : 'ingreso';
-            $methodLabel = $cashMovement->payment_method === 'cash' ? 'Efectivo' : ($cashMovement->payment_method === 'qr' ? 'QR' : 'Tarjeta');
+            $methodLabel = CashMovement::methodText($cashMovement->payment_method, (float) $cashMovement->amount, $cashMovement->cash_amount !== null ? (float) $cashMovement->cash_amount : null);
             AuditLog::create([
                 'user_id'     => $request->user()->id,
                 'action'      => 'cash_movement_voided',
@@ -689,6 +713,25 @@ class CashRegisterSessionController extends Controller
             'stats'    => $stats,
             'closing'  => $closing,
         ]);
+    }
+
+    /**
+     * Reglas del gasto dividido (docs/PLAN_GASTO_PAGO_DIVIDIDO.md): solo un gasto se divide, y la parte en efectivo
+     * tiene que ser mayor que 0 y menor que el total (el resto va por QR o banco). Devuelve el error o null.
+     */
+    private function splitError(string $type, string $method, float $amount, ?float $cashAmount): ?string
+    {
+        if ($method !== 'mixed') {
+            return null;
+        }
+        if ($type !== 'expense') {
+            return 'Solo un gasto se puede dividir entre efectivo y QR.';
+        }
+        if ($cashAmount === null || $cashAmount < 0.01 || $cashAmount > round($amount - 0.01, 2)) {
+            return 'La parte en efectivo tiene que ser mayor que 0 y menor que el total del gasto.';
+        }
+
+        return null;
     }
 
     /**
@@ -946,18 +989,17 @@ class CashRegisterSessionController extends Controller
             ->where('type', 'expense')
             ->sum('amount');
 
-        $cashExpenses = (float) CashMovement::where('cash_register_session_id', $session->id)
+        // Un gasto dividido (mixed) resta de la gaveta solo su parte en efectivo; el resto cuenta como QR
+        // (docs/PLAN_GASTO_PAGO_DIVIDIDO.md)
+        $cashExpenses = round((float) CashMovement::where('cash_register_session_id', $session->id)
             ->where('type', 'expense')
-            ->where(function ($q) {
-                $q->whereNull('payment_method')
-                  ->orWhere('payment_method', 'cash');
-            })
-            ->sum('amount');
+            ->selectRaw("COALESCE(SUM(CASE WHEN payment_method IS NULL OR payment_method = 'cash' THEN amount WHEN payment_method = 'mixed' THEN cash_amount ELSE 0 END), 0) AS total")
+            ->value('total'), 2);
 
-        $nonCashExpenses = (float) CashMovement::where('cash_register_session_id', $session->id)
+        $nonCashExpenses = round((float) CashMovement::where('cash_register_session_id', $session->id)
             ->where('type', 'expense')
-            ->whereIn('payment_method', ['qr', 'card'])
-            ->sum('amount');
+            ->selectRaw("COALESCE(SUM(CASE WHEN payment_method IN ('qr', 'card') THEN amount WHEN payment_method = 'mixed' THEN amount - cash_amount ELSE 0 END), 0) AS total")
+            ->value('total'), 2);
 
         // Sumar ingresos extraordinarios
         $extraIncome = (float) CashMovement::where('cash_register_session_id', $session->id)
@@ -1026,6 +1068,7 @@ class CashRegisterSessionController extends Controller
                 'id'             => $m->id,
                 'type'           => $m->type,
                 'payment_method' => $m->payment_method ?? 'cash',
+                'cash_amount'    => $m->cash_amount !== null ? (float) $m->cash_amount : null,
                 'amount'         => (float) $m->amount,
                 'description'    => $m->description,
                 'user'           => $m->user?->name,
