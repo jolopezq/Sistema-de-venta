@@ -586,6 +586,13 @@ Formato: fecha — resumen — commits. Lo más reciente arriba.
   - Fixture CSV anonimizado `semana_pedidosya_anonimizada.csv` para pruebas sin datos personales ni NIT.
   - 96 tests en verde (`php artisan test`), build exitoso (`npx vite build`).
 
+- **2026-11-01** — Corrección de visualización de métodos de pago en Control diario y Turno:
+  cuando una venta se cobraba con métodos divididos (mixtos), la tabla de Control diario tomaba
+  únicamente `sale.payments[0]`, ocultando los métodos adicionales (ej. mostrando solo QR y ocultando
+  el efectivo). Se implementó la utilidad `paymentDisplay.js` con sus tests unitarios (6 pruebas),
+  mostrando todas las pastillas con sus montos (`📱 QR Bs 40.00`, `💵 Efectivo Bs 5.00`) en Control
+  diario y desglosando los pagos en Turno. Build y tests en verde (34 tests unitarios frontend, 391 backend).
+
 - **2026-10-07 (2)** — Plan de precios PedidosYa solo en los tamaños (`PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md`)
   ejecutado en `feat/precios-pedidosya`: migración `add_pedidosya_pricing_to_option_groups_table` (activa
   por defecto para grupos 'Tamaño...'), regla de precios sincronizada en backend y frontend (toppings y

@@ -10,6 +10,7 @@ import CashCloseWizard from '../components/CashCloseWizard.vue';
 import CashSessionReport from '../components/CashSessionReport.vue';
 import { apiFetch } from '../services/api';
 import { db } from '../db/database';
+import { getSalePaymentBadges } from '../utils/paymentDisplay';
 
 const router = useRouter();
 const turnoStore = useTurnoStore();
@@ -398,14 +399,12 @@ function formatCurrency(val) {
   return Number(val || 0).toFixed(2);
 }
 
+function getPaymentBadges(sale) {
+  return getSalePaymentBadges(sale);
+}
+
 function getPaymentBadge(sale) {
-  const p = sale.payments?.[0];
-  if (!p) return { label: 'Sin pago', class: 'badge-gray' };
-  if (p.method === 'cash') return { label: '💵 Efectivo', class: 'badge-cash' };
-  if (p.method === 'qr') return { label: '📱 QR', class: 'badge-qr' };
-  if (p.method === 'card') return { label: '💳 Tarjeta', class: 'badge-card' };
-  if (p.method === 'delivery_platform') return { label: '🛵 PedidosYa', class: 'badge-pedidosya' };
-  return { label: p.method, class: 'badge-gray' };
+  return getPaymentBadges(sale)[0] || { label: 'Sin pago', class: 'badge-gray' };
 }
 
 function getOriginBadge(sale) {
@@ -859,9 +858,16 @@ watch(selectedDate, (newDate) => {
                   </div>
                 </td>
                 <td>
-                  <span class="payment-badge" :class="getPaymentBadge(sale).class">
-                    {{ getPaymentBadge(sale).label }}
-                  </span>
+                  <div class="payments-badges-wrap">
+                    <span 
+                      v-for="(badge, bIdx) in getPaymentBadges(sale)" 
+                      :key="bIdx" 
+                      class="payment-badge" 
+                      :class="badge.class"
+                    >
+                      {{ badge.label }}
+                    </span>
+                  </div>
                 </td>
                 <td class="col-total text-right">
                   <strong>Bs {{ formatCurrency(sale.total_amount) }}</strong>
@@ -1881,6 +1887,13 @@ html.dark .arqueo-card.session-closed {
   background: var(--tw-bg-f0fdf4);
   color: var(--tw-fg-16a34a);
   border: 1px solid var(--tw-bg-bbf7d0);
+}
+
+.payments-badges-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
 }
 
 .payment-badge {

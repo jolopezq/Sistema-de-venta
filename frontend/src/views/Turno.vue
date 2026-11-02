@@ -15,6 +15,7 @@ import { useReorderStore } from '../stores/reorder';
 import StatusTag from '../components/StatusTag.vue';
 import FinanceModal from '../components/Finance/FinanceModal.vue';
 import '../components/Finance/finance.css';
+import { getSalePaymentText } from '../utils/paymentDisplay';
 
 const router = useRouter();
 const route = useRoute();
@@ -179,12 +180,7 @@ const otherCharges = computed(() => {
 });
 
 function paymentLabel(sale) {
-  const map = { cash: 'Efectivo', qr: 'QR', card: 'Tarjeta', delivery_platform: 'PedidosYa' };
-  if (sale.payments && sale.payments.length > 1) {
-    return `Mixto: ${sale.payments.map((p) => map[p.method] || p.method).join(' y ')}`;
-  }
-  const method = getSalePrimaryMethod(sale);
-  return map[method] || method || 'Otro';
+  return getSalePaymentText(sale);
 }
 
 function getSalePrimaryMethod(sale) {

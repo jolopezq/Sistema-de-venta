@@ -4,6 +4,11 @@ Cambios relevantes del sistema. Formato basado en [Keep a Changelog](https://kee
 Cada cambio funcional se agrega a "Sin publicar" en el mismo commit; al fusionar en `main`, la sección
 se renombra con la fecha de la actualización de producción.
 
+## [Sin publicar]
+
+### Corregido
+- **Visualización de métodos de pago en Control diario y Turno:** cuando una comanda se cobraba con pagos mixtos/divididos (ej. QR + Efectivo), la tabla de Control diario mostraba únicamente la pastilla del primer método (`payments[0]`), ignorando los demás pagos y ocultando el efectivo o QR restante. Ahora se muestran las pastillas de cada método con su importe (`📱 QR Bs 40.00` `💵 Efectivo Bs 5.00`), y en Turno se desglosa el texto del pago mixto con sus importes.
+
 ## [2026-10-31]
 
 ### Agregado
