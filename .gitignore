@@ -47,3 +47,8 @@ backups/
 .frontend.log
 .graphify_cached.json
 .graphify_uncached.txt
+
+# Datos reales de PedidosYa (privados / confidenciales)
+docs/payoutArchive_*
+backend/storage/app/pedidosya/
+

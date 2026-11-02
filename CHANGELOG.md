@@ -7,6 +7,7 @@ se renombra con la fecha de la actualización de producción.
 ## [Sin publicar]
 
 ### Agregado
+- **Importar carpeta de PedidosYa** ([plan](docs/PLAN_IMPORTAR_CARPETA_PEDIDOSYA.md)): importación directa del paquete mensual o semanal de PedidosYa (carpeta o ZIP con estados de cuenta en PDF, planillas Excel y facturas fiscales) eliminando la carga manual de montos y cruzando automáticamente los pedidos con el CSV de artículos.
 - **Gasto de caja dividido entre efectivo y QR** ([plan](docs/PLAN_GASTO_PAGO_DIVIDIDO.md)): un gasto se puede pagar con una parte de efectivo de la gaveta y el resto por QR o banco, y queda como un solo gasto.
   - Se guarda con `payment_method = 'mixed'` y la columna nueva `cash_amount` (migración aditiva `2026_11_02_000003`). La parte en efectivo tiene que ser mayor que 0 y menor que el total; solo los gastos se dividen.
   - El arqueo resta de la gaveta solo la parte en efectivo; el resto cuenta como «gastos con QR». Finanzas lo cuenta una vez, por el total.
