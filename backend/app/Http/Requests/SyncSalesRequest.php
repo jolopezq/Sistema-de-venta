@@ -27,6 +27,8 @@ class SyncSalesRequest extends FormRequest
             'sales.*.customer_id' => ['nullable', 'exists:customers,id'],
             'sales.*.subtotal' => ['required', 'numeric', 'min:0'],
             'sales.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            // Motivo del descuento manual: un motivo corto no rechaza la venta (ya se cobró), queda en auditoría
+            'sales.*.discount_reason' => ['nullable', 'string', 'max:255'],
             'sales.*.total_amount' => ['required', 'numeric', 'min:0'],
             'sales.*.status' => ['nullable', 'in:completed,voided'],
             'sales.*.source' => ['nullable', 'in:pos,pedidosya'],
@@ -88,6 +90,7 @@ class SyncSalesRequest extends FormRequest
             'sales.*.payments.*.method.in' => 'La venta tiene un método de pago no válido.',
             'sales.*.payments.*.amount.min' => 'Un pago de la venta es negativo.',
             'sales.*.created_at.date' => 'La fecha de la venta no es válida.',
+            'sales.*.discount_reason.max' => 'El motivo del descuento supera los 255 caracteres.',
         ];
     }
 }

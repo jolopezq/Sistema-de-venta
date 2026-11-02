@@ -6,6 +6,16 @@ se renombra con la fecha de la actualización de producción.
 
 ## [Sin publicar]
 
+### Agregado
+- **Descuento manual en caja y en Control diario** ([plan](docs/PLAN_DESCUENTOS_CAJA.md)):
+  - **Permiso por persona *Descuentos en caja*** (`pos_discounts`). Lo puede recibir un cajero o un administrador; por defecto solo lo tiene el Super Admin. Dar o quitar el permiso queda en la auditoría.
+  - **Topes:** cajero hasta el 20 % del subtotal; administrador y Super Admin hasta el 100 % (cortesía). Escritos solo en `DiscountPolicy`; `/login` y `/me` los envían al POS en `discount_policy`.
+  - **Motivo obligatorio** de 10 a 255 caracteres, en la columna nueva `sales.discount_reason` (no en `notes`, que va a cocina).
+  - **Ventas del POS:** el servidor nunca rechaza una venta ya cobrada. Guarda el descuento y deja `sale_discount_applied`; si está fuera de regla (sin permiso, sobre el tope, sin motivo o en PedidosYa), `sale_discount_violation`.
+  - **Cortesía:** se registra con un pago en efectivo de Bs 0. Descuenta inventario, no suma puntos y no cambia el efectivo esperado.
+  - **Control diario:** un descuento nuevo o con otro monto exige el permiso, respeta el tope y pide el motivo (aquí sí se rechaza). Editar otros datos de una venta con descuento no exige el permiso.
+  - **Arqueo y reporte:** `total_discounts` suma solo descuentos positivos (un importe negativo era un recargo viejo); se agregan `discount_count` y `courtesy_count`, y el reporte de caja trae la lista `discounts` con cajero, % y motivo.
+
 ### Corregido
 - **Visualización de métodos de pago en Control diario y Turno:** cuando una comanda se cobraba con pagos mixtos/divididos (ej. QR + Efectivo), la tabla de Control diario mostraba únicamente la pastilla del primer método (`payments[0]`), ignorando los demás pagos y ocultando el efectivo o QR restante. Ahora se muestran las pastillas de cada método con su importe (`📱 QR Bs 40.00` `💵 Efectivo Bs 5.00`), y en Turno se desglosa el texto del pago mixto con sus importes.
 

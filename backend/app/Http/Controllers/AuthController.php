@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
 use App\Models\User;
+use App\Services\DiscountPolicy;
 use App\Services\PermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,8 @@ class AuthController extends Controller
             'user'                  => $user,
             'permissions'           => $permissions,
             'effective_permissions' => $this->permissionService->effectiveFor($user),
+            // Descuento manual: permiso, tope por rol y largo del motivo (docs/PLAN_DESCUENTOS_CAJA.md)
+            'discount_policy'       => app(DiscountPolicy::class)->for($user),
         ]);
     }
 
@@ -68,6 +71,8 @@ class AuthController extends Controller
             'user'                  => $user,
             'permissions'           => $permissions,
             'effective_permissions' => $this->permissionService->effectiveFor($user),
+            // Descuento manual: permiso, tope por rol y largo del motivo (docs/PLAN_DESCUENTOS_CAJA.md)
+            'discount_policy'       => app(DiscountPolicy::class)->for($user),
         ]);
     }
 }

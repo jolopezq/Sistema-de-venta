@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Sale;
 use App\Models\CashRegisterSession;
 use App\Models\SaleItem;
+use App\Models\User;
 use App\Models\SalePayment;
 use App\Models\SaleItemOption;
 use App\Models\LoyaltyConfig;
@@ -109,6 +110,7 @@ class SaleSyncService
             'customer_id'        => $data['customer_id'] ?? null,
             'subtotal'           => $data['subtotal'],
             'discount_amount'    => $data['discount_amount'] ?? 0,
+            'discount_reason'    => $this->discountReason($data),
             'total_amount'       => $data['total_amount'],
             'status'             => $data['status'] ?? 'completed',
             'preparation_status' => $data['preparation_status'] ?? 'received',
@@ -144,6 +146,9 @@ class SaleSyncService
 
         // 5. Dejar constancia de cualquier diferencia entre el POS y el servidor
         $this->auditPriceAdjustments($priceAdjustments, $orderNumber, $cashierId);
+
+        // La venta ya se cobró: un descuento fuera de regla no la rechaza, queda en auditoría
+        $this->auditSyncedDiscount($sale, $cashierId);
 
         if (!empty($discrepancies)) {
             AuditLog::create([
@@ -300,6 +305,7 @@ class SaleSyncService
                 'customer_id'        => $data['customer_id'] ?? null,
                 'subtotal'           => $data['subtotal'],
                 'discount_amount'    => $data['discount_amount'] ?? 0,
+                'discount_reason'    => $this->discountReason($data),
                 'total_amount'       => $data['total_amount'],
                 'status'             => 'completed',
                 'preparation_status' => 'delivered',
@@ -351,6 +357,7 @@ class SaleSyncService
                     . ". Motivo: {$data['edit_reason']}",
             ]);
             $this->auditPaymentIssues($paymentIssues, $orderNumber, $superAdminId);
+            $this->auditAdminDiscount($sale, $superAdminId);
 
             $this->auditClosedSessionChange($sale, $sale->cash_register_session_id, $superAdminId, 'Venta retroactiva');
 
@@ -369,6 +376,8 @@ class SaleSyncService
 
         return DB::transaction(function () use ($sale, $data, $superAdminId) {
             $previousTotal = (float) $sale->total_amount;
+            $previousDiscount = (float) $sale->discount_amount;
+            $previousDiscountReason = $sale->discount_reason;
             $previousSessionId = $sale->cash_register_session_id;
             $previousCustomer = $sale->customer_id ? $this->customerRepository->find($sale->customer_id) : null;
             $wasHistorical = $sale->entry_mode === 'historical';
@@ -437,6 +446,7 @@ class SaleSyncService
                 'customer_id'     => $data['customer_id'] ?? null,
                 'subtotal'        => $data['subtotal'],
                 'discount_amount' => $data['discount_amount'] ?? 0,
+                'discount_reason' => $this->discountReason($data),
                 'total_amount'    => $data['total_amount'],
                 // Preservar o actualizar el canal de origen de la venta (ej. 'pedidosya')
                 'source'          => $data['source'] ?? $sale->source,
@@ -484,6 +494,8 @@ class SaleSyncService
                 'module'      => 'Sales',
                 'description' => "Edición manual de venta Ticket #{$sale->order_number} por Super Admin. Total anterior: Bs {$previousTotal}, Nuevo total: Bs {$sale->total_amount}. Motivo: {$data['edit_reason']}",
             ]);
+
+            $this->auditAdminDiscount($sale, $superAdminId, $previousDiscount, $previousDiscountReason);
 
             $this->auditClosedSessionChange($sale, $previousSessionId, $superAdminId, 'Edición de venta');
             if ($sale->cash_register_session_id !== $previousSessionId) {
@@ -630,6 +642,71 @@ class SaleSyncService
         $ref = trim((string) ($data['paper_ref'] ?? ''));
 
         return $ref === '' ? null : mb_substr($ref, 0, 30);
+    }
+
+    /** Motivo del descuento sin espacios de más; null si no hay descuento o no se escribió. */
+    private function discountReason(array $data): ?string
+    {
+        if ((float) ($data['discount_amount'] ?? 0) <= 0) {
+            return null;
+        }
+        $reason = trim((string) ($data['discount_reason'] ?? ''));
+
+        return $reason === '' ? null : mb_substr($reason, 0, DiscountPolicy::REASON_MAX);
+    }
+
+    /**
+     * Auditoría del descuento de una venta del POS (docs/PLAN_DESCUENTOS_CAJA.md §3.4).
+     * Cumple las reglas → sale_discount_applied; si no → sale_discount_violation con las infracciones.
+     */
+    private function auditSyncedDiscount(Sale $sale, int $cashierId): void
+    {
+        $discount = (float) $sale->discount_amount;
+        if ($discount <= 0) {
+            return;
+        }
+
+        $user = User::find($cashierId);
+        if (!$user) {
+            return;
+        }
+
+        $subtotal = (float) $sale->subtotal;
+        $issues = app(DiscountPolicy::class)->review($user, $subtotal, $discount, $sale->discount_reason, $sale->source ?? 'pos');
+        $what = DiscountPolicy::describe($discount, $subtotal);
+        $reason = $sale->discount_reason ? " Motivo: {$sale->discount_reason}" : '';
+
+        AuditLog::create([
+            'user_id'     => $cashierId,
+            'action'      => $issues ? 'sale_discount_violation' : 'sale_discount_applied',
+            'module'      => 'Sales',
+            'description' => $issues
+                ? "Ticket #{$sale->order_number}: {$what} por {$user->name}, fuera de regla: " . implode('; ', $issues) . ".{$reason}"
+                : "Ticket #{$sale->order_number}: {$what} por {$user->name}.{$reason}",
+        ]);
+    }
+
+    /**
+     * Auditoría del descuento cargado desde Control diario, solo si es nuevo o cambió.
+     */
+    private function auditAdminDiscount(Sale $sale, int $userId, float $previousDiscount = 0, ?string $previousReason = null): void
+    {
+        $discount = (float) $sale->discount_amount;
+        if ($discount <= 0) {
+            return;
+        }
+        if (abs($discount - $previousDiscount) < 0.005 && $sale->discount_reason === $previousReason) {
+            return;
+        }
+
+        $user = User::find($userId);
+        AuditLog::create([
+            'user_id'     => $userId,
+            'action'      => 'sale_discount_applied',
+            'module'      => 'Sales',
+            'description' => "Ticket #{$sale->order_number} (Control diario): " . DiscountPolicy::describe($discount, (float) $sale->subtotal)
+                . ($user ? " por {$user->name}" : '') . ". Motivo: {$sale->discount_reason}",
+        ]);
     }
 
     /**

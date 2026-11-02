@@ -17,8 +17,9 @@ use InvalidArgumentException;
  *                                  excepción[usuario][módulo] ?? matriz[rol][módulo] ?? por_defecto[rol][módulo] )
  *
  * La excepción por persona (tabla user_permissions) reemplaza el valor del rol para esa persona, pero nunca supera el
- * techo del rol. Los módulos de PERSON_MODULES (días pasados, corregir cajas, finanzas) se asignan por persona desde
- * Usuarios; no aparecen en la matriz de roles. Ver docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §3.1.
+ * techo del rol. Los módulos de PERSON_MODULES (días pasados, corregir cajas, finanzas, descuentos en caja) se asignan
+ * por persona desde Usuarios; no aparecen en la matriz de roles. Ver docs/PLAN_DIAS_PASADOS_Y_PERMISOS.md §3.1 y
+ * docs/PLAN_DESCUENTOS_CAJA.md §3.2 (descuentos: es el único que también puede recibir un cajero).
  *
  *   puede(usuario, módulo, requerido) = nivel_efectivo >= requerido (none < read < edit)
  */
@@ -54,16 +55,18 @@ class PermissionService
         'sales_history',
         'register_corrections',
         'finance',
+        'pos_discounts',
     ];
 
     /**
      * Módulos que se asignan por persona (Usuarios → editar persona), no en la matriz de roles:
-     * ventas de días pasados (Control diario), corregir cajas cerradas y Finanzas.
+     * ventas de días pasados (Control diario), corregir cajas cerradas, Finanzas y descuentos en caja.
      */
     public const PERSON_MODULES = [
         'sales_history',
         'register_corrections',
         'finance',
+        'pos_discounts',
     ];
 
     /**
@@ -87,6 +90,7 @@ class PermissionService
         'sales_history'        => ['none', 'edit'],
         'register_corrections' => ['none', 'edit'],
         'finance'              => ['none', 'read', 'edit'],
+        'pos_discounts'        => ['none', 'edit'],
     ];
 
     /**
@@ -110,6 +114,7 @@ class PermissionService
             'sales_history'        => 'none',
             'register_corrections' => 'none',
             'finance'              => 'none',
+            'pos_discounts'        => 'none',
         ],
         'cashier' => [
             'pos'             => 'edit',
@@ -127,6 +132,7 @@ class PermissionService
             'sales_history'        => 'none',
             'register_corrections' => 'none',
             'finance'              => 'none',
+            'pos_discounts'        => 'edit',
         ],
         'admin' => [
             'pos'             => 'edit',
@@ -144,6 +150,7 @@ class PermissionService
             'sales_history'        => 'edit',
             'register_corrections' => 'edit',
             'finance'              => 'edit',
+            'pos_discounts'        => 'edit',
         ],
     ];
 
@@ -168,6 +175,7 @@ class PermissionService
             'sales_history'        => 'none',
             'register_corrections' => 'none',
             'finance'              => 'none',
+            'pos_discounts'        => 'none',
         ],
         'cashier' => [
             'pos'             => 'edit',
@@ -185,6 +193,7 @@ class PermissionService
             'sales_history'        => 'none',
             'register_corrections' => 'none',
             'finance'              => 'none',
+            'pos_discounts'        => 'none',
         ],
         'admin' => [
             'pos'             => 'edit',
@@ -202,6 +211,7 @@ class PermissionService
             'sales_history'        => 'edit',
             'register_corrections' => 'none',
             'finance'              => 'none',
+            'pos_discounts'        => 'none',
         ],
     ];
 

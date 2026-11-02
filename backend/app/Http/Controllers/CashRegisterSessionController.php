@@ -10,6 +10,7 @@ use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Services\AuditLogger;
 use App\Services\CashSessionResolver;
+use App\Services\DiscountPolicy;
 use App\Services\PermissionService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -643,7 +644,9 @@ class CashRegisterSessionController extends Controller
             ->sum('amount');
 
         $totalSalesAmount = (float) $completedSales->sum('total_amount');
-        $totalDiscounts   = (float) $completedSales->sum('discount_amount');
+        // Descuentos manuales (docs/PLAN_DESCUENTOS_CAJA.md): solo los positivos; un importe negativo es un recargo viejo
+        $discounted       = $completedSales->filter(fn ($s) => (float) $s->discount_amount > 0);
+        $totalDiscounts   = round((float) $discounted->sum('discount_amount'), 2);
 
         // Ecuación del arqueo: fondo + ventas efectivo - egresos efectivo + ingresos_extra efectivo
         $expectedCash = round((float) $session->opening_amount + $cashSales - $cashExpenses + $cashExtraIncome, 2);
@@ -653,6 +656,8 @@ class CashRegisterSessionController extends Controller
             'voided_count'      => $voidedSales->count(),
             'total_sales'       => $totalSalesAmount,
             'total_discounts'   => $totalDiscounts,
+            'discount_count'    => $discounted->count(),
+            'courtesy_count'    => $discounted->filter(fn ($s) => (float) $s->total_amount <= 0)->count(),
             'cash_sales'        => $cashSales,
             'qr_sales'          => $qrSales,
             'card_sales'        => $cardSales,
@@ -714,6 +719,7 @@ class CashRegisterSessionController extends Controller
             'diff_note'         => $session->diff_note,
             'bill_breakdown'    => $session->bill_breakdown,
             'movements'         => $movements,
+            'discounts'         => $this->sessionDiscounts($session),
             'summary'           => $stats,
             'recalculated'      => $this->recalculatedClosing($session, $stats),
             'closings'          => $session->closings()->with(['reopenedBy:id,name', 'reclosedBy:id,name'])->get()
@@ -732,6 +738,34 @@ class CashRegisterSessionController extends Controller
                 ])->values()->all(),
             'chain'             => $this->nextSessionChain($session),
         ];
+    }
+
+    /**
+     * Ventas del local con descuento manual en la caja, para el reporte: quién, cuánto y por qué.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function sessionDiscounts(CashRegisterSession $session): array
+    {
+        return Sale::where('cash_register_session_id', $session->id)
+            ->where('status', 'completed')
+            ->where('source', '!=', 'pedidosya')
+            ->where('discount_amount', '>', 0)
+            ->with('cashier:id,name')
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (Sale $s) => [
+                'id'              => $s->id,
+                'order_number'    => $s->order_number,
+                'created_at'      => $s->created_at?->toIso8601String(),
+                'cashier'         => $s->cashier?->name,
+                'subtotal'        => (float) $s->subtotal,
+                'discount_amount' => (float) $s->discount_amount,
+                'total_amount'    => (float) $s->total_amount,
+                'percent'         => DiscountPolicy::percent((float) $s->discount_amount, (float) $s->subtotal),
+                'is_courtesy'     => (float) $s->total_amount <= 0,
+                'discount_reason' => $s->discount_reason,
+            ])->values()->all();
     }
 
     /**

@@ -37,6 +37,7 @@ class Sale extends Model
         'customer_id',
         'subtotal',
         'discount_amount',
+        'discount_reason',
         'total_amount',
         'status',
         'preparation_status',

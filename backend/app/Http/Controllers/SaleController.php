@@ -92,7 +92,10 @@ class SaleController extends Controller
 
         $summary = [
             'total_sales' => (float) $completedSales->sum('total_amount'),
-            'total_discounts' => (float) $completedSales->sum('discount_amount'),
+            // Descuentos manuales: solo los positivos (un importe negativo es un recargo viejo del editor)
+            'total_discounts' => round((float) $completedSales->filter(fn ($s) => (float) $s->discount_amount > 0)->sum('discount_amount'), 2),
+            'discount_count' => $completedSales->filter(fn ($s) => (float) $s->discount_amount > 0)->count(),
+            'courtesy_count' => $completedSales->filter(fn ($s) => (float) $s->discount_amount > 0 && (float) $s->total_amount <= 0)->count(),
             'sales_count' => $completedSales->count(),
             'voided_count' => $voidedCount,
             'cash_total' => (float) ($paymentTotals['cash'] ?? 0),

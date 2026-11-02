@@ -22,6 +22,7 @@ class UserPermissionController extends Controller
         'sales_history'        => 'Ventas de días pasados',
         'register_corrections' => 'Corregir cajas cerradas',
         'finance'              => 'Finanzas',
+        'pos_discounts'        => 'Descuentos en caja',
     ];
 
     private const LEVEL_NAMES = ['none' => 'Sin acceso', 'read' => 'Ver', 'edit' => 'Editar'];

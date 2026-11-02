@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Sale;
+use App\Services\DiscountPolicy;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class AdminSaleRequest extends FormRequest
 {
@@ -30,6 +33,7 @@ class AdminSaleRequest extends FormRequest
             'customer_id'            => ['nullable', 'exists:customers,id'],
             'subtotal'               => ['required', 'numeric', 'min:0'],
             'discount_amount'        => ['nullable', 'numeric'],
+            'discount_reason'        => ['nullable', 'string', 'max:' . DiscountPolicy::REASON_MAX],
             'total_amount'           => ['required', 'numeric', 'min:0'],
             'source'                 => ['nullable', 'in:pos,pedidosya'],
             'is_takeaway'            => ['nullable', 'boolean'],
@@ -53,8 +57,65 @@ class AdminSaleRequest extends FormRequest
             // Payments
             'payments'               => ['required', 'array', 'min:1'],
             'payments.*.method'      => ['required', 'in:cash,qr,card,delivery_platform'],
-            'payments.*.amount'      => ['required', 'numeric', 'min:0.01'],
+            // Bs 0 solo en una cortesía (total 0): se valida en withValidator
+            'payments.*.amount'      => ['required', 'numeric', 'min:0'],
         ];
+    }
+
+    /**
+     * Descuento manual (docs/PLAN_DESCUENTOS_CAJA.md §3.8): con descuento, el motivo es obligatorio; un descuento
+     * nuevo o con otro monto exige el permiso «Descuentos en caja» y respeta el tope del rol. Aquí sí se rechaza:
+     * es un formulario en línea, no una venta ya cobrada.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $total = (float) $this->input('total_amount', 0);
+            foreach ((array) $this->input('payments', []) as $i => $payment) {
+                if ($total > 0 && (float) ($payment['amount'] ?? 0) < 0.01) {
+                    $validator->errors()->add("payments.{$i}.amount", 'Un pago no puede ser de Bs 0: solo una cortesía (total Bs 0) se registra así.');
+                }
+            }
+
+            $discount = round((float) $this->input('discount_amount', 0), 2);
+            if ($discount <= 0) {
+                return;
+            }
+
+            $policy = app(DiscountPolicy::class);
+            $reason = trim((string) $this->input('discount_reason', ''));
+            if (mb_strlen($reason) < DiscountPolicy::REASON_MIN) {
+                $validator->errors()->add('discount_reason', 'Escribe el motivo del descuento (mínimo ' . DiscountPolicy::REASON_MIN . ' caracteres).');
+            }
+
+            /** @var Sale|null $sale */
+            $sale = $this->route('sale');
+            $changed = !$sale || abs($discount - (float) $sale->discount_amount) >= 0.005;
+            if (!$changed) {
+                return;
+            }
+
+            if ($this->input('source') === 'pedidosya') {
+                $validator->errors()->add('discount_amount', 'Los pedidos de PedidosYa no llevan descuento manual.');
+                return;
+            }
+            if (!$policy->allowed($this->user())) {
+                $validator->errors()->add('discount_amount', 'Necesitas el permiso «Descuentos en caja» para aplicar o cambiar un descuento.');
+                return;
+            }
+            $max = $policy->maxAmount($this->user(), (float) $this->input('subtotal', 0));
+            if ($discount - $max > 0.004) {
+                $validator->errors()->add('discount_amount', sprintf(
+                    'El descuento máximo es Bs %s (%d %% del subtotal).',
+                    number_format($max, 2, ',', '.'),
+                    $policy->maxPercent($this->user())
+                ));
+            }
+        });
     }
 
     public function messages(): array
