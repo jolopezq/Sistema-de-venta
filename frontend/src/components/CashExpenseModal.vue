@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useTurnoStore } from '../stores/turno';
 import { apiFetch } from '../services/api';
 import FinanceModal from './Finance/FinanceModal.vue';
 import { closingPreview, signedBs } from '../utils/closedCorrection';
+import { cashPart, methodDetail } from '../utils/cashMovementMethod';
 import './Finance/finance.css';
 
 /**
@@ -50,9 +51,50 @@ const form = ref({
   type: 'expense',
   payment_method: 'cash',
   amount: '',
+  // Gasto dividido (payment_method 'mixed'): lo que salió de la gaveta; el resto, por QR o banco
+  cash_amount: '',
   description: '',
   expense_category_id: null,
   reason: '',
+});
+const cashAmountInput = ref(null);
+
+// ── Gasto dividido entre efectivo y QR (docs/PLAN_GASTO_PAGO_DIVIDIDO.md) ──
+const isSplit = computed(() => form.value.payment_method === 'mixed');
+const canSplit = computed(() => form.value.type === 'expense');
+/** El movimiento tal como quedaría con lo escrito en el formulario. */
+const draft = computed(() => ({
+  type: form.value.type,
+  payment_method: form.value.payment_method,
+  amount: parseFloat(form.value.amount) || 0,
+  cash_amount: isSplit.value ? (parseFloat(form.value.cash_amount) || 0) : null,
+}));
+const qrPart = computed(() => Math.max(0, Math.round(((parseFloat(form.value.amount) || 0) - (parseFloat(form.value.cash_amount) || 0)) * 100) / 100));
+const splitIssue = computed(() => {
+  if (!isSplit.value) return '';
+  const total = parseFloat(form.value.amount) || 0;
+  const cash = parseFloat(form.value.cash_amount);
+  if (total <= 0) return 'Escribe primero el total del gasto.';
+  if (!(cash > 0) || cash > Math.round((total - 0.01) * 100) / 100) {
+    return 'La parte en efectivo tiene que ser mayor que 0 y menor que el total.';
+  }
+  return '';
+});
+
+function startSplit() {
+  form.value.payment_method = 'mixed';
+  form.value.cash_amount = '';
+  nextTick(() => cashAmountInput.value?.focus());
+}
+
+function stopSplit() {
+  form.value.payment_method = 'cash';
+  form.value.cash_amount = '';
+}
+
+// Un ingreso no se divide
+watch(() => form.value.type, (t) => {
+  if (t !== 'expense' && isSplit.value) stopSplit();
 });
 
 // Saldo actual en gaveta antes de este movimiento
@@ -63,51 +105,40 @@ const currentCash = computed(() => {
   return turnoStore.currentCashInDrawer;
 });
 
-// Saldo base para el cálculo disponible: si estamos corrigiendo un movimiento que
-// ya era en efectivo, sumamos de vuelta lo que salió para no generar falsos sobregiros.
+// Saldo base para el cálculo disponible: si estamos corrigiendo un movimiento, devolvemos a la gaveta su parte en
+// efectivo (todo si era en efectivo, la parte en efectivo si estaba dividido) para no generar falsos sobregiros.
 const baseCash = computed(() => {
   let cash = currentCash.value;
   if (isEditing.value && props.movement) {
-    const origAmt = Number(props.movement.amount || 0);
-    const origMethod = props.movement.payment_method || 'cash';
-    if (origMethod === 'cash') {
-      if (props.movement.type === 'expense') {
-        cash += origAmt;
-      } else if (props.movement.type === 'extra_income') {
-        cash -= origAmt;
-      }
-    }
+    const orig = cashPart(props.movement);
+    cash += props.movement.type === 'extra_income' ? -orig : orig;
   }
   return cash;
 });
 
-// Saldo proyectado después del movimiento (solo si es efectivo)
+/** Lo que el movimiento saca de la gaveta (o mete, si es ingreso): solo su parte en efectivo. */
+const draftCash = computed(() => cashPart(draft.value));
+
+// Saldo proyectado después del movimiento
 const projectedCash = computed(() => {
-  const amt = parseFloat(form.value.amount) || 0;
-  if (form.value.payment_method !== 'cash') {
-    return isEditing.value ? baseCash.value : currentCash.value;
-  }
-  return form.value.type === 'expense'
-    ? baseCash.value - amt
-    : baseCash.value + amt;
+  const base = isEditing.value ? baseCash.value : currentCash.value;
+  return form.value.type === 'expense' ? base - draftCash.value : base + draftCash.value;
 });
 
-// En una caja cerrada el efectivo ya se contó: no hay gaveta que pueda quedar en negativo
+// En una caja cerrada el efectivo ya se contó: no hay gaveta que pueda quedar en negativo.
+// En un gasto dividido solo cuenta la parte en efectivo.
 const isOverdrawn = computed(() =>
   !isClosedCorrection.value &&
-  form.value.payment_method === 'cash' &&
+  !splitIssue.value &&
   form.value.type === 'expense' &&
+  draftCash.value > 0 &&
   projectedCash.value < 0
 );
 
 // Caja cerrada: cómo quedan el teórico y la diferencia del cierre con el mismo efectivo contado
 const closing = computed(() => {
   if (!isClosedCorrection.value) return null;
-  return closingPreview(props.closedSession, props.movement, {
-    type: form.value.type,
-    payment_method: form.value.payment_method,
-    amount: parseFloat(form.value.amount) || 0,
-  });
+  return closingPreview(props.closedSession, props.movement, draft.value);
 });
 
 // Verifica si hubo algún cambio real respecto al original
@@ -117,7 +148,8 @@ const hasChanged = computed(() => {
   const amt = parseFloat(form.value.amount) || 0;
   const origAmt = parseFloat(m.amount) || 0;
   const amountDiff = Math.abs(amt - origAmt) > 0.004;
-  const methodDiff = (m.payment_method || 'cash') !== form.value.payment_method;
+  const methodDiff = (m.payment_method || 'cash') !== form.value.payment_method
+    || (isSplit.value && Math.abs((parseFloat(m.cash_amount) || 0) - (parseFloat(form.value.cash_amount) || 0)) > 0.004);
   const descDiff   = (m.description || '').trim() !== form.value.description.trim();
   const catDiff    = (m.expense_category_id || null) !== (form.value.expense_category_id || null);
   return amountDiff || methodDiff || descDiff || catDiff;
@@ -125,7 +157,7 @@ const hasChanged = computed(() => {
 
 const canSubmit = computed(() => {
   const amt = parseFloat(form.value.amount);
-  if (isSaving.value || isOverdrawn.value || isNaN(amt) || amt <= 0) return false;
+  if (isSaving.value || isOverdrawn.value || isNaN(amt) || amt <= 0 || splitIssue.value) return false;
   if (form.value.description.trim().length < 3) return false;
   if (isEditing.value) {
     return hasChanged.value && form.value.reason.trim().length >= 10;
@@ -163,6 +195,7 @@ function resetForm() {
       type: props.movement.type || 'expense',
       payment_method: props.movement.payment_method || 'cash',
       amount: String(props.movement.amount ?? ''),
+      cash_amount: props.movement.payment_method === 'mixed' ? String(Number(props.movement.cash_amount ?? 0)) : '',
       description: props.movement.description || '',
       expense_category_id: props.movement.expense_category_id || null,
       reason: '',
@@ -172,6 +205,7 @@ function resetForm() {
       type: 'expense',
       payment_method: 'cash',
       amount: '',
+      cash_amount: '',
       description: '',
       expense_category_id: null,
       reason: '',
@@ -188,13 +222,18 @@ async function handleSubmit() {
   successMsg.value = '';
   try {
     const sId = props.sessionId || props.movement?.cash_register_session_id || null;
-    const methodLabel = form.value.payment_method === 'cash' ? 'en efectivo' : (form.value.payment_method === 'qr' ? 'por QR' : 'con tarjeta');
     const amtNumber = parseFloat(form.value.amount);
+    const methodLabel = isSplit.value
+      ? `dividido (${methodDetail(draft.value)})`
+      : (form.value.payment_method === 'cash' ? 'en efectivo' : (form.value.payment_method === 'qr' ? 'por QR' : 'con tarjeta'));
+    // Gasto dividido: la parte en efectivo; en otro método no se envía
+    const split = isSplit.value ? { cash_amount: parseFloat(form.value.cash_amount) } : {};
 
     if (isEditing.value && props.movement?.id) {
       await turnoStore.updateCashMovement(sId, props.movement.id, {
         reason:              form.value.reason.trim(),
         payment_method:      form.value.payment_method,
+        ...split,
         amount:              amtNumber,
         description:         form.value.description.trim(),
         expense_category_id: form.value.type === 'expense' ? (form.value.expense_category_id || null) : null,
@@ -206,6 +245,7 @@ async function handleSubmit() {
       await turnoStore.recordCashMovement({
         type:                form.value.type,
         payment_method:      form.value.payment_method,
+        ...split,
         amount:              amtNumber,
         description:         form.value.description.trim(),
         expense_category_id: form.value.type === 'expense' ? (form.value.expense_category_id || null) : null,
@@ -271,7 +311,12 @@ function handleClose() {
 
         <div class="fin-field">
           <span id="ce-method-label" class="fin-label">{{ form.type === 'expense' ? '¿Con qué se pagó?' : '¿Cómo llegó?' }}</span>
-          <div class="fin-chips" role="radiogroup" aria-labelledby="ce-method-label">
+          <!-- Gasto dividido: un solo gasto, una parte con efectivo de la gaveta y el resto por QR o banco -->
+          <div v-if="isSplit" class="ce-split-method">
+            <span class="ce-split-pill">Efectivo de la gaveta + QR o banco</span>
+            <button type="button" class="ce-link" @click="stopSplit">Quitar división</button>
+          </div>
+          <div v-else class="fin-chips" role="radiogroup" aria-labelledby="ce-method-label">
             <button
               v-for="m in [{ v: 'cash', l: 'Efectivo de la gaveta' }, { v: 'qr', l: 'QR o banco' }, { v: 'card', l: 'Tarjeta' }]"
               :key="m.v"
@@ -283,7 +328,7 @@ function handleClose() {
               @click="form.payment_method = m.v"
             >{{ m.l }}</button>
           </div>
-          <p v-if="form.payment_method !== 'cash'" class="fin-hint">
+          <p v-if="!isSplit && form.payment_method !== 'cash'" class="fin-hint">
             Con {{ form.payment_method === 'qr' ? 'QR' : 'tarjeta' }} queda en el control diario, pero no cambia el efectivo de la gaveta.
           </p>
           <!-- Vista previa de gaveta al cambiar de método en modo corrección (plan 3.5) -->
@@ -295,7 +340,7 @@ function handleClose() {
 
         <div class="fin-grid-2 ce-amount-row">
           <div class="fin-field">
-            <label for="ce-amount">Monto</label>
+            <label for="ce-amount">{{ isSplit ? 'Total del gasto' : 'Monto' }}</label>
             <span class="ce-money-input" :class="{ invalid: isOverdrawn }">
               <span aria-hidden="true">Bs</span>
               <input
@@ -315,11 +360,48 @@ function handleClose() {
               <dt>En la gaveta ahora</dt>
               <dd>Bs {{ currentCash.toFixed(2) }}</dd>
             </div>
-            <div v-if="parseFloat(form.amount) > 0 && form.payment_method === 'cash'">
+            <div v-if="draftCash > 0 && !splitIssue">
               <dt>Quedaría</dt>
               <dd :class="{ 'ce-neg': isOverdrawn }">Bs {{ projectedCash.toFixed(2) }}</dd>
             </div>
           </dl>
+        </div>
+        <button v-if="canSplit && !isSplit" type="button" class="ce-link ce-split-link" @click="startSplit">
+          Dividir pago (efectivo + QR)
+        </button>
+        <div v-if="isSplit" class="ce-split">
+          <div class="fin-grid-2 ce-amount-row">
+            <div class="fin-field">
+              <label for="ce-cash-amount">De eso, salió de la gaveta</label>
+              <span class="ce-money-input ce-money-sm" :class="{ invalid: splitIssue && form.cash_amount !== '' }">
+                <span aria-hidden="true">Bs</span>
+                <input
+                  id="ce-cash-amount"
+                  ref="cashAmountInput"
+                  v-model="form.cash_amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  inputmode="decimal"
+                  placeholder="0.00"
+                  aria-describedby="ce-split-help"
+                  @keyup.enter="handleSubmit"
+                />
+              </span>
+            </div>
+            <dl class="ce-drawer ce-split-rest">
+              <div>
+                <dt>Por QR o banco</dt>
+                <dd data-testid="ce-split-qr">Bs {{ qrPart.toFixed(2) }}</dd>
+              </div>
+            </dl>
+          </div>
+          <p
+            id="ce-split-help"
+            class="fin-hint ce-split-help"
+            :class="{ 'ce-split-err': splitIssue && form.cash_amount !== '' }"
+            :role="splitIssue && form.cash_amount !== '' ? 'alert' : undefined"
+          >{{ splitIssue && form.cash_amount !== '' ? splitIssue : 'Solo la parte en efectivo sale de la gaveta; el resto queda como pagado por QR o banco.' }}</p>
         </div>
         <!-- Caja cerrada: el cierre se rehace con el mismo efectivo contado -->
         <div v-if="closing" class="ce-closed-note" role="status" aria-live="polite">
@@ -341,7 +423,8 @@ function handleClose() {
         </div>
 
         <div v-if="isOverdrawn" class="fin-note err" role="alert">
-          El gasto es mayor que el efectivo de la gaveta. Revisa el monto o elige otro medio de pago.
+          <template v-if="isSplit">La parte en efectivo es mayor que lo que hay en la gaveta. Revisa el desglose.</template>
+          <template v-else>El gasto es mayor que el efectivo de la gaveta. Revisa el monto o elige otro medio de pago.</template>
         </div>
 
         <div v-if="form.type === 'expense'" class="fin-field">
@@ -385,7 +468,7 @@ function handleClose() {
         </div>
 
         <div v-if="isEditing && !hasChanged" class="fin-note info" role="status">
-          Modifica algún campo (método, monto o descripción) para poder guardar la corrección.
+          Modifica algún campo (método, desglose, monto o descripción) para poder guardar la corrección.
         </div>
 
         <div v-if="errorMsg" class="fin-note err" role="alert">{{ errorMsg }}</div>
@@ -520,6 +603,42 @@ html.dark .ce-preview-note {
   color: var(--acai-300);
 }
 .ce-preview-icon { font-size: 14px; }
+
+/* Gasto dividido (docs/PLAN_GASTO_PAGO_DIVIDIDO.md §3.4) */
+.ce-link {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--acai-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+html.dark .ce-link { color: var(--acai-300); }
+.ce-link:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; border-radius: 4px; }
+.ce-split-link { margin-top: -6px; }
+.ce-split-method { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.ce-split-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: var(--acai-700);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 700;
+}
+html.dark .ce-split-pill { background: var(--acai-500); }
+.ce-split { display: flex; flex-direction: column; gap: 4px; }
+.ce-money-sm { min-height: 42px; }
+.ce-money-sm input { font-size: 19px; }
+.ce-split-help { margin: 0; }
+.ce-split-err { color: var(--danger-text); font-weight: 600; }
 
 @media (max-width: 520px) {
   .ce-amount-row { grid-template-columns: 1fr; }
