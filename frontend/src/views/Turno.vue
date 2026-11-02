@@ -14,6 +14,7 @@ import { useNetworkStore } from '../stores/network';
 import { useReorderStore } from '../stores/reorder';
 import StatusTag from '../components/StatusTag.vue';
 import FinanceModal from '../components/Finance/FinanceModal.vue';
+import VoidCashMovementModal from '../components/VoidCashMovementModal.vue';
 import '../components/Finance/finance.css';
 import { getSalePaymentText } from '../utils/paymentDisplay';
 
@@ -30,6 +31,61 @@ const isWasteModalOpen = ref(false);
 const network = useNetworkStore();
 const reorder = useReorderStore();
 const isReorderNoticeOpen = ref(false);
+
+// Movimientos / Gastos del turno (docs/PLAN_CORREGIR_GASTOS_CAJA.md)
+const turnoMovements = ref([]);
+const isLoadingMovements = ref(false);
+const editingMovement = ref(null);
+const voidingMovement = ref(null);
+const isVoidMovementModalOpen = ref(false);
+
+async function loadTurnoMovements() {
+  if (!turnoStore.activeSession?.id) {
+    turnoMovements.value = [];
+    return;
+  }
+  isLoadingMovements.value = true;
+  try {
+    const list = await turnoStore.fetchSessionMovements(turnoStore.activeSession.id);
+    turnoMovements.value = Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.warn('Error al cargar movimientos de turno:', err);
+    turnoMovements.value = [];
+  } finally {
+    isLoadingMovements.value = false;
+  }
+}
+
+function openEditMovement(m) {
+  editingMovement.value = m;
+  isCashExpenseModalOpen.value = true;
+}
+
+function openVoidMovement(m) {
+  voidingMovement.value = m;
+  isVoidMovementModalOpen.value = true;
+}
+
+async function handleMovementSaved() {
+  editingMovement.value = null;
+  isCashExpenseModalOpen.value = false;
+  await handleRefresh();
+  await loadTurnoMovements();
+}
+
+async function handleMovementVoided() {
+  voidingMovement.value = null;
+  isVoidMovementModalOpen.value = false;
+  await handleRefresh();
+  await loadTurnoMovements();
+}
+
+function formatMovementTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
 
 function openRetroactiveSaleModal() {
   editingSaleForAdmin.value = null;
@@ -94,6 +150,9 @@ function applyCustomDateRange() {
 onMounted(async () => {
   await turnoStore.fetchActiveSession();
   await turnoStore.fetchSales(1);
+  if (turnoStore.hasActiveSession) {
+    await loadTurnoMovements();
+  }
 
   // Desde el POS («Abrir caja»): se abre directo el formulario de apertura
   if (route.query.abrir === '1') {
@@ -243,7 +302,13 @@ const METHOD_FILTERS = [
 async function handleRefresh() {
   await turnoStore.fetchActiveSession();
   await turnoStore.fetchSales(turnoStore.pagination.currentPage);
+  await loadTurnoMovements();
 }
+
+watch(() => turnoStore.activeSession?.id, (newId) => {
+  if (newId) loadTurnoMovements();
+  else turnoMovements.value = [];
+});
 </script>
 
 <template>
@@ -287,7 +352,7 @@ async function handleRefresh() {
         </button>
 
         <template v-else>
-          <button class="tn-btn tn-btn-ghost" type="button" @click="isCashExpenseModalOpen = true">
+          <button class="tn-btn tn-btn-ghost" type="button" @click="editingMovement = null; isCashExpenseModalOpen = true">
             Registrar gasto o ingreso
           </button>
           <button class="tn-btn tn-btn-primary" type="button" @click="turnoStore.isWizardOpen = true">
@@ -335,6 +400,109 @@ async function handleRefresh() {
         Fuera de la gaveta: QR <strong>{{ money(otherCharges.qr) }}</strong> y tarjeta <strong>{{ money(otherCharges.card) }}</strong><template v-if="otherCharges.nonCashExpenses > 0">; gastos pagados con QR o tarjeta {{ money(otherCharges.nonCashExpenses) }}</template>.
         PedidosYa: {{ otherCharges.pyaCount === 1 ? '1 pedido' : `${otherCharges.pyaCount} pedidos` }} por {{ money(otherCharges.pyaTotal) }}, los cobra la plataforma.
       </p>
+    </section>
+
+    <!-- ================= GASTOS DEL TURNO (docs/PLAN_CORREGIR_GASTOS_CAJA.md) ================= -->
+    <section v-if="turnoStore.hasActiveSession" class="tn-movements-card" aria-labelledby="tn-movs-title">
+      <div class="tn-movs-header">
+        <div class="tn-movs-header-text">
+          <h2 id="tn-movs-title">Gastos del turno</h2>
+          <p>Dinero que entró o salió en esta caja fuera de las ventas. Puedes corregir o anular movimientos erróneos.</p>
+        </div>
+        <button
+          class="tn-btn tn-btn-ghost tn-btn-sm"
+          type="button"
+          @click="editingMovement = null; isCashExpenseModalOpen = true"
+        >
+          + Registrar gasto o ingreso
+        </button>
+      </div>
+
+      <div v-if="isLoadingMovements" class="tn-movs-loading">
+        Cargando movimientos…
+      </div>
+
+      <div v-else-if="turnoMovements.length === 0" class="tn-movs-empty">
+        <p>Todavía no registraste gastos ni ingresos en este turno.</p>
+      </div>
+
+      <div v-else class="tn-movs-table-wrap">
+        <table class="tn-movs-table">
+          <thead>
+            <tr>
+              <th scope="col">Hora</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Método</th>
+              <th scope="col">Concepto</th>
+              <th scope="col" class="num">Monto</th>
+              <th scope="col" class="act">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="m in turnoMovements"
+              :key="m.id"
+              :class="{ 'voided-row': Boolean(m.deleted_at) }"
+            >
+              <td class="col-time">{{ formatMovementTime(m.occurred_at || m.created_at) }}</td>
+              <td>
+                <span class="tn-mov-pill" :class="m.type === 'expense' ? 'expense' : 'income'">
+                  {{ m.type === 'expense' ? 'Egreso' : 'Ingreso' }}
+                </span>
+              </td>
+              <td>
+                <span class="tn-method-badge" :class="m.payment_method || 'cash'">
+                  {{ m.payment_method === 'cash' ? '💵 Efectivo' : (m.payment_method === 'qr' ? '📱 QR' : '💳 Tarjeta') }}
+                </span>
+              </td>
+              <td class="col-desc">
+                <div class="desc-main">{{ m.description }}</div>
+                <div v-if="m.expense_category?.name" class="desc-cat">
+                  {{ m.expense_category.name }}
+                </div>
+                <!-- Motivo y estado si está corregido -->
+                <div v-if="m.edit_count > 0 && !m.deleted_at" class="desc-audit desc-corrected">
+                  <span class="badge-corrected">Corregido</span>
+                  <span>
+                    Antes: {{ m.edit_previous?.payment_method === 'cash' ? 'Efectivo' : (m.edit_previous?.payment_method === 'qr' ? 'QR' : 'Tarjeta') }} · Bs {{ Number(m.edit_previous?.amount || 0).toFixed(2) }} — Motivo: «{{ m.edit_reason }}»
+                  </span>
+                </div>
+                <!-- Motivo si está anulado -->
+                <div v-if="m.deleted_at" class="desc-audit desc-voided">
+                  <span class="badge-voided">Anulado</span>
+                  <span>Motivo: «{{ m.void_reason }}»</span>
+                </div>
+              </td>
+              <td class="num col-amt" :class="m.type === 'expense' ? 'text-expense' : 'text-income'">
+                <strong>{{ m.type === 'expense' ? '−' : '+' }} Bs {{ Number(m.amount || 0).toFixed(2) }}</strong>
+              </td>
+              <td class="act col-act">
+                <template v-if="!m.deleted_at">
+                  <button
+                    class="tn-act-btn edit"
+                    type="button"
+                    :disabled="network.isOffline"
+                    :title="network.isOffline ? 'Requiere conexión al servidor' : 'Corregir método, monto o concepto'"
+                    @click="openEditMovement(m)"
+                  >
+                    Corregir
+                  </button>
+                  <button
+                    class="tn-act-btn void"
+                    type="button"
+                    :disabled="network.isOffline"
+                    :title="network.isOffline ? 'Requiere conexión al servidor' : 'Anular este movimiento'"
+                    @click="openVoidMovement(m)"
+                  >
+                    Anular
+                  </button>
+                </template>
+                <span v-else class="text-muted void-text">Sin acciones</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <!-- Ventas de este dispositivo que no llegaron al servidor: su cobro todavía no cuenta en la caja -->
@@ -650,8 +818,18 @@ async function handleRefresh() {
 
     <CashExpenseModal
       :visible="isCashExpenseModalOpen"
-      @close="isCashExpenseModalOpen = false"
-      @saved="handleRefresh"
+      :movement="editingMovement"
+      :sessionId="turnoStore.activeSession?.id"
+      @close="isCashExpenseModalOpen = false; editingMovement = null"
+      @saved="handleMovementSaved"
+    />
+
+    <VoidCashMovementModal
+      :visible="isVoidMovementModalOpen"
+      :movement="voidingMovement"
+      :sessionId="turnoStore.activeSession?.id"
+      @close="isVoidMovementModalOpen = false; voidingMovement = null"
+      @voided="handleMovementVoided"
     />
   </div>
 </template>
@@ -1071,5 +1249,223 @@ async function handleRefresh() {
   .tn-result .tn-term-label { white-space: nowrap; }
   .tn-result .tn-term-value { font-size: 28px; }
   .search-box { max-width: none; }
+}
+
+/* ── Gastos del turno (docs/PLAN_CORREGIR_GASTOS_CAJA.md) ── */
+.tn-movements-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 22px 16px;
+}
+.tn-movs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tn-movs-header-text h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+.tn-movs-header-text p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ink-500);
+}
+.tn-movs-loading,
+.tn-movs-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--ink-500);
+  font-size: 13.5px;
+}
+.tn-movs-table-wrap {
+  overflow-x: auto;
+}
+.tn-movs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.tn-movs-table th {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+.tn-movs-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink-900);
+  vertical-align: middle;
+}
+.tn-movs-table th.num,
+.tn-movs-table td.num {
+  text-align: right;
+}
+.tn-movs-table th.act,
+.tn-movs-table td.act {
+  text-align: right;
+}
+.tn-movs-table .col-time {
+  width: 70px;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+.tn-movs-table .col-desc {
+  min-width: 200px;
+}
+.tn-movs-table .col-amt {
+  white-space: nowrap;
+  font-family: var(--font-heading);
+}
+.tn-movs-table .col-act {
+  white-space: nowrap;
+}
+.tn-mov-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.tn-mov-pill.expense {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+html.dark .tn-mov-pill.expense {
+  color: #f87171;
+}
+.tn-mov-pill.income {
+  background: rgba(22, 163, 74, 0.12);
+  color: #16a34a;
+}
+html.dark .tn-mov-pill.income {
+  color: #4ade80;
+}
+.tn-method-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--cream-100);
+  border: 1px solid var(--border);
+  color: var(--ink-700);
+  white-space: nowrap;
+}
+.desc-main {
+  font-weight: 500;
+  color: var(--ink-900);
+}
+.desc-cat {
+  font-size: 12px;
+  color: var(--ink-500);
+  margin-top: 2px;
+}
+.desc-audit {
+  margin-top: 4px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.desc-corrected {
+  color: var(--ink-700);
+}
+.desc-voided {
+  color: #dc2626;
+}
+html.dark .desc-voided {
+  color: #f87171;
+}
+.badge-corrected {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--cream-200);
+  color: var(--ink-700);
+}
+.badge-voided {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+html.dark .badge-voided {
+  color: #f87171;
+}
+.text-expense {
+  color: #dc2626;
+}
+html.dark .text-expense {
+  color: #f87171;
+}
+.text-income {
+  color: #16a34a;
+}
+html.dark .text-income {
+  color: #4ade80;
+}
+.voided-row {
+  opacity: 0.65;
+}
+.voided-row .desc-main,
+.voided-row .col-amt strong {
+  text-decoration: line-through;
+}
+.tn-act-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-left: 6px;
+}
+.tn-act-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tn-act-btn.edit {
+  color: var(--acai-text);
+}
+.tn-act-btn.edit:hover:not(:disabled) {
+  background: var(--acai-50);
+}
+.tn-act-btn.void {
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+html.dark .tn-act-btn.void {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+.tn-act-btn.void:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.08);
+}
+.void-text {
+  font-size: 12px;
+  color: var(--ink-500);
 }
 </style>
