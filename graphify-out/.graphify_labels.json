@@ -353,13 +353,8 @@
   "351": "password-reset-code.blade.php",
   "352": "password-reset-code-text.blade.php",
   "353": "CashMovementSplitTest",
-  "354": "App.vue",
   "355": "Fases de Implementación",
   "356": "SyncIssuesPanel.vue",
-  "357": "sendCode",
-  "358": "FinanceCashMovementTest",
   "359": "LoyaltyConfig",
-  "360": "PedidosYaPricingTest",
-  "361": "ItemsParser",
-  "362": "Simulación de la portátil de caja (Toshiba)"
+  "360": "PedidosYaPricingTest"
 }

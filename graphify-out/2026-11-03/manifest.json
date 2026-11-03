@@ -510,8 +510,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/Pos.vue": {
-    "mtime": 1793601866.8061566,
-    "ast_hash": "94a8ea10bfb7e98da6920a0c9f5ed471",
+    "mtime": 1793682310.0199258,
+    "ast_hash": "accd502e75e70f346a5920bf7899c3b9",
     "semantic_hash": ""
   },
   "frontend/vite.config.js": {
@@ -965,8 +965,8 @@
     "semantic_hash": "a39ccc85676ba7b8403121933b9f57dd"
   },
   "frontend/playwright.config.js": {
-    "mtime": 1792488650.1539197,
-    "ast_hash": "d378d2576f35a5da6324f4413ee881cf",
+    "mtime": 1793682593.6542225,
+    "ast_hash": "e17e96f56ada677b416ae79311f28d78",
     "semantic_hash": ""
   },
   "frontend/src/components/AdminSaleEditor.vue": {
@@ -1445,8 +1445,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1793663038.6373005,
-    "ast_hash": "42f50cf2a58c02f9af6bb5a2f32877c1",
+    "mtime": 1793682769.1630554,
+    "ast_hash": "c57da988454d93471dbe53ed7fb70b1f",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -1455,8 +1455,8 @@
     "semantic_hash": ""
   },
   "docs/BITACORA.md": {
-    "mtime": 1793663058.6083343,
-    "ast_hash": "d22bf09c2c7c1233bdb5af7ecd1c38d4",
+    "mtime": 1793682791.8988807,
+    "ast_hash": "a83e7019fed5b8747f6848be8b1759b4",
     "semantic_hash": ""
   },
   "docs/PLAN_PEDIDOSYA.md": {
@@ -1650,8 +1650,8 @@
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/PedidosYaSettlementController.php": {
-    "mtime": 1793661818.240397,
-    "ast_hash": "c04545b9bfc6d37c21488cad8b2076d1",
+    "mtime": 1793681854.1333513,
+    "ast_hash": "ed23889fa8de40c0288c73c9628f0741",
     "semantic_hash": ""
   },
   "backend/app/Models/PedidosYaOrder.php": {
@@ -1665,8 +1665,8 @@
     "semantic_hash": ""
   },
   "backend/app/Services/PedidosYaImportService.php": {
-    "mtime": 1793661664.066078,
-    "ast_hash": "27ff613a0852a8f0c9adab8cf3193a82",
+    "mtime": 1793681818.6737642,
+    "ast_hash": "017af790a021232f4b9433dd1477587b",
     "semantic_hash": ""
   },
   "backend/database/migrations/2026_10_07_000008_create_pedidosya_settlements_tables.php": {
@@ -1675,8 +1675,8 @@
     "semantic_hash": ""
   },
   "backend/tests/Feature/PedidosYaSettlementTest.php": {
-    "mtime": 1792488650.1398377,
-    "ast_hash": "e8f2d2efb6ac941377ccf90493c68ffc",
+    "mtime": 1793681977.227074,
+    "ast_hash": "f62c1478854f76ab631e0509addf0625",
     "semantic_hash": ""
   },
   "backend/app/Http/Controllers/FinanceCashMovementController.php": {
@@ -2435,8 +2435,8 @@
     "semantic_hash": ""
   },
   "frontend/e2e/checkout-portatil.spec.js": {
-    "mtime": 1792488650.1514964,
-    "ast_hash": "b4558c8ba7bd3ad13bc9100aac682444",
+    "mtime": 1793682455.7637563,
+    "ast_hash": "85acc9d28eeb897c9617a8c942e74d80",
     "semantic_hash": ""
   },
   "frontend/e2e/cierre-caja-portatil.spec.js": {
@@ -2670,7 +2670,7 @@
     "semantic_hash": ""
   },
   "backend/app/Services/PedidosYa/InvoiceReader.php": {
-    "mtime": 1793660681.89713,
+    "mtime": 1793663598.1136975,
     "ast_hash": "56e124ec8a78bbdc401123062878fd12",
     "semantic_hash": ""
   },
@@ -2725,7 +2725,7 @@
     "semantic_hash": ""
   },
   "backend/database/migrations/2026_11_02_000004_add_archive_fields_to_pedidosya_settlements.php": {
-    "mtime": 1793660897.8305097,
+    "mtime": 1793663598.1139147,
     "ast_hash": "71f935a50b576c20953478f52ec72349",
     "semantic_hash": ""
   },
@@ -2770,7 +2770,7 @@
     "semantic_hash": ""
   },
   "backend/tests/Feature/PedidosYaReadersTest.php": {
-    "mtime": 1793660641.6046567,
+    "mtime": 1793663598.1142282,
     "ast_hash": "e9215aad4f04950d6e71e4236e0e833c",
     "semantic_hash": ""
   },
@@ -2825,8 +2825,8 @@
     "semantic_hash": ""
   },
   "frontend/e2e/descuento-caja.spec.js": {
-    "mtime": 1793601866.7828898,
-    "ast_hash": "3bb2bbabbfc9e904303c781feb360d3f",
+    "mtime": 1793682407.619381,
+    "ast_hash": "c0c74adba32ba61b94a25a08652f1ff6",
     "semantic_hash": ""
   },
   "frontend/e2e/dias-pasados.spec.js": {
@@ -2860,7 +2860,7 @@
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/PedidosYaFolderImportModal.vue": {
-    "mtime": 1793662299.7766163,
+    "mtime": 1793663598.1146464,
     "ast_hash": "980c018919fcc240afe10b7c89bc17bf",
     "semantic_hash": ""
   },
@@ -2930,7 +2930,7 @@
     "semantic_hash": ""
   },
   "frontend/src/utils/pedidosYaArchive.test.mjs": {
-    "mtime": 1793662177.7824523,
+    "mtime": 1793663598.1149664,
     "ast_hash": "91769594156b65ba94f56dfd86e15c18",
     "semantic_hash": ""
   },
@@ -2972,6 +2972,11 @@
   "docs/PUBLICAR_A_PRODUCCION.md": {
     "mtime": 1793493858.7762194,
     "ast_hash": "3fa2aef945a75d6dcc3f63fb0737aff9",
+    "semantic_hash": ""
+  },
+  "docs/PLAN_REMOVER_CANAL_PEDIDOSYA_POS.md": {
+    "mtime": 1793681678.8845508,
+    "ast_hash": "2596d901a636019792b2aef22f2f212e",
     "semantic_hash": ""
   }
 }

@@ -1445,8 +1445,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1793682769.1630554,
-    "ast_hash": "c57da988454d93471dbe53ed7fb70b1f",
+    "mtime": 1793688260.6097205,
+    "ast_hash": "9307734de88ffa1883935f7666332e37",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -1455,8 +1455,8 @@
     "semantic_hash": ""
   },
   "docs/BITACORA.md": {
-    "mtime": 1793682791.8988807,
-    "ast_hash": "a83e7019fed5b8747f6848be8b1759b4",
+    "mtime": 1793688283.0391743,
+    "ast_hash": "1c210b9b08e9c2eec51aee6bbf387fa7",
     "semantic_hash": ""
   },
   "docs/PLAN_PEDIDOSYA.md": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": ""
   },
   "backend/app/Services/FinanceReportService.php": {
-    "mtime": 1793433439.0831172,
-    "ast_hash": "21dcb9377c61e90e453b6483db2c47e2",
+    "mtime": 1793688022.3713806,
+    "ast_hash": "72d44a281248d50af2b9b0a3d456c824",
     "semantic_hash": ""
   },
   "backend/database/migrations/2026_10_07_000004_create_expense_categories_table.php": {
@@ -1635,8 +1635,8 @@
     "semantic_hash": ""
   },
   "backend/tests/Feature/FinancePnlCalculationTest.php": {
-    "mtime": 1792488650.1378994,
-    "ast_hash": "2d1cae157a14121fb196b315ece377fd",
+    "mtime": 1793688077.5054476,
+    "ast_hash": "dce2b70ee45b854274015a61679eb203",
     "semantic_hash": ""
   },
   "frontend/src/views/Finance.vue": {
@@ -1785,8 +1785,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceStatementTable.vue": {
-    "mtime": 1792488650.1664486,
-    "ast_hash": "17f0d1393bef06d4efd5929c0f395840",
+    "mtime": 1793688142.8569198,
+    "ast_hash": "d43a8e2cdbf0106afb46d021d75eb30e",
     "semantic_hash": ""
   },
   "frontend/src/components/Finance/FinanceSummary.vue": {
@@ -2975,7 +2975,7 @@
     "semantic_hash": ""
   },
   "docs/PLAN_REMOVER_CANAL_PEDIDOSYA_POS.md": {
-    "mtime": 1793681678.8845508,
+    "mtime": 1793687691.5531194,
     "ast_hash": "2596d901a636019792b2aef22f2f212e",
     "semantic_hash": ""
   }

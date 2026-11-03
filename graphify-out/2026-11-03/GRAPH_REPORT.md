@@ -1,16 +1,16 @@
-# Graph Report - Sistema de Ventas  (2026-11-02)
+# Graph Report - Sistema de Ventas  (2026-11-03)
 
 ## Corpus Check
-- 540 files · ~980,288 words
+- 541 files · ~980,879 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5229 nodes · 9790 edges · 353 communities (308 shown, 45 thin omitted)
+- 5234 nodes · 9794 edges · 363 communities (310 shown, 53 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 557 edges (avg confidence: 0.79)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ff1f3d92`
+- Built from commit: `373761fd`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -177,7 +177,6 @@
 - Response
 - index.js
 - Auditoría y plan de corrección — módulo de Finanzas
-- JsonResponse
 - AdminSaleManagementTest
 - Análisis y Configuración de Dominio — ohana-pos.com
 - Request
@@ -266,6 +265,16 @@
 - dias-pasados.spec.js
 - ResendApiTransportTest
 - recuperar-contrasena.spec.js
+- CashMovementSplitTest
+- App.vue
+- Fases de Implementación
+- SyncIssuesPanel.vue
+- sendCode
+- FinanceCashMovementTest
+- LoyaltyConfig
+- PedidosYaPricingTest
+- ItemsParser
+- Simulación de la portátil de caja (Toshiba)
 
 ## God Nodes (most connected - your core abstractions)
 1. `User` - 242 edges
@@ -294,31 +303,27 @@
 ## Import Cycles
 - None detected.
 
-## Communities (353 total, 45 thin omitted)
+## Communities (363 total, 53 thin omitted)
 
 ### Community 0 - "Illuminate\Database\Eloquent\Factories\HasFactory"
 Cohesion: 0.03
 Nodes (53): authStore, calculatedSubtotal, calculatedTotal, canEditDiscount, catalogStore, dayInfo, discountBase, discountChanged (+45 more)
-
-### Community 1 - "Category"
-Cohesion: 0.06
-Nodes (8): Ingredient, Recipe, IngredientRepository, FinanceCostApiTest, InventoryIntegrityTest, InventoryStockTest, Illuminate\Contracts\Pagination\LengthAwarePaginator, Tests\Feature\Concerns\BuildsOhanaCatalog
 
 ### Community 2 - "Pos.vue"
 Cohesion: 0.08
 Nodes (18): emit, parsedChanges, props, API_URL, applyFilters(), changePage(), clearFilters(), fetchLogs() (+10 more)
 
 ### Community 3 - "composer.json"
-Cohesion: 0.08
-Nodes (3): Carbon, ReorderService, ReorderTest
+Cohesion: 0.06
+Nodes (6): Carbon, ReorderService, CashCloseSafetyTest, Carbon, ReorderTest, Carbon\Carbon
 
 ### Community 4 - "Product"
 Cohesion: 0.06
 Nodes (34): activeTab, alertAction(), alertMessage, authStore, confirmAction(), confirmCallback, confirmMessage, deleteUser() (+26 more)
 
 ### Community 5 - "Illuminate\Foundation\Http\FormRequest"
-Cohesion: 0.06
-Nodes (50): apiFetch(), activeCategory, activeCategoryProducts, activeOptionGroup, activeProductForModal, activeProductForPause, activeTab, alertAction() (+42 more)
+Cohesion: 0.05
+Nodes (32): activeCategory, activeCategoryProducts, activeOptionGroup, activeProductForModal, activeProductForPause, activeTab, alertMessage, categories (+24 more)
 
 ### Community 6 - "scripts"
 Cohesion: 0.03
@@ -334,7 +339,7 @@ Nodes (48): authStore, billCounts, billDenoms, calculatedTotal, canProceedToClos
 
 ### Community 9 - "devDependencies"
 Cohesion: 0.06
-Nodes (12): Category, Option, OptionGroup, Product, CategoryTest, OptionGroupTest, ProductTest, buildCatalog() (+4 more)
+Nodes (11): Category, Option, OptionGroup, Product, CategoryTest, OptionGroupTest, ProductTest, buildCatalog() (+3 more)
 
 ### Community 10 - "Customer"
 Cohesion: 0.06
@@ -345,16 +350,16 @@ Cohesion: 0.07
 Nodes (32): opt(), basePrice, catalog, confirmButtonText, emit, errorMessages, extrasPrice, filteredGroups (+24 more)
 
 ### Community 12 - "UserFactory"
-Cohesion: 0.06
-Nodes (42): useCatalogStore, useThemeStore, applyHardwareOptimizations(), detectHardwareProfile(), auth, catalog, email, errorMsg (+34 more)
+Cohesion: 0.10
+Nodes (19): banner, code, codeEl, confirm, email, emailEl, errors, info (+11 more)
 
 ### Community 13 - "AppServiceProvider"
 Cohesion: 0.06
-Nodes (6): CashSessionClosing, DeliveryOrder, IngredientComposition, ProductVariant, SaleItemOption, Illuminate\Database\Eloquent\Relations\BelongsTo
+Nodes (11): App\Traits\Auditable, CashSessionClosing, DeliveryOrder, FinanceExpenseItem, IngredientComposition, OptionRecipe, ProductVariant, SaleItemOption (+3 more)
 
 ### Community 14 - "ExampleTest"
-Cohesion: 0.04
-Nodes (26): emit, activeCategoryId, auth, cart, catalog, completedSale, editingCartItem, filteredProducts (+18 more)
+Cohesion: 0.05
+Nodes (27): emit, network, stateText, ../stores/network.js, useNetworkStore, activeCategoryId, auth, cart (+19 more)
 
 ### Community 15 - "0001_01_01_000000_create_users_table.php"
 Cohesion: 0.10
@@ -384,13 +389,13 @@ Nodes (51): appliedDiscount, billSuggestions, canDiscount, cashDue, cashNeededAm
 Cohesion: 0.08
 Nodes (26): 0. Resumen, 10. Verificación de la v1, 1. Objetivo y criterios de éxito, 2. Diagnóstico de partida (antes de la v1), 3. Decisión: Opción C, precisada, 4.1 Prioridad alta — bloquean la fusión a `main`, 4.2 Prioridad media, 4.3 Prioridad baja (+18 more)
 
-### Community 22 - "2026_07_16_000005_create_recipes_table.php"
-Cohesion: 0.11
-Nodes (3): DiscountPolicy, SaleDiscountTest, self
-
 ### Community 23 - "2026_07_16_000006_create_sales_table.php"
 Cohesion: 0.10
 Nodes (23): applyPercent(), bulkPercent, bulkScope, changedOptions, changedProducts, changesCount, diffLabel(), emit (+15 more)
+
+### Community 24 - "2026_07_16_000007_create_sale_payments_table.php"
+Cohesion: 0.08
+Nodes (5): BreakEvenService, Carbon, InventoryIndicatorsService, WasteReportService, InventoryIndicatorsTest
 
 ### Community 25 - "2026_07_16_000008_create_sale_items_table.php"
 Cohesion: 0.11
@@ -406,7 +411,7 @@ Nodes (33): allUnresolved, canImport, choice, createSales, csvFile, csvInput, em
 
 ### Community 28 - "2026_07_16_000011_create_cash_register_sessions_table.php"
 Cohesion: 0.06
-Nodes (34): confirm(), cost(), counted, diff(), differing, emit, error, filled() (+26 more)
+Nodes (35): confirm(), cost(), counted, diff(), differing, emit, error, filled() (+27 more)
 
 ### Community 29 - "2026_07_16_000012_create_delivery_orders_table.php"
 Cohesion: 0.07
@@ -416,17 +421,21 @@ Nodes (37): cashRows, cashSection, categoryFilter, categoryTouched, classify(), 
 Cohesion: 0.11
 Nodes (17): devDependencies, concurrently, laravel-vite-plugin, tailwindcss, @tailwindcss/vite, vite, vite, private (+9 more)
 
+### Community 31 - "artisan"
+Cohesion: 0.09
+Nodes (7): PedidosYaPricingController, Recipe, DatabaseSeeder, ReorderDefaultsSeeder, InventoryIntegrityTest, Illuminate\Database\Seeder, Tests\Feature\Concerns\BuildsOhanaCatalog
+
 ### Community 32 - "HelloWorld.vue"
-Cohesion: 0.13
-Nodes (6): FinanceExpenseItem, InventoryMovement, InventoryCountService, InventoryService, CarbonInterface, Collection
+Cohesion: 0.14
+Nodes (6): InventoryMovementController, InventoryMovement, InventoryCountService, InventoryService, CarbonInterface, Collection
 
 ### Community 33 - "app.php"
 Cohesion: 0.07
 Nodes (27): 0. Qué cambia respecto a la v1, 1. Contexto operativo (sin cambios), 2. Estado verificado (2026-10-23), 3.1 Integración del modal en `AdminSaleEditor.vue`, 3.2 `handleConfirmModal` (correcciones a la v1), 3.3 Re-edición (`openEditItemModal`), 3.4 Qué pasa con el acordeón actual, 3.5 Regla compartida «extras obligatorios» en `ModifierModal` (Fase 1) (+19 more)
 
 ### Community 34 - "app.php"
-Cohesion: 0.05
-Nodes (57): ACTIONS, be, dayBar, emit, finance, lead, monthIndex, monthName (+49 more)
+Cohesion: 0.04
+Nodes (66): ACTIONS, be, dayBar, emit, finance, lead, monthIndex, monthName (+58 more)
 
 ### Community 35 - "cache.php"
 Cohesion: 0.21
@@ -434,7 +443,7 @@ Nodes (3): OptionController, OptionRequest, OptionResource
 
 ### Community 36 - "database.php"
 Cohesion: 0.09
-Nodes (10): ExampleTest, FinanceMonthBoundaryTest, FinancePnlCalculationTest, TestCase, Carbon\Carbon, Illuminate\Database\Eloquent\Factories\HasFactory, Illuminate\Database\Eloquent\Model, Illuminate\Database\Eloquent\SoftDeletes (+2 more)
+Nodes (7): ExampleTest, FinanceMonthBoundaryTest, FinancePnlCalculationTest, TestCase, Illuminate\Database\Eloquent\SoftDeletes, Illuminate\Foundation\Testing\RefreshDatabase, Illuminate\Foundation\Testing\TestCase
 
 ### Community 37 - "filesystems.php"
 Cohesion: 0.14
@@ -444,20 +453,16 @@ Nodes (12): deleteGroup(), editingOptionIndex, emit, handleAssignSave(), linkedP
 Cohesion: 0.10
 Nodes (20): AMOUNTS, blocking, calculatedPayout, canSave, checks, createSales, csvFile, emit (+12 more)
 
-### Community 40 - "queue.php"
-Cohesion: 0.18
-Nodes (3): ExpenseCategoryRequest, BaseRecipesService, NameKey
-
 ### Community 41 - "sanctum.php"
 Cohesion: 0.07
 Nodes (28): baseCash, canSplit, canSubmit, cashAmountInput, categories, closing, currentCash, draft (+20 more)
 
 ### Community 42 - "services.php"
-Cohesion: 0.12
-Nodes (21): network, stateText, failed, loadFailed(), network, retry(), sendNow(), working (+13 more)
+Cohesion: 0.29
+Nodes (9): db, markResults(), pruneOldSyncedSales(), sendBatch(), sendOneByOne(), syncPendingSales(), validationText(), ../stores/orderQueue.js (+1 more)
 
 ### Community 43 - "session.php"
-Cohesion: 0.18
+Cohesion: 0.15
 Nodes (3): SaleController, AdminSaleRequest, Illuminate\Validation\Validator
 
 ### Community 44 - "index.php"
@@ -489,15 +494,15 @@ Cohesion: 0.23
 Nodes (3): SystemBackupController, BackupService, Symfony\Component\HttpFoundation\BinaryFileResponse
 
 ### Community 51 - "IngredientRepository"
-Cohesion: 0.07
-Nodes (8): JsonResponse, Request, UserController, UserRequest, UserResource, UserRepository, PasswordResetTest, SystemBackupTest
+Cohesion: 0.13
+Nodes (6): JsonResponse, Request, UserController, UserRequest, UserResource, Illuminate\Http\Response
 
 ### Community 52 - "ProductPauseModal.vue"
-Cohesion: 0.04
-Nodes (57): emit, errorMessage, handleDownload(), isDownloading, onClose(), password, successInfo, editing (+49 more)
+Cohesion: 0.06
+Nodes (36): emit, errorMessage, handleDownload(), isDownloading, onClose(), password, successInfo, detail (+28 more)
 
 ### Community 54 - "static"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (4): AuthController, UserPermissionController, UserPermission, PermissionService
 
 ### Community 56 - "3. ⚠️ Reglas Obligatorias de Compatibilidad (Desarrollo desde Mac)"
@@ -505,20 +510,20 @@ Cohesion: 0.15
 Nodes (13): apply(), emit, error, finalReason, hasOverride, isTariffPrice, newPrice, otherReason (+5 more)
 
 ### Community 57 - "App.vue"
-Cohesion: 0.17
+Cohesion: 0.18
 Nodes (4): OptionGroupController, JsonResponse, OptionGroupRequest, OptionGroupResource
 
 ### Community 59 - "🛣️ Ruta de Desarrollo Sugerida (Por Dependencias)"
-Cohesion: 0.11
-Nodes (7): AuditLogController, FinanceCashMovementController, FinanceReportController, OrderQueueController, SaleResource, Illuminate\Http\Request, Illuminate\Http\Resources\Json\JsonResource
+Cohesion: 0.10
+Nodes (12): AuditLogController, FinanceReportController, OrderQueueController, CheckModulePermission, EnsureUserHasRole, EnsureUserIsAdmin, EnsureUserIsSuperAdmin, SaleResource (+4 more)
 
 ### Community 60 - "AdminProductCard.vue"
 Cohesion: 0.22
 Nodes (7): assignedGroupsCount, emit, getImageUrl, pauseText, props, tagLabel, resolveImageUrl()
 
 ### Community 61 - "AdminSaleManagementTest"
-Cohesion: 0.11
-Nodes (21): runBatchImport(), ACTION, choice, defaultValue(), effectiveAction(), emit, hour(), mappingError (+13 more)
+Cohesion: 0.13
+Nodes (18): ACTION, choice, defaultValue(), effectiveAction(), emit, hour(), mappingError, mappingsReady (+10 more)
 
 ### Community 62 - "Diseño de Fase 1: Cimientos y Seguridad"
 Cohesion: 0.12
@@ -528,13 +533,9 @@ Nodes (16): 0. Resumen, 1. Requisitos de pantalla, 2.1 Catálogo de módulos y n
 Cohesion: 0.28
 Nodes (8): emit, handleSave(), isExcluded(), linkedGroups, localExcluded, props, selectedGroup, toggleExclusion()
 
-### Community 64 - "CashSessionLinkTest"
-Cohesion: 0.06
-Nodes (5): App\Traits\Auditable, DatabaseSeeder, ReorderDefaultsSeeder, Illuminate\Database\Eloquent\Relations\HasMany, Illuminate\Database\Seeder
-
 ### Community 65 - "ProcessOfflineSaleJob.php"
-Cohesion: 0.15
-Nodes (4): CategoryController, JsonResponse, CategoryRequest, CategoryResource
+Cohesion: 0.10
+Nodes (7): CatalogController, CategoryController, JsonResponse, CategoryRequest, CategoryResource, CategoryRepository, ProductRepository
 
 ### Community 66 - "require-dev"
 Cohesion: 0.24
@@ -549,24 +550,24 @@ Cohesion: 0.11
 Nodes (24): addLine(), applyIngredient(), baseUnit(), emit, emptyLine(), error, form, grandTotal (+16 more)
 
 ### Community 69 - "Closure"
-Cohesion: 0.16
-Nodes (17): displayPrice, emit, getImageUrl, handleAdd(), imageFailed, initial, isAdding, props (+9 more)
+Cohesion: 0.15
+Nodes (17): getActiveOptionPrice(), displayPrice, emit, getImageUrl, handleAdd(), imageFailed, initial, isAdding (+9 more)
 
 ### Community 70 - "KdsController"
 Cohesion: 0.12
 Nodes (3): SaleItem, PedidosYaPriceOverrideTest, RecipeCostTest
 
 ### Community 71 - "SaleRepository"
-Cohesion: 0.19
-Nodes (3): IngredientController, IngredientRequest, IngredientResource
+Cohesion: 0.16
+Nodes (4): IngredientController, JsonResponse, IngredientRequest, IngredientResource
 
 ### Community 73 - "ProductRepository"
-Cohesion: 0.11
-Nodes (8): CustomerController, JsonResponse, CustomerRequest, CustomerResource, Customer, CustomerRepository, Illuminate\Http\Resources\Json\AnonymousResourceCollection, Illuminate\Http\Response
+Cohesion: 0.13
+Nodes (6): CustomerController, CustomerRequest, CustomerResource, Customer, CustomerRepository, Illuminate\Http\Resources\Json\AnonymousResourceCollection
 
 ### Community 74 - "config"
 Cohesion: 0.20
-Nodes (10): Bitácora del proyecto, Correcciones de datos (requieren confirmación explícita, no aplicar sin ella), Decisiones del usuario, Decisiones tomadas, Estado actual (2026-11-02), Fase 5 (diseñada, aparcada) — problemas vigentes, Fase 6 (sin empezar), Pendientes (+2 more)
+Nodes (10): Bitácora del proyecto, Correcciones de datos (requieren confirmación explícita, no aplicar sin ella), Decisiones del usuario, Decisiones tomadas, Estado actual (2026-11-03), Fase 5 (diseñada, aparcada) — problemas vigentes, Fase 6 (sin empezar), Pendientes (+2 more)
 
 ### Community 75 - "ProductCard.vue"
 Cohesion: 0.10
@@ -585,8 +586,8 @@ Cohesion: 0.47
 Nodes (5): emit, handleClose(), handleSubmit(), pin, props
 
 ### Community 79 - "🍏 Guía de Conexión desde el Mac al Servidor Windows (Ohana POS)"
-Cohesion: 0.09
-Nodes (4): ExpenseCategory, FinanceAccessTest, FinanceCashMovementTest, FinanceNewEntriesTest
+Cohesion: 0.07
+Nodes (5): ExpenseCategoryController, ExpenseCategoryRequest, ExpenseCategory, FinanceAccessTest, FinanceNewEntriesTest
 
 ### Community 80 - "SalePricingService"
 Cohesion: 0.18
@@ -601,8 +602,8 @@ Cohesion: 0.50
 Nodes (4): emit, handleConfirm(), localSelected, props
 
 ### Community 84 - "InventoryMovementRequest"
-Cohesion: 0.16
-Nodes (4): IngredientCategoryController, IngredientCategoryRequest, IngredientCategory, IngredientCategoryRepository
+Cohesion: 0.13
+Nodes (5): IngredientCategoryController, IngredientCategoryRequest, IngredientCategory, IngredientCategoryRepository, Illuminate\Database\Eloquent\Collection
 
 ### Community 86 - "post-create-project-cmd"
 Cohesion: 0.50
@@ -637,8 +638,8 @@ Cohesion: 0.08
 Nodes (26): 0. Qué cambia respecto a la v1, 1. Línea base medida (2026-10-23), 2. Reglas para integrarse al sistema de diseño, 3. Fases, 4. Criterios de aceptación (Playwright, `e2e/finanzas-portatil.spec.js`), 5. Orden y publicación, 6. Riesgos, 7. Estado por fase (dónde quedó, para retomar) (+18 more)
 
 ### Community 96 - "2026_07_16_000002_create_categories_table.php"
-Cohesion: 0.11
-Nodes (20): amountLabel(), auth, categories, display, done, emit, error, filtered (+12 more)
+Cohesion: 0.06
+Nodes (31): amountLabel(), auth, categories, display, done, emit, error, filtered (+23 more)
 
 ### Community 97 - "2026_07_16_000003_create_products_table.php"
 Cohesion: 0.08
@@ -653,8 +654,8 @@ Cohesion: 0.04
 Nodes (38): byId, displayOf(), emit, error, finance, lineCost(), manualCost, manualCostInput (+30 more)
 
 ### Community 100 - "2026_07_16_000006_create_sales_table.php"
-Cohesion: 0.06
-Nodes (28): auth, network, route, theme, useShell, auth, canSeeReorder, canSeeTurno (+20 more)
+Cohesion: 0.13
+Nodes (12): auth, canSeeReorder, canSeeTurno, NAV_ICONS, navItems, reorder, route, router (+4 more)
 
 ### Community 101 - "2026_07_16_000007_create_sale_payments_table.php"
 Cohesion: 0.14
@@ -669,7 +670,7 @@ Cohesion: 0.27
 Nodes (3): FinanceReportService, Carbon, WeeklyReport
 
 ### Community 104 - "2026_07_16_000010_create_loyalty_config_table.php"
-Cohesion: 0.13
+Cohesion: 0.12
 Nodes (3): SupplierController, SupplierRequest, Supplier
 
 ### Community 105 - "2026_07_16_000011_create_cash_register_sessions_table.php"
@@ -680,8 +681,12 @@ Nodes (18): 1. Decisiones del dueño, 2.1 Datos por insumo (nuevos campos), 2.2 
 Cohesion: 0.08
 Nodes (17): FixInitialIngredientCost, ManageProductImages, ProbarCorreo, ReactivateProducts, ProcessOfflineSaleJob, PasswordChangedMail, PasswordResetCodeMail, TestMail (+9 more)
 
+### Community 107 - "PedidosYaSettlementRulesTest"
+Cohesion: 0.15
+Nodes (3): Ingredient, IngredientRepository, FinanceCostApiTest
+
 ### Community 108 - "2026_07_16_203639_create_product_variants_table.php"
-Cohesion: 0.18
+Cohesion: 0.20
 Nodes (4): Request, ProductController, ProductRequest, ProductResource
 
 ### Community 109 - "2026_07_17_200211_create_role_permissions_table.php"
@@ -709,20 +714,20 @@ Cohesion: 0.39
 Nodes (8): hasLowStock(), findOption(), optionLowStock(), optionStockRows(), productStockRows(), round4(), stockUsage(), hasLowStock()
 
 ### Community 116 - "2026_07_20_000004_create_option_group_product_table.php"
-Cohesion: 0.15
+Cohesion: 0.13
 Nodes (13): 1. Problema, 2. Diagnóstico: el doble precio ya existe, 3. Casos analizados, 4. Opciones evaluadas, 5. Fases, 6. Tests, 7. Fuera de alcance y limitaciones, 8. Forma de trabajo (+5 more)
 
 ### Community 117 - "2026_07_20_000005_modify_products_for_catalog_module.php"
-Cohesion: 0.15
-Nodes (13): 1. Objetivo, 2. Diagnóstico, 3. Opciones evaluadas, 4. Decisiones, 5.1 Base de datos, 5.2 Backend, 5.3 Frontend, 5. Cambios (+5 more)
+Cohesion: 0.08
+Nodes (21): 1. Identificación y Ubicación en el Código, 2. Jerarquía y Distribución Espacial de Elementos, 3.1. Barra Superior Global (`Menu.vue`), 3.2. Sidebar Izquierdo (`Menu.vue` líneas 530–555), 3.3. Panel Central de Detalle (`OptionGroupDetail.vue` líneas 250–345), 3.4. Modal Superpuesto en Primer Plano (`OptionGroupDetail.vue` líneas 358–406), 3. Desglose Detallado por Componente, Análisis de Interfaz: Módulo de Gestión de Opcionales y Modal de Edición (+13 more)
 
 ### Community 118 - "2026_07_20_081214_add_v2_fields_to_menu_architecture.php"
 Cohesion: 0.06
 Nodes (8): InventoryCountRequest, InventoryMovementRequest, LoginRequest, RecipeRequest, RolePermissionRequest, SyncSalesRequest, WasteRequest, Illuminate\Foundation\Http\FormRequest
 
 ### Community 120 - "2026_07_21_073212_create_option_product_exclusions_table.php"
-Cohesion: 0.14
-Nodes (8): 1. Identificación y Ubicación en el Código, 2. Jerarquía y Distribución Espacial de Elementos, 3.1. Barra Superior Global (`Menu.vue`), 3.2. Sidebar Izquierdo (`Menu.vue` líneas 530–555), 3.3. Panel Central de Detalle (`OptionGroupDetail.vue` líneas 250–345), 3.4. Modal Superpuesto en Primer Plano (`OptionGroupDetail.vue` líneas 358–406), 3. Desglose Detallado por Componente, Análisis de Interfaz: Módulo de Gestión de Opcionales y Modal de Edición
+Cohesion: 0.21
+Nodes (17): alertAction(), confirmAction(), confirmPauseProduct(), deleteCategory(), deleteOptionGroup(), deleteProduct(), editProduct(), fetchData() (+9 more)
 
 ### Community 121 - "2026_07_22_000001_add_delivery_price_to_catalog_tables.php"
 Cohesion: 0.17
@@ -739,10 +744,6 @@ Nodes (16): 0. Qué cambia respecto a la v1 (hallazgos al contrastar el plan con
 ### Community 124 - "2026_07_27_065454_add_tag_to_products_table.php"
 Cohesion: 0.13
 Nodes (14): 1. Parámetros Generales de Conexión, 2. Credenciales del Usuario de Cocina / KDS, 3. Configuración Crítica en Cloudflare Access (Zero Trust), 4. Contrato de Integración de la API KDS, 5. Acceso Alternativo vía Navegador Web (Tablet PWA), 6. Diagnóstico de Problemas Frecuentes, A. Autenticación (Login), B. Headers para Peticiones Protegidas (+6 more)
-
-### Community 125 - "2026_08_03_022628_add_notes_to_sales_and_items.php"
-Cohesion: 0.24
-Nodes (6): CheckModulePermission, EnsureUserHasRole, EnsureUserIsAdmin, EnsureUserIsSuperAdmin, Closure, Symfony\Component\HttpFoundation\Response
 
 ### Community 126 - "2026_08_17_150554_add_arqueo_fields_to_cash_register_sessions.php"
 Cohesion: 0.18
@@ -776,9 +777,13 @@ Nodes (7): Al empezar una sesión, Datos del sistema que no son obvios, Guía pa
 Cohesion: 0.22
 Nodes (8): 1. Flujo de Login (Híbrido: Online / Offline), 2. Flujo de Matriz de Permisos (RBAC), `AdminUsers.vue`, Diseño de Fase 1: Cimientos y Seguridad, 🗄️ Esquema de Base de Datos (ERD), 🔄 Flujos de Sistema (Sequence Diagrams), 🎨 Interfaz de Usuario (UI), `Login.vue`
 
+### Community 136 - "test_api.sh"
+Cohesion: 0.19
+Nodes (3): UserRepository, SystemBackupTest, Illuminate\Contracts\Pagination\LengthAwarePaginator
+
 ### Community 137 - "task.md"
-Cohesion: 0.09
-Nodes (23): [2026-10-20] — versión portátil de caja (Cobro, Cierre, Finanzas, Permisos y Layout), [2026-10-21], [2026-10-23], [2026-10-30], [2026-10-31], Agregado, Agregado, Agregado (+15 more)
+Cohesion: 0.08
+Nodes (24): [2026-10-20] — versión portátil de caja (Cobro, Cierre, Finanzas, Permisos y Layout), [2026-10-21], [2026-10-23], [2026-10-30], [2026-10-31], Agregado, Agregado, Agregado (+16 more)
 
 ### Community 138 - "README.md"
 Cohesion: 0.25
@@ -801,8 +806,8 @@ Cohesion: 0.24
 Nodes (8): emit, errorMessage, handleRestore(), isRestoring, onClose(), password, selectedFile, successMessage
 
 ### Community 148 - "filesystems.php"
-Cohesion: 0.12
-Nodes (5): Sale, SalePayment, SaleRepository, Illuminate\Database\Eloquent\Concerns\HasUuids, Illuminate\Database\Eloquent\Relations\HasOne
+Cohesion: 0.10
+Nodes (7): KdsController, Sale, SalePayment, SaleRepository, Illuminate\Database\Eloquent\Concerns\HasUuids, Illuminate\Database\Eloquent\Relations\HasOne, Symfony\Component\HttpFoundation\StreamedResponse
 
 ### Community 150 - "mail.php"
 Cohesion: 0.29
@@ -848,25 +853,21 @@ Nodes (3): extra, laravel, dont-discover
 Cohesion: 0.29
 Nodes (5): MOCK_DEFAULTS, MOCK_LEVELS, MOCK_ME, MOCK_SAVED_PERMISSIONS, MOCK_USERS
 
-### Community 230 - "JsonResponse"
-Cohesion: 0.15
-Nodes (4): Regla de oro, Requisitos, Scripts, Simulación de la portátil de caja (Toshiba)
-
 ### Community 233 - "Análisis y Configuración de Dominio — ohana-pos.com"
 Cohesion: 0.29
 Nodes (6): 1. Veredicto del Análisis, 2. Ventajas Clave de Comprar en Cloudflare Registrar, 3. Guía para Llenar el Formulario (`Registrant Information`), 4. Arquitectura de Dominio Recomendada para el Sistema, 5. Próximo Paso, Análisis y Configuración de Dominio — ohana-pos.com
 
 ### Community 245 - "Request"
-Cohesion: 0.09
-Nodes (25): clearFieldErrors(), editing, emit, fieldErrors, finance, form, formError, generate() (+17 more)
+Cohesion: 0.06
+Nodes (49): editing, finance, form, formError, groups, modalOpen, save(), saving (+41 more)
 
 ### Community 256 - "SaleSyncTest"
 Cohesion: 0.33
 Nodes (6): description, emit, isChanged, props, savedLevelLabel, selectLevel()
 
 ### Community 258 - "WasteReportService"
-Cohesion: 0.18
-Nodes (3): BreakEvenService, Carbon, WasteReportService
+Cohesion: 0.15
+Nodes (11): useCatalogStore, auth, catalog, email, errorMsg, formErrors, isLoading, password (+3 more)
 
 ### Community 260 - "PlatformCatalogMapping"
 Cohesion: 0.10
@@ -896,10 +897,6 @@ Nodes (5): DEBIAN_FRONTEND, LANG, LC_ALL, paso(), 05-respaldos.sh script
 Cohesion: 0.11
 Nodes (18): 1.1 Falla Crítica en Modal Insumo (`showIngredientModal` - Captura 1), 1.2 Disparidad Arquitectónica entre Modales, 1.3 Saturación de Cabecera y Desborde de la Tabla (Captura 6), 1. Diagnóstico Visual y Técnico de las Capturas, 2. Presupuesto de Pantalla en la Portátil de Caja Toshiba, 3.1 Estandarización de Modales con `FinanceModal` o Componente Modal Unificado, 3.2 Rediseño Ergonómico del Modal "+ Nuevo Insumo" en 2 Columnas, 3.3 Rediseño del Modal de Categorías y Proveedores (+10 more)
 
-### Community 270 - "CartItem.vue"
-Cohesion: 0.15
-Nodes (3): FinanceCostController, OptionRecipe, RecipeCostService
-
 ### Community 271 - "openCount"
 Cohesion: 0.23
 Nodes (10): cancel(), confirm(), emit, infoMessage, nextDays, props, resetState(), selectedDate (+2 more)
@@ -909,8 +906,8 @@ Cohesion: 0.08
 Nodes (17): apply(), applyLabel, components, costs, currentStep, emit, error, finance (+9 more)
 
 ### Community 273 - "CashMovement"
-Cohesion: 0.08
-Nodes (3): CashMovement, CashMovementCorrectionTest, CashMovementSplitTest
+Cohesion: 0.10
+Nodes (3): FinanceCashMovementController, CashMovement, CashMovementCorrectionTest
 
 ### Community 274 - "Plan: conteo de efectivo directo y ajustado a la portátil de caja (Cerrar caja)"
 Cohesion: 0.17
@@ -956,25 +953,21 @@ Nodes (14): addBowl(), card(), CATALOG, confirmBtn(), FRUITS, json(), LAPTOP, ME
 Cohesion: 0.12
 Nodes (5): PedidosYaMappingController, PlatformCatalogMapping, CatalogResolver, SalePricingService, Illuminate\Support\Collection
 
-### Community 286 - "ProductRepository"
-Cohesion: 0.12
-Nodes (6): CatalogController, AppServiceProvider, CategoryRepository, ProductRepository, Illuminate\Database\Eloquent\Collection, Illuminate\Support\ServiceProvider
-
 ### Community 287 - "finanzas-portatil.spec.js"
-Cohesion: 0.14
-Nodes (26): addProductToSale(), autoSyncPayments(), closeModifierModal(), flashAdded(), formatForDatetimeLocal(), getActiveBasePrice(), getActiveOptionPrice(), getProduct() (+18 more)
+Cohesion: 0.15
+Nodes (25): addProductToSale(), autoSyncPayments(), closeModifierModal(), flashAdded(), formatForDatetimeLocal(), getActiveBasePrice(), getProduct(), getProductOptionGroups() (+17 more)
 
 ### Community 288 - "amount"
-Cohesion: 0.12
-Nodes (3): FinanceExpenseController, FinanceExpenseRequest, FinanceExpense
+Cohesion: 0.11
+Nodes (4): FinanceExpenseController, FinanceExpenseRequest, FinanceExpense, PurchaseService
 
 ### Community 289 - "emit"
-Cohesion: 0.04
-Nodes (65): emit, finance, navigate(), pnl, pya, reorder, router, stock (+57 more)
+Cohesion: 0.05
+Nodes (57): emit, error, hasMore, lastPage, load(), loading, page, props (+49 more)
 
 ### Community 290 - "RolePermissionRequest"
-Cohesion: 0.06
-Nodes (14): Controller, ExpenseCategoryController, InventoryIndicatorsController, InventoryMovementController, InventoryReorderController, InventoryWasteController, LoyaltyConfigController, OptionRecipeController (+6 more)
+Cohesion: 0.07
+Nodes (10): Controller, FinanceCostController, InventoryIndicatorsController, InventoryReorderController, InventoryWasteController, OptionRecipeController, PedidosYaSettlementController, RecipeController (+2 more)
 
 ### Community 291 - "changeQty"
 Cohesion: 0.09
@@ -994,7 +987,7 @@ Nodes (11): 1. Análisis y Diagnóstico de las Vistas (Basado en las Capturas), 
 
 ### Community 296 - "PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md"
 Cohesion: 0.10
-Nodes (24): dialog, emit, focusables(), focusInitial(), focusMarked(), isTop(), onKey(), props (+16 more)
+Nodes (23): dialog, emit, focusables(), focusInitial(), focusMarked(), isTop(), onKey(), props (+15 more)
 
 ### Community 297 - "5. Cambios"
 Cohesion: 0.14
@@ -1120,25 +1113,45 @@ Nodes (6): json(), ME_ADMIN, ME_CASHIER, MOCK_MOVEMENTS, setupClosedSession(), s
 Cohesion: 0.33
 Nodes (5): CATALOG, json(), ME, SELLERS, setup()
 
+### Community 354 - "App.vue"
+Cohesion: 0.25
+Nodes (8): auth, network, route, theme, useShell, useThemeStore, applyHardwareOptimizations(), detectHardwareProfile()
+
+### Community 355 - "Fases de Implementación"
+Cohesion: 0.20
+Nodes (10): Backend, Contexto y Motivación, Estructura de Cambios, Fase 1: Robustez Backend y Delimitadores CSV, Fase 2: Simplificación de la Vista POS (`Pos.vue`), Fase 3: Verificación Completa, Fase 4: Documentación, Graphify y Despliegue, Fases de Implementación (+2 more)
+
+### Community 356 - "SyncIssuesPanel.vue"
+Cohesion: 0.27
+Nodes (7): failed, loadFailed(), network, retry(), sendNow(), working, listFailedSales()
+
+### Community 357 - "sendCode"
+Cohesion: 0.39
+Nodes (9): changeEmail(), clearMessages(), fail(), focusStep(), resend(), savePassword(), sendCode(), startCountdown() (+1 more)
+
+### Community 362 - "Simulación de la portátil de caja (Toshiba)"
+Cohesion: 0.50
+Nodes (4): Regla de oro, Requisitos, Scripts, Simulación de la portátil de caja (Toshiba)
+
 ## Knowledge Gaps
-- **1850 isolated node(s):** `$schema`, `name`, `type`, `description`, `laravel` (+1845 more)
+- **1854 isolated node(s):** `$schema`, `name`, `type`, `description`, `laravel` (+1849 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **45 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **53 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `User` connect `cart.js` to `Category`, `WasteReportService`, `composer.json`, `2026_08_27_140000_add_order_number_to_sales_table.php`, `devDependencies`, `0001_01_01_000001_create_cache_table.php`, `CashMovement`, `filesystems.php`, `logging.php`, `2026_07_16_000005_create_recipes_table.php`, `ReorderNotice.vue`, `2026_07_16_000007_create_sale_payments_table.php`, `session.php`, `artisan`, `database.php`, `4. Cambios`, `mail.php`, `IngredientRepository`, `static`, `Análisis del Funcionamiento del Sistema de Pedidos y Comandas (Ohana Acai V3)`, `PedidosYaSettlement`, `AuditLogger`, `.date`, `CashSessionLinkTest`, `require-dev`, `PastDaysTest`, `UserPermissionsTest`, `KdsController`, `SalePricingTest`, `ReopenCashSessionTest`, `🍏 Guía de Conexión desde el Mac al Servidor Windows (Ohana POS)`, `require`, `ResendApiTransportTest`, `index.js`, `extra`, `AdminSaleManagementTest`, `2026_07_16_000012_create_delivery_orders_table.php`, `2026_07_20_083336_apply_v3_schema_audit_fixes.php`?**
+- **Why does `User` connect `cart.js` to `Category`, `2026_08_27_140000_add_order_number_to_sales_table.php`, `composer.json`, `test_api.sh`, `devDependencies`, `AppServiceProvider`, `0001_01_01_000001_create_cache_table.php`, `CashMovement`, `filesystems.php`, `logging.php`, `ReorderNotice.vue`, `2026_07_16_000005_create_recipes_table.php`, `2026_07_16_000007_create_sale_payments_table.php`, `session.php`, `artisan`, `database.php`, `4. Cambios`, `mail.php`, `session.php`, `IngredientRepository`, `static`, `Análisis del Funcionamiento del Sistema de Pedidos y Comandas (Ohana Acai V3)`, `PedidosYaSettlement`, `AuditLogger`, `.date`, `CashSessionLinkTest`, `require-dev`, `PastDaysTest`, `UserPermissionsTest`, `KdsController`, `SalePricingTest`, `ReopenCashSessionTest`, `🍏 Guía de Conexión desde el Mac al Servidor Windows (Ohana POS)`, `require`, `ResendApiTransportTest`, `index.js`, `extra`, `CashMovementSplitTest`, `FinanceCashMovementTest`, `AdminSaleManagementTest`, `PedidosYaPricingTest`, `2026_07_16_000012_create_delivery_orders_table.php`, `PedidosYaSettlementRulesTest`, `2026_07_17_200212_create_audit_logs_table.php`, `2026_07_20_081214_add_v2_fields_to_menu_architecture.php`, `2026_07_20_083336_apply_v3_schema_audit_fixes.php`, `2026_08_03_022628_add_notes_to_sales_and_items.php`?**
   _High betweenness centrality (0.039) - this node is a cross-community bridge._
-- **Why does `apiFetch()` connect `Illuminate\Foundation\Http\FormRequest` to `Illuminate\Database\Eloquent\Factories\HasFactory`, `Pos.vue`, `Product`, `ItemsParser`, `scripts`, `package.json`, `UserFactory`, `api.js`, `0001_01_01_000002_create_jobs_table.php`, `2026_07_16_000006_create_sales_table.php`, `2026_07_16_000010_create_loyalty_config_table.php`, `2026_07_16_000011_create_cash_register_sessions_table.php`, `2026_07_16_000012_create_delivery_orders_table.php`, `emit`, `app.php`, `filesystems.php`, `logging.php`, `PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md`, `sanctum.php`, `services.php`, `Simulación de la portátil de caja (Toshiba)`, `vite.config.js`, `ProductPauseModal.vue`, `AdminSaleManagementTest`, `README.md`, `SalePricingService`, `0001_01_01_000002_create_jobs_table.php`, `2026_07_16_000002_create_categories_table.php`, `2026_07_16_000005_create_recipes_table.php`, `2026_07_16_000006_create_sales_table.php`, `Request`?**
+- **Why does `apiFetch()` connect `Request` to `Illuminate\Database\Eloquent\Factories\HasFactory`, `Pos.vue`, `Product`, `ItemsParser`, `Illuminate\Foundation\Http\FormRequest`, `package.json`, `scripts`, `UserFactory`, `api.js`, `0001_01_01_000002_create_jobs_table.php`, `2026_07_16_000006_create_sales_table.php`, `2026_07_16_000010_create_loyalty_config_table.php`, `2026_07_16_000011_create_cash_register_sessions_table.php`, `2026_07_16_000012_create_delivery_orders_table.php`, `emit`, `app.php`, `filesystems.php`, `logging.php`, `PLAN_PRECIOS_TAMANOS_PEDIDOSYA.md`, `sanctum.php`, `services.php`, `Simulación de la portátil de caja (Toshiba)`, `vite.config.js`, `ProductPauseModal.vue`, `AdminSaleManagementTest`, `README.md`, `SalePricingService`, `0001_01_01_000002_create_jobs_table.php`, `2026_07_16_000002_create_categories_table.php`, `2026_07_16_000005_create_recipes_table.php`, `sendCode`, `2026_07_21_073212_create_option_product_exclusions_table.php`?**
   _High betweenness centrality (0.029) - this node is a cross-community bridge._
-- **Why does `Ingredient` connect `Category` to `WasteReportService`, `composer.json`, `2026_09_24_000001_add_payment_method_to_cash_movements_table.php`, `devDependencies`, `AppServiceProvider`, `CartItem.vue`, `2026_07_16_000005_create_recipes_table.php`, `2026_07_16_000007_create_sale_payments_table.php`, `PedidosYaAvailabilityTest`, `HelloWorld.vue`, `RolePermissionRequest`, `database.php`, `mail.php`, `queue.php`, `🛣️ Ruta de Desarrollo Sugerida (Por Dependencias)`, `PurchaseRequest`, `ProcessOfflineSaleJob.php`, `CashSessionLinkTest`, `PastDaysTest`, `KdsController`, `SaleRepository`, `SalePricingTest`, `InventoryCountLine`, `🍏 Guía de Conexión desde el Mac al Servidor Windows (Ohana POS)`, `require`, `2026_07_16_000010_create_loyalty_config_table.php`, `AdminSaleManagementTest`, `2026_07_16_000012_create_delivery_orders_table.php`, `PedidosYaSettlementRulesTest`, `2026_07_17_200212_create_audit_logs_table.php`?**
-  _High betweenness centrality (0.014) - this node is a cross-community bridge._
+- **Why does `Product` connect `devDependencies` to `2026_08_27_140000_add_order_number_to_sales_table.php`, `2026_09_24_000001_add_payment_method_to_cash_movements_table.php`, `test_api.sh`, `AppServiceProvider`, `CartItem.vue`, `filesystems.php`, `ReorderNotice.vue`, `2026_07_16_000005_create_recipes_table.php`, `PedidosYaAvailabilityTest`, `ProductRepository`, `artisan`, `HelloWorld.vue`, `database.php`, `cart.js`, `4. Cambios`, `queue.php`, `BackupService`, `CashSessionLinkTest`, `ProcessOfflineSaleJob.php`, `require-dev`, `PastDaysTest`, `KdsController`, `InventoryMovementRequest`, `extra`, `AdminSaleManagementTest`, `PedidosYaPricingTest`, `2026_07_16_000012_create_delivery_orders_table.php`, `2026_07_20_083336_apply_v3_schema_audit_fixes.php`?**
+  _High betweenness centrality (0.016) - this node is a cross-community bridge._
 - **Are the 45 inferred relationships involving `User` (e.g. with `.login()` and `.destroy()`) actually correct?**
   _`User` has 45 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 31 inferred relationships involving `Ingredient` (e.g. with `.handle()` and `.index()`) actually correct?**
   _`Ingredient` has 31 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `$schema`, `name`, `type` to the rest of the system?**
-  _1850 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1854 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Illuminate\Database\Eloquent\Factories\HasFactory` be split into smaller, more focused modules?**
   _Cohesion score 0.03273809523809524 - nodes in this community are weakly interconnected._
