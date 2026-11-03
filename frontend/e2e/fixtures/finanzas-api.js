@@ -41,7 +41,29 @@ function pnl(warnings = true) {
   const net = op - fin.total - tax.total;
   return {
     period: { year: 2026, month: 10 },
-    revenue: { total: revenue, local_sales: 17000, local_sales_count: 640, pedidosya_net: 2800, pedidosya_pos_unreconciled: 0 },
+    revenue: {
+      total: revenue, local_sales: 17000, local_sales_count: 640, pedidosya_net: 2800, pedidosya_pos_unreconciled: 0,
+      // Cómo se cobraron (suman las ventas del local con «sin cuadrar»)
+      cash_sales: 9800, qr_sales: 5600, card_sales: 1520, other_sales: 0,
+      payments_gap: 80, payments_gap_count: 2,
+      payments_gap_sales: [{ id: 'a', date: '2026-10-14', total: 35, paid: 0 }, { id: 'b', date: '2026-10-22', total: 105, paid: 60 }],
+    },
+    // Dinero que entró en el mes, por fecha de cobro (peor caso: todos los avisos)
+    cash_in: {
+      cash: 9800, qr: 5600, card: 1520, other: 0,
+      pedidosya_deposited: 2390.8,
+      pedidosya_deposits: [
+        { id: 1, start_date: '2026-09-21', end_date: '2026-09-27', payout_date: '2026-10-01', total_payout: 475.54 },
+        { id: 2, start_date: '2026-09-28', end_date: '2026-10-04', payout_date: '2026-10-08', total_payout: 510.63 },
+        { id: 3, start_date: '2026-10-05', end_date: '2026-10-11', payout_date: '2026-10-15', total_payout: 338.64 },
+        { id: 4, start_date: '2026-10-12', end_date: '2026-10-18', payout_date: '2026-10-22', total_payout: 1065.99 },
+      ],
+      pedidosya_paid_later: 614.33,
+      pedidosya_paid_later_weeks: [{ id: 6, start_date: '2026-10-26', end_date: '2026-11-01', payout_date: '2026-11-05', total_payout: 614.33 }],
+      pedidosya_without_payout_date: [{ id: 5, start_date: '2026-10-19', end_date: '2026-10-25', payout_date: null, total_payout: 500 }],
+      pedidosya_uncovered_ranges: [],
+      to_bank: 9510.8, total: 19310.8,
+    },
     cost_of_sales: cogs, operating_expenses: opex, financial_expenses: fin, taxes: tax,
     gross_profit: { amount: gross }, operating_profit: { amount: op }, net_profit: { amount: net },
     pedidosya_analysis: { settlements_count: 2, prorated: false, orders_count: 120, gross: 3300, commission: 500, net: 2800, average_ticket: 27.5, cancelled_count: 3, cancelled_amount: 80 },

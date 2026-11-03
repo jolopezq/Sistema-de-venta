@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { formatBs, formatDay } from '../../stores/finance';
+import { localPaymentRows } from '../../utils/financeCollections';
 
 /**
  * Estado de Resultados como tabla (línea, Bs, % de ventas), con el desglose por categoría y por movimiento.
@@ -10,7 +11,8 @@ const props = defineProps({
   pnl: { type: Object, required: true },
 });
 
-const open = ref(new Set());
+// «Cómo se cobró» queda abierto: al desplegar Ventas ya se ve el efectivo, el QR y la tarjeta
+const open = ref(new Set(['rev-local']));
 function toggle(key) {
   const next = new Set(open.value);
   next.has(key) ? next.delete(key) : next.add(key);
@@ -48,39 +50,21 @@ function costSection(key, label, block) {
 
 const revenueChildren = computed(() => {
   const r = props.pnl.revenue || {};
-  const localCount = r.local_sales_count || 0;
   const rows = [
     {
-      label: '💵 Ventas en Efectivo',
-      detail: `caja física · ${localCount} tickets en local`,
-      amount: r.cash_sales ?? 0,
+      key: 'rev-local',
+      label: 'Ventas del local',
+      detail: `${r.local_sales_count || 0} tickets`,
+      amount: r.local_sales,
+      // Cómo se cobraron: efectivo, QR o banco, tarjeta (y «Sin cuadrar» si hace falta); suman la línea
+      items: localPaymentRows(r),
     },
-    {
-      label: '📱 Ventas vía QR / Banco',
-      detail: 'transferencias y pagos QR en local',
-      amount: r.qr_sales ?? 0,
-    },
-    {
-      label: '💳 Ventas con Tarjeta',
-      detail: 'tarjetas de débito/crédito en local',
-      amount: r.card_sales ?? 0,
-    },
+    { key: 'rev-pya', label: 'PedidosYa (semanas importadas)', detail: 'ventas netas del estado de cuenta', amount: r.pedidosya_net },
   ];
-  if (Number(r.other_sales) > 0) {
-    rows.push({
-      label: '🏷️ Otros métodos de pago',
-      detail: 'otros medios del local',
-      amount: r.other_sales,
-    });
-  }
-  rows.push({
-    label: '🛵 PedidosYa (semanas importadas)',
-    detail: 'ventas netas del estado de cuenta',
-    amount: r.pedidosya_net ?? 0,
-  });
   if (Number(r.pedidosya_pos_unreconciled) > 0) {
     rows.push({
-      label: '🛵 PedidosYa del POS sin conciliar',
+      key: 'rev-pya-pos',
+      label: 'PedidosYa del POS sin conciliar',
       detail: `${r.pedidosya_pos_unreconciled_count} ventas en semanas sin importar`,
       amount: r.pedidosya_pos_unreconciled,
     });
@@ -101,7 +85,7 @@ const blocks = computed(() => [
 ]);
 
 const allKeys = computed(() => {
-  const keys = ['rev'];
+  const keys = ['rev', 'rev-local'];
   for (const b of blocks.value) {
     keys.push(b.section.key);
     b.section.categories.forEach((c) => keys.push(c.key));
@@ -150,14 +134,38 @@ const sign = (n) => (Number(n) < 0 ? 'neg' : '');
             <td class="pct">{{ revenue ? '100,0 %' : '—' }}</td>
           </tr>
           <template v-if="isOpen('rev')">
-            <tr v-for="row in revenueChildren" :key="row.label" class="child">
-              <td>
-                {{ row.label }}
-                <div class="fin-cell-sub">{{ row.detail }}</div>
-              </td>
-              <td class="amount">{{ formatBs(row.amount) }}</td>
-              <td class="pct">{{ pct(row.amount) }}</td>
-            </tr>
+            <template v-for="row in revenueChildren" :key="row.key">
+              <tr class="child">
+                <td>
+                  <button
+                    v-if="row.items?.length"
+                    class="fin-toggle"
+                    :class="{ open: isOpen(row.key) }"
+                    type="button"
+                    :aria-expanded="isOpen(row.key)"
+                    @click="toggle(row.key)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m9 6 6 6-6 6" /></svg>
+                    {{ row.label }}
+                  </button>
+                  <template v-else>{{ row.label }}</template>
+                  <div class="fin-cell-sub" :class="{ 'rev-sub-toggle': row.items?.length }">{{ row.detail }}</div>
+                </td>
+                <td class="amount">{{ formatBs(row.amount) }}</td>
+                <td class="pct">{{ pct(row.amount) }}</td>
+              </tr>
+              <!-- Cómo se cobraron las ventas del local -->
+              <template v-if="row.items?.length && isOpen(row.key)">
+                <tr v-for="item in row.items" :key="item.key" class="item" :class="{ 'rev-gap': item.warn }" :data-method="item.key">
+                  <td>
+                    {{ item.label }}
+                    <div v-if="item.detail" class="fin-cell-sub">{{ item.detail }}</div>
+                  </td>
+                  <td class="amount">{{ formatBs(item.amount) }}</td>
+                  <td class="pct">{{ item.warn ? '' : pct(item.amount) }}</td>
+                </tr>
+              </template>
+            </template>
           </template>
 
           <template v-for="block in blocks" :key="block.section.key">
@@ -220,3 +228,12 @@ const sign = (n) => (Number(n) < 0 ? 'neg' : '');
     </div>
   </div>
 </template>
+
+<style scoped>
+/* El detalle de una línea con flecha se alinea con el texto, no con la flecha */
+.rev-sub-toggle { padding-left: 18px; }
+/* «Sin cuadrar»: ventas cobradas distinto de su total, para corregir en Control diario */
+.fin-statement tr.item.rev-gap td { color: var(--gold-text); }
+.fin-statement tr.item.rev-gap td:first-child { font-weight: 600; }
+.fin-statement tr.item.rev-gap .fin-cell-sub { font-weight: 400; color: var(--ink-700); }
+</style>

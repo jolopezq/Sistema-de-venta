@@ -6,6 +6,7 @@ import { useReorderStore } from '../../stores/reorder';
 import { formatQty, REORDER_STATUS } from '../../utils/inventoryLabels';
 import FinanceMonthHero from './FinanceMonthHero.vue';
 import FinanceStatementTable from './FinanceStatementTable.vue';
+import FinanceCashIn from './FinanceCashIn.vue';
 import FinanceBreakEven from './FinanceBreakEven.vue';
 import FinanceInventoryIndicators from './FinanceInventoryIndicators.vue';
 import FinanceStatus from './FinanceStatus.vue';
@@ -43,6 +44,7 @@ const stockTone = (status) => REORDER_STATUS[status]?.tone || 'err';
     <div class="sum-grid">
       <div class="sum-main">
         <FinanceStatementTable :pnl="pnl" />
+        <FinanceCashIn :pnl="pnl" />
 
         <section v-if="pya" class="fin-card sum-pya" aria-labelledby="sum-pya-title">
           <div class="sum-pya-head">
@@ -67,7 +69,7 @@ const stockTone = (status) => REORDER_STATUS[status]?.tone || 'err';
             <dl class="sum-pya-facts fin-num">
               <div><dt>Vendido en la plataforma</dt><dd>{{ formatBs(pya.gross_sales) }}</dd></div>
               <div><dt>Se quedó PedidosYa</dt><dd>{{ formatBs(pya.retention_amount) }} <span>({{ formatPercent(pya.retention_percent) }})</span></dd></div>
-              <div><dt>Te depositaron</dt><dd>{{ formatBs(pya.total_payout) }}</dd></div>
+              <div><dt>Te pagan por esas ventas</dt><dd>{{ formatBs(pya.total_payout) }}</dd></div>
             </dl>
             <p class="sum-pya-note">
               {{ pya.delivered_count }} {{ pya.delivered_count === 1 ? 'pedido entregado' : 'pedidos entregados' }},

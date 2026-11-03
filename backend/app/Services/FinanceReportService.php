@@ -44,28 +44,28 @@ class FinanceReportService
         $localSalesCount = (int) $localSalesQuery->count();
         $averageTicket = $localSalesCount > 0 ? round($localSalesTotal / $localSalesCount, 2) : 0.0;
 
-        // Desglose de ventas del local por método de pago (efectivo, QR, tarjeta)
-        $localSaleIds = (clone $localSalesQuery)->pluck('id');
-
-        $paymentTotals = SalePayment::whereIn('sale_id', $localSaleIds)
-            ->select('method', DB::raw('SUM(amount) as total'))
+        // 1b. Cómo se cobraron las ventas del local. Se suma cada pago, así un cobro mixto se reparte entre sus
+        //     medios. Una venta sin pago registrado o cobrada de más no se asigna a ningún medio: queda en
+        //     «sin cuadrar», para que efectivo + QR + tarjeta + otros + sin cuadrar sumen las ventas del local.
+        $paymentTotals = SalePayment::whereIn('sale_id', (clone $localSalesQuery)->select('id'))
+            ->selectRaw('method, SUM(amount) AS total')
             ->groupBy('method')
-            ->pluck('total', 'method')
-            ->toArray();
+            ->pluck('total', 'method');
 
-        // Ventas legacy sin registro explícito en sale_payments se asignan a efectivo
-        $legacyNoPaymentSales = (float) Sale::whereIn('id', $localSaleIds)->doesntHave('payments')->sum('total_amount');
-
-        $cashSales  = round((float) ($paymentTotals['cash'] ?? 0) + $legacyNoPaymentSales, 2);
-        $qrSales    = round((float) ($paymentTotals['qr'] ?? 0), 2);
-        $cardSales  = round((float) ($paymentTotals['card'] ?? 0), 2);
-        $otherSales = 0.0;
-        foreach ($paymentTotals as $m => $amt) {
-            if (!in_array($m, ['cash', 'qr', 'card'])) {
-                $otherSales += (float) $amt;
-            }
+        $byMethod = ['cash' => 0.0, 'qr' => 0.0, 'card' => 0.0, 'other' => 0.0];
+        foreach ($paymentTotals as $method => $amount) {
+            $key = in_array($method, ['cash', 'qr', 'card'], true) ? $method : 'other';
+            $byMethod[$key] += (float) $amount;
         }
-        $otherSales = round($otherSales, 2);
+        $byMethod = array_map(fn ($v) => round($v, 2), $byMethod);
+        $paymentsGap = round($localSalesTotal - array_sum($byMethod), 2);
+
+        $paidPerSale = SalePayment::selectRaw('sale_id, SUM(amount) AS paid')->groupBy('sale_id');
+        $gapSales = (clone $localSalesQuery)
+            ->leftJoinSub($paidPerSale, 'pp', 'pp.sale_id', '=', 'sales.id')
+            ->whereRaw('ABS(sales.total_amount - COALESCE(pp.paid, 0)) > 0.005')
+            ->orderBy('sales.created_at')
+            ->get(['sales.id', 'sales.order_number', 'sales.created_at', 'sales.total_amount', DB::raw('COALESCE(pp.paid, 0) AS paid')]);
 
         // 2. Semanas de PedidosYa que tocan el mes. Las que cruzan dos meses se prorratean por la fecha
         //    de cada pedido entregado (plan §7.1, auditoría M2).
@@ -245,10 +245,20 @@ class FinanceReportService
                 'local_sales'       => $localSalesTotal,
                 'local_sales_count' => $localSalesCount,
                 'average_ticket'    => $averageTicket,
-                'cash_sales'        => $cashSales,
-                'qr_sales'          => $qrSales,
-                'card_sales'        => $cardSales,
-                'other_sales'       => $otherSales,
+                // Cómo se cobraron (suman las ventas del local junto con payments_gap)
+                'cash_sales'        => $byMethod['cash'],
+                'qr_sales'          => $byMethod['qr'],
+                'card_sales'        => $byMethod['card'],
+                'other_sales'       => $byMethod['other'],
+                'payments_gap'      => $paymentsGap,
+                'payments_gap_count' => $gapSales->count(),
+                'payments_gap_sales' => $gapSales->take(10)->map(fn ($sale) => [
+                    'id'           => $sale->id,
+                    'order_number' => $sale->order_number,
+                    'date'         => $sale->created_at->toDateString(),
+                    'total'        => round((float) $sale->total_amount, 2),
+                    'paid'         => round((float) $sale->paid, 2),
+                ])->values()->all(),
                 'pedidosya_net'     => $pedidosyaNetSales,
                 'pedidosya_pos_unreconciled'       => $unreconciledPyaTotal,
                 'pedidosya_pos_unreconciled_count' => $unreconciledPyaCount,
@@ -288,6 +298,7 @@ class FinanceReportService
                 'amount'     => $netProfit,
                 'percentage' => $netMarginPercent,
             ],
+            'cash_in' => $this->cashIn($byMethod, $pedidosyaSettlements, $coveredDays, $startDateStr, $endDateStr, $endBound),
             'pedidosya_analysis' => [
                 'gross_sales'      => $pedidosyaGrossSales,
                 'net_sales'        => $pedidosyaNetSales,
@@ -301,6 +312,68 @@ class FinanceReportService
                 'prorated'         => $pyaMonth->contains(fn ($share) => $share['fraction'] < 1),
             ],
             'warnings' => $warnings,
+        ];
+    }
+
+    /**
+     * Dinero que entró en el mes, por fecha de cobro (no por fecha de venta):
+     *  - las ventas del local se cobran al vender: efectivo, QR o banco, tarjeta;
+     *  - PedidosYa deposita cada semana en su fecha de pago, que puede caer en el mes siguiente. Cuenta lo
+     *    depositado en el mes (aunque la semana sea del mes anterior) y avisa lo que se deposita después, las
+     *    semanas sin fecha de pago y los días del mes que todavía no tienen semana importada.
+     */
+    private function cashIn(array $byMethod, Collection $monthSettlements, array $coveredDays, string $startDate, string $endDate, string $endBound): array
+    {
+        $week = fn (PedidosYaSettlement $st) => [
+            'id'           => $st->id,
+            'start_date'   => $st->start_date->toDateString(),
+            'end_date'     => $st->end_date->toDateString(),
+            'payout_date'  => $st->payout_date?->toDateString(),
+            'total_payout' => round((float) $st->total_payout, 2),
+        ];
+
+        $deposits = PedidosYaSettlement::whereBetween('payout_date', [$startDate, $endBound])
+            ->orderBy('payout_date')
+            ->get(['id', 'start_date', 'end_date', 'payout_date', 'total_payout']);
+        $deposited = round((float) $deposits->sum('total_payout'), 2);
+
+        $paidLater = $monthSettlements
+            ->filter(fn (PedidosYaSettlement $st) => $st->payout_date && $st->payout_date->toDateString() > $endDate)
+            ->values();
+        $withoutPayoutDate = $monthSettlements->filter(fn (PedidosYaSettlement $st) => !$st->payout_date)->values();
+
+        // Días del mes (hasta hoy, si el mes está en curso) sin semana de PedidosYa importada, como rangos
+        $today = Carbon::now(config('app.timezone', 'America/La_Paz'))->toDateString();
+        $lastDay = min($endDate, $today);
+        $uncovered = [];
+        for ($d = Carbon::parse($startDate); $d->toDateString() <= $lastDay; $d->addDay()) {
+            $day = $d->toDateString();
+            if (isset($coveredDays[$day])) {
+                continue;
+            }
+            $prev = $d->copy()->subDay()->toDateString();
+            if ($uncovered && end($uncovered)['to'] === $prev) {
+                $uncovered[array_key_last($uncovered)]['to'] = $day;
+            } else {
+                $uncovered[] = ['from' => $day, 'to' => $day];
+            }
+        }
+
+        $toBank = round($byMethod['qr'] + $byMethod['card'] + $deposited, 2);
+
+        return [
+            'cash'                          => $byMethod['cash'],
+            'qr'                            => $byMethod['qr'],
+            'card'                          => $byMethod['card'],
+            'other'                         => $byMethod['other'],
+            'pedidosya_deposited'           => $deposited,
+            'pedidosya_deposits'            => $deposits->map($week)->values()->all(),
+            'pedidosya_paid_later'          => round((float) $paidLater->sum('total_payout'), 2),
+            'pedidosya_paid_later_weeks'    => $paidLater->map($week)->all(),
+            'pedidosya_without_payout_date' => $withoutPayoutDate->map($week)->all(),
+            'pedidosya_uncovered_ranges'    => $uncovered,
+            'to_bank'                       => $toBank,
+            'total'                         => round($byMethod['cash'] + $byMethod['other'] + $toBank, 2),
         ];
     }
 
