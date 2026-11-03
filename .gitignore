@@ -34,6 +34,8 @@ backend/public/index.html
 backend/public/sw.js
 backend/public/workbox-*.js
 backend/public/manifest.webmanifest
+# Librería de rostro copiada por vite desde frontend/public/vendor (la fuente es frontend/public/vendor)
+backend/public/vendor/
 
 # Binarios locales y temporales
 AnyDesk.exe
