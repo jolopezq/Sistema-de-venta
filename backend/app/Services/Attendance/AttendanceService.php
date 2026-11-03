@@ -322,13 +322,15 @@ class AttendanceService
     public function today(User $user): array
     {
         $shifts = $this->shifts($user, now()->startOfDay(), now(), AttendanceMark::LIVE);
-        $last = end($shifts) ?: null;
+        $last = $shifts ? $shifts[array_key_last($shifts)] : null;
+        $in = $last['in'] ?? null;
+        $out = $last['out'] ?? null;
 
         return [
             'enabled' => $this->profileFor($user) !== null,
-            'entry'   => $last['in']?->marked_at->format('H:i'),
-            'exit'    => $last['out']?->marked_at->format('H:i'),
-            'open'    => $last !== null && $last['in'] !== null && $last['out'] === null,
+            'entry'   => $in?->marked_at->format('H:i'),
+            'exit'    => $out?->marked_at->format('H:i'),
+            'open'    => $in !== null && $out === null,
         ];
     }
 

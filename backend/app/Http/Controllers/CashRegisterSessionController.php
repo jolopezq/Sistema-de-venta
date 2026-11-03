@@ -96,6 +96,18 @@ class CashRegisterSessionController extends Controller
         }
         $targetDate = $validated['date'] ?? now()->format('Y-m-d');
 
+        // Asistencia: con el ajuste activo, abrir la caja de hoy pide haber marcado la entrada en el reloj
+        // (docs/PLAN_ASISTENCIA_Y_SUELDOS.md, D4). Solo para quien marca asistencia.
+        if (empty($validated['date']) && app(\App\Services\Attendance\AttendanceSettings::class)->get('require_entry_to_open_register')) {
+            $today = app(\App\Services\Attendance\AttendanceService::class)->today($request->user());
+            if ($today['enabled'] && !$today['entry']) {
+                return response()->json([
+                    'message' => 'Primero marca tu entrada en el reloj de asistencia.',
+                    'reason'  => 'attendance_entry_required',
+                ], 422);
+            }
+        }
+
         if (!empty($validated['date']) && !$this->permissionService->can($request->user(), 'sales_history', 'edit')) {
             abort(403, 'Abrir una caja con fecha pasada requiere el permiso «Ventas de días pasados».');
         }

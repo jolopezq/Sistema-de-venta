@@ -4,6 +4,8 @@ import { useTurnoStore, readCashCloseProgress, CASH_CLOSE_PROGRESS_KEY } from '.
 import { useAuthStore } from '../stores/auth';
 import { useNetworkStore } from '../stores/network';
 import CashSessionReport from './CashSessionReport.vue';
+import MyAttendanceNotice from './attendance/MyAttendanceNotice.vue';
+import { apiFetch } from '../services/api';
 import SyncIssuesPanel from './SyncIssuesPanel.vue';
 import {
   DENOMINATIONS, sanitizeCount, sanitizeCounts, countTotal, piecesCount,
@@ -39,6 +41,7 @@ const correctionReason = ref('');
 
 // 0: Revisión previa, 1: Conteo, 2: Resumen/Arqueo, 3: Reporte
 const step = ref(0);
+const attendanceToday = ref(null);
 const isSubmitting = ref(false);
 const errorMessage = ref('');
 const noticeMessage = ref('');
@@ -339,6 +342,10 @@ async function handleConfirmClose() {
     const data = await turnoStore.closeSession(payload, sessionId);
     step.value = 3;
     emit('closed', data);
+    // Asistencia: si quien cierra sigue en turno, se le ofrece marcar la salida (docs/PLAN_ASISTENCIA_Y_SUELDOS.md §5.5)
+    if (!isCorrection.value) {
+      apiFetch('/attendance/me/today').then((res) => { attendanceToday.value = res; }).catch(() => {});
+    }
   } catch (err) {
     if (err.status === 409 && err.data?.stats) {
       const before = expectedCash.value;
@@ -709,6 +716,8 @@ function handleFinish() {
             </div>
           </div>
 
+          <MyAttendanceNotice mode="exit" :today="attendanceToday" class="cw-attendance" @go="emit('close')" />
+
           <!-- REPORTE TÉRMICO IMPRIMIBLE EMBEBIDO -->
           <div class="report-preview-container">
             <CashSessionReport 
@@ -764,6 +773,7 @@ function handleFinish() {
 </template>
 
 <style scoped>
+.cw-attendance { margin: 0 0 14px; }
 .wizard-overlay {
   position: fixed;
   inset: 0;
