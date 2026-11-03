@@ -56,6 +56,7 @@ class PermissionService
         'register_corrections',
         'finance',
         'pos_discounts',
+        'attendance',
     ];
 
     /**
@@ -67,6 +68,7 @@ class PermissionService
         'register_corrections',
         'finance',
         'pos_discounts',
+        'attendance',
     ];
 
     /**
@@ -91,6 +93,7 @@ class PermissionService
         'register_corrections' => ['none', 'edit'],
         'finance'              => ['none', 'read', 'edit'],
         'pos_discounts'        => ['none', 'edit'],
+        'attendance'           => ['none', 'read', 'edit'],
     ];
 
     /**
@@ -115,6 +118,7 @@ class PermissionService
             'register_corrections' => 'none',
             'finance'              => 'none',
             'pos_discounts'        => 'none',
+            'attendance'           => 'none',
         ],
         'cashier' => [
             'pos'             => 'edit',
@@ -133,6 +137,7 @@ class PermissionService
             'register_corrections' => 'none',
             'finance'              => 'none',
             'pos_discounts'        => 'edit',
+            'attendance'           => 'none',
         ],
         'admin' => [
             'pos'             => 'edit',
@@ -151,6 +156,7 @@ class PermissionService
             'register_corrections' => 'edit',
             'finance'              => 'edit',
             'pos_discounts'        => 'edit',
+            'attendance'           => 'edit',
         ],
     ];
 
@@ -176,6 +182,7 @@ class PermissionService
             'register_corrections' => 'none',
             'finance'              => 'none',
             'pos_discounts'        => 'none',
+            'attendance'           => 'none',
         ],
         'cashier' => [
             'pos'             => 'edit',
@@ -194,6 +201,7 @@ class PermissionService
             'register_corrections' => 'none',
             'finance'              => 'none',
             'pos_discounts'        => 'none',
+            'attendance'           => 'none',
         ],
         'admin' => [
             'pos'             => 'edit',
@@ -212,6 +220,7 @@ class PermissionService
             'register_corrections' => 'none',
             'finance'              => 'none',
             'pos_discounts'        => 'none',
+            'attendance'           => 'edit',
         ],
     ];
 

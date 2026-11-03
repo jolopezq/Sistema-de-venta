@@ -30,6 +30,15 @@ Route::post('/password/verify', [\App\Http\Controllers\PasswordResetController::
 Route::post('/password/reset', [\App\Http\Controllers\PasswordResetController::class, 'reset'])->middleware('throttle:password-verify');
 Route::get('/ping', function () { return response()->json(['status' => 'ok']); });
 
+// Reloj de asistencia: solo en un equipo autorizado (llave en X-Attendance-Device). No usa la sesión de nadie:
+// la persona se identifica con su PIN (docs/PLAN_ASISTENCIA_Y_SUELDOS.md §5.3).
+Route::prefix('attendance/kiosk')->middleware(['attendance.device', 'throttle:attendance-kiosk'])->group(function () {
+    Route::get('/roster', [\App\Http\Controllers\Attendance\AttendanceKioskController::class, 'roster']);
+    Route::post('/pin', [\App\Http\Controllers\Attendance\AttendanceKioskController::class, 'pin']);
+    Route::post('/clock', [\App\Http\Controllers\Attendance\AttendanceKioskController::class, 'clock']);
+    Route::post('/my-marks', [\App\Http\Controllers\Attendance\AttendanceKioskController::class, 'myMarks']);
+});
+
 // --- Rutas Protegidas ---
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -151,6 +160,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Permisos de una persona: excepciones encima de su rol (Finanzas, días pasados, corregir cajas)
         Route::get('/users/{user}/permissions', [\App\Http\Controllers\UserPermissionController::class, 'show'])->middleware('perm:users,edit');
         Route::put('/users/{user}/permissions', [\App\Http\Controllers\UserPermissionController::class, 'update'])->middleware('perm:users,edit');
+        // Perfil laboral de una persona: cómo se le paga, horario, PIN para marcar y rostro (docs/PLAN_ASISTENCIA_Y_SUELDOS.md)
+        Route::middleware('perm:users,edit')->prefix('users/{user}')->group(function () {
+            Route::get('/employee-profile', [\App\Http\Controllers\Attendance\EmployeeProfileController::class, 'show']);
+            Route::put('/employee-profile', [\App\Http\Controllers\Attendance\EmployeeProfileController::class, 'update']);
+            Route::put('/employee-profile/pin', [\App\Http\Controllers\Attendance\EmployeeProfileController::class, 'pin']);
+            Route::post('/face', [\App\Http\Controllers\Attendance\EmployeeProfileController::class, 'enrollFace']);
+            Route::delete('/face', [\App\Http\Controllers\Attendance\EmployeeProfileController::class, 'clearFace']);
+        });
 
         Route::middleware(['perm:audit,read'])->group(function () {
             Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index']);
@@ -243,6 +260,31 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Corregir cajas cerradas: reabrir con motivo (permiso por persona «Corregir cajas cerradas»)
     Route::post('/cash-sessions/{cashSession}/reopen', [CashRegisterSessionController::class, 'reopen'])
         ->middleware(['admin', 'perm:register_corrections,edit']);
+
+    // Asistencia: la persona con sesión ve solo su entrada y su salida de hoy (§5.8)
+    Route::get('/attendance/me/today', [\App\Http\Controllers\Attendance\AttendanceSelfController::class, 'today']);
+
+    // Asistencia para administradores: permiso «Asistencia y sueldos» (Ver = consultar, Editar = aprobar y corregir)
+    Route::middleware(['admin'])->prefix('attendance')->group(function () {
+        Route::middleware(['perm:attendance,read'])->group(function () {
+            Route::get('/today', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'today']);
+            Route::get('/review', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'review']);
+            Route::get('/marks', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'index']);
+            Route::get('/marks/{mark}/photo', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'photo']);
+            Route::get('/users/{user}/face-photo', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'facePhoto']);
+            Route::get('/setup', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'index']);
+        });
+        Route::middleware(['perm:attendance,edit'])->group(function () {
+            Route::post('/marks', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'store']);
+            Route::post('/marks/{mark}/approve', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'approve']);
+            Route::post('/marks/{mark}/reject', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'reject']);
+            Route::post('/devices', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'storeDevice']);
+            Route::delete('/devices/{device}', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'destroyDevice']);
+            Route::post('/networks', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'storeNetwork']);
+            Route::delete('/networks/{network}', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'destroyNetwork']);
+            Route::put('/settings', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'updateSettings']);
+        });
+    });
 
     // Gestión de usuarios: reset password (super_admin o admin)
     Route::middleware(['admin'])->group(function () {

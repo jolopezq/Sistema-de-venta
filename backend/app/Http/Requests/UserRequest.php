@@ -38,7 +38,7 @@ class UserRequest extends FormRequest
                 'string',
                 'min:6',
             ],
-            'role' => ['required', 'string', 'in:super_admin,admin,cashier,kitchen'],
+            'role' => ['required', 'string', 'in:super_admin,admin,cashier,kitchen,staff'],
             'ci' => ['nullable', 'string', 'max:20'],
             'phone' => ['nullable', 'string', 'max:20'],
             'start_date' => ['nullable', 'date'],

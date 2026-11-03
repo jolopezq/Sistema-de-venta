@@ -98,6 +98,14 @@ class UserController extends Controller
         }
         $this->users->delete($user);
         $user->tokens()->delete();
+        // Quien deja de trabajar: se borra su rostro registrado y deja de aparecer en el reloj. Sus marcas quedan.
+        foreach (\App\Models\FaceEnrollment::active()->where('user_id', $user->id)->get() as $enrollment) {
+            if ($enrollment->photo_path) {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($enrollment->photo_path);
+            }
+            $enrollment->forceFill(['revoked_at' => now(), 'photo_path' => null, 'descriptor' => []])->save();
+        }
+        \App\Models\EmployeeProfile::where('user_id', $user->id)->update(['attendance_enabled' => false]);
         return response()->noContent();
     }
 
