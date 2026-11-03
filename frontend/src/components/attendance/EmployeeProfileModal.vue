@@ -6,6 +6,7 @@
 import { ref, computed, watch } from 'vue';
 import { apiFetch } from '../../services/api';
 import { rowsFromSchedule, scheduleFromRows, hourlyFromMonthly, belowMinimum, pinIsValid } from '../../utils/attendance';
+import FaceEnrollment from './FaceEnrollment.vue';
 import '../Finance/finance.css';
 
 const props = defineProps({
@@ -144,6 +145,16 @@ async function savePin() {
 }
 
 const fieldError = (key) => errors.value?.[key]?.[0];
+
+/** Después de una foto del rostro: solo se actualiza el resumen del rostro, sin tocar lo que se está editando. */
+async function reloadFace() {
+  try {
+    const res = await apiFetch(`/users/${props.user.id}/employee-profile`);
+    face.value = res.face;
+  } catch {
+    // se ve al volver a abrir
+  }
+}
 </script>
 
 <template>
@@ -268,7 +279,7 @@ const fieldError = (key) => errors.value?.[key]?.[0];
               <p v-if="!hasPin && !pinMessage" class="fin-note err">Sin PIN no puede marcar.</p>
             </section>
 
-            <slot name="face" :face="face" :reload="load" />
+            <FaceEnrollment :user="user" :face="face" @changed="reloadFace" />
 
             <p v-if="errors.general" class="fin-field-err" role="alert">{{ errors.general[0] }}</p>
           </template>
