@@ -2,6 +2,7 @@
 
 namespace App\Services\PedidosYa;
 
+use App\Models\PedidosYaOrder;
 use App\Models\PedidosYaSettlement;
 use App\Services\FinanceReportService;
 use App\Services\PedidosYaImportService;
@@ -111,7 +112,9 @@ class WeeklyReport
                 'price_differences' => $priceDifferences,
                 'sales_created'     => $orders->where('sale_link', 'created')->count(),
                 'sales_linked'      => $orders->where('sale_link', 'linked')->count(),
-                'without_sale'      => $delivered->whereNull('sale_id')->count(),
+                // Sin venta y con artículos (se puede crear); sin detalle: vino solo del Excel, falta el CSV
+                'without_sale'      => $delivered->whereNull('sale_id')->filter(fn ($o) => PedidosYaOrder::hasDetail($o->items_text))->count(),
+                'without_detail'    => $delivered->whereNull('sale_id')->reject(fn ($o) => PedidosYaOrder::hasDetail($o->items_text))->count(),
             ],
             'orders' => $orders,
         ];

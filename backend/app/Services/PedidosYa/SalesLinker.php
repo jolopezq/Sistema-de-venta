@@ -202,7 +202,10 @@ class SalesLinker
      */
     public function sync(PedidosYaSettlement $settlement, array $links, int $userId): array
     {
-        $orders = $settlement->orders()->get();
+        // Los pedidos que solo vienen del Excel no tienen artículos: no se puede crear su venta
+        $all = $settlement->orders()->get();
+        $withoutDetail = $all->filter(fn (PedidosYaOrder $o) => !PedidosYaOrder::hasDetail($o->items_text) && PedidosYaImportService::isDelivered($o->status) && !$o->sale_id)->count();
+        $orders = $all->filter(fn (PedidosYaOrder $o) => PedidosYaOrder::hasDetail($o->items_text))->values();
         $analysis = $this->analyze(
             $orders->map(fn (PedidosYaOrder $o) => [
                 'order_number' => $o->order_number,
@@ -227,7 +230,7 @@ class SalesLinker
 
         $byNumber = $orders->keyBy('order_number');
         $week = $settlement->start_date->format('d/m') . '–' . $settlement->end_date->format('d/m/Y');
-        $result = ['created' => 0, 'linked' => 0, 'already' => 0, 'cancelled' => 0, 'errors' => []];
+        $result = ['created' => 0, 'linked' => 0, 'already' => 0, 'cancelled' => 0, 'without_detail' => $withoutDetail, 'errors' => []];
 
         foreach ($analysis['orders'] as $row) {
             $order = $byNumber->get($row['order_number']);

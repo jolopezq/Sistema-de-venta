@@ -84,13 +84,29 @@ class OrderListReader
                 $r = [];
                 foreach ($row->c as $c) {
                     $t = (string) $c['t'];
-                    $val = isset($c->v) ? (string) $c->v : '';
-                    if ($t === 's' && isset($sharedStrings[(int) $val])) {
-                        $val = $sharedStrings[(int) $val];
+                    if ($t === 'inlineStr') {
+                        $val = isset($c->is->t) ? (string) $c->is->t : '';
+                        if ($val === '' && isset($c->is->r)) {
+                            foreach ($c->is->r as $run) {
+                                $val .= (string) $run->t;
+                            }
+                        }
+                    } else {
+                        $val = isset($c->v) ? (string) $c->v : '';
+                        if ($t === 's' && isset($sharedStrings[(int) $val])) {
+                            $val = $sharedStrings[(int) $val];
+                        }
                     }
-                    $r[] = $val;
+                    // La columna sale de la referencia de la celda («E7» → 4): una celda vacía omitida no corre las demás
+                    $ref = (string) $c['r'];
+                    $col = preg_match('/^([A-Z]+)/', $ref, $m) ? self::columnIndex($m[1]) : count($r);
+                    while (count($r) < $col) {
+                        $r[] = '';
+                    }
+                    $r[$col] = $val;
                 }
-                $rows[] = $r;
+                ksort($r);
+                $rows[] = array_values($r);
             }
             return $rows;
         };
@@ -206,5 +222,15 @@ class OrderListReader
             'commission'   => $totalCommission,
             'total_claims' => $totalClaims,
         ];
+    }
+
+    /** «A» → 0, «Z» → 25, «AA» → 26. */
+    private static function columnIndex(string $letters): int
+    {
+        $n = 0;
+        foreach (str_split($letters) as $ch) {
+            $n = $n * 26 + (ord($ch) - 64);
+        }
+        return $n - 1;
     }
 }

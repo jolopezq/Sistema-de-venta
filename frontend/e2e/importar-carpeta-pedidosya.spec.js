@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { mockFinanzas } from './fixtures/finanzas-api.js';
 
 const VIEWPORTS = [
@@ -158,8 +161,11 @@ test.describe('PedidosYa — Importación por carpeta y Facturas fiscales', () =
     await page.goto('/finanzas?tab=pedidosya');
     await page.getByRole('button', { name: /Importar carpeta/i }).click();
 
-    // Inyectar la carpeta de prueba real
-    const folderPath = '/Users/jolopez/Sistema de Ventas/docs/payoutArchive_PY_BO_20261001_to_20261101';
+    // Carpeta de prueba armada aquí (el servidor está simulado): no depende de la carpeta real del dueño
+    const folderPath = fs.mkdtempSync(path.join(os.tmpdir(), 'payoutArchive_PY_BO_'));
+    for (const name of ['account_statement_7800702619_1.pdf', 'invoice-7800702619.xls', 'invoice_7800702619.pdf', 'orderDetails.csv']) {
+      fs.writeFileSync(path.join(folderPath, name), 'prueba');
+    }
     const fileInput = page.locator('input[webkitdirectory]');
     await fileInput.setInputFiles(folderPath);
 

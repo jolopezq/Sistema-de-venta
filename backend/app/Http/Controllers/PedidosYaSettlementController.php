@@ -75,14 +75,16 @@ class PedidosYaSettlementController extends Controller
             'invoice_pdf'      => ['nullable', 'file', 'max:10240'],
             'orders_csv'       => ['nullable', 'file', 'max:10240'],
             'csv_file'         => ['nullable', 'file', 'max:10240'],
-            'statement_number' => ['nullable', 'string', 'max:50'],
+            'csv_files'        => ['nullable', 'array', 'max:12'],
+            'csv_files.*'      => ['file', 'max:10240'],
+            'statement_number' => ['nullable', 'regex:/^\d{5,20}$/'],
             'links'            => ['nullable', 'array'],
         ]);
 
         $statementFile = $request->file('statement_file');
         $ordersXls     = $request->file('orders_xls');
         $invoicePdf    = $request->file('invoice_pdf');
-        $csvFile       = $request->file('orders_csv') ?? $request->file('csv_file');
+        $csvFile       = $this->csvFiles($request);
 
         $result = $this->importService->readWeek(
             $statementFile,
@@ -94,7 +96,8 @@ class PedidosYaSettlementController extends Controller
             (array) $request->input('links', [])
         );
 
-        return response()->json($result);
+        // El plan de pedidos (con cada fila del CSV) es para guardar, no para la pantalla
+        return response()->json(array_diff_key($result, ['orders_plan' => true]));
     }
 
     public function store(Request $request): JsonResponse
@@ -106,7 +109,9 @@ class PedidosYaSettlementController extends Controller
                 'invoice_pdf'      => ['nullable', 'file', 'max:10240'],
                 'orders_csv'       => ['nullable', 'file', 'max:10240'],
                 'csv_file'         => ['nullable', 'file', 'max:10240'],
-                'statement_number' => ['nullable', 'string', 'max:50'],
+                'csv_files'        => ['nullable', 'array', 'max:12'],
+                'csv_files.*'      => ['file', 'max:10240'],
+                'statement_number' => ['nullable', 'regex:/^\d{5,20}$/'],
                 'sales_mode'       => ['nullable', 'in:create,skip'],
                 'links'            => ['nullable', 'array'],
                 'notes'            => ['nullable', 'string', 'max:1000'],
@@ -115,7 +120,7 @@ class PedidosYaSettlementController extends Controller
             $statementFile = $request->file('statement_file');
             $ordersXls     = $request->file('orders_xls');
             $invoicePdf    = $request->file('invoice_pdf');
-            $csvFile       = $request->file('orders_csv') ?? $request->file('csv_file');
+            $csvFile       = $this->csvFiles($request);
 
             try {
                 $result = $this->importService->importSettlementFromFolder(
@@ -131,12 +136,19 @@ class PedidosYaSettlementController extends Controller
                     Auth::id()
                 );
 
+                $skipped = (bool) ($result['skipped'] ?? false);
+                $completed = (bool) ($result['completed'] ?? false);
+
                 return response()->json([
-                    'message'    => 'Semana de PedidosYa importada correctamente.',
+                    'message'    => $skipped
+                        ? 'Esta semana ya estaba importada: no se cambió nada.'
+                        : ($completed ? 'Semana de PedidosYa completada.' : 'Semana de PedidosYa importada correctamente.'),
+                    'skipped'    => $skipped,
+                    'completed'  => $completed,
                     'settlement' => $result['settlement'],
                     'warnings'   => $result['warnings'],
                     'sales'      => $result['sales'],
-                ], 201);
+                ], $skipped ? 200 : 201);
             } catch (\InvalidArgumentException $e) {
                 return response()->json(['message' => $e->getMessage()], 422);
             }
@@ -220,7 +232,8 @@ class PedidosYaSettlementController extends Controller
      */
     public function salesPreview(PedidosYaSettlement $settlement, Request $request): JsonResponse
     {
-        $orders = $settlement->orders()->get()->map(fn ($o) => [
+        // Solo los pedidos con artículos (los que vinieron del Excel no pueden crear venta)
+        $orders = $settlement->orders()->withDetail()->get()->map(fn ($o) => [
             'order_number' => $o->order_number,
             'status'       => $o->status,
             'order_date'   => $o->order_date->format('Y-m-d H:i:s'),
@@ -291,6 +304,13 @@ class PedidosYaSettlementController extends Controller
 
     public function destroy(PedidosYaSettlement $settlement): JsonResponse
     {
+        // Libera el número de liquidación: la misma semana se puede volver a importar
+        if ($settlement->statement_number) {
+            $settlement->forceFill([
+                'notes'            => trim(($settlement->notes ? $settlement->notes . ' ' : '') . "Liquidación N.º {$settlement->statement_number} (eliminada)."),
+                'statement_number' => null,
+            ])->saveQuietly();
+        }
         $settlement->delete();
 
         return response()->json([
@@ -349,5 +369,14 @@ class PedidosYaSettlementController extends Controller
                 'total_tax_credit' => $totalTaxCredit,
             ],
         ]);
+    }
+
+    /** CSV de pedidos de la carpeta: uno (`csv_file` u `orders_csv`) o varios (`csv_files[]`). */
+    private function csvFiles(Request $request): array
+    {
+        return array_values(array_filter(array_merge(
+            [$request->file('orders_csv'), $request->file('csv_file')],
+            (array) $request->file('csv_files', [])
+        )));
     }
 }

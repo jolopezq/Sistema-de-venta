@@ -429,8 +429,11 @@ watch(() => props.intent, handleIntent);
         <span class="fin-badge" :class="report.control.reconciliation.status === 'ok' ? 'ok' : 'err'">
           {{ report.control.reconciliation.status === 'ok' ? 'Conciliada' : 'Con diferencias' }}
         </span>
-        <span class="fin-badge" :class="report.control.without_sale ? 'warn' : 'ok'">
-          {{ report.control.without_sale ? `${report.control.without_sale} pedidos sin venta en el POS` : 'Todos los pedidos tienen venta' }}
+        <span class="fin-badge" :class="report.control.without_sale || report.control.without_detail ? 'warn' : 'ok'">
+          {{ report.control.without_sale ? `${report.control.without_sale} pedidos sin venta en el POS` : (report.control.without_detail ? 'Faltan ventas' : 'Todos los pedidos tienen venta') }}
+        </span>
+        <span v-if="report.control.without_detail" class="fin-small fin-muted pya-no-detail">
+          {{ report.control.without_detail }} {{ report.control.without_detail === 1 ? 'pedido vino' : 'pedidos vinieron' }} solo del Excel, sin artículos: pon el CSV de pedidos en la carpeta y vuelve a importarla para crear sus ventas.
         </span>
         <span class="fin-spacer"></span>
         <button v-if="(report.control.without_sale) && finance.canEdit" class="fin-btn fin-btn-primary fin-btn-sm" type="button" @click="openSalesSync">Crear o vincular ventas</button>

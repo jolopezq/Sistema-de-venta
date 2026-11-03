@@ -4,7 +4,8 @@
  */
 export function classifyArchiveFiles(fileList) {
   const groups = {}; // id -> { id, statement_file, orders_xls, invoice_pdf }
-  let csvFile = null;
+  // Uno o varios CSV de pedidos (por ejemplo, el de cada mes para una semana que cruza meses)
+  const csvFiles = [];
   const ignoredFiles = [];
 
   const files = Array.isArray(fileList) ? fileList : Array.from(fileList || []);
@@ -19,9 +20,7 @@ export function classifyArchiveFiles(fileList) {
 
     // 1. Archivo CSV de pedidos
     if (name.toLowerCase().endsWith('.csv')) {
-      if (!csvFile || name.toLowerCase().includes('order')) {
-        csvFile = file;
-      }
+      csvFiles.push(file);
       continue;
     }
 
@@ -70,9 +69,17 @@ export function classifyArchiveFiles(fileList) {
 
   validWeeks.sort((a, b) => a.id.localeCompare(b.id));
 
+  // El de pedidos («orderDetails») primero; el resto, por nombre
+  csvFiles.sort((a, b) => {
+    const ao = /order/i.test(a.name) ? 0 : 1;
+    const bo = /order/i.test(b.name) ? 0 : 1;
+    return ao - bo || a.name.localeCompare(b.name);
+  });
+
   return {
     validWeeks,
-    csvFile,
+    csvFiles,
+    csvFile: csvFiles[0] || null,
     ignoredFiles,
   };
 }

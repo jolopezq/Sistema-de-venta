@@ -50,5 +50,6 @@ backups/
 
 # Datos reales de PedidosYa (privados / confidenciales)
 docs/payoutArchive_*
-backend/storage/app/pedidosya/
+# Los documentos se guardan en storage/app/private/pedidosya/ (ya ignorado por storage/app/private/.gitignore)
+backend/storage/app/private/pedidosya/
 

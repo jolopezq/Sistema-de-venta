@@ -43,3 +43,13 @@ test('classifyArchiveFiles agrupa archivos de las 5 semanas y detecta CSV e igno
   assert.equal(w3.orders_xls.name, 'invoice-7800712391.xls');
   assert.equal(w3.invoice_pdf, null);
 });
+
+test('classifyArchiveFiles: junta varios CSV, el de pedidos primero', () => {
+  const result = classifyArchiveFiles([
+    { name: 'account_statement_7800706345_1.pdf' },
+    { name: 'pedidos-septiembre.csv' },
+    { name: 'orderDetails.csv' },
+  ]);
+  assert.deepEqual(result.csvFiles.map((f) => f.name), ['orderDetails.csv', 'pedidos-septiembre.csv']);
+  assert.equal(result.csvFile.name, 'orderDetails.csv');
+});

@@ -268,9 +268,10 @@ class PedidosYaSettlementArchiveTest extends TestCase
             'mode'           => 'folder',
             'statement_file' => $stPdf,
         ]);
-        $res2->assertStatus(201);
+        // Ya importada: 200, «skipped» y un mensaje que no dice «importada correctamente»
+        $res2->assertOk()->assertJsonPath('skipped', true);
         $this->assertEquals('7800702619', $res2->json('settlement.statement_number'));
-        $this->assertStringContainsString('ya había sido importada', implode(' ', $res2->json('warnings')));
+        $this->assertSame('Esta semana ya estaba importada: no se cambió nada.', $res2->json('message'));
     }
 
     public function test_import_week_same_dates_same_amounts_updates_without_duplicate(): void

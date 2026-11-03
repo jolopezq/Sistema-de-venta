@@ -86,6 +86,9 @@ class StatementReader
         $advertising      = $parseNum('/Publicidad dentro de la aplicaci[óo]n\s+Bs\s*(-?[0-9.,]+)/ui', $text);
         $refunds          = $parseNum('/Reintegros\s+Bs\s*(-?[0-9.,]+)/ui', $text);
         $taxes            = $parseNum('/Impuestos\s+Bs\s*(-?[0-9.,]+)/ui', $text);
+        // Parte de los reintegros que es descuento de PedidosYa a clientes: la factura la descuenta (los reintegros
+        // por pedidos cancelados, no)
+        $peyaDiscount     = $parseNum('/Descuento neto otorgado por Peya a usuarios\s+Bs\s*(-?[0-9.,]+)/ui', $text);
 
         // 4. Total liquidado (usar modificador /s para abarcar saltos de línea)
         $totalPayout = null;
@@ -122,6 +125,7 @@ class StatementReader
             'end_date'          => $endDate,
             'payout_date'       => $payoutDate,
             'net_sales'         => $netSales,
+            'refunds_peya_discount' => $peyaDiscount,
             'delivery_fees'     => $deliveryFees,
             'service_fees'      => $serviceFees,
             'operating_charges' => $operatingCharges,

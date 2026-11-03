@@ -14,7 +14,9 @@ const folderInput = ref(null);
 const csvInput = ref(null);
 
 const rawFiles = ref([]);
-const csvFile = ref(null);
+// Uno o varios CSV de pedidos (se juntan por número de pedido en el servidor)
+const csvFiles = ref([]);
+const csvNames = computed(() => csvFiles.value.map((f) => f.name).join(', '));
 const ignoredFiles = ref([]);
 
 const weeks = ref([]); // Lista de semanas con su resultado de read-week
@@ -45,9 +47,10 @@ function handleFolderFiles(e) {
 }
 
 function handleCsvFile(e) {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  csvFile.value = file;
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  const names = new Set(csvFiles.value.map((f) => f.name));
+  csvFiles.value = [...csvFiles.value, ...files.filter((f) => !names.has(f.name))];
   if (step.value === 'preview' || step.value === 'select') {
     processFiles();
   }
@@ -62,13 +65,19 @@ function onDrop(e) {
   }
 }
 
+// Si llega otro archivo (por ejemplo, otro CSV) mientras se leen las semanas, se vuelve a leer al terminar
+let rereadRequested = false;
+
 async function processFiles() {
+  if (reading.value) {
+    rereadRequested = true;
+    return;
+  }
   globalError.value = '';
   const classified = classifyArchiveFiles(rawFiles.value);
 
-  if (classified.csvFile && !csvFile.value) {
-    csvFile.value = classified.csvFile;
-  }
+  const known = new Set(csvFiles.value.map((f) => f.name));
+  csvFiles.value = [...csvFiles.value, ...classified.csvFiles.filter((f) => !known.has(f.name))];
   ignoredFiles.value = classified.ignoredFiles;
 
   if (classified.validWeeks.length === 0) {
@@ -92,7 +101,7 @@ async function processFiles() {
       data.append('statement_file', w.statement_file);
       if (w.orders_xls) data.append('orders_xls', w.orders_xls);
       if (w.invoice_pdf) data.append('invoice_pdf', w.invoice_pdf);
-      if (csvFile.value) data.append('csv_file', csvFile.value);
+      for (const f of csvFiles.value) data.append('csv_files[]', f);
       data.append('statement_number', w.id);
 
       const previewData = await apiFetch('/finance/pedidosya-settlements/read-week', {
@@ -101,7 +110,8 @@ async function processFiles() {
       });
 
       // Se selecciona por defecto si es nueva o actualización idéntica
-      const isSelectable = previewData.status === 'new' || previewData.status === 'same_dates_same_amounts';
+      // Se selecciona por defecto si es nueva, si completa con el CSV una semana sin detalle o si es una carga a mano idéntica
+      const isSelectable = ['new', 'complete', 'same_dates_same_amounts'].includes(previewData.status);
       const isBlocked = previewData.status === 'overlaps' || (previewData.blockers && previewData.blockers.length > 0);
 
       weeks.value.push({
@@ -134,6 +144,10 @@ async function processFiles() {
 
   reading.value = false;
   initChoiceMappings();
+  if (rereadRequested) {
+    rereadRequested = false;
+    await processFiles();
+  }
 }
 
 // ---------- Equivalencias de productos u opciones pendientes ----------
@@ -245,7 +259,7 @@ async function runBatchImport() {
       data.append('statement_file', w.statement_file);
       if (w.orders_xls) data.append('orders_xls', w.orders_xls);
       if (w.invoice_pdf) data.append('invoice_pdf', w.invoice_pdf);
-      if (csvFile.value) data.append('csv_file', csvFile.value);
+      for (const f of csvFiles.value) data.append('csv_files[]', f);
       data.append('statement_number', w.id);
       data.append('sales_mode', createSales.value ? 'create' : 'skip');
 
@@ -257,7 +271,8 @@ async function runBatchImport() {
       importResults.value.push({
         id: w.id,
         dates: `${formatDay(w.preview.start_date, { year: false })} – ${formatDay(w.preview.end_date)}`,
-        status: res.settlement ? 'ok' : 'skipped',
+        // Una semana que ya estaba importada se informa como saltada, no como importada otra vez
+        status: res.skipped ? 'skipped' : 'ok',
         message: res.message || 'Importada correctamente',
         warnings: res.warnings || [],
         sales: res.sales,
@@ -280,10 +295,28 @@ async function runBatchImport() {
 
 function finish() {
   emit('imported', {
-    message: `${importResults.value.filter((r) => r.status === 'ok').length} semanas de PedidosYa importadas.`,
+    message: importSummary.value,
     results: importResults.value,
   });
   emit('close');
+}
+
+const importSummary = computed(() => {
+  const count = (st) => importResults.value.filter((r) => r.status === st).length;
+  const parts = [`${count('ok')} ${count('ok') === 1 ? 'semana importada' : 'semanas importadas'}`];
+  if (count('skipped')) parts.push(`${count('skipped')} ya ${count('skipped') === 1 ? 'estaba' : 'estaban'}`);
+  if (count('error')) parts.push(`${count('error')} con error`);
+  return `PedidosYa: ${parts.join(', ')}.`;
+});
+
+/** «3 ventas creadas, 1 vinculada» */
+function salesText(sales) {
+  if (!sales) return '';
+  const parts = [];
+  if (sales.created) parts.push(`${sales.created} ${sales.created === 1 ? 'venta creada' : 'ventas creadas'}`);
+  if (sales.linked) parts.push(`${sales.linked} ${sales.linked === 1 ? 'vinculada' : 'vinculadas'}`);
+  if (sales.already) parts.push(`${sales.already} ya ${sales.already === 1 ? 'estaba' : 'estaban'}`);
+  return parts.join(', ');
 }
 
 function statusBadge(status) {
@@ -292,6 +325,8 @@ function statusBadge(status) {
       return { label: 'Nueva', class: 'ok' };
     case 'already_imported':
       return { label: 'Ya importada', class: 'muted' };
+    case 'complete':
+      return { label: 'Completar', class: 'info' };
     case 'same_dates_same_amounts':
       return { label: 'Cargada a mano', class: 'info' };
     case 'same_dates_diff_amounts':
@@ -329,6 +364,7 @@ function statusBadge(status) {
         ref="csvInput"
         type="file"
         accept=".csv"
+        multiple
         style="display: none"
         @change="handleCsvFile"
       />
@@ -356,11 +392,11 @@ function statusBadge(status) {
       <div class="fin-csv-subpanel">
         <div class="fin-csv-info">
           <strong>Archivo CSV de pedidos (opcional):</strong>
-          <span v-if="csvFile" class="fin-badge ok">✓ {{ csvFile.name }}</span>
+          <span v-if="csvFiles.length" class="fin-badge ok">✓ {{ csvNames }}</span>
           <span v-else class="fin-muted">No seleccionado (si está fuera de la carpeta, puedes elegirlo abajo).</span>
         </div>
-        <button v-if="!csvFile" class="fin-btn fin-btn-secondary fin-btn-sm" type="button" @click="triggerCsvSelect">
-          Elegir orderDetails.csv
+        <button class="fin-btn fin-btn-secondary fin-btn-sm" type="button" @click="triggerCsvSelect">
+          {{ csvFiles.length ? 'Agregar otro CSV' : 'Elegir orderDetails.csv' }}
         </button>
       </div>
 
@@ -385,7 +421,7 @@ function statusBadge(status) {
         <div>
           <strong>{{ weeks.length }} semanas encontradas</strong>
           <span class="fin-muted"> · {{ selectedWeeks.length }} seleccionadas para importar</span>
-          <span v-if="csvFile" class="fin-muted"> · Con CSV: <code>{{ csvFile.name }}</code></span>
+          <span v-if="csvFiles.length" class="fin-muted"> · Con CSV: <code>{{ csvNames }}</code></span>
         </div>
         <button class="fin-btn fin-btn-ghost fin-btn-sm" type="button" @click="step = 'select'">
           Cambiar carpeta
@@ -437,7 +473,8 @@ function statusBadge(status) {
                   <span class="fin-tag-file" title="Estado de cuenta en PDF">PDF</span>
                   <span v-if="w.orders_xls" class="fin-tag-file" title="Excel de pedidos">XLS</span>
                   <span v-if="w.invoice_pdf" class="fin-tag-file" title="Factura fiscal">Factura</span>
-                  <span v-if="w.preview.orders_source === 'csv'" class="fin-tag-file tag-csv" title="CSV vinculado">CSV</span>
+                  <span v-if="w.preview.orders_source === 'csv'" class="fin-tag-file tag-csv" title="Pedidos del CSV">CSV</span>
+                  <span v-else-if="w.preview.orders_source === 'mixed'" class="fin-tag-file tag-csv" title="Al CSV le faltan pedidos de esta semana">CSV parcial</span>
                 </div>
               </td>
               <td data-label="Liquidado" class="right fin-num">
@@ -447,17 +484,23 @@ function statusBadge(status) {
                 <span v-else class="fin-muted">—</span>
               </td>
               <td data-label="Ventas POS">
-                <template v-if="w.preview.sales">
+                <template v-if="w.preview.status === 'already_imported'">
+                  <span class="fin-muted fin-small">Sin cambios</span>
+                </template>
+                <template v-else-if="w.preview.status === 'same_dates_same_amounts'">
+                  <span class="fin-muted fin-small">Sus pedidos y ventas no se tocan; se agregan los archivos</span>
+                </template>
+                <template v-else-if="w.preview.sales">
                   <div class="fin-small">
                     <strong>{{ w.preview.sales.summary.create }}</strong> nuevas ·
                     <strong>{{ w.preview.sales.summary.link }}</strong> a vincular
                   </div>
                   <div class="fin-cell-sub">
-                    {{ w.preview.orders_count }} pedidos entregados
+                    {{ w.preview.orders_count }} pedidos<template v-if="w.preview.orders_with_detail < w.preview.orders_count">, {{ w.preview.orders_with_detail }} con artículos</template>
                   </div>
                 </template>
-                <template v-else-if="w.orders_xls">
-                  <span class="fin-muted fin-small">{{ w.preview.orders_count }} pedidos (sin ventas)</span>
+                <template v-else-if="w.preview.orders_count">
+                  <span class="fin-muted fin-small">{{ w.preview.orders_count }} pedidos del Excel, sin artículos: no se crean ventas</span>
                 </template>
                 <template v-else>
                   <span class="fin-muted fin-small">Solo montos</span>
@@ -468,13 +511,14 @@ function statusBadge(status) {
                   <span class="fin-badge" :class="statusBadge(w.preview.status).class">
                     {{ statusBadge(w.preview.status).label }}
                   </span>
-                  <span v-if="w.preview.blockers?.length" class="fin-cell-sub" style="color: var(--danger-text)">
-                    ❌ {{ w.preview.blockers[0] }}
+                  <span v-for="b in w.preview.blockers || []" :key="`b-${b}`" class="fin-cell-sub pya-blocker">
+                    ❌ {{ b }}
                   </span>
-                  <span v-else-if="w.preview.warnings?.length" class="fin-cell-sub" style="color: var(--gold-text)">
-                    ⚠️ {{ w.preview.warnings[0] }}
+                  <!-- Todos los avisos, no solo el primero: ningún archivo que falte o no se lea pasa en silencio -->
+                  <span v-for="wn in w.preview.warnings || []" :key="`w-${wn}`" class="fin-cell-sub pya-warning">
+                    ⚠️ {{ wn }}
                   </span>
-                  <span v-else-if="w.preview.controls?.balance_ok" class="fin-cell-sub" style="color: var(--lime-700)">
+                  <span v-if="!w.preview.blockers?.length && !w.preview.warnings?.length && w.preview.controls?.balance_ok" class="fin-cell-sub" style="color: var(--lime-700)">
                     ✓ Todo cuadra
                   </span>
                 </div>
@@ -493,7 +537,8 @@ function statusBadge(status) {
             </h4>
             <p class="fin-small" style="margin: 4px 0 0">
               Se encontraron artículos en los pedidos del CSV que aún no tienen equivalencia en el POS.
-              Asígnalos una sola vez para todas las semanas.
+              Asígnalos una sola vez para todas las semanas. Al guardar, puede aparecer una segunda tanda con las
+              opciones de esos productos. Una opción que no está en el menú se puede anotar sin descontar inventario.
             </p>
           </div>
         </div>
@@ -520,6 +565,8 @@ function statusBadge(status) {
             </div>
             <select v-model="choice.options[o.name]" class="fin-select">
               <option value="">Elegir opción del menú…</option>
+              <!-- Igual que en «Crear o vincular ventas»: la opción se anota en la venta sin descontar inventario -->
+              <option :value="0">Sin equivalencia (solo anotar en la venta)</option>
               <option v-for="c in o.choices" :key="c.id" :value="c.id">
                 {{ c.group_name }} → {{ c.name }}
               </option>
@@ -541,7 +588,7 @@ function statusBadge(status) {
 
       <!-- Opciones y archivos ignorados -->
       <div class="fin-row" style="margin-top: 14px; align-items: center">
-        <label v-if="csvFile" class="fin-checkbox-label">
+        <label v-if="csvFiles.length" class="fin-checkbox-label">
           <input v-model="createSales" type="checkbox" />
           <span>Crear o vincular las ventas en el POS para las semanas con CSV</span>
         </label>
@@ -576,7 +623,8 @@ function statusBadge(status) {
         <div v-for="r in importResults" :key="r.id" class="fin-result-item" :class="r.status">
           <div class="fin-result-main">
             <strong>Semana {{ r.dates }} (Liquidación {{ r.id }})</strong>
-            <span class="fin-small">{{ r.message }}</span>
+            <span class="fin-small">{{ salesText(r.sales) ? `${r.message} ${salesText(r.sales)}.` : r.message }}</span>
+            <span v-for="wn in r.warnings" :key="wn" class="fin-small pya-warning">⚠️ {{ wn }}</span>
           </div>
           <span class="fin-badge" :class="r.status === 'ok' ? 'ok' : r.status === 'error' ? 'err' : 'muted'">
             {{ r.status === 'ok' ? 'Completada' : r.status === 'error' ? 'Error' : 'Saltada' }}
@@ -610,6 +658,8 @@ function statusBadge(status) {
 </template>
 
 <style scoped>
+.pya-blocker { color: var(--danger-text); }
+.pya-warning { color: var(--gold-text); }
 .fin-folder-select-wrap {
   display: flex;
   flex-direction: column;
@@ -716,9 +766,14 @@ html.dark .fin-dropzone:focus {
   border: 1px solid var(--border);
 }
 
+/* En oscuro, --ink-300 es gris oscuro (2,5:1): el texto usa --ink-700, que en oscuro es claro */
 html.dark .fin-tag-file {
   background: rgba(255, 255, 255, 0.08);
-  color: var(--ink-300);
+  color: var(--ink-700);
+}
+html.dark .fin-tag-file.tag-csv {
+  background: var(--lime-100);
+  color: var(--lime-700);
 }
 
 .fin-tag-file.tag-csv {

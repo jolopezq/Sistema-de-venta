@@ -64,4 +64,21 @@ class PedidosYaOrder extends Model
     {
         return $this->belongsTo(Sale::class, 'sale_id');
     }
+
+    /**
+     * Texto que la primera versión de la importación por carpeta guardaba en los pedidos que solo venían del Excel.
+     * Igual que `items_text` nulo: el pedido no tiene artículos y no puede crear su venta.
+     */
+    public const LEGACY_PLACEHOLDER = 'Pedido PedidosYa #';
+
+    /** ¿El pedido trae sus artículos (del CSV)? */
+    public static function hasDetail(?string $itemsText): bool
+    {
+        return $itemsText !== null && !str_starts_with($itemsText, self::LEGACY_PLACEHOLDER);
+    }
+
+    public function scopeWithDetail($query)
+    {
+        return $query->whereNotNull('items_text')->where('items_text', 'not like', self::LEGACY_PLACEHOLDER . '%');
+    }
 }
