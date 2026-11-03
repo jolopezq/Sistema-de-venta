@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Sale;
+use App\Models\SalePayment;
 use App\Models\CashMovement;
 use App\Models\FinanceExpense;
 use App\Models\ExpenseCategory;
@@ -10,6 +11,7 @@ use App\Models\PedidosYaOrder;
 use App\Models\PedidosYaSettlement;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class FinanceReportService
 {
@@ -41,6 +43,29 @@ class FinanceReportService
         $localSalesTotal = (float) $localSalesQuery->sum('total_amount');
         $localSalesCount = (int) $localSalesQuery->count();
         $averageTicket = $localSalesCount > 0 ? round($localSalesTotal / $localSalesCount, 2) : 0.0;
+
+        // Desglose de ventas del local por método de pago (efectivo, QR, tarjeta)
+        $localSaleIds = (clone $localSalesQuery)->pluck('id');
+
+        $paymentTotals = SalePayment::whereIn('sale_id', $localSaleIds)
+            ->select('method', DB::raw('SUM(amount) as total'))
+            ->groupBy('method')
+            ->pluck('total', 'method')
+            ->toArray();
+
+        // Ventas legacy sin registro explícito en sale_payments se asignan a efectivo
+        $legacyNoPaymentSales = (float) Sale::whereIn('id', $localSaleIds)->doesntHave('payments')->sum('total_amount');
+
+        $cashSales  = round((float) ($paymentTotals['cash'] ?? 0) + $legacyNoPaymentSales, 2);
+        $qrSales    = round((float) ($paymentTotals['qr'] ?? 0), 2);
+        $cardSales  = round((float) ($paymentTotals['card'] ?? 0), 2);
+        $otherSales = 0.0;
+        foreach ($paymentTotals as $m => $amt) {
+            if (!in_array($m, ['cash', 'qr', 'card'])) {
+                $otherSales += (float) $amt;
+            }
+        }
+        $otherSales = round($otherSales, 2);
 
         // 2. Semanas de PedidosYa que tocan el mes. Las que cruzan dos meses se prorratean por la fecha
         //    de cada pedido entregado (plan §7.1, auditoría M2).
@@ -220,6 +245,10 @@ class FinanceReportService
                 'local_sales'       => $localSalesTotal,
                 'local_sales_count' => $localSalesCount,
                 'average_ticket'    => $averageTicket,
+                'cash_sales'        => $cashSales,
+                'qr_sales'          => $qrSales,
+                'card_sales'        => $cardSales,
+                'other_sales'       => $otherSales,
                 'pedidosya_net'     => $pedidosyaNetSales,
                 'pedidosya_pos_unreconciled'       => $unreconciledPyaTotal,
                 'pedidosya_pos_unreconciled_count' => $unreconciledPyaCount,

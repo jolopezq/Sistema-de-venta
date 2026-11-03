@@ -48,13 +48,39 @@ function costSection(key, label, block) {
 
 const revenueChildren = computed(() => {
   const r = props.pnl.revenue || {};
+  const localCount = r.local_sales_count || 0;
   const rows = [
-    { label: 'Ventas del local', detail: `${r.local_sales_count || 0} tickets`, amount: r.local_sales },
-    { label: 'PedidosYa (semanas importadas)', detail: 'ventas netas del estado de cuenta', amount: r.pedidosya_net },
+    {
+      label: '💵 Ventas en Efectivo',
+      detail: `caja física · ${localCount} tickets en local`,
+      amount: r.cash_sales ?? 0,
+    },
+    {
+      label: '📱 Ventas vía QR / Banco',
+      detail: 'transferencias y pagos QR en local',
+      amount: r.qr_sales ?? 0,
+    },
+    {
+      label: '💳 Ventas con Tarjeta',
+      detail: 'tarjetas de débito/crédito en local',
+      amount: r.card_sales ?? 0,
+    },
   ];
+  if (Number(r.other_sales) > 0) {
+    rows.push({
+      label: '🏷️ Otros métodos de pago',
+      detail: 'otros medios del local',
+      amount: r.other_sales,
+    });
+  }
+  rows.push({
+    label: '🛵 PedidosYa (semanas importadas)',
+    detail: 'ventas netas del estado de cuenta',
+    amount: r.pedidosya_net ?? 0,
+  });
   if (Number(r.pedidosya_pos_unreconciled) > 0) {
     rows.push({
-      label: 'PedidosYa del POS sin conciliar',
+      label: '🛵 PedidosYa del POS sin conciliar',
       detail: `${r.pedidosya_pos_unreconciled_count} ventas en semanas sin importar`,
       amount: r.pedidosya_pos_unreconciled,
     });

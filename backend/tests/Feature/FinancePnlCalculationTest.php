@@ -8,6 +8,7 @@ use App\Models\ExpenseCategory;
 use App\Models\FinanceExpense;
 use App\Models\RecurringExpense;
 use App\Models\Sale;
+use App\Models\SalePayment;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -208,5 +209,78 @@ class FinancePnlCalculationTest extends TestCase
         // Agosto (antes del inicio): no corresponde ningún gasto fijo
         $aug = $this->actingAs($this->superAdmin)->getJson('/api/finance/pnl?year=2026&month=8')->json();
         $this->assertNull(collect($aug['warnings'])->firstWhere('code', 'pending_recurring'));
+    }
+
+    public function test_monthly_pnl_breaks_down_sales_by_payment_method(): void
+    {
+        $timezone = config('app.timezone', 'America/La_Paz');
+        $dateUtc = Carbon::create(2026, 10, 10, 15, 0, 0, $timezone)->setTimezone('UTC');
+
+        // Venta 1: 600 Bs efectivo
+        $s1 = Sale::create([
+            'id'           => Str::uuid()->toString(),
+            'order_number' => 'V-1001',
+            'cashier_id'   => $this->cashier->id,
+            'subtotal'     => 600.00,
+            'total_amount' => 600.00,
+            'status'       => 'completed',
+            'source'       => 'pos',
+            'created_at'   => $dateUtc,
+            'updated_at'   => $dateUtc,
+        ]);
+        SalePayment::create(['sale_id' => $s1->id, 'method' => 'cash', 'amount' => 600.00]);
+
+        // Venta 2: 300 Bs QR
+        $s2 = Sale::create([
+            'id'           => Str::uuid()->toString(),
+            'order_number' => 'V-1002',
+            'cashier_id'   => $this->cashier->id,
+            'subtotal'     => 300.00,
+            'total_amount' => 300.00,
+            'status'       => 'completed',
+            'source'       => 'pos',
+            'created_at'   => $dateUtc,
+            'updated_at'   => $dateUtc,
+        ]);
+        SalePayment::create(['sale_id' => $s2->id, 'method' => 'qr', 'amount' => 300.00]);
+
+        // Venta 3: 100 Bs Tarjeta
+        $s3 = Sale::create([
+            'id'           => Str::uuid()->toString(),
+            'order_number' => 'V-1003',
+            'cashier_id'   => $this->cashier->id,
+            'subtotal'     => 100.00,
+            'total_amount' => 100.00,
+            'status'       => 'completed',
+            'source'       => 'pos',
+            'created_at'   => $dateUtc,
+            'updated_at'   => $dateUtc,
+        ]);
+        SalePayment::create(['sale_id' => $s3->id, 'method' => 'card', 'amount' => 100.00]);
+
+        // Venta 4: 150 Bs pago dividido (50 efectivo + 100 QR)
+        $s4 = Sale::create([
+            'id'           => Str::uuid()->toString(),
+            'order_number' => 'V-1004',
+            'cashier_id'   => $this->cashier->id,
+            'subtotal'     => 150.00,
+            'total_amount' => 150.00,
+            'status'       => 'completed',
+            'source'       => 'pos',
+            'created_at'   => $dateUtc,
+            'updated_at'   => $dateUtc,
+        ]);
+        SalePayment::create(['sale_id' => $s4->id, 'method' => 'cash', 'amount' => 50.00]);
+        SalePayment::create(['sale_id' => $s4->id, 'method' => 'qr', 'amount' => 100.00]);
+
+        $res = $this->actingAs($this->superAdmin)->getJson('/api/finance/pnl?year=2026&month=10')->assertOk()->json();
+
+        $rev = $res['revenue'];
+        $this->assertEquals(1150.00, $rev['local_sales']);
+        $this->assertEquals(4, $rev['local_sales_count']);
+        $this->assertEquals(650.00, $rev['cash_sales']);
+        $this->assertEquals(400.00, $rev['qr_sales']);
+        $this->assertEquals(100.00, $rev['card_sales']);
+        $this->assertEquals(0.00, $rev['other_sales']);
     }
 }

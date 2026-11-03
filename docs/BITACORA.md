@@ -4,6 +4,11 @@ Registro vivo para que cualquier agente o persona retome el trabajo. Actualízal
 que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Historial: [CHANGELOG.md](../CHANGELOG.md).
 
 ## Estado actual (2026-11-03)
+- **Rama `feat/finanzas-desglose-metodos-pago` (completada; sale de `feat/remover-canal-pedidosya-pos`):** desglose de ventas por método de pago (efectivo, QR, tarjeta) en el Estado de Resultados de Finanzas.
+  - **Decisión del dueño:** ver cuánto ingresa mensualmente en efectivo, QR y tarjeta para control contable y financiero.
+  - **Servidor:** en `FinanceReportService::getMonthlyPnL`, agregados `cash_sales`, `qr_sales`, `card_sales` y `other_sales` al objeto `revenue`, agrupando pagos de `SalePayment` de ventas completadas del local en el mes (con compatibilidad para ventas legacy sin payments que se imputan a efectivo). Pruebas en `FinancePnlCalculationTest` (suite PHPUnit 446/446 en verde).
+  - **Frontend:** en `FinanceStatementTable.vue`, al desplegar «Ventas» o pulsar «Ver cada línea», `revenueChildren` muestra 💵 Ventas en Efectivo, 📱 Ventas vía QR / Banco, 💳 Ventas con Tarjeta y 🛵 PedidosYa (con sus importes en Bs y % sobre las ventas del mes). Vite build limpio y 42 pruebas E2E de finanzas en verde.
+
 - **Rama `feat/remover-canal-pedidosya-pos` (completada; sale de `feat/importar-carpeta-pedidosya`):** remoción del canal manual de PedidosYa en la interfaz de caja (`Pos.vue`) y robustez ante delimitadores CSV y fallbacks de importación ([PLAN_REMOVER_CANAL_PEDIDOSYA_POS.md](PLAN_REMOVER_CANAL_PEDIDOSYA_POS.md)).
   - **Decisión del dueño:** los pedidos de PedidosYa se gestionan e imprimen en su propio POS oficial; la conciliación en Ohana se realiza de forma automática por lotes en Finanzas, por lo que el registro manual en caja quedó obsoleto.
   - **Optimización de pantalla en caja (Toshiba 1366 × 611):** eliminados `.channel-switch`, `.pya-banner`, modales de cambio de canal y modal de ajuste de precio de línea (`PriceOverrideModal`) en `Pos.vue`. La columna del ticket recupera ~70px verticales, permitiendo que el total y el botón de cobro queden a la vista sin scroll.
