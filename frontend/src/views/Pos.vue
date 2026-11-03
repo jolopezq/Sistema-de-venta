@@ -12,8 +12,7 @@ import CartItem from '../components/CartItem.vue';
 import CheckoutModal from '../components/CheckoutModal.vue';
 import ReceiptModal from '../components/ReceiptModal.vue';
 import ModifierModal from '../components/ModifierModal.vue';
-import PriceOverrideModal from '../components/PriceOverrideModal.vue';
-import { productPrice, missingDeliveryPrice, isAvailableOnPedidosYa, CHANNEL_PEDIDOSYA } from '../utils/channelPricing';
+import { productPrice } from '../utils/channelPricing';
 import { productStockRows } from '../utils/stockRecipe';
 
 const catalog = useCatalogStore();
@@ -32,6 +31,7 @@ let sessionTimer = null;
 const refreshSalesSession = () => turno.fetchActiveSession();
 
 onMounted(async () => {
+  cart.setChannel('pos');
   refreshSalesSession();
   sessionTimer = setInterval(() => { if (network.isOnline) refreshSalesSession(); }, 5 * 60 * 1000);
   window.addEventListener('online', refreshSalesSession);
@@ -72,16 +72,12 @@ function selectCategory(id) {
 }
 
 const filteredProducts = computed(() => {
-  // En modo PedidosYa solo se ofrecen los productos marcados como disponibles en la plataforma
-  const channelProducts = cart.channel === CHANNEL_PEDIDOSYA
-    ? catalog.products.filter(isAvailableOnPedidosYa)
-    : catalog.products;
   // Al buscar se busca en todo el catálogo, no solo en la categoría elegida
   if (searchTerm.value) {
-    return channelProducts.filter((p) => normalize(`${p.name} ${p.description || ''}`).includes(searchTerm.value));
+    return catalog.products.filter((p) => normalize(`${p.name} ${p.description || ''}`).includes(searchTerm.value));
   }
-  if (activeCategoryId.value === null) return channelProducts;
-  return channelProducts.filter(p => p.category_id === activeCategoryId.value);
+  if (activeCategoryId.value === null) return catalog.products;
+  return catalog.products.filter(p => p.category_id === activeCategoryId.value);
 });
 
 /** Unidades en el ticket (dos capuchinos cuentan 2; un producto por peso cuenta 1). */
@@ -266,77 +262,6 @@ function handleCloseReceipt() {
   }
 }
 
-// ── Canal de venta (Local / PedidosYa) ──
-const isPedidosYa = computed(() => cart.channel === CHANNEL_PEDIDOSYA);
-const pendingChannel = ref(null);
-
-function requestChannel(channel) {
-  if (channel === cart.channel) return;
-  if (cart.items.length > 0) {
-    // No se mezclan precios de mostrador y de PedidosYa en un mismo pedido
-    pendingChannel.value = channel;
-    return;
-  }
-  cart.setChannel(channel);
-}
-
-function confirmChannelChange() {
-  cart.clearCart();
-  cart.setChannel(pendingChannel.value);
-  pendingChannel.value = null;
-}
-
-/** Ítems del carrito que se cobran a precio local por no tener tarifa PedidosYa */
-const itemsWithoutDeliveryPrice = computed(() => {
-  if (!isPedidosYa.value) return [];
-  const names = new Set();
-  for (const item of cart.items) {
-    const product = catalog.products.find(p => p.id === item.product_id);
-    if (!product) continue;
-    if (product.is_weight_based || missingDeliveryPrice(product)) {
-      names.add(product.name);
-    }
-    for (const mod of item.modifiers || []) {
-      let opt = null;
-      for (const og of (product.option_groups || [])) {
-        const found = (og.options || []).find(o => o.id === mod.option_id);
-        if (found) {
-          opt = {
-            ...found,
-            pedidosya_pricing: found.pedidosya_pricing !== undefined ? found.pedidosya_pricing : og.pedidosya_pricing,
-          };
-          break;
-        }
-      }
-      if (opt && Number(opt.additional_price) > 0 && missingDeliveryPrice(opt)) {
-        names.add(`${product.name} · ${opt.name}`);
-      }
-    }
-  }
-  return [...names];
-});
-
-// ── Ajuste de precio de una línea (solo PedidosYa) ──
-const priceOverrideItem = ref(null);
-
-function openPriceOverride(item) {
-  if (!isPedidosYa.value || item.is_weight_based) return;
-  priceOverrideItem.value = item;
-}
-
-function applyPriceOverride({ price, reason }) {
-  if (priceOverrideItem.value) {
-    cart.overrideItemPrice(priceOverrideItem.value.cart_key, price, reason);
-  }
-  priceOverrideItem.value = null;
-}
-
-function clearPriceOverride() {
-  if (priceOverrideItem.value) {
-    cart.clearItemPriceOverride(priceOverrideItem.value.cart_key);
-  }
-  priceOverrideItem.value = null;
-}
 
 const showClearConfirmModal = ref(false);
 
@@ -405,39 +330,13 @@ function confirmClearCart() {
               Ningún producto se llama así.
               <button type="button" class="pos-link" @click="clearSearch">Ver todo el menú</button>
             </template>
-            <template v-else>{{ isPedidosYa ? 'No hay productos disponibles en PedidosYa.' : 'No hay productos disponibles.' }}</template>
+            <template v-else>No hay productos disponibles.</template>
           </div>
         </div>
       </div>
 
       <!-- Ticket -->
-      <div class="pos-ticket" :class="{ 'pos-ticket--pedidosya': isPedidosYa }">
-        <!-- Selector de canal -->
-        <div class="channel-switch" role="radiogroup" aria-label="Canal de venta">
-          <button
-            type="button"
-            role="radio"
-            class="channel-btn"
-            :class="{ active: !isPedidosYa }"
-            :aria-checked="!isPedidosYa"
-            @click="requestChannel('pos')"
-          >Local</button>
-          <button
-            type="button"
-            role="radio"
-            class="channel-btn channel-btn--pya"
-            :class="{ active: isPedidosYa }"
-            :aria-checked="isPedidosYa"
-            @click="requestChannel('pedidosya')"
-          >PedidosYa</button>
-        </div>
-        <div v-if="isPedidosYa" class="pya-banner" role="status">
-          Pedido de PedidosYa: precios de la plataforma. No entra al arqueo de caja.
-          <div v-if="itemsWithoutDeliveryPrice.length" class="pya-banner-warn">
-            Sin precio PedidosYa, se cobra el precio local: {{ itemsWithoutDeliveryPrice.join(', ') }}
-          </div>
-        </div>
-
+      <div class="pos-ticket">
         <div class="ticket-header">
           <div class="ticket-header-title">
             <h3>Ticket</h3>
@@ -458,8 +357,6 @@ function confirmClearCart() {
             v-for="item in cart.items"
             :key="item.cart_key"
             :item="item"
-            :can-adjust-price="isPedidosYa"
-            @adjust-price="openPriceOverride"
             @increase="handleIncrease"
             @decrease="handleDecrease"
             @edit="handleEditCartItem"
@@ -505,7 +402,6 @@ function confirmClearCart() {
               @click="handleCheckout"
             >
               <template v-if="cart.items.length === 0">Cobrar</template>
-              <template v-else-if="isPedidosYa">Registrar pedido de {{ formatMoney(cart.total) }}</template>
               <template v-else>Cobrar {{ formatMoney(cart.total) }}</template>
             </button>
           </template>
@@ -539,34 +435,6 @@ function confirmClearCart() {
       @close="showModifierModal = false; editingCartItem = null"
       @confirm="handleConfirmModifiers"
     />
-
-    <PriceOverrideModal
-      :show="Boolean(priceOverrideItem)"
-      :item="priceOverrideItem"
-      @close="priceOverrideItem = null"
-      @apply="applyPriceOverride"
-      @clear="clearPriceOverride"
-    />
-
-    <!-- Confirmación para cambiar de canal con productos en el ticket -->
-    <div
-      v-if="pendingChannel"
-      class="clear-modal-backdrop"
-      @click.self="pendingChannel = null"
-      @keydown.esc="pendingChannel = null"
-    >
-      <div class="clear-modal-card" role="alertdialog" aria-modal="true" aria-labelledby="pos-channel-title">
-        <h3 id="pos-channel-title" class="clear-modal-title">¿Cambiar a {{ pendingChannel === 'pedidosya' ? 'PedidosYa' : 'venta local' }}?</h3>
-        <p class="clear-modal-desc">
-          Los precios cambian según el canal. Se vaciará el ticket
-          (<strong>{{ ticketUnits === 1 ? '1 producto' : `${ticketUnits} productos` }}</strong>) para no mezclar precios.
-        </p>
-        <div class="clear-modal-actions">
-          <button type="button" class="btn-modal-cancel" @click="pendingChannel = null">No, mantener</button>
-          <button type="button" class="btn-modal-delete" @click="confirmChannelChange">Vaciar y cambiar</button>
-        </div>
-      </div>
-    </div>
 
     <!-- Confirmación para vaciar el ticket -->
     <div
@@ -669,59 +537,6 @@ function confirmClearCart() {
   cursor: pointer;
 }
 
-/* Canal de venta */
-.channel-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 12px 18px 0;
-}
-.channel-btn {
-  padding: 9px 10px;
-  border-radius: 10px;
-  border: 1.5px solid var(--border);
-  background: var(--surface);
-  color: var(--ink-700);
-  font-family: var(--font-heading);
-  font-size: 14.5px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.channel-btn.active {
-  border-color: var(--acai-700);
-  background: var(--acai-700);
-  color: #fff;
-}
-/* PedidosYa conserva el rojo de la plataforma para que no se confunda con una venta del local */
-.channel-btn--pya.active {
-  border-color: #C2003F;
-  background: #C2003F;
-  color: #fff;
-}
-.channel-btn:focus-visible {
-  outline: 2px solid var(--acai-500);
-  outline-offset: 2px;
-}
-.pya-banner {
-  margin: 10px 18px 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #FFE4EC;
-  color: #8A0030;
-  font-size: 13px;
-  line-height: 1.4;
-}
-.pya-banner-warn {
-  margin-top: 6px;
-  font-weight: 600;
-}
-html.dark .pya-banner {
-  background: #3D1424;
-  color: #FFB3C9;
-}
-.pos-ticket--pedidosya {
-  box-shadow: inset 0 4px 0 #C2003F;
-}
 
 .ticket-header {
   display: flex;

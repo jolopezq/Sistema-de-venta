@@ -165,4 +165,25 @@ class PedidosYaSettlementTest extends TestCase
         $this->assertEquals(30.0, $data['pedidosya_analysis']['retention_percent']);
         $this->assertEquals(11, $data['pedidosya_analysis']['delivered_count']);
     }
+
+    public function test_parses_csv_with_semicolon_delimiter_and_bom(): void
+    {
+        $csvContent = "\xEF\xBB\xBF" .
+            "Nro de pedido;Estado del pedido;Fecha del pedido;Forma de pago;Tipo de entrega;Total parcial;Comisión;Impuesto;Descuento financiado por usted;Descuento financiado por PedidosYa;Ingreso estimado;Artículos del pedido\n" .
+            "1001;Entregado;2026-09-15 12:00:00;Pago online;PedidosYa;50,00;10,00;1,50;0,00;0,00;38,50;1 Bowl\n" .
+            "1002;Cancelado;2026-09-15 13:00:00;Pago online;PedidosYa;40,00;8,00;1,20;0,00;0,00;30,80;1 Bowl\n";
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'csv_semi_');
+        file_put_contents($tempPath, $csvContent);
+
+        $service = app(PedidosYaImportService::class);
+        $result = $service->parseCsv($tempPath);
+        unlink($tempPath);
+
+        $this->assertEquals(2, $result['orders_count']);
+        $this->assertEquals(1, $result['delivered_count']);
+        $this->assertEquals(1, $result['cancelled_count']);
+        $this->assertEquals(50.00, $result['csv_gross_sales']);
+        $this->assertEquals(18.00, $result['csv_commission']);
+    }
 }

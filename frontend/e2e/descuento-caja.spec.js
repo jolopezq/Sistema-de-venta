@@ -55,9 +55,8 @@ async function setup(page, { role = 'cashier', policy = CASHIER_POLICY, viewport
 }
 
 /** Café Doble (Bs 28) × 5 = Bs 140: el 20 % es Bs 28. */
-async function openCheckout(page, { units = 5, product = 1, pedidosYa = false } = {}) {
+async function openCheckout(page, { units = 5, product = 1 } = {}) {
   await page.goto('/pos');
-  if (pedidosYa) await page.locator('.channel-btn--pya').click();
   const card = page.locator('.product-grid > *').nth(product);
   await expect(card).toBeVisible();
   for (let i = 0; i < units; i++) await card.click();
@@ -85,11 +84,11 @@ test.describe('Descuento manual al cobrar', () => {
     await expect(discountLink(page)).toHaveCount(0);
   });
 
-  test('2. En PedidosYa no aparece aunque tenga el permiso', async ({ page }) => {
+  test('2. En el POS no hay selector de canal de PedidosYa', async ({ page }) => {
     await setup(page);
-    await openCheckout(page, { pedidosYa: true });
-    await expect(page.locator('#co-pya-id')).toBeVisible();
-    await expect(discountLink(page)).toHaveCount(0);
+    await page.goto('/pos');
+    await expect(page.locator('.channel-switch')).toHaveCount(0);
+    await expect(page.locator('.channel-btn--pya')).toHaveCount(0);
   });
 
   test('3. Cajero: tope del 20 % y motivo obligatorio antes de cobrar', async ({ page }) => {

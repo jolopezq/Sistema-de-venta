@@ -50,9 +50,8 @@ async function setupMockApi(page) {
   });
 }
 
-async function openCheckout(page, { pedidosYa = false, units = 1, product = 0 } = {}) {
+async function openCheckout(page, { units = 1, product = 0 } = {}) {
   await page.goto('/pos');
-  if (pedidosYa) await page.locator('.channel-btn--pya').click();
   const card = page.locator('.product-grid > *').nth(product);
   await expect(card).toBeVisible();
   for (let i = 0; i < units; i++) await card.click();
@@ -157,10 +156,10 @@ test.describe('Cobro — portátil de caja', () => {
     await expectFits(page);
   });
 
-  test('5. PedidosYa entra completo', async ({ page }) => {
+  test('5. Sin selector de canal de PedidosYa en POS y cobro entra completo', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 611 });
-    await openCheckout(page, { pedidosYa: true });
-    await expect(page.locator('#co-pya-id')).toBeVisible();
+    await openCheckout(page);
+    await expect(page.locator('.channel-switch')).toHaveCount(0);
     await expectFits(page);
   });
 

@@ -18,6 +18,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
+  webServer: {
+    command: 'npm run dev',
+    port: 5173,
+    reuseExistingServer: true,
+  },
+
   projects: [
     {
       name: 'Portátil de caja',

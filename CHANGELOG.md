@@ -6,6 +6,10 @@ se renombra con la fecha de la actualización de producción.
 
 ## [Sin publicar]
 
+### Cambiado
+- **Remover selector manual de PedidosYa en el Punto de Venta (POS)** ([plan](docs/PLAN_REMOVER_CANAL_PEDIDOSYA_POS.md)): simplificación de la pantalla de caja eliminando el selector de canal `[ Local ]` / `[ PedidosYa ]`, el aviso y los modales de ajuste de precios en `Pos.vue`. Dado que los pedidos de la plataforma se gestionan e imprimen directamente en el dispositivo POS oficial de PedidosYa y se concilian por documentos en Finanzas, la columna del ticket recupera ~70px verticales, garantizando que el total y el botón de cobro se mantengan a la vista en la portátil de caja (1366 × 611).
+- **Robustez en importación de lotes y delimitadores CSV de PedidosYa**: detección automática de delimitador (coma `,`, punto y coma `;`, tabulador `\t`), eliminación de marcas BOM residuales en cabeceras de columnas, y fallback transparente a la planilla Excel semanal (`ordersXls`) en caso de que el archivo CSV esté ausente o no pueda parsearse. Respuestas controladas con código HTTP 422 en lugar de 500 ante excepciones de archivo.
+
 ### Agregado
 - **Importar carpeta de PedidosYa** ([plan](docs/PLAN_IMPORTAR_CARPETA_PEDIDOSYA.md)): importación directa del paquete mensual o semanal de PedidosYa (carpeta o ZIP con estados de cuenta en PDF, planillas Excel y facturas fiscales) eliminando la carga manual de montos y cruzando automáticamente los pedidos con el CSV de artículos.
   - **Fase 1 (Lectores del backend):** lectores `StatementReader` (parsea PDFs de estado de cuenta extrayendo las 11 líneas del resumen, período y fecha de pago bancario, con verificación de balance matemático), `InvoiceReader` (parsea la factura fiscal con número, fecha de emisión, código de autorización y total) y `OrderListReader` (lee las hojas «Lista de Pedidos» y «Cargos por reclamos» del Excel sin librerías externas). Probado con suite unitaria y contra archivos reales de octubre.

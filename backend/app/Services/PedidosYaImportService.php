@@ -74,9 +74,15 @@ class PedidosYaImportService
         // Remover BOM (\xEF\xBB\xBF)
         $headerLine = preg_replace('/^\xEF\xBB\xBF/', '', $headerLine);
 
+        // Detectar delimitador (, o ; o \t)
+        $delimiter = $this->detectDelimiter($headerLine);
+
         // Parsear cabeceras con str_getcsv
-        $headers = str_getcsv($headerLine, separator: ',', enclosure: '"', escape: '\\');
-        $headers = array_map(fn($h) => trim($h), $headers);
+        $headers = str_getcsv($headerLine, separator: $delimiter, enclosure: '"', escape: '\\');
+        $headers = array_map(function ($h) {
+            $cleaned = preg_replace('/^\xEF\xBB\xBF/', '', trim($h));
+            return trim($cleaned, "\"'\t\n\r \v\0");
+        }, $headers);
 
         // Mapeo de nombre de columna a índice
         $headerMap = [];
@@ -105,7 +111,7 @@ class PedidosYaImportService
 
         $timezone = config('app.timezone', 'America/La_Paz');
 
-        while (($row = fgetcsv($handle, separator: ',', enclosure: '"', escape: '\\')) !== false) {
+        while (($row = fgetcsv($handle, separator: $delimiter, enclosure: '"', escape: '\\')) !== false) {
             // Ignorar líneas vacías
             if (count($row) === 1 && empty($row[0])) {
                 continue;
@@ -509,6 +515,24 @@ class PedidosYaImportService
     }
 
     /**
+     * Detecta el delimitador más probable del CSV (coma, punto y coma o tabulador).
+     */
+    public function detectDelimiter(string $headerLine): string
+    {
+        $candidates = [',', ';', "\t"];
+        $best = ',';
+        $max = 0;
+        foreach ($candidates as $candidate) {
+            $count = substr_count($headerLine, $candidate);
+            if ($count > $max) {
+                $max = $count;
+                $best = $candidate;
+            }
+        }
+        return $best;
+    }
+
+    /**
      * Determina el estado de una semana frente a liquidaciones ya registradas (D3).
      */
     public function determineWeekStatus(string $startDate, string $endDate, float $totalPayout, ?string $statementNumber): array
@@ -882,41 +906,49 @@ class PedidosYaImportService
                 'user_id'               => $userId,
             ]);
 
+            $csvProcessed = false;
             if ($csvFile) {
-                $csv = $this->parseCsv($csvFile);
-                $weekOrders = array_values(array_filter($csv['orders'], function ($o) use ($read) {
-                    $day = substr((string) $o['order_date'], 0, 10);
-                    return $day >= $read['start_date'] && $day <= $read['end_date'];
-                }));
+                try {
+                    $csv = $this->parseCsv($csvFile);
+                    $weekOrders = array_values(array_filter($csv['orders'], function ($o) use ($read) {
+                        $day = substr((string) $o['order_date'], 0, 10);
+                        return $day >= $read['start_date'] && $day <= $read['end_date'];
+                    }));
 
-                $delivered = 0;
-                $cancelled = 0;
-                foreach ($weekOrders as $o) {
-                    if (self::isDelivered($o['status'] ?? null)) {
-                        $delivered++;
-                    } elseif (mb_strtolower((string) ($o['status'] ?? '')) === 'cancelado') {
-                        $cancelled++;
+                    $delivered = 0;
+                    $cancelled = 0;
+                    foreach ($weekOrders as $o) {
+                        if (self::isDelivered($o['status'] ?? null)) {
+                            $delivered++;
+                        } elseif (mb_strtolower((string) ($o['status'] ?? '')) === 'cancelado') {
+                            $cancelled++;
+                        }
+                        PedidosYaOrder::updateOrCreate(
+                            ['order_number' => $o['order_number']],
+                            array_merge($o, ['settlement_id' => $settlement->id])
+                        );
                     }
-                    PedidosYaOrder::updateOrCreate(
-                        ['order_number' => $o['order_number']],
-                        array_merge($o, ['settlement_id' => $settlement->id])
-                    );
-                }
 
-                $settlement->update([
-                    'delivered_count'        => $delivered,
-                    'cancelled_count'        => $cancelled,
-                    'csv_gross_sales'        => round(array_sum(array_column($weekOrders, 'subtotal')), 2),
-                    'csv_commission'         => round(array_sum(array_column($weekOrders, 'commission')), 2),
-                    'csv_estimated_income'   => round(array_sum(array_column($weekOrders, 'estimated_income')), 2),
-                    'csv_pedidosya_discount' => round(array_sum(array_column($weekOrders, 'pedidosya_discount')), 2),
-                    'csv_vendor_discount'    => round(array_sum(array_column($weekOrders, 'vendor_discount')), 2),
-                ]);
+                    $settlement->update([
+                        'delivered_count'        => $delivered,
+                        'cancelled_count'        => $cancelled,
+                        'csv_gross_sales'        => round(array_sum(array_column($weekOrders, 'subtotal')), 2),
+                        'csv_commission'         => round(array_sum(array_column($weekOrders, 'commission')), 2),
+                        'csv_estimated_income'   => round(array_sum(array_column($weekOrders, 'estimated_income')), 2),
+                        'csv_pedidosya_discount' => round(array_sum(array_column($weekOrders, 'pedidosya_discount')), 2),
+                        'csv_vendor_discount'    => round(array_sum(array_column($weekOrders, 'vendor_discount')), 2),
+                    ]);
 
-                if ($salesMode === 'create') {
-                    $salesResult = $this->salesLinker->sync($settlement, $links, $userId);
+                    if ($salesMode === 'create') {
+                        $salesResult = $this->salesLinker->sync($settlement, $links, $userId);
+                    }
+                    $csvProcessed = true;
+                } catch (\Throwable $e) {
+                    $warnings[] = "No se pudieron procesar los pedidos del CSV ({$e->getMessage()}). Se utilizó la planilla Excel.";
                 }
-            } elseif ($ordersXls) {
+            }
+
+            if (!$csvProcessed && $ordersXls) {
                 $xls = $this->orderListReader->read($ordersXls);
                 $delivered = 0;
                 $cancelled = 0;

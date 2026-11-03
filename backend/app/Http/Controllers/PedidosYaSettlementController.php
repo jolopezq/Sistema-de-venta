@@ -117,25 +117,29 @@ class PedidosYaSettlementController extends Controller
             $invoicePdf    = $request->file('invoice_pdf');
             $csvFile       = $request->file('orders_csv') ?? $request->file('csv_file');
 
-            $result = $this->importService->importSettlementFromFolder(
-                $statementFile,
-                $ordersXls,
-                $invoicePdf,
-                $csvFile,
-                $statementFile->getClientOriginalName(),
-                $request->input('statement_number'),
-                $request->input('sales_mode', 'skip'),
-                (array) $request->input('links', []),
-                $request->input('notes'),
-                Auth::id()
-            );
+            try {
+                $result = $this->importService->importSettlementFromFolder(
+                    $statementFile,
+                    $ordersXls,
+                    $invoicePdf,
+                    $csvFile,
+                    $statementFile->getClientOriginalName(),
+                    $request->input('statement_number'),
+                    $request->input('sales_mode', 'skip'),
+                    (array) $request->input('links', []),
+                    $request->input('notes'),
+                    Auth::id()
+                );
 
-            return response()->json([
-                'message'    => 'Semana de PedidosYa importada correctamente.',
-                'settlement' => $result['settlement'],
-                'warnings'   => $result['warnings'],
-                'sales'      => $result['sales'],
-            ], 201);
+                return response()->json([
+                    'message'    => 'Semana de PedidosYa importada correctamente.',
+                    'settlement' => $result['settlement'],
+                    'warnings'   => $result['warnings'],
+                    'sales'      => $result['sales'],
+                ], 201);
+            } catch (\InvalidArgumentException $e) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
         }
 
         $validated = $request->validate([
@@ -181,6 +185,11 @@ class PedidosYaSettlementController extends Controller
                 $validated['sales_mode'] ?? 'create',
                 $validated['links'] ?? []
             );
+        } catch (\InvalidArgumentException $e) {
+            if ($zipPath) {
+                Storage::delete($zipPath);
+            }
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
             // Si la importación no se guardó, el ZIP subido no queda huérfano
             if ($zipPath) {
