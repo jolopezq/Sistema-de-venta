@@ -33,6 +33,9 @@ const routes = [
   { path: '/admin/ventas-retroactivas', name: 'RetroactiveSales', component: RetroactiveSales, meta: { requiresAuth: true, requiredPermission: { module: 'sales_history', level: 'edit' }, adminOnly: true } },
   { path: '/users', name: 'AdminUsers', component: AdminUsers, meta: { requiresAuth: true, requiredPermission: { module: 'users', level: 'read' }, superAdminOnly: true } },
   { path: '/audit-logs', name: 'AuditLogs', component: AuditLogs, meta: { requiresAuth: true, requiredPermission: { module: 'audit', level: 'read' }, superAdminOnly: true } },
+  // Reloj de asistencia: pantalla completa en el equipo autorizado; no pide sesión (docs/PLAN_ASISTENCIA_Y_SUELDOS.md)
+  { path: '/asistencia/reloj', name: 'AttendanceKiosk', component: () => import('../views/AttendanceKiosk.vue'), meta: { kiosk: true } },
+  { path: '/asistencia', name: 'Attendance', component: () => import('../views/Attendance.vue'), meta: { requiresAuth: true, requiredPermission: { module: 'attendance', level: 'read' }, adminOnly: true } },
   { path: '/finanzas', name: 'Finance', component: () => import('../views/Finance.vue'), meta: { requiresAuth: true, requiredPermission: { module: 'finance', level: 'read' }, adminOnly: true } },
 ];
 
@@ -49,6 +52,11 @@ router.beforeEach(async (to, from, next) => {
     await authStore.fetchUser();
   }
   
+  // El reloj de asistencia funciona con o sin sesión
+  if (to.meta.kiosk) {
+    return next();
+  }
+
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return next('/login');
   }

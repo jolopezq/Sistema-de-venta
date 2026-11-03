@@ -225,6 +225,15 @@ export const PERSON_PERMISSION_MODULES = [
     roles: ['admin', 'cashier'],
     defaults: { admin: 'none', cashier: 'none' },
   },
+  {
+    id: 'attendance',
+    name: 'Asistencia y sueldos',
+    desc: 'Ver las marcas de entrada y salida, las fotos y la planilla de sueldos. Con «Editar», además aprobar, corregir marcas y autorizar equipos. Los trabajadores nunca lo reciben: solo ven sus propias horas.',
+    levelLabels: { none: 'Sin acceso', read: 'Ver', edit: 'Editar' },
+    badge: { none: 'Sin asistencia', read: 'Asistencia: ver', edit: 'Asistencia' },
+    roles: ['admin'],
+    defaults: { admin: 'edit' },
+  },
 ];
 
 /** ¿Puede una persona de ese rol recibir este permiso por persona? */

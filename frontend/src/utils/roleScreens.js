@@ -95,6 +95,12 @@ export function screensFor(role, levelOf) {
       isVisible: isSuperAdmin || (isAdmin && getLevel('finance') !== 'none'),
       isReadOnly: !isSuperAdmin && getLevel('finance') === 'read',
     },
+    {
+      // Asistencia y sueldos: permiso por persona; los administradores lo tienen por defecto (docs/PLAN_ASISTENCIA_Y_SUELDOS.md §5.8)
+      id: 'attendance', name: 'Asistencia', route: '/asistencia', section: 'Sistema', icon: 'attendance',
+      isVisible: isSuperAdmin || (isAdmin && getLevel('attendance') !== 'none'),
+      isReadOnly: !isSuperAdmin && getLevel('attendance') === 'read',
+    },
     { id: 'users', name: 'Usuarios', route: '/users', section: 'Sistema', icon: 'users', isVisible: isSuperAdmin, isReadOnly: false },
     { id: 'audit', name: 'Auditoría', route: '/audit-logs', section: 'Sistema', icon: 'audit', isVisible: isSuperAdmin, isReadOnly: false },
   ];
@@ -125,6 +131,8 @@ export function screensFor(role, levelOf) {
       landing = '/admin/ventas-retroactivas';
     } else if (isAdmin && getLevel('finance') !== 'none') {
       landing = '/finanzas';
+    } else if (isAdmin && getLevel('attendance') !== 'none') {
+      landing = '/asistencia';
     } else {
       landing = '/sin-acceso';
     }

@@ -68,7 +68,7 @@ class AttendanceKioskTest extends TestCase
         $this->assertArrayNotHasKey('face_score', $entry->json());
 
         $this->travel(8)->hours();
-        $this->clock($user)->assertCreated()->assertJsonPath('type', 'out')->assertJsonPath('time', '22:00');
+        $this->clock($user)->assertCreated()->assertJsonPath('type', 'out')->assertJsonPath('time', '22:00')->assertJsonPath('entry_time', '14:00');
 
         $marks = AttendanceMark::orderBy('id')->get();
         $this->assertSame(['in', 'out'], $marks->pluck('type')->all());

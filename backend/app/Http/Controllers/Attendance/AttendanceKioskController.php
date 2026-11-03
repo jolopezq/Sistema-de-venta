@@ -81,9 +81,18 @@ class AttendanceKioskController extends Controller
 
         ['mark' => $mark, 'duplicate' => $duplicate] = $this->attendance->clock($user, $data, $device, $request->ip());
 
+        // En una salida, la hora de su entrada (es su propio dato: «Turno de hoy: 08:01 → 16:05»)
+        $entry = $mark->type === 'out'
+            ? \App\Models\AttendanceMark::live()->where('user_id', $user->id)->where('type', 'in')
+                ->where('marked_at', '<', $mark->marked_at)
+                ->where('marked_at', '>=', $mark->marked_at->copy()->subHours(config('attendance.open_shift_hours')))
+                ->orderByDesc('marked_at')->first()
+            : null;
+
         return response()->json([
             'type'      => $mark->type,
             'time'      => $mark->marked_at->format('H:i'),
+            'entry_time' => $entry?->marked_at->format('H:i'),
             'date'      => $mark->marked_at->toDateString(),
             'status'    => $this->attendance->publicStatus($mark),
             'duplicate' => $duplicate,

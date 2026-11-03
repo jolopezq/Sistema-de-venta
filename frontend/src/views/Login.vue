@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/auth';
 import { useCatalogStore } from '../stores/catalog';
 import { useThemeStore } from '../stores/theme';
 import { useRoute, useRouter } from 'vue-router';
+import { hasAttendanceDevice, deviceInfo } from '../services/attendanceKiosk';
 
 const route = useRoute();
 // Cuentas de ejemplo solo en desarrollo: en producción el formulario empieza vacío
@@ -19,6 +20,8 @@ const auth = useAuthStore();
 const catalog = useCatalogStore();
 const theme = useThemeStore();
 const router = useRouter();
+// Reloj de asistencia: solo en el equipo autorizado (docs/PLAN_ASISTENCIA_Y_SUELDOS.md)
+const attendanceDevice = hasAttendanceDevice() ? deviceInfo() : null;
 
 async function handleLogin() {
   errorMsg.value = '';
@@ -95,6 +98,15 @@ async function handleLogin() {
         {{ isLoading ? 'Conectando...' : 'Iniciar Turno' }}
       </button>
 
+      <template v-if="attendanceDevice">
+        <div class="login-or" aria-hidden="true"><span></span>o<span></span></div>
+        <router-link to="/asistencia/reloj" class="login-clock-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+          Marcar asistencia
+        </router-link>
+        <p class="login-clock-hint">Entrada y salida del personal, sin iniciar sesión.</p>
+      </template>
+
       <div class="offline-banner">
         <span>📶</span>
         <span>Sin conexión: el sistema funciona offline y sincronizará al restaurar la red.</span>
@@ -104,6 +116,18 @@ async function handleLogin() {
 </template>
 
 <style scoped>
+.login-or { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; color: var(--ink-500); font-size: 12px; }
+.login-or span { flex: 1; height: 1px; background: var(--border); }
+.login-clock-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px; height: 46px; border-radius: 12px;
+  border: 2px solid var(--acai-700); background: var(--acai-50); color: var(--acai-text); font-weight: 700; font-size: 15px; text-decoration: none;
+}
+.login-clock-btn svg { width: 20px; height: 20px; }
+.login-clock-btn:hover { filter: brightness(0.97); }
+.login-clock-btn:focus-visible { outline: 2px solid var(--passion-400); outline-offset: 2px; }
+.login-clock-hint { margin: 6px 0 0; text-align: center; font-size: 12px; color: var(--ink-500); }
+html.dark .login-clock-btn { background: rgba(116, 72, 166, 0.22); border-color: var(--acai-300); }
+
 .login-screen {
   min-height: 100vh;
   position: relative;

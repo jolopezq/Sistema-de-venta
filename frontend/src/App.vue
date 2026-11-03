@@ -18,7 +18,7 @@ onMounted(() => {
 
 // Show shell only when authenticated and not on login page
 const useShell = computed(() => {
-  return auth.isAuthenticated && route.path !== '/login';
+  return auth.isAuthenticated && route.path !== '/login' && !route.meta.kiosk;
 });
 </script>
 
