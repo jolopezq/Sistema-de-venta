@@ -114,3 +114,50 @@ export function cashInNotes(cashIn, revenue) {
 
   return notes;
 }
+
+/**
+ * Efectivo que debía llegar a la mano (docs/PLAN_CONCILIACION_CAJA.md, A): de lo cobrado en efectivo a lo
+ * retirado de las cajas cerradas del mes. Las filas suman exactamente `withdrawn`.
+ * @param {object} drawer `pnl.cash_in.drawer` (CashDrawerService)
+ * @returns {{ rows: Array<{key: string, label: string, detail?: string, amount: number}>, total: number, notes: string[] }}
+ */
+export function drawerBreakdown(drawer) {
+  const d = drawer || {};
+  const rows = [{ key: 'collected', label: 'Cobrado en efectivo', detail: 'ventas del local', amount: num(d.collected) }];
+  const add = (key, label, amount, detail) => {
+    if (Math.abs(num(amount)) > 0.005) rows.push({ key, label, amount: Math.round(num(amount) * 100) / 100, ...(detail ? { detail } : {}) });
+  };
+
+  add('open', 'Quedó en cajas sin cerrar', -num(d.in_open_sessions), 'todavía no se retiró');
+  add('outside', 'Cobrado fuera de las cajas del mes', -num(d.outside_sessions), 'ventas sin caja: no están en ningún arqueo');
+  add('expenses', 'Pagado con plata de la gaveta', -num(d.drawer_expenses), 'compras y gastos en efectivo');
+  add('income', 'Ingresos extra en efectivo', num(d.extra_income));
+
+  const diffs = d.difference_items || [];
+  if (diffs.length) {
+    const shortage = diffs.every((x) => num(x.amount) < 0);
+    const surplus = diffs.every((x) => num(x.amount) > 0);
+    const label = shortage ? 'Faltantes al cerrar caja' : surplus ? 'Sobrantes al cerrar caja' : 'Faltantes y sobrantes al cerrar caja';
+    add('differences', label, num(d.differences), joinList(diffs.map((x) => `${dayMonth(x.date)} ${bs(x.amount)}`)));
+  }
+
+  const change = num(d.fund_change);
+  add('fund', change >= 0 ? 'Quedó de más en la gaveta como cambio' : 'Se usó cambio de la gaveta', -change,
+    `${bs(d.fund_start)} al empezar → ${bs(d.fund_end)} al terminar`);
+
+  const jumps = (d.fund_jump_items || []).filter((j) => j.in_total);
+  if (jumps.length) {
+    add('jumps', 'Fondos distintos a lo que dejó la caja anterior', num(d.fund_jumps),
+      joinList(jumps.map((j) => `${dayMonth(j.date)} ${num(j.amount) > 0 ? '+' : ''}${bs(j.amount)}`)));
+  }
+  add('unexplained', 'No cuadra en cierres antiguos', num(d.unexplained), 'retirado + fondo no suma lo contado');
+
+  const notes = [];
+  const open = d.open_sessions || [];
+  if (open.length) {
+    const list = joinList(open.map((s) => `${dayMonth(s.date)}${s.cashier ? ` (${s.cashier})` : ''}`));
+    notes.push(`${open.length === 1 ? 'La caja' : 'Las cajas'} ${list} ${open.length === 1 ? 'sigue abierta' : 'siguen abiertas'}: ciérra${open.length === 1 ? 'la' : 'las'} en Control diario.`);
+  }
+
+  return { rows, total: num(d.withdrawn), notes };
+}

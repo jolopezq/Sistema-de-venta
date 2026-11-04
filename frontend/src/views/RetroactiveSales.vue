@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useTurnoStore } from '../stores/turno';
 import { useAuthStore } from '../stores/auth';
 import AdminSaleEditor from '../components/AdminSaleEditor.vue';
@@ -15,6 +15,7 @@ import { db } from '../db/database';
 import { getSalePaymentBadges } from '../utils/paymentDisplay';
 
 const router = useRouter();
+const route = useRoute();
 const turnoStore = useTurnoStore();
 const authStore = useAuthStore();
 
@@ -108,7 +109,11 @@ function getLocalDateStr(date = new Date()) {
 }
 
 const todayStr = getLocalDateStr();
-const selectedDate = ref(todayStr);
+// Desde Finanzas o la caja se llega con ?fecha=AAAA-MM-DD (p. ej. una caja sin cerrar o una venta sin caja)
+const initialDate = typeof route.query?.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(route.query.fecha) && route.query.fecha <= todayStr
+  ? route.query.fecha
+  : todayStr;
+const selectedDate = ref(initialDate);
 
 // Estado de sesión y datos del día seleccionado
 const currentSession = ref(null);

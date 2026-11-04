@@ -6,6 +6,16 @@ se renombra con la fecha de la actualización de producción.
 
 ## [Sin publicar]
 
+### Corregido
+- **Que el efectivo y el QR cuadren con lo que recibes** ([plan](docs/PLAN_CONCILIACION_CAJA.md)): sale de la auditoría de octubre, donde Bs 181 de «faltante» eran compras pagadas con la gaveta y el cambio que quedó, y una venta de Bs 260 cargada en Control diario no entró a ninguna caja.
+  - **Fase 1 (Finanzas):**
+    - **Efectivo que te debía llegar a la mano** (Resumen → «Dinero que entró en el mes»): de lo cobrado en efectivo a lo retirado de las cajas cerradas, restando lo pagado con la gaveta, el cambio que quedó, los fondos distintos a lo que dejó la caja anterior, las cajas sin cerrar, las ventas sin caja y los faltantes o sobrantes de cierre. Las filas suman exactamente lo retirado (`CashDrawerService`). Octubre en la copia de producción: Bs 2.868 cobrados → Bs 2.687 retirados.
+    - **Faltantes y sobrantes de caja** en el Estado de Resultados: la diferencia de cada cierre (contado − esperado con sus movimientos de ahora), en la fecha de su caja; un faltante suma como gasto y un sobrante lo reduce. No entra en los costos fijos del punto de equilibrio.
+    - **Avisos nuevos** para que el resultado sea definitivo: ventas del local sin caja, cajas de días pasados sin cerrar (con «Ir a Control diario» en ese día), y, al final del mes o con el mes cerrado, meses sin sueldos o sin luz, agua o internet («Cargar gasto»).
+    - En el detalle del Estado de Resultados, cada egreso de caja muestra el día en que ocurrió y no el día en que se cargó.
+    - Control diario abre en el día que indica `?fecha=AAAA-MM-DD`.
+    - 6 pruebas nuevas en `FinanceCashDrawerTest`; `npm run test:unit` con 2 más.
+
 ### Cambiado
 - **Remover selector manual de PedidosYa en el Punto de Venta (POS)** ([plan](docs/PLAN_REMOVER_CANAL_PEDIDOSYA_POS.md)): simplificación de la pantalla de caja eliminando el selector de canal `[ Local ]` / `[ PedidosYa ]`, el aviso y los modales de ajuste de precios en `Pos.vue`. Dado que los pedidos de la plataforma se gestionan e imprimen directamente en el dispositivo POS oficial de PedidosYa y se concilian por documentos en Finanzas, la columna del ticket recupera ~70px verticales, garantizando que el total y el botón de cobro se mantengan a la vista en la portátil de caja (1366 × 611).
 - **Robustez en importación de lotes y delimitadores CSV de PedidosYa**: detección automática de delimitador (coma `,`, punto y coma `;`, tabulador `\t`), eliminación de marcas BOM residuales en cabeceras de columnas, y fallback transparente a la planilla Excel semanal (`ordersXls`) en caso de que el archivo CSV esté ausente o no pueda parsearse. Respuestas controladas con código HTTP 422 en lugar de 500 ante excepciones de archivo.

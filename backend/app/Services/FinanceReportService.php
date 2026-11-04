@@ -198,10 +198,33 @@ class FinanceReportService
                 'group_name'    => $cat?->group_name ?? 'Caja chica / Turno',
                 'description'   => $cm->description,
                 'amount'        => (float) $cm->amount,
-                'date'          => $cm->created_at->setTimezone($timezone)->toDateString(),
+                // El día en que ocurrió, no el de carga: un egreso de un día pasado se carga días después
+                'date'          => ($cm->occurred_at ?? $cm->created_at)->setTimezone($timezone)->toDateString(),
             ];
 
             $this->assignToSection($section, $item, $cogsItems, $operatingItems, $financialItems, $taxItems);
+        }
+
+        // Faltantes y sobrantes de los cierres de caja del mes (plan de conciliación, B): un faltante es un gasto
+        // y un sobrante lo reduce. Sin esta línea un faltante de caja no aparecía en ningún resultado.
+        $drawer = app(CashDrawerService::class)->forRange($startBound, $endBound, $byMethod['cash']);
+        foreach ($drawer['difference_items'] as $diff) {
+            $operatingItems->push([
+                'id'            => 'cd_' . $diff['session_id'],
+                'source'        => 'cash_difference',
+                'category_id'   => null,
+                'category_name' => 'Faltantes y sobrantes de caja',
+                'group_name'    => 'Caja chica / Turno',
+                'description'   => sprintf(
+                    'Cierre de caja del %s%s: %s de Bs %s',
+                    Carbon::parse($diff['date'])->format('d/m'),
+                    $diff['cashier'] ? " ({$diff['cashier']})" : '',
+                    $diff['amount'] < 0 ? 'faltante' : 'sobrante',
+                    number_format(abs($diff['amount']), 2, ',', '.')
+                ),
+                'amount'        => round(-$diff['amount'], 2),
+                'date'          => $diff['date'],
+            ]);
         }
 
         // Totales de costos y gastos
@@ -231,6 +254,11 @@ class FinanceReportService
             $unreconciledPyaTotal,
             $startLocal,
             $endLocal
+        );
+        array_push(
+            $warnings,
+            ...$this->cashWarnings($localSalesQuery, $drawer),
+            ...$this->missingExpenseWarnings($directExpenses, $cashExpenses, $totalRevenue, $startLocal, $endLocal)
         );
 
         return [
@@ -298,7 +326,7 @@ class FinanceReportService
                 'amount'     => $netProfit,
                 'percentage' => $netMarginPercent,
             ],
-            'cash_in' => $this->cashIn($byMethod, $pedidosyaSettlements, $coveredDays, $startDateStr, $endDateStr, $endBound),
+            'cash_in' => $this->cashIn($byMethod, $pedidosyaSettlements, $coveredDays, $startDateStr, $endDateStr, $endBound) + ['drawer' => $drawer],
             'pedidosya_analysis' => [
                 'gross_sales'      => $pedidosyaGrossSales,
                 'net_sales'        => $pedidosyaNetSales,
@@ -556,6 +584,96 @@ class FinanceReportService
                     'action'        => 'view_pedidosya',
                 ];
             }
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * Avisos de la caja (plan de conciliación, C y D): ventas del local que no entraron a ninguna caja (no están
+     * en ningún arqueo) y cajas de días pasados que siguen abiertas (su efectivo no se sabe si se retiró).
+     */
+    private function cashWarnings($localSalesQuery, array $drawer): array
+    {
+        $warnings = [];
+        $money = fn (float $v) => number_format($v, 2, ',', '.');
+        $day = fn (string $date) => Carbon::parse($date)->format('d/m');
+
+        $orphans = (clone $localSalesQuery)
+            ->whereNull('cash_register_session_id')
+            ->orderBy('created_at')
+            ->get(['id', 'order_number', 'created_at', 'total_amount']);
+        if ($orphans->isNotEmpty()) {
+            $amount = round((float) $orphans->sum('total_amount'), 2);
+            $list = $orphans->take(3)->map(fn ($s) => $s->created_at->format('d/m') . ' #' . $s->order_number)->implode(', ');
+            $warnings[] = [
+                'code'    => 'sales_without_session',
+                'level'   => 'warning',
+                'message' => "{$orphans->count()} venta(s) del local (Bs {$money($amount)}) no están en ninguna caja y no entran a ningún arqueo: {$list}"
+                    . ($orphans->count() > 3 ? '…' : '') . '.',
+                'count'   => $orphans->count(),
+                'amount'  => $amount,
+                'date'    => $orphans->first()->created_at->toDateString(),
+                'action'  => 'daily_control',
+            ];
+        }
+
+        $today = Carbon::now(config('app.timezone', 'America/La_Paz'))->toDateString();
+        $stale = collect($drawer['open_sessions'])->filter(fn ($s) => $s['date'] < $today)->values();
+        if ($stale->isNotEmpty()) {
+            $list = $stale->map(fn ($s) => $day($s['date']) . ($s['cashier'] ? " ({$s['cashier']})" : ''))->implode(', ');
+            $warnings[] = [
+                'code'    => 'open_sessions',
+                'level'   => 'warning',
+                'message' => "Cajas sin cerrar: {$list}. Ciérralas en Control diario para que su efectivo cuente en lo retirado del mes.",
+                'count'   => $stale->count(),
+                'date'    => $stale->first()['date'],
+                'action'  => 'daily_control',
+            ];
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * Gastos que casi todos los meses tienen y que este mes no tiene cargados (plan de conciliación, F): sueldos y
+     * servicios. Sin ellos la utilidad sale más alta de lo real y nada lo decía. Solo al final del mes o con el mes
+     * cerrado, y si un gasto fijo de esa categoría está pendiente ya lo avisa «gastos fijos sin generar».
+     */
+    private function missingExpenseWarnings(Collection $directExpenses, Collection $cashExpenses, float $totalRevenue, Carbon $startLocal, Carbon $endLocal): array
+    {
+        $now = Carbon::now(config('app.timezone', 'America/La_Paz'));
+        if ($totalRevenue <= 0 || $now->lt($endLocal->copy()->subDays(4)->startOfDay())) {
+            return [];
+        }
+
+        $used = $directExpenses->pluck('expense_category_id')->merge($cashExpenses->pluck('expense_category_id'))->filter()->unique();
+        $pending = app(RecurringExpenseService::class)
+            ->forPeriod($startLocal->year, $startLocal->month)
+            ->where('status', 'pending')
+            ->pluck('expense_category_id')
+            ->filter();
+        $monthName = $startLocal->translatedFormat('F');
+
+        $checks = [
+            ['missing_salaries', 'Personal', 'No hay sueldos cargados en ' . $monthName . ': si alguien trabajó, la utilidad sale más alta de lo real.'],
+            ['missing_utilities', 'Servicios', 'No hay %s cargados en ' . $monthName . '. Si la factura del mes se paga después, cárgala con fecha de ' . $monthName . '.'],
+        ];
+
+        $warnings = [];
+        foreach ($checks as [$code, $group, $message]) {
+            $categories = ExpenseCategory::where('group_name', $group)->where('is_active', true)->get(['id', 'name']);
+            $missing = $categories->reject(fn ($c) => $used->contains($c->id) || $pending->contains($c->id));
+            if ($categories->isEmpty() || $missing->isEmpty() || ($code === 'missing_salaries' && $missing->count() < $categories->count())) {
+                continue;
+            }
+            $warnings[] = [
+                'code'       => $code,
+                'level'      => 'warning',
+                'message'    => sprintf($message, $missing->pluck('name')->map(fn ($n) => mb_strtolower($n))->implode(' ni ')),
+                'categories' => $missing->pluck('id')->values()->all(),
+                'action'     => 'add_expense',
+            ];
         }
 
         return $warnings;
