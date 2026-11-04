@@ -237,12 +237,8 @@ async function reloadFace() {
                   <label for="ep-sun">Recargo en domingo (%)</label>
                   <input id="ep-sun" v-model="form.sunday_percent" type="number" min="0" max="300" step="5" class="fin-input" />
                 </div>
-                <div class="fin-field">
-                  <label for="ep-hol">Recargo en feriado (%)</label>
-                  <input id="ep-hol" v-model="form.holiday_percent" type="number" min="0" max="300" step="5" class="fin-input" />
-                </div>
               </div>
-              <p class="fin-hint">Confirma los recargos con tu contador. La planilla no calcula aportes, aguinaldo ni finiquito.</p>
+              <p class="fin-hint">Confirma los recargos con tu contador. Pasada la tolerancia se cuenta todo el atraso. Los feriados todavía no se calculan solos: van como bono en la planilla. La planilla no calcula aportes, aguinaldo ni finiquito.</p>
             </section>
 
             <section class="att-section" :class="{ dim: !form.attendance_enabled }">

@@ -263,6 +263,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Asistencia: la persona con sesión ve solo su entrada y su salida de hoy (§5.8)
     Route::get('/attendance/me/today', [\App\Http\Controllers\Attendance\AttendanceSelfController::class, 'today']);
+    // Nombres de quienes marcan, para anotar un adelanto de sueldo en la caja (sin horas ni montos)
+    Route::get('/attendance/people', [\App\Http\Controllers\Attendance\AttendanceSelfController::class, 'people'])
+        ->middleware(['role:super_admin,admin,cashier', 'perm:register_self,read']);
 
     // Asistencia para administradores: permiso «Asistencia y sueldos» (Ver = consultar, Editar = aprobar y corregir)
     Route::middleware(['admin'])->prefix('attendance')->group(function () {
@@ -273,6 +276,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/marks/{mark}/photo', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'photo']);
             Route::get('/users/{user}/face-photo', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'facePhoto']);
             Route::get('/setup', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'index']);
+            // Sueldos: planilla del período y planillas aprobadas
+            Route::get('/payroll', [\App\Http\Controllers\Attendance\PayrollController::class, 'preview']);
+            Route::get('/payroll/periods', [\App\Http\Controllers\Attendance\PayrollController::class, 'periods']);
+            Route::get('/payroll/periods/{period}', [\App\Http\Controllers\Attendance\PayrollController::class, 'show']);
         });
         Route::middleware(['perm:attendance,edit'])->group(function () {
             Route::post('/marks', [\App\Http\Controllers\Attendance\AttendanceAdminController::class, 'store']);
@@ -283,6 +290,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/networks', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'storeNetwork']);
             Route::delete('/networks/{network}', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'destroyNetwork']);
             Route::put('/settings', [\App\Http\Controllers\Attendance\AttendanceSetupController::class, 'updateSettings']);
+            Route::post('/payroll/approve', [\App\Http\Controllers\Attendance\PayrollController::class, 'approve']);
+            Route::post('/payroll/periods/{period}/void', [\App\Http\Controllers\Attendance\PayrollController::class, 'void']);
         });
     });
 

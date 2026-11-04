@@ -455,6 +455,8 @@ class CashRegisterSessionController extends Controller
         $validated = $request->validate([
             'type'                => 'required|in:expense,extra_income',
             'expense_category_id' => 'nullable|exists:expense_categories,id',
+            // Adelanto de sueldo: a quién se le dio (lo resta la planilla; docs/PLAN_ASISTENCIA_Y_SUELDOS.md §5.6)
+            'employee_id'         => 'nullable|integer|exists:users,id',
             // mixed: gasto dividido entre efectivo de la gaveta (cash_amount) y QR o banco (el resto)
             'payment_method'      => 'nullable|in:cash,qr,card,mixed',
             'cash_amount'         => 'nullable|numeric',
@@ -478,6 +480,7 @@ class CashRegisterSessionController extends Controller
                 'cash_register_session_id' => $cashSession->id,
                 'user_id'                  => $request->user()->id,
                 'expense_category_id'      => $validated['expense_category_id'] ?? null,
+                'employee_id'              => $validated['type'] === 'expense' ? ($validated['employee_id'] ?? null) : null,
                 'type'                     => $validated['type'],
                 'payment_method'           => $method,
                 'cash_amount'              => $cashAmount,
@@ -530,6 +533,7 @@ class CashRegisterSessionController extends Controller
             'amount'              => ['nullable', 'numeric', 'min:0.01'],
             'description'         => ['nullable', 'string', 'min:3', 'max:500'],
             'expense_category_id' => ['nullable', 'exists:expense_categories,id'],
+            'employee_id'         => ['nullable', 'integer', 'exists:users,id'],
             'occurred_at'         => ['nullable', 'date'],
         ], [
             'reason.required' => 'El motivo de la corrección es obligatorio.',
@@ -565,8 +569,12 @@ class CashRegisterSessionController extends Controller
         $descMatches   = trim((string) $cashMovement->description) === $newDescription;
         $catMatches    = (int) ($cashMovement->expense_category_id ?? 0) === (int) ($newCategory ?? 0);
         $dateMatches   = $cashMovement->occurred_at?->format('Y-m-d H:i') === $newOccurredAt?->format('Y-m-d H:i');
+        $newEmployee   = array_key_exists('employee_id', $validated)
+            ? ($cashMovement->isExpense() ? ($validated['employee_id'] ?: null) : null)
+            : $cashMovement->employee_id;
+        $employeeMatches = (int) ($cashMovement->employee_id ?? 0) === (int) ($newEmployee ?? 0);
 
-        if ($amountMatches && $methodMatches && $descMatches && $catMatches && $dateMatches) {
+        if ($amountMatches && $methodMatches && $descMatches && $catMatches && $dateMatches && $employeeMatches) {
             return response()->json([
                 'message' => 'No hay cambios para guardar.',
             ], 422);
@@ -576,7 +584,7 @@ class CashRegisterSessionController extends Controller
         $movement = DB::transaction(function () use (
             $cashMovement, $cashSession, $request, $validated, $closedCorrection, &$closing,
             $newMethod, $newCashAmount, $newAmount, $newDescription, $newCategory, $newOccurredAt,
-            $amountMatches, $methodMatches, $descMatches, $catMatches, $dateMatches
+            $amountMatches, $methodMatches, $descMatches, $catMatches, $dateMatches, $newEmployee, $employeeMatches
         ) {
             $previous = [
                 'payment_method'      => $cashMovement->payment_method ?? 'cash',
@@ -584,6 +592,7 @@ class CashRegisterSessionController extends Controller
                 'amount'              => (float) $cashMovement->amount,
                 'description'         => $cashMovement->description,
                 'expense_category_id' => $cashMovement->expense_category_id,
+                'employee_id'         => $cashMovement->employee_id,
                 'occurred_at'         => $cashMovement->occurred_at?->toIso8601String(),
             ];
 
@@ -593,6 +602,7 @@ class CashRegisterSessionController extends Controller
                 'amount'              => $newAmount,
                 'description'         => $newDescription,
                 'expense_category_id' => $newCategory,
+                'employee_id'         => $newEmployee,
                 'occurred_at'         => $newOccurredAt,
                 'edited_by'           => $request->user()->id,
                 'edited_at'           => now(),
@@ -621,6 +631,9 @@ class CashRegisterSessionController extends Controller
             }
             if (!$dateMatches) {
                 $changesDesc[] = "fecha/hora actualizada";
+            }
+            if (!$employeeMatches) {
+                $changesDesc[] = "persona del adelanto actualizada";
             }
 
             $typeLabel = $cashMovement->type === 'expense' ? 'egreso' : 'ingreso';

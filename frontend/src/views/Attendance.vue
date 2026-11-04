@@ -11,6 +11,7 @@ import AttendanceReview from '../components/attendance/AttendanceReview.vue';
 import AttendanceMarks from '../components/attendance/AttendanceMarks.vue';
 import AttendanceSetup from '../components/attendance/AttendanceSetup.vue';
 import ManualMarkModal from '../components/attendance/ManualMarkModal.vue';
+import PayrollTab from '../components/attendance/PayrollTab.vue';
 import '../components/Finance/finance.css';
 
 const route = useRoute();
@@ -21,6 +22,7 @@ const TABS = [
   { key: 'today', label: 'Hoy' },
   { key: 'review', label: 'A revisar' },
   { key: 'marks', label: 'Todas las marcas' },
+  { key: 'payroll', label: 'Sueldos' },
   { key: 'setup', label: 'Equipos y redes' },
 ];
 const activeTab = ref(TABS.some((t) => t.key === route.query?.tab) ? route.query.tab : 'today');
@@ -66,7 +68,7 @@ function onSaved() {
       <header class="fin-head">
         <div>
           <h1>Asistencia <span v-if="!canEdit" class="fin-readonly-chip">Solo lectura</span></h1>
-          <p>Entradas y salidas en el local, marcas por revisar y equipos autorizados</p>
+          <p>Entradas y salidas en el local, marcas por revisar, sueldos y equipos autorizados</p>
         </div>
         <router-link v-if="canEdit" to="/asistencia/reloj" class="fin-btn fin-btn-secondary fin-btn-lg att-open-clock">Abrir el reloj</router-link>
       </header>
@@ -92,6 +94,7 @@ function onSaved() {
       <AttendanceToday v-show="activeTab === 'today'" ref="todayRef" :can-edit="canEdit" @add-mark="openManual" @people="people = $event" />
       <AttendanceReview v-if="activeTab === 'review'" :can-edit="canEdit" @changed="reviewCount = $event" @toast="showToast" />
       <AttendanceMarks v-else-if="activeTab === 'marks'" ref="marksRef" :can-edit="canEdit" :people="people" @add-mark="openManual" />
+      <PayrollTab v-else-if="activeTab === 'payroll'" :can-edit="canEdit" @toast="showToast" @navigate="navigate" />
       <AttendanceSetup v-else-if="activeTab === 'setup'" :can-edit="canEdit" @toast="showToast" />
     </section>
 

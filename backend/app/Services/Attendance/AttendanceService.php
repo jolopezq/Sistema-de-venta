@@ -345,7 +345,9 @@ class AttendanceService
         $result = [];
         foreach ($this->roster() as $user) {
             foreach ($this->shifts($user, now()->subDays($days), $cutoff, AttendanceMark::LIVE) as $shift) {
-                if ($shift['in'] && !$shift['out'] && $shift['in']->marked_at->lt($cutoff)) {
+                // Solo entradas válidas: una entrada por revisar ya está en la bandeja por sí misma
+                if ($shift['in'] && !$shift['out'] && $shift['in']->status === AttendanceMark::STATUS_VALID
+                    && $shift['in']->marked_at->lt($cutoff)) {
                     $schedule = $user->employeeProfile?->scheduleFor($shift['in']->marked_at->dayOfWeekIso);
                     $result[] = ['mark' => $shift['in'], 'schedule_end' => $schedule['end'] ?? null];
                 }

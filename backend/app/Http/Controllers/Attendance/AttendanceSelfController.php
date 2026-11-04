@@ -20,4 +20,12 @@ class AttendanceSelfController extends Controller
             'require_entry_to_open_register' => (bool) $settings->get('require_entry_to_open_register'),
         ]);
     }
+
+    /** Solo id y nombre de quienes marcan asistencia (para elegir a quién se le dio un adelanto). */
+    public function people(AttendanceService $attendance): JsonResponse
+    {
+        return response()->json([
+            'data' => $attendance->roster()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name])->values(),
+        ]);
+    }
 }

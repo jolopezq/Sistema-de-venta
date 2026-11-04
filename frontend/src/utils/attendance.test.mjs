@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   pinIsValid, offlineNextType, workerMessage, doneTitle, hourlyFromMonthly, belowMinimum,
-  scheduleFromRows, rowsFromSchedule, reviewReasons, formatScore,
+  scheduleFromRows, rowsFromSchedule, reviewReasons, formatScore, formatMinutes, payrollRange,
 } from './attendance.js';
 
 test('el PIN tiene de 4 a 6 dígitos', () => {
@@ -57,4 +57,15 @@ test('motivos de la bandeja para administradores', () => {
   assert.deepEqual(reviewReasons({ status: 'pending_network', network_ok: false, liveness_ok: false, face_score: null }).map(r => r.id), ['network', 'face']);
   assert.equal(formatScore(0.61), '61 %');
   assert.equal(formatScore(null), '—');
+});
+
+test('minutos y períodos de la planilla', () => {
+  assert.equal(formatMinutes(176 * 60), '176 h');
+  assert.equal(formatMinutes(475), '7 h 55 min');
+  assert.equal(formatMinutes(45), '45 min');
+  assert.equal(formatMinutes(0), '0 min');
+  assert.deepEqual(payrollRange(2026, 10), { from: '2026-10-01', to: '2026-10-31' });
+  assert.deepEqual(payrollRange(2026, 2, 'second'), { from: '2026-02-16', to: '2026-02-28' });
+  assert.deepEqual(payrollRange(2028, 2, 'second'), { from: '2028-02-16', to: '2028-02-29' });
+  assert.deepEqual(payrollRange(2026, 11, 'first'), { from: '2026-11-01', to: '2026-11-15' });
 });

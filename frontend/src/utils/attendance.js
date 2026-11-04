@@ -108,3 +108,36 @@ export const STATUS_LABELS = {
   rejected: 'Rechazada',
   corrected: 'Corregida',
 };
+
+/** Minutos a «176 h», «7 h 55 min» o «45 min». */
+export function formatMinutes(minutes) {
+  const total = Math.max(0, Math.round(Number(minutes) || 0));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (!h) return `${m} min`;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+const pad = (n) => String(n).padStart(2, '0');
+
+/**
+ * Fechas de un período de planilla: el mes entero o una de sus quincenas (1–15 y 16–fin de mes).
+ * @param {number} year
+ * @param {number} month 1–12
+ * @param {'month'|'first'|'second'} part
+ */
+export function payrollRange(year, month, part = 'month') {
+  const last = new Date(year, month, 0).getDate();
+  const ym = `${year}-${pad(month)}`;
+  if (part === 'first') return { from: `${ym}-01`, to: `${ym}-15` };
+  if (part === 'second') return { from: `${ym}-16`, to: `${ym}-${pad(last)}` };
+  return { from: `${ym}-01`, to: `${ym}-${pad(last)}` };
+}
+
+export const PAY_MODE_LABELS = { hourly: 'Por hora', monthly: 'Sueldo mensual', per_shift: 'Por turno' };
+
+/** «Sueldo mensual · Bs 3.300» */
+export function payModeText(mode, rate) {
+  const amount = Number(rate || 0).toLocaleString('es-BO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return `${PAY_MODE_LABELS[mode] || mode} · Bs ${amount}`;
+}
