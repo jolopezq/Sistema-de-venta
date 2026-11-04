@@ -1,8 +1,9 @@
 # Plan: asistencia en el local y cálculo de sueldos
 
-> Versión 2, 2026-11-03. Es una propuesta para aprobar y todavía no hay código. Cambio de la v2: el dueño decidió
-> que cada trabajador solo ve sus horas de entrada y salida (D12 y sección 5.8). Se revisó contra la rama
-> `fix/importar-carpeta-pedidosya` (`6d647c1`), que es la que está publicada en el VPS.
+> Versión 2, 2026-11-03. **Implementado** en la rama `feat/asistencia-sueldos` (F0–F6, sin publicar todavía; ver la
+> sección 10 para lo que cambió respecto de este plan). Cambio de la v2: el dueño decidió que cada trabajador solo ve
+> sus horas de entrada y salida (D12 y sección 5.8). Se revisó contra la rama `fix/importar-carpeta-pedidosya`
+> (`6d647c1`), que es la que está publicada en el VPS.
 
 ## Resumen
 
@@ -407,6 +408,32 @@ como red del local.
   3. firmar el consentimiento y registrar el rostro;
   4. dar *Asistencia y sueldos* a quien corresponda (nadie lo tiene por defecto).
 - Las 2 primeras semanas, abrir la caja solo avisa (D4). Después se revisa la bandeja y se activa el bloqueo.
+
+---
+
+## 10. Cómo quedó implementado (03/11)
+
+Rama `feat/asistencia-sueldos`, 7 commits sobre `6d647c1` (`e6372e3` … `ee40266`). Sin publicar en el VPS.
+
+| Tema | Cómo quedó | Diferencia con el plan |
+|---|---|---|
+| Reloj | `/asistencia/reloj`, pantalla completa: persona → PIN → cámara → listo, con «Mis marcas». Se abre desde el login y la barra superior, solo en el equipo autorizado. Endpoints `/api/attendance/kiosk/*` con la llave del equipo. | Igual. |
+| Rostro | Human 3.3.6 en `frontend/public/vendor/human/` (~13 MB, caché `ohana-human`). El navegador manda el descriptor y **el servidor calcula la similitud** con el rostro registrado (umbral `ATTENDANCE_FACE_THRESHOLD`, 0,55). Si en 20 s no se logra, foto a mano y la marca queda a revisar. | El puntaje lo calcula el servidor, no el navegador. |
+| Salida olvidada (D5) | Una entrada sin salida pasadas 16 h aparece sola en «A revisar» como «Sin salida» y cuenta 0 horas. | Sin tarea de las 03:00: se detecta al consultar. |
+| Planilla | **Asistencia → Sueldos**, no Finanzas → Sueldos. La ve quien tiene *Asistencia y sueldos*. Al aprobar crea un gasto en «Salarios y personal» por bruto − adelantos + bonos. | Cambia de lugar. No reemplaza el gasto fijo «Salario …»: avisa que hay que pausarlo. |
+| Atrasos (D7) | Pasada la tolerancia (10 min) se cuenta todo el atraso. | A confirmar con el contador. |
+| Feriados | Van como bono con motivo en la planilla. | El recargo de feriado no se calcula solo. |
+| Permiso | *Asistencia y sueldos* (Ver / Editar). Los administradores lo tienen por defecto; el dueño se lo puede quitar. | El plan decía «nadie por defecto» en la sección 9; quedó como la sección 5.8. |
+| Rol «Personal» | Solo marca; no inicia sesión. Correo y contraseña se generan solos. | Igual. |
+
+**Pruebas:** PHPUnit 494 (485 en verde, 9 omitidas que necesitan la carpeta real de PedidosYa; 32 nuevas de
+asistencia y sueldos), `npm run test:unit` 67/67, E2E `asistencia.spec.js` 8/8, contraste AA 0 bajo AA en lo nuevo.
+Probado contra una copia de la base de la Mac con cámara simulada; los ejemplos de la sección 3.5 dan lo mismo
+(Bs 2.820 / 2.520 por hora y Bs 3.289,69 mensual).
+
+**Pendiente del dueño antes de usarlo:** ejecutar `deploy/vps/09-ips-del-local.sh`; autorizar la portátil y registrar
+la red; perfil, horario, PIN, consentimiento y rostro de cada persona; calibrar el umbral del rostro en el local;
+pausar los gastos fijos de sueldos; confirmar atrasos y recargos con el contador; `graphify update .` en la Mac.
 
 ---
 
