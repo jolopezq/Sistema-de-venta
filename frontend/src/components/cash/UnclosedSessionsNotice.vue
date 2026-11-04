@@ -24,14 +24,14 @@ const day = (iso) => {
 <template>
   <div v-if="sessions.length" class="usn" role="status" data-testid="unclosed-sessions">
     <p class="usn-title">
-      {{ sessions.length === 1 ? 'Una caja de un día anterior sigue abierta' : `${sessions.length} cajas de días anteriores siguen abiertas` }}
+      {{ sessions.length === 1 ? 'Una caja de un día anterior sigue abierta: ciérrala para que su efectivo cuente' : `${sessions.length} cajas de días anteriores siguen abiertas: ciérralas para que su efectivo cuente` }}
     </p>
     <ul>
       <li v-for="s in sessions" :key="s.session_id">
-        <span>Caja del {{ day(s.date) }}<template v-if="s.cashier"> · {{ s.cashier }}</template></span>
+        <span>{{ day(s.date) }}<template v-if="s.cashier"> · {{ s.cashier }}</template></span>
         <template v-if="canClose">
-          <button v-if="inPlace" type="button" class="usn-link" @click="emit('select-date', s.date)">Cerrarla</button>
-          <router-link v-else class="usn-link" :to="{ name: 'RetroactiveSales', query: { fecha: s.date } }">Cerrarla en Control diario</router-link>
+          <button v-if="inPlace" type="button" class="usn-link" :aria-label="`Ir a la caja del ${day(s.date)} para cerrarla`" @click="emit('select-date', s.date)">Cerrarla</button>
+          <router-link v-else class="usn-link" :to="{ name: 'RetroactiveSales', query: { fecha: s.date } }" :aria-label="`Cerrar la caja del ${day(s.date)} en Control diario`">Cerrarla</router-link>
         </template>
       </li>
     </ul>
@@ -42,8 +42,8 @@ const day = (iso) => {
 <style scoped>
 .usn { padding: 10px 12px; border-radius: 10px; background: var(--gold-100); color: var(--ink-900); font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
 .usn-title { margin: 0; font-weight: 700; color: var(--gold-text); }
-.usn ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
-.usn li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.usn ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.usn li { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 .usn-link { font: inherit; font-weight: 600; color: var(--acai-text); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .usn-link:focus-visible { outline: 2px solid var(--acai-500); outline-offset: 2px; border-radius: 3px; }
 .usn-help { margin: 0; font-size: 12px; color: var(--ink-700); }

@@ -1215,8 +1215,9 @@ watch(selectedDate, (newDate) => {
   border: 1px solid var(--tw-bg-fecaca);
 }
 
-.cd-fund-check { margin-top: 10px; }
-.cd-unclosed { margin-bottom: 12px; }
+/* Sobre el degradado del banner: tarjeta propia para que el texto se lea en claro y en oscuro */
+.cd-fund-check { margin-top: 10px; max-width: 640px; padding: 10px 12px; border-radius: 12px; background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+
 .topbar-desc {
   margin: 0.25rem 0 0 0;
   font-size: 0.85rem;

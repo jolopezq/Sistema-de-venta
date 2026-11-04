@@ -21,10 +21,11 @@ se renombra con la fecha de la actualización de producción.
     - **Cajas sin cerrar:** al abrir la caja y en Control diario se avisan las cajas de días anteriores que siguen abiertas, con el enlace para cerrarlas en ese día (quien no ve cajas ajenas solo ve las suyas).
     - 6 pruebas nuevas en `CashReconciliationTest`.
   - **Fase 3 (QR del banco al cerrar):**
-    - **Cierre de caja** (último paso del arqueo): campo opcional «QR del día en la app del banco», junto al QR del sistema, con la diferencia en el momento («En el banco faltan Bs 30,00: revisa las ventas QR del día»). Se guarda en `qr_bank_reported`; al corregir un cierre sin volver a anotarlo se conserva el anterior.
+    - **Cierre de caja** (último paso del arqueo, en «Qué se hace con el efectivo»): campo opcional «QR en la app del banco» con el QR del sistema y la diferencia en el momento («Faltan Bs 30.00 en el banco»). Se guarda en `qr_bank_reported`; al corregir un cierre sin volver a anotarlo se conserva el anterior. El paso sigue entrando sin scroll en 1366 × 611 y 1093 × 489.
     - **Reporte de cierre:** sección «QR del día» con sistema, banco y diferencia.
     - **Finanzas:** debajo de «Dinero que entró», en cuántos cierres se comparó el QR con el banco y cuánto falta o sobra; aviso «QR del banco distinto» con los días, para revisarlos en Control diario.
     - 2 pruebas nuevas en `CashReconciliationTest`; `npm run test:unit` con 1 más.
+  - **Fase 4 (Pruebas y revisión):** `e2e/conciliacion-caja.spec.js` (3 pruebas en la portátil de caja con la API simulada): el efectivo que debía llegar a la mano y el aviso que lleva a Control diario en el día de la venta sin caja; abrir caja con otro fondo pide el motivo y avisa las cajas sin cerrar; el QR del banco al cerrar viaja en el cierre. En Control diario, el fondo sugerido y el motivo van en una tarjeta propia sobre el banner (se leían mal sobre el degradado) y el aviso de cajas sin cerrar ocupa una línea.
 
 ### Cambiado
 - **Remover selector manual de PedidosYa en el Punto de Venta (POS)** ([plan](docs/PLAN_REMOVER_CANAL_PEDIDOSYA_POS.md)): simplificación de la pantalla de caja eliminando el selector de canal `[ Local ]` / `[ PedidosYa ]`, el aviso y los modales de ajuste de precios en `Pos.vue`. Dado que los pedidos de la plataforma se gestionan e imprimen directamente en el dispositivo POS oficial de PedidosYa y se concilian por documentos en Finanzas, la columna del ticket recupera ~70px verticales, garantizando que el total y el botón de cobro se mantengan a la vista en la portátil de caja (1366 × 611).

@@ -589,6 +589,7 @@ function handleFinish() {
                   <span>{{ resolvedStats?.pedidosya_count || 0 }} pedidos, Bs {{ Number(resolvedStats?.pedidosya_total || 0).toFixed(2) }}</span>
                 </div>
               </details>
+
             </div>
 
             <!-- RESULTADO DEL ARQUEO -->
@@ -671,33 +672,6 @@ function handleFinish() {
                 </small>
               </div>
 
-              <!-- QR del día según la app del banco: la diferencia se ve el mismo día, no a fin de mes -->
-              <div class="qr-bank-box" data-testid="qr-bank">
-                <label for="qr-bank-field">
-                  QR del día en la app del banco <span class="qr-bank-opt">(opcional)</span>
-                </label>
-                <div class="qr-bank-row">
-                  <span class="qr-bank-system">Sistema: <strong>Bs {{ qrSystem.toFixed(2) }}</strong></span>
-                  <span class="qr-bank-input">
-                    <span aria-hidden="true">Bs</span>
-                    <input
-                      id="qr-bank-field"
-                      v-model="qrBank"
-                      type="text"
-                      inputmode="decimal"
-                      autocomplete="off"
-                      placeholder="0.00"
-                      class="diff-input"
-                    />
-                  </span>
-                </div>
-                <small v-if="qrDiff !== null" class="qr-bank-result" :class="{ ok: qrDiff === 0, warn: qrDiff !== 0 }" role="status">
-                  <template v-if="qrDiff === 0">Coincide con el sistema.</template>
-                  <template v-else-if="qrDiff < 0">En el banco faltan Bs {{ Math.abs(qrDiff).toFixed(2) }}: revisa las ventas QR del día.</template>
-                  <template v-else>En el banco hay Bs {{ qrDiff.toFixed(2) }} más que en el sistema.</template>
-                </small>
-                <small v-else class="qr-bank-help">Sin los depósitos de PedidosYa. Queda en el cierre y en Finanzas.</small>
-              </div>
             </div>
 
             <!-- QUÉ SE HACE CON EL EFECTIVO -->
@@ -734,6 +708,32 @@ function handleFinish() {
                 </strong>
               </div>
               <p v-if="distributionError" class="dist-error" role="alert">{{ distributionError }}</p>
+
+              <!-- QR del día según la app del banco: la diferencia se ve el mismo día, no a fin de mes -->
+              <div class="qr-bank-box" data-testid="qr-bank">
+                <div class="qr-bank-text">
+                  <label for="qr-bank-field">QR en la app del banco</label>
+                  <small id="qr-bank-help" class="qr-bank-result" :class="{ ok: qrDiff === 0, warn: qrDiff !== null && qrDiff !== 0 }" role="status">
+                    <template v-if="qrDiff === null">Sistema: Bs {{ qrSystem.toFixed(2) }}</template>
+                    <template v-else-if="qrDiff === 0">Coincide con el sistema</template>
+                    <template v-else-if="qrDiff < 0">Faltan Bs {{ Math.abs(qrDiff).toFixed(2) }} en el banco</template>
+                    <template v-else>Sobran Bs {{ qrDiff.toFixed(2) }} en el banco</template>
+                  </small>
+                </div>
+                <span class="qr-bank-input">
+                  <span aria-hidden="true">Bs</span>
+                  <input
+                    id="qr-bank-field"
+                    v-model="qrBank"
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    placeholder="opcional"
+                    aria-describedby="qr-bank-help"
+                    class="diff-input"
+                  />
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1251,18 +1251,14 @@ function handleFinish() {
   border-color: var(--passion-500);
 }
 
-.qr-bank-box { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 4px; }
-.qr-bank-box label { font-size: 12.5px; font-weight: 600; color: var(--ink-900); }
-.qr-bank-opt { font-weight: 400; color: var(--ink-500); }
-.qr-bank-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.qr-bank-system { font-size: 12.5px; color: var(--ink-700); white-space: nowrap; }
-.qr-bank-system strong { color: var(--ink-900); font-variant-numeric: tabular-nums; }
-.qr-bank-input { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-700); }
-.qr-bank-input .diff-input { width: 110px; padding: 6px 10px; text-align: right; font-variant-numeric: tabular-nums; }
-.qr-bank-result { font-size: 12.5px; font-weight: 600; }
-.qr-bank-result.ok { color: var(--teal-700, var(--ink-700)); }
-.qr-bank-result.warn { color: var(--gold-text); }
-.qr-bank-help { font-size: 12px; color: var(--ink-500); }
+.qr-bank-box { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.qr-bank-text { display: flex; flex-direction: column; min-width: 0; }
+.qr-bank-text label { font-size: 12.5px; font-weight: 600; color: var(--ink-900); white-space: nowrap; }
+.qr-bank-input { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--ink-700); flex-shrink: 0; }
+.qr-bank-input .diff-input { width: 92px; padding: 4px 8px; text-align: right; font-variant-numeric: tabular-nums; }
+.qr-bank-result { font-size: 12px; color: var(--ink-500); font-variant-numeric: tabular-nums; }
+.qr-bank-result.ok { color: var(--teal-700, var(--ink-700)); font-weight: 600; }
+.qr-bank-result.warn { color: var(--gold-text); font-weight: 600; }
 
 /* Paso 3 */
 .success-banner {
