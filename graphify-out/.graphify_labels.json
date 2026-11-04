@@ -353,8 +353,19 @@
   "351": "password-reset-code.blade.php",
   "352": "password-reset-code-text.blade.php",
   "353": "CashMovementSplitTest",
+  "354": "OptionGroupPedidosYaPricingTest",
   "355": "Fases de Implementación",
   "356": "SyncIssuesPanel.vue",
+  "357": "asistencia.spec.js",
+  "358": "Plan: que el efectivo y el QR cuadren con lo que recibes",
   "359": "LoyaltyConfig",
-  "360": "PedidosYaPricingTest"
+  "360": "PedidosYaPricingTest",
+  "361": "finanzas-portatil.spec.js",
+  "362": "layout-scroll.spec.js",
+  "363": "Simulación de la portátil de caja (Toshiba)",
+  "364": "2026_11_03_000001_create_attendance_tables.php",
+  "365": "2026_11_03_000002_create_payroll_tables.php",
+  "366": "2026_11_04_000001_add_reconciliation_fields_to_cash_register_sessions.php",
+  "367": "README.md",
+  "368": "attendance.php"
 }
