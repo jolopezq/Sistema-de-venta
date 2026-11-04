@@ -68,6 +68,24 @@ class User extends Authenticatable
         return $this->hasMany(InventoryMovement::class, 'performed_by');
     }
 
+    /** Datos laborales (asistencia y sueldo). Solo para administradores. */
+    public function employeeProfile(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(EmployeeProfile::class);
+    }
+
+    /** Marcas de entrada y salida de esta persona. */
+    public function attendanceMarks(): HasMany
+    {
+        return $this->hasMany(AttendanceMark::class);
+    }
+
+    /** Capturas del rostro registrado. */
+    public function faceEnrollments(): HasMany
+    {
+        return $this->hasMany(FaceEnrollment::class);
+    }
+
     // --- Helpers ---
 
     /** Excepciones de permisos de esta persona (ver PermissionService). */
@@ -94,5 +112,11 @@ class User extends Authenticatable
     public function isKitchen(): bool
     {
         return $this->role === 'kitchen';
+    }
+
+    /** «Personal»: solo marca asistencia, no inicia sesión (docs/PLAN_ASISTENCIA_Y_SUELDOS.md, D2). */
+    public function isStaff(): bool
+    {
+        return $this->role === 'staff';
     }
 }

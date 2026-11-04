@@ -28,7 +28,21 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // La librería de rostro (~13 MB) solo la usa el reloj de asistencia: no se precarga en todos los equipos.
+        // La primera vez que se abre el reloj se guarda en la caché y después funciona sin internet.
+        globIgnores: ['vendor/**'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/vendor/human/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ohana-human',
+              expiration: { maxEntries: 20 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       }
     })
   ],

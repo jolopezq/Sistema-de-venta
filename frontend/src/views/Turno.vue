@@ -20,6 +20,8 @@ import VoidCashMovementModal from '../components/VoidCashMovementModal.vue';
 import { methodBadge, methodDetail, methodWithAmount } from '../utils/cashMovementMethod';
 import '../components/Finance/finance.css';
 import { getSalePaymentText } from '../utils/paymentDisplay';
+import MyAttendanceNotice from '../components/attendance/MyAttendanceNotice.vue';
+import { apiFetch } from '../services/api';
 
 const router = useRouter();
 const route = useRoute();
@@ -150,7 +152,22 @@ function applyCustomDateRange() {
   }
 }
 
+// Asistencia: solo la entrada y la salida de hoy de quien tiene la sesión (docs/PLAN_ASISTENCIA_Y_SUELDOS.md §5.8)
+const attendanceToday = ref(null);
+async function loadAttendanceToday() {
+  try {
+    attendanceToday.value = await apiFetch('/attendance/me/today');
+  } catch {
+    attendanceToday.value = null;
+  }
+}
+const entryBlocked = computed(() => Boolean(
+  attendanceToday.value?.enabled && !attendanceToday.value?.entry && attendanceToday.value?.require_entry_to_open_register,
+));
+watch(() => turnoStore.isOpeningModalOpen, (isOpen) => { if (isOpen) loadAttendanceToday(); });
+
 onMounted(async () => {
+  loadAttendanceToday();
   await turnoStore.fetchActiveSession();
   await turnoStore.fetchSales(1);
   if (turnoStore.hasActiveSession) {
@@ -326,6 +343,7 @@ const METHOD_FILTERS = [
 
 // Recargar datos
 async function handleRefresh() {
+  loadAttendanceToday();
   await turnoStore.fetchActiveSession();
   await turnoStore.fetchSales(turnoStore.pagination.currentPage);
   await loadTurnoMovements();
@@ -387,6 +405,9 @@ watch(() => turnoStore.activeSession?.id, (newId) => {
         </template>
       </div>
     </header>
+
+    <!-- Caja cerrada y turno abierto: recordatorio de marcar la salida (solo sus horas) -->
+    <MyAttendanceNotice v-if="!turnoStore.hasActiveSession" mode="exit" :today="attendanceToday" class="tn-attendance" />
 
     <!-- ================= 2. LA GAVETA ================= -->
     <section v-if="turnoStore.hasActiveSession" class="tn-drawer" aria-labelledby="tn-drawer-title">
@@ -773,6 +794,7 @@ watch(() => turnoStore.activeSession?.id, (newId) => {
         @close="turnoStore.isOpeningModalOpen = false"
       >
         <div v-if="openingError" class="fin-note err" role="alert">{{ openingError }}</div>
+        <MyAttendanceNotice mode="entry" :today="attendanceToday" @go="turnoStore.isOpeningModalOpen = false" />
         <div class="fin-field">
           <label for="tn-opening">Fondo inicial</label>
           <span class="tn-money-input">
@@ -811,7 +833,7 @@ watch(() => turnoStore.activeSession?.id, (newId) => {
           <button
             class="fin-btn fin-btn-primary fin-btn-lg"
             type="button"
-            :disabled="!(openingAmountInput >= 0) || openingAmountInput === '' || isOpening || (fundCheck && !fundCheck.noteOk)"
+            :disabled="!(openingAmountInput >= 0) || openingAmountInput === '' || isOpening || entryBlocked || (fundCheck && !fundCheck.noteOk)"
             @click="handleOpenSession"
           >
             {{ isOpening ? 'Abriendo…' : `Abrir caja con ${money(openingAmountInput)}` }}
@@ -864,6 +886,7 @@ watch(() => turnoStore.activeSession?.id, (newId) => {
 </template>
 
 <style scoped>
+.tn-attendance { margin: 0 0 16px; }
 /*
   Caja (dirección visual del 09/10, la misma de Finanzas): el turno en una frase, la gaveta como una cuenta
   que se lee de izquierda a derecha y el historial de ventas debajo. Estados con icono y texto; maracuyá

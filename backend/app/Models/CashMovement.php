@@ -26,6 +26,7 @@ class CashMovement extends Model
         'cash_register_session_id',
         'user_id',
         'expense_category_id',
+        'employee_id',
         'type',
         'payment_method',
         'cash_amount',
@@ -110,6 +111,12 @@ class CashMovement extends Model
     /**
      * Usuario que anuló el movimiento.
      */
+    /** Persona a la que se le dio este adelanto de sueldo (lo resta la planilla). */
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'employee_id')->withTrashed();
+    }
+
     public function voidedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'voided_by');

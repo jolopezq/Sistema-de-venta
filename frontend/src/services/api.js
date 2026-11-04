@@ -147,3 +147,20 @@ export async function apiDownload(endpoint, bodyData = null, defaultFilename = '
   return { filename, size: blob.size };
 }
 
+
+/**
+ * Descarga un archivo autenticado y devuelve una URL local para mostrarlo (por ejemplo, la foto de una marca).
+ * Quien la usa la libera con URL.revokeObjectURL.
+ */
+export async function apiBlobUrl(endpoint) {
+  const token = localStorage.getItem('auth_token');
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    headers: { Accept: 'image/*', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+  if (!response.ok) {
+    const err = new Error(response.status === 404 ? 'La foto ya no está.' : 'No se pudo cargar la foto.');
+    err.status = response.status;
+    throw err;
+  }
+  return URL.createObjectURL(await response.blob());
+}

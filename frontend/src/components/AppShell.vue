@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useReorderStore } from '../stores/reorder';
@@ -7,6 +7,8 @@ import { useThemeStore } from '../stores/theme';
 import { useTurnoStore } from '../stores/turno';
 import NetworkIndicator from './NetworkIndicator.vue';
 import { screensFor } from '../utils/roleScreens.js';
+import { apiFetch } from '../services/api';
+import { hasAttendanceDevice } from '../services/attendanceKiosk';
 
 const router = useRouter();
 const route = useRoute();
@@ -23,11 +25,31 @@ const canSeeTurno = computed(() => screensFor(auth.user?.role, (mod) => auth.eff
 onMounted(() => document.documentElement.classList.add('oh-shell-active'));
 onBeforeUnmount(() => document.documentElement.classList.remove('oh-shell-active'));
 
+// Asistencia: marcas por revisar (marca del menú) y botón del reloj en el equipo autorizado
+const canSeeAttendance = computed(() => screensFor(auth.user?.role, (mod) => auth.effective_permissions?.[mod] ?? 'none').screens.some(s => s.route === '/asistencia'));
+const attendanceReview = ref(0);
+const attendanceDevice = ref(hasAttendanceDevice());
+async function fetchAttendanceReview() {
+  if (!canSeeAttendance.value) return;
+  try {
+    attendanceReview.value = (await apiFetch('/attendance/review'))?.count ?? 0;
+  } catch {
+    // sin conexión: se queda con el último número
+  }
+}
+const onDeviceChange = () => { attendanceDevice.value = hasAttendanceDevice(); };
+
 onMounted(() => {
   if (canSeeReorder.value) reorder.fetchSummary();
   if (canSeeTurno.value && !turno.activeSession) turno.fetchActiveSession();
+  fetchAttendanceReview();
+  window.addEventListener('ohana-attendance-device', onDeviceChange);
 });
-watch(() => route.path, () => { if (canSeeReorder.value) reorder.fetchSummary(); });
+onBeforeUnmount(() => window.removeEventListener('ohana-attendance-device', onDeviceChange));
+watch(() => route.path, () => {
+  if (canSeeReorder.value) reorder.fetchSummary();
+  fetchAttendanceReview();
+});
 
 const userInitials = computed(() => {
   const name = auth.user?.name || '';
@@ -41,6 +63,7 @@ const userRole = computed(() => {
     cashier: 'Cajero',
     cajero: 'Cajero',
     kitchen: 'Cocina',
+    staff: 'Personal',
   };
   return map[auth.user?.role] || auth.user?.role || '';
 });
@@ -59,6 +82,7 @@ const NAV_ICONS = {
   finance: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
   users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   audit: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  attendance: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
 };
 
 const navItems = computed(() => {
@@ -86,6 +110,7 @@ const navItems = computed(() => {
       items: [
         { name: 'Control diario', route: '/admin/ventas-retroactivas', show: screenMap.has('/admin/ventas-retroactivas'), icon: 'retroactive' },
         { name: 'Finanzas', route: '/finanzas', show: screenMap.has('/finanzas'), icon: 'finance' },
+        { name: 'Asistencia', route: '/asistencia', show: screenMap.has('/asistencia'), icon: 'attendance', badge: attendanceReview.value, badgeTitle: 'marcas por revisar' },
         { name: 'Usuarios', route: '/users', show: screenMap.has('/users'), icon: 'users' },
         { name: 'Auditoría', route: '/audit-logs', show: screenMap.has('/audit-logs'), icon: 'audit' },
       ],
@@ -130,7 +155,7 @@ async function handleLogout() {
                 <!-- eslint-disable-next-line vue/no-v-html -- iconos fijos definidos arriba, sin datos del usuario -->
                 <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="NAV_ICONS[item.icon] || NAV_ICONS.catalog"></svg>
                 <span>{{ item.name }}</span>
-                <b v-if="item.badge" class="nav-badge" :title="`${item.badge} por reponer en Inventario`" :aria-label="`${item.badge} por reponer`">{{ item.badge > 99 ? '99+' : item.badge }}</b>
+                <b v-if="item.badge" class="nav-badge" :title="item.badgeTitle ? `${item.badge} ${item.badgeTitle}` : `${item.badge} por reponer en Inventario`" :aria-label="item.badgeTitle ? `${item.badge} ${item.badgeTitle}` : `${item.badge} por reponer`">{{ item.badge > 99 ? '99+' : item.badge }}</b>
               </a>
             </template>
           </template>
@@ -170,6 +195,16 @@ async function handleLogout() {
       <!-- Top bar: title + network indicator -->
       <div class="oh-shell-topbar">
         <div class="topbar-actions">
+          <button
+            v-if="attendanceDevice"
+            type="button"
+            class="oh-clock-btn-top"
+            title="Abrir el reloj de asistencia (entrada y salida del personal)"
+            @click="router.push('/asistencia/reloj')"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <span>Marcar asistencia</span>
+          </button>
           <button
             type="button"
             class="oh-perf-btn-top"
@@ -403,6 +438,28 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.oh-clock-btn-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 2px solid var(--acai-700);
+  background: var(--acai-50);
+  color: var(--acai-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.oh-clock-btn-top svg { width: 16px; height: 16px; }
+.oh-clock-btn-top:hover { filter: brightness(0.97); }
+.oh-clock-btn-top:focus-visible { outline: 2px solid var(--passion-400); outline-offset: 2px; }
+html.dark .oh-clock-btn-top { background: rgba(116, 72, 166, 0.22); border-color: var(--acai-300); }
+@media (max-width: 760px) {
+  .oh-clock-btn-top span { display: none; }
 }
 .oh-theme-btn-top, .oh-perf-btn-top {
   height: 32px;

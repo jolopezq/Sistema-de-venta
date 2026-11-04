@@ -23,6 +23,7 @@ class UserPermissionController extends Controller
         'register_corrections' => 'Corregir cajas cerradas',
         'finance'              => 'Finanzas',
         'pos_discounts'        => 'Descuentos en caja',
+        'attendance'           => 'Asistencia y sueldos',
     ];
 
     private const LEVEL_NAMES = ['none' => 'Sin acceso', 'read' => 'Ver', 'edit' => 'Editar'];

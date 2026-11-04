@@ -125,6 +125,9 @@
                     <button v-if="isSuperAdmin" class="oh-icon-btn" title="Editar" @click="openModal(u)">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
                     </button>
+                    <button v-if="isSuperAdmin" class="oh-icon-btn" title="Trabajo y asistencia" :aria-label="`Trabajo y asistencia de ${u.name}`" @click="openWork(u)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    </button>
                     <button v-if="canResetPassword(u)" class="oh-icon-btn" title="Resetear contraseña" @click="openResetModal(u)">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15.5 7.5L18 10M18.5 6.5L21 9"/></svg>
                     </button>
@@ -190,6 +193,7 @@
                 <option value="cashier">Cajero</option>
                 <option value="admin">Administrador operativo</option>
                 <option value="kitchen">Cocina (KDS)</option>
+                <option value="staff">Personal (solo marca asistencia)</option>
                 <option value="super_admin">Super Admin</option>
               </select>
               <span v-if="formErrors.role" class="error-text">{{ formErrors.role[0] }}</span>
@@ -220,7 +224,11 @@
           </div>
 
           <PersonPermissions v-model="personLevels" :role="form.role" :loading="personLoading" />
-          <div class="oh-form-row">
+          <p v-if="form.role === 'staff'" class="hint-text oh-staff-note">
+            «Personal» no inicia sesión: solo marca su entrada y su salida en el reloj del local. Después de guardar,
+            ponle el PIN y el horario en «Trabajo y asistencia».
+          </p>
+          <div v-if="form.role !== 'staff' || form.id" class="oh-form-row">
             <div class="oh-form-group">
               <label>Email / Usuario</label>
               <input v-model="form.email" required type="email" placeholder="Se sugiere desde el nombre" :class="{'has-error': formErrors.email}" />
@@ -240,6 +248,9 @@
         </form>
       </div>
     </div>
+
+    <!-- ===== MODAL: TRABAJO Y ASISTENCIA (docs/PLAN_ASISTENCIA_Y_SUELDOS.md) ===== -->
+    <EmployeeProfileModal :open="Boolean(workUser)" :user="workUser" @close="workUser = null" @saved="onWorkSaved" />
 
     <!-- ===== MODAL: RESET PASSWORD ===== -->
     <div class="oh-modal-overlay" :class="{open: showResetModal}" @click.self="showResetModal = false">
@@ -307,12 +318,30 @@ import { useAuthStore } from '../stores/auth';
 import { apiFetch } from '../services/api';
 import RolePermissionsPanel from '../components/permissions/RolePermissionsPanel.vue';
 import PersonPermissions from '../components/permissions/PersonPermissions.vue';
+import EmployeeProfileModal from '../components/attendance/EmployeeProfileModal.vue';
 import { PERSON_PERMISSION_MODULES, canReceivePerson, personBadges, personRoleLevel } from '../utils/permissionModules';
 
 const authStore = useAuthStore();
 
 // UI State
 const activeTab = ref('usuarios');
+// Trabajo y asistencia: persona abierta en el modal
+const workUser = ref(null);
+function openWork(user) {
+  workUser.value = user;
+}
+function onWorkSaved(message) {
+  workUser.value = null;
+  showToastMsg(message);
+}
+/** «Personal» no inicia sesión: el correo y la contraseña se generan solos (el servidor los exige). */
+function staffCredentials(name) {
+  const slug = (name || 'persona').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '') || 'persona';
+  const rand = Math.random().toString(36).slice(2, 8);
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  return { email: `personal.${slug}.${rand}@ohana.local`, password: Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('') };
+}
 const permPanelRef = ref(null);
 const searchQuery = ref('');
 const showUserModal = ref(false);
@@ -345,7 +374,8 @@ const ROLE_META = {
   cashier: { label: 'Cajero', cls: 'role-cashier', color: '#5C7A3F' },
   admin: { label: 'Administrador operativo', cls: 'role-admin', color: '#8B5E3C' },
   super_admin: { label: 'Super Admin', cls: 'role-super', color: '#4B2E52' },
-  kitchen: { label: 'Cocina', cls: 'role-kitchen', color: '#B4532A' }
+  kitchen: { label: 'Cocina', cls: 'role-kitchen', color: '#B4532A' },
+  staff: { label: 'Personal', cls: 'role-staff', color: '#00697B' }
 };
 
 // Data
@@ -437,6 +467,9 @@ const saveUser = async () => {
   try {
     const payload = { ...form.value };
     delete payload.permission_overrides;
+    if (payload.role === 'staff' && !payload.id) {
+      Object.assign(payload, staffCredentials(payload.name));
+    }
     if (form.value.id && !payload.password) {
       delete payload.password;
     }
@@ -852,9 +885,12 @@ table.oh-table tbody tr:hover {
 .oh-badge.role-admin { background: #F3E9DE; color: #8B5E3C; }
 .oh-badge.role-super { background: #EFE7F0; color: #4B2E52; }
 .oh-badge.role-kitchen { background: #FBF0DE; color: #B4532A; }
+.oh-badge.role-staff { background: var(--teal-100); color: var(--teal-700); }
+.oh-staff-note { display: block; margin: 4px 0 12px; line-height: 1.45; }
 
 html.dark .oh-badge.role-super { background: #3A2560; color: #D9C6F5; }
 html.dark .oh-badge.role-kitchen { color: #F2C27B; background: rgba(180, 83, 42, 0.2); }
+html.dark .oh-badge.role-staff { color: #8FD8E2; background: rgba(0, 133, 155, 0.2); }
 html.dark .oh-badge.role-admin { color: #E0B48E; background: rgba(139, 94, 60, 0.2); }
 html.dark .oh-badge.role-cashier { color: #A9D18A; background: rgba(92, 122, 63, 0.2); }
 

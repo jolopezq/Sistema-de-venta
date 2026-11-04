@@ -43,6 +43,8 @@ const isSaving   = ref(false);
 const errorMsg   = ref('');
 const successMsg = ref('');
 const categories = ref([]);
+// Adelanto de sueldo: a quién se le dio (lo resta la planilla; docs/PLAN_ASISTENCIA_Y_SUELDOS.md §5.6)
+const people = ref([]);
 
 const isEditing = computed(() => Boolean(props.movement?.id));
 const isClosedCorrection = computed(() => isEditing.value && Boolean(props.closedSession));
@@ -55,9 +57,15 @@ const form = ref({
   cash_amount: '',
   description: '',
   expense_category_id: null,
+  employee_id: null,
   reason: '',
 });
 const cashAmountInput = ref(null);
+/** ¿La categoría es de sueldos? Entonces se puede indicar a quién se le dio el adelanto. */
+const isSalaryCategory = computed(() => {
+  const cat = categories.value.find((c) => c.id === form.value.expense_category_id);
+  return form.value.type === 'expense' && Boolean(cat) && (cat.group_name === 'Personal' || /salario|sueldo/i.test(cat.name || ''));
+});
 
 // ── Gasto dividido entre efectivo y QR (docs/PLAN_GASTO_PAGO_DIVIDIDO.md) ──
 const isSplit = computed(() => form.value.payment_method === 'mixed');
@@ -152,7 +160,8 @@ const hasChanged = computed(() => {
     || (isSplit.value && Math.abs((parseFloat(m.cash_amount) || 0) - (parseFloat(form.value.cash_amount) || 0)) > 0.004);
   const descDiff   = (m.description || '').trim() !== form.value.description.trim();
   const catDiff    = (m.expense_category_id || null) !== (form.value.expense_category_id || null);
-  return amountDiff || methodDiff || descDiff || catDiff;
+  const personDiff = (m.employee_id || null) !== (isSalaryCategory.value ? (form.value.employee_id || null) : null);
+  return amountDiff || methodDiff || descDiff || catDiff || personDiff;
 });
 
 const canSubmit = computed(() => {
@@ -171,6 +180,7 @@ watch(() => props.visible, async (v) => {
     if (categories.value.length === 0) {
       await fetchCategories();
     }
+    if (people.value.length === 0) fetchPeople();
   }
 });
 
@@ -179,6 +189,14 @@ watch(() => props.movement, () => {
     resetForm();
   }
 });
+
+async function fetchPeople() {
+  try {
+    people.value = (await apiFetch('/attendance/people'))?.data ?? [];
+  } catch {
+    people.value = [];
+  }
+}
 
 async function fetchCategories() {
   try {
@@ -198,6 +216,7 @@ function resetForm() {
       cash_amount: props.movement.payment_method === 'mixed' ? String(Number(props.movement.cash_amount ?? 0)) : '',
       description: props.movement.description || '',
       expense_category_id: props.movement.expense_category_id || null,
+      employee_id: props.movement.employee_id || null,
       reason: '',
     };
   } else {
@@ -208,6 +227,7 @@ function resetForm() {
       cash_amount: '',
       description: '',
       expense_category_id: null,
+      employee_id: null,
       reason: '',
     };
   }
@@ -237,6 +257,7 @@ async function handleSubmit() {
         amount:              amtNumber,
         description:         form.value.description.trim(),
         expense_category_id: form.value.type === 'expense' ? (form.value.expense_category_id || null) : null,
+        employee_id:         isSalaryCategory.value ? (form.value.employee_id || null) : null,
       });
       successMsg.value = form.value.type === 'expense'
         ? `Gasto corregido a Bs ${amtNumber.toFixed(2)} ${methodLabel}.`
@@ -249,6 +270,7 @@ async function handleSubmit() {
         amount:              amtNumber,
         description:         form.value.description.trim(),
         expense_category_id: form.value.type === 'expense' ? (form.value.expense_category_id || null) : null,
+        employee_id:         isSalaryCategory.value ? (form.value.employee_id || null) : null,
       }, sId);
       successMsg.value = form.value.type === 'expense'
         ? `Gasto de Bs ${amtNumber.toFixed(2)} ${methodLabel} registrado.`
@@ -436,6 +458,15 @@ function handleClose() {
             </option>
           </select>
           <p v-if="!form.expense_category_id" class="fin-hint">El dueño lo clasifica después en Finanzas: describe bien qué se compró o pagó.</p>
+        </div>
+
+        <div v-if="isSalaryCategory && people.length" class="fin-field">
+          <label for="ce-person">¿Es un adelanto de sueldo? ¿Para quién?</label>
+          <select id="ce-person" v-model="form.employee_id" class="fin-input">
+            <option :value="null">No es un adelanto</option>
+            <option v-for="p in people" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+          <p v-if="form.employee_id" class="fin-hint">Se resta de su sueldo en la planilla del mes.</p>
         </div>
 
         <div class="fin-field">

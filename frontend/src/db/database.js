@@ -23,3 +23,18 @@ db.version(5).stores({
   users:      'id, email',
   role_permissions: 'id, role, [role+module]'
 });
+
+/**
+ * v6: cola de marcas de asistencia hechas sin conexión (docs/PLAN_ASISTENCIA_Y_SUELDOS.md, D11).
+ * Se envían solas al volver la conexión y llegan al servidor como «Sin internet: a aprobar».
+ */
+db.version(6).stores({
+  categories: 'id, name, sort_order',
+  products:   'id, category_id, name, is_active',
+  ingredients: 'id, name',
+  customers:  'id, ci_or_phone, name',
+  sales:      'id, sync_status, created_at',
+  users:      'id, email',
+  role_permissions: 'id, role, [role+module]',
+  attendanceQueue: 'local_uuid, user_id, status, device_time',
+});

@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'super_admin' => \App\Http\Middleware\EnsureUserIsSuperAdmin::class,
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
             'perm' => \App\Http\Middleware\CheckModulePermission::class,
+            'attendance.device' => \App\Http\Middleware\EnsureAttendanceDevice::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -56,7 +56,9 @@ test('La lista muestra los permisos propios de cada administrador', async ({ pag
 test('Dar Finanzas a un administrador: guarda solo lo que difiere de su rol', async ({ page }) => {
   const calls = await setup(page);
   await row(page, 'Rox').getByTitle('Editar').click();
-  await expect(modal(page).locator('.pp-row')).toHaveCount(4);
+  // Ventas de días pasados, Corregir cajas, Finanzas, Descuentos y Asistencia y sueldos (docs/PLAN_ASISTENCIA_Y_SUELDOS.md)
+  await expect(modal(page).locator('.pp-row')).toHaveCount(5);
+  await expect(modal(page).getByRole('button', { name: 'Asistencia y sueldos: Editar' })).toHaveAttribute('aria-pressed', 'true');
   await expect(modal(page).getByRole('button', { name: 'Ventas de días pasados: Cargar y corregir' })).toHaveAttribute('aria-pressed', 'true');
   await expect(modal(page).getByRole('button', { name: 'Finanzas: Sin acceso' })).toHaveAttribute('aria-pressed', 'true');
 
@@ -75,6 +77,7 @@ test('Dar Finanzas a un administrador: guarda solo lo que difiere de su rol', as
     { module: 'register_corrections', access_level: 'edit' },
     { module: 'finance', access_level: 'edit' },
     { module: 'pos_discounts', access_level: null },
+    { module: 'attendance', access_level: null },
   ]);
 });
 
@@ -105,6 +108,7 @@ test('Dar Descuentos en caja a un cajero', async ({ page }) => {
     { module: 'register_corrections', access_level: null },
     { module: 'finance', access_level: null },
     { module: 'pos_discounts', access_level: 'edit' },
+    { module: 'attendance', access_level: null },
   ]);
 });
 

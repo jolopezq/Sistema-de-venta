@@ -61,6 +61,11 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        // Reloj de asistencia: pedidos por IP (el PIN tiene además su propio bloqueo por persona y equipo).
+        RateLimiter::for('attendance-kiosk', function (Request $request) use ($tooMany) {
+            return Limit::perMinute(60)->by('kiosk|' . $request->ip())->response($tooMany);
+        });
+
         // Envío por la API HTTPS de Resend sin paquetes nuevos (MAIL_MAILER=resend-api)
         \Illuminate\Support\Facades\Mail::extend('resend-api', fn (array $config) => new \App\Mail\Transport\ResendApiTransport((string) ($config['key'] ?? config('services.resend.key'))));
     }

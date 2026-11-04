@@ -30,6 +30,13 @@ class AuthController extends Controller
             ]);
         }
 
+        // «Personal» solo marca asistencia en el reloj del local: no inicia sesión (docs/PLAN_ASISTENCIA_Y_SUELDOS.md, D2)
+        if ($user->isStaff()) {
+            throw ValidationException::withMessages([
+                'email' => ['Esta persona solo marca asistencia en el reloj del local; no inicia sesión.'],
+            ]);
+        }
+
         // Revoke all older tokens for security if desired, but for now we just issue a new one
         $token = $user->createToken('pos_auth_token')->plainTextToken;
 
