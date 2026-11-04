@@ -599,8 +599,10 @@ class FinanceReportService
         $money = fn (float $v) => number_format($v, 2, ',', '.');
         $day = fn (string $date) => Carbon::parse($date)->format('d/m');
 
+        // Las ventas históricas (anteriores al inicio del sistema) van sin caja a propósito
         $orphans = (clone $localSalesQuery)
             ->whereNull('cash_register_session_id')
+            ->where(fn ($q) => $q->whereNull('entry_mode')->orWhere('entry_mode', '!=', 'historical'))
             ->orderBy('created_at')
             ->get(['id', 'order_number', 'created_at', 'total_amount']);
         if ($orphans->isNotEmpty()) {

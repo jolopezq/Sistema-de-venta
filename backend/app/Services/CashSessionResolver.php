@@ -20,6 +20,11 @@ use Carbon\CarbonInterface;
  *  3. si quien vende es admin/super_admin y no tiene caja propia, el turno que esté abierto en ese momento
  *     (el local tiene una sola gaveta: lo que cobra el dueño durante el turno de un cajero entra a ese turno).
  * Entre varias candidatas gana la abierta más reciente.
+ *
+ * Si ninguna caja estaba abierta a esa hora pero ese mismo día se abrió una después, la venta va a esa caja
+ * (docs/PLAN_CONCILIACION_CAJA.md, C): una venta cargada en Control diario toma la hora del reloj y podía quedar
+ * antes de la apertura (la 171026-0005 del 17/10 a las 02:57), o una venta sin conexión anterior a la apertura;
+ * sin caja no entra a ningún arqueo.
  */
 class CashSessionResolver
 {
@@ -34,6 +39,24 @@ class CashSessionResolver
             ->orderByDesc('opened_at')
             ->get();
 
+        $picked = $this->pick($candidates, $cashierId);
+        if ($picked) {
+            return $picked;
+        }
+
+        // La caja que se abrió más tarde ese mismo día (la primera)
+        $later = CashRegisterSession::with('cashier:id,role')
+            ->where('opened_at', '>', $at)
+            ->where('opened_at', '<=', $at->copy()->endOfDay())
+            ->orderBy('opened_at')
+            ->get();
+
+        return $this->pick($later, $cashierId);
+    }
+
+    /** Prioridad: la caja del propio vendedor, la compartida de un admin, o cualquiera si vende un admin. */
+    private function pick($candidates, ?int $cashierId): ?CashRegisterSession
+    {
         $own = $candidates->firstWhere('cashier_id', $cashierId);
         if ($own) {
             return $own;

@@ -14,7 +14,12 @@ se renombra con la fecha de la actualización de producción.
     - **Avisos nuevos** para que el resultado sea definitivo: ventas del local sin caja, cajas de días pasados sin cerrar (con «Ir a Control diario» en ese día), y, al final del mes o con el mes cerrado, meses sin sueldos o sin luz, agua o internet («Cargar gasto»).
     - En el detalle del Estado de Resultados, cada egreso de caja muestra el día en que ocurrió y no el día en que se cargó.
     - Control diario abre en el día que indica `?fecha=AAAA-MM-DD`.
-    - 6 pruebas nuevas en `FinanceCashDrawerTest`; `npm run test:unit` con 2 más.
+    - 7 pruebas nuevas en `FinanceCashDrawerTest` (las ventas históricas, anteriores al inicio del sistema, van sin caja a propósito y no se avisan); `npm run test:unit` con 2 más.
+  - **Fase 2 (Cajas):** migración aditiva `2026_11_04_000001_add_reconciliation_fields_to_cash_register_sessions` (`opening_note`; `qr_bank_reported` es de la fase 3).
+    - **Una venta entra en la caja de su día:** si ninguna caja estaba abierta a esa hora pero ese día se abrió una después, la venta va a esa caja (`CashSessionResolver`). Así una venta cargada en Control diario con la hora del reloj (la 171026-0005 quedó a las 02:57 del 17/10) o una venta sin conexión anterior a la apertura ya no queda fuera de todo arqueo. Al abrir la caja de hoy también se vinculan las ventas del día que no tenían caja. En Control diario, una venta de un día pasado propone la hora en que se abrió la caja de ese día.
+    - **Fondo con motivo:** al abrir una caja (Caja o Control diario) con un fondo distinto a lo que dejó la caja cerrada anterior, se pide el motivo; el servidor responde 422 (`opening_mismatch`) sin él, lo guarda en la caja y deja `cash_session_opening_mismatch` en la auditoría. El fondo se propone solo con lo que dejó la caja anterior a ese día (`GET /api/cash-sessions/opening-info`).
+    - **Cajas sin cerrar:** al abrir la caja y en Control diario se avisan las cajas de días anteriores que siguen abiertas, con el enlace para cerrarlas en ese día (quien no ve cajas ajenas solo ve las suyas).
+    - 6 pruebas nuevas en `CashReconciliationTest`.
 
 ### Cambiado
 - **Remover selector manual de PedidosYa en el Punto de Venta (POS)** ([plan](docs/PLAN_REMOVER_CANAL_PEDIDOSYA_POS.md)): simplificación de la pantalla de caja eliminando el selector de canal `[ Local ]` / `[ PedidosYa ]`, el aviso y los modales de ajuste de precios en `Pos.vue`. Dado que los pedidos de la plataforma se gestionan e imprimen directamente en el dispositivo POS oficial de PedidosYa y se concilian por documentos en Finanzas, la columna del ticket recupera ~70px verticales, garantizando que el total y el botón de cobro se mantengan a la vista en la portátil de caja (1366 × 611).

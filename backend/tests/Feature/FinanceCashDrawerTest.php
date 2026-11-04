@@ -160,6 +160,15 @@ class FinanceCashDrawerTest extends TestCase
         $this->assertStringContainsString('14/10 (Lourdes)', $byCode['open_sessions']['message']);
     }
 
+    public function test_una_venta_historica_sin_caja_no_se_avisa(): void
+    {
+        // Antes del inicio del sistema las ventas se cargan sin caja a propósito (Control diario)
+        $sale = $this->sale(null, '2026-10-02 12:00:00', 45, 'cash');
+        DB::table('sales')->where('id', $sale->id)->update(['entry_mode' => 'historical']);
+
+        $this->assertNotContains('sales_without_session', $this->codes($this->pnl()));
+    }
+
     public function test_avisa_cuando_el_mes_no_tiene_sueldos_ni_servicios(): void
     {
         $day = $this->caja('2026-10-10', 0, [50, 50, 0]);
