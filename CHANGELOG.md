@@ -6,6 +6,27 @@ se renombra con la fecha de la actualización de producción.
 
 ## [Sin publicar]
 
+### Corregido
+- **Que el efectivo y el QR cuadren con lo que recibes** ([plan](docs/PLAN_CONCILIACION_CAJA.md)): sale de la auditoría de octubre, donde Bs 181 de «faltante» eran compras pagadas con la gaveta y el cambio que quedó, y una venta de Bs 260 cargada en Control diario no entró a ninguna caja.
+  - **Fase 1 (Finanzas):**
+    - **Efectivo que te debía llegar a la mano** (Resumen → «Dinero que entró en el mes»): de lo cobrado en efectivo a lo retirado de las cajas cerradas, restando lo pagado con la gaveta, el cambio que quedó, los fondos distintos a lo que dejó la caja anterior, las cajas sin cerrar, las ventas sin caja y los faltantes o sobrantes de cierre. Las filas suman exactamente lo retirado (`CashDrawerService`). Octubre en la copia de producción: Bs 2.868 cobrados → Bs 2.687 retirados.
+    - **Faltantes y sobrantes de caja** en el Estado de Resultados: la diferencia de cada cierre (contado − esperado con sus movimientos de ahora), en la fecha de su caja; un faltante suma como gasto y un sobrante lo reduce. No entra en los costos fijos del punto de equilibrio.
+    - **Avisos nuevos** para que el resultado sea definitivo: ventas del local sin caja, cajas de días pasados sin cerrar (con «Ir a Control diario» en ese día), y, al final del mes o con el mes cerrado, meses sin sueldos o sin luz, agua o internet («Cargar gasto»).
+    - En el detalle del Estado de Resultados, cada egreso de caja muestra el día en que ocurrió y no el día en que se cargó.
+    - Control diario abre en el día que indica `?fecha=AAAA-MM-DD`.
+    - 7 pruebas nuevas en `FinanceCashDrawerTest` (las ventas históricas, anteriores al inicio del sistema, van sin caja a propósito y no se avisan); `npm run test:unit` con 2 más.
+  - **Fase 2 (Cajas):** migración aditiva `2026_11_04_000001_add_reconciliation_fields_to_cash_register_sessions` (`opening_note`; `qr_bank_reported` es de la fase 3).
+    - **Una venta entra en la caja de su día:** si ninguna caja estaba abierta a esa hora pero ese día se abrió una después, la venta va a esa caja (`CashSessionResolver`). Así una venta cargada en Control diario con la hora del reloj (la 171026-0005 quedó a las 02:57 del 17/10) o una venta sin conexión anterior a la apertura ya no queda fuera de todo arqueo. Al abrir la caja de hoy también se vinculan las ventas del día que no tenían caja. En Control diario, una venta de un día pasado propone la hora en que se abrió la caja de ese día.
+    - **Fondo con motivo:** al abrir una caja (Caja o Control diario) con un fondo distinto a lo que dejó la caja cerrada anterior, se pide el motivo; el servidor responde 422 (`opening_mismatch`) sin él, lo guarda en la caja y deja `cash_session_opening_mismatch` en la auditoría. El fondo se propone solo con lo que dejó la caja anterior a ese día (`GET /api/cash-sessions/opening-info`).
+    - **Cajas sin cerrar:** al abrir la caja y en Control diario se avisan las cajas de días anteriores que siguen abiertas, con el enlace para cerrarlas en ese día (quien no ve cajas ajenas solo ve las suyas).
+    - 6 pruebas nuevas en `CashReconciliationTest`.
+  - **Fase 3 (QR del banco al cerrar):**
+    - **Cierre de caja** (último paso del arqueo, en «Qué se hace con el efectivo»): campo opcional «QR en la app del banco» con el QR del sistema y la diferencia en el momento («Faltan Bs 30.00 en el banco»). Se guarda en `qr_bank_reported`; al corregir un cierre sin volver a anotarlo se conserva el anterior. El paso sigue entrando sin scroll en 1366 × 611 y 1093 × 489.
+    - **Reporte de cierre:** sección «QR del día» con sistema, banco y diferencia.
+    - **Finanzas:** debajo de «Dinero que entró», en cuántos cierres se comparó el QR con el banco y cuánto falta o sobra; aviso «QR del banco distinto» con los días, para revisarlos en Control diario.
+    - 2 pruebas nuevas en `CashReconciliationTest`; `npm run test:unit` con 1 más.
+  - **Fase 4 (Pruebas y revisión):** `e2e/conciliacion-caja.spec.js` (3 pruebas en la portátil de caja con la API simulada): el efectivo que debía llegar a la mano y el aviso que lleva a Control diario en el día de la venta sin caja; abrir caja con otro fondo pide el motivo y avisa las cajas sin cerrar; el QR del banco al cerrar viaja en el cierre. En Control diario, el fondo sugerido y el motivo van en una tarjeta propia sobre el banner (se leían mal sobre el degradado) y el aviso de cajas sin cerrar ocupa una línea.
+
 ### Cambiado
 - **Remover selector manual de PedidosYa en el Punto de Venta (POS)** ([plan](docs/PLAN_REMOVER_CANAL_PEDIDOSYA_POS.md)): simplificación de la pantalla de caja eliminando el selector de canal `[ Local ]` / `[ PedidosYa ]`, el aviso y los modales de ajuste de precios en `Pos.vue`. Dado que los pedidos de la plataforma se gestionan e imprimen directamente en el dispositivo POS oficial de PedidosYa y se concilian por documentos en Finanzas, la columna del ticket recupera ~70px verticales, garantizando que el total y el botón de cobro se mantengan a la vista en la portátil de caja (1366 × 611).
 - **Robustez en importación de lotes y delimitadores CSV de PedidosYa**: detección automática de delimitador (coma `,`, punto y coma `;`, tabulador `\t`), eliminación de marcas BOM residuales en cabeceras de columnas, y fallback transparente a la planilla Excel semanal (`ordersXls`) en caso de que el archivo CSV esté ausente o no pueda parsearse. Respuestas controladas con código HTTP 422 en lugar de 500 ante excepciones de archivo.

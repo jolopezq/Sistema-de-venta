@@ -1,6 +1,8 @@
 <script setup>
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { MONTHS } from '../../stores/finance';
+import { useAuthStore } from '../../stores/auth';
 
 /**
  * Resultado del mes como una frase («Septiembre cerró con Bs 9.094 de utilidad»), la barra de qué queda de cada
@@ -20,7 +22,27 @@ const ACTIONS = {
   generate_recurring: { label: 'Revisar gastos fijos', tab: 'recurring', intent: 'period' },
   import_pedidosya: { label: 'Cargar semana', tab: 'pedidosya', intent: 'import' },
   view_pedidosya: { label: 'Ver semana', tab: 'pedidosya', intent: 'list' },
+  add_expense: { label: 'Cargar gasto', tab: 'expenses', intent: 'new-expense' },
+  // Fuera de Finanzas: abre Control diario en el día del aviso (requiere «Ventas de días pasados»)
+  daily_control: { label: 'Ir a Control diario', route: 'RetroactiveSales', permission: ['sales_history', 'edit'] },
 };
+const router = useRouter();
+const auth = useAuthStore();
+function actionFor(w) {
+  const a = ACTIONS[w.action];
+  if (!a) return null;
+  if (a.permission && !auth.hasPermission(...a.permission)) return null;
+  return a;
+}
+function runAction(w) {
+  const a = actionFor(w);
+  if (!a) return;
+  if (a.route) {
+    router.push({ name: a.route, query: w.date ? { fecha: w.date } : {} }).catch(() => {});
+    return;
+  }
+  emit('navigate', a.tab, a.intent);
+}
 
 const NBSP = ' ';
 /** «Bs 9.094» sin decimales, con el número pegado a «Bs». */
@@ -120,6 +142,25 @@ function shortWarningMessage(w) {
   if (w.code === 'pedidosya_reconciliation') {
     return 'Semana PedidosYa con diferencias';
   }
+  if (w.code === 'sales_without_session') {
+    const n = w.count ?? 1;
+    const bs = w.amount ? ` · ${whole(w.amount)}` : '';
+    return `${n} ${n === 1 ? 'venta sin caja' : 'ventas sin caja'}${bs}`;
+  }
+  if (w.code === 'open_sessions') {
+    const n = w.count ?? 1;
+    return `${n} ${n === 1 ? 'caja sin cerrar' : 'cajas sin cerrar'}`;
+  }
+  if (w.code === 'qr_bank_difference') {
+    const n = w.count ?? 1;
+    return `QR del banco distinto en ${n} ${n === 1 ? 'cierre' : 'cierres'}`;
+  }
+  if (w.code === 'missing_salaries') {
+    return 'Sin sueldos cargados';
+  }
+  if (w.code === 'missing_utilities') {
+    return 'Sin luz, agua o internet cargados';
+  }
   return w.message?.split(':')[0] || w.message || '';
 }
 </script>
@@ -167,12 +208,12 @@ function shortWarningMessage(w) {
               <span class="hero-trust-short">{{ shortWarningMessage(w) }}</span>
             </span>
             <button
-              v-if="ACTIONS[w.action]"
+              v-if="actionFor(w)"
               class="fin-btn fin-btn-primary fin-btn-lg"
               type="button"
-              @click="emit('navigate', ACTIONS[w.action].tab, ACTIONS[w.action].intent)"
+              @click="runAction(w)"
             >
-              {{ ACTIONS[w.action].label }}
+              {{ actionFor(w).label }}
             </button>
           </li>
         </ul>

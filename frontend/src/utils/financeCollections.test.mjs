@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gapSaleText, gapDetail, localPaymentRows, depositsText, cashInNotes } from './financeCollections.js';
+import { gapSaleText, gapDetail, localPaymentRows, depositsText, cashInNotes, drawerBreakdown, qrBankNote } from './financeCollections.js';
 
 const REVENUE = {
   local_sales: 465, cash_sales: 190, qr_sales: 260, card_sales: 80, other_sales: 0,
@@ -75,4 +75,47 @@ test('cashInNotes: varias semanas que se depositan el mes siguiente', () => {
     ],
   }, {});
   assert.equal(note, 'PedidosYa: las semanas del 19/10 al 25/10 y del 26/10 al 01/11 (Bs 900,00) se depositan el 01/11 y 05/11, ya en el mes siguiente.');
+});
+
+// ── Efectivo que debía llegar a la mano (plan de conciliación, A) ──
+
+test('drawerBreakdown: octubre 2026 suma lo retirado de las cajas', () => {
+  const drawer = {
+    collected: 2868, in_open_sessions: 0, outside_sessions: 0, drawer_expenses: 171, extra_income: 244, differences: 0,
+    fund_start: 242, fund_end: 256, fund_change: 14, fund_jumps: -240, withdrawn: 2687, unexplained: 0,
+    fund_jump_items: [
+      { date: '2026-10-03', amount: -244, in_total: true },
+      { date: '2026-10-09', amount: 4, in_total: true },
+    ],
+    open_sessions: [{ date: '2026-10-14', cashier: 'Lourdes' }, { date: '2026-10-27', cashier: 'Lourdes' }],
+    difference_items: [],
+  };
+  const { rows, total, notes } = drawerBreakdown(drawer);
+  assert.deepEqual(rows.map((r) => r.key), ['collected', 'expenses', 'income', 'fund', 'jumps']);
+  assert.equal(Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100, total);
+  assert.equal(total, 2687);
+  assert.equal(rows.find((r) => r.key === 'fund').label, 'Quedó de más en la gaveta como cambio');
+  assert.match(rows.find((r) => r.key === 'jumps').detail, /03\/10 −Bs 244,00 y 09\/10 \+Bs 4,00/);
+  assert.equal(notes[0], 'Las cajas 14/10 (Lourdes) y 27/10 (Lourdes) siguen abiertas: ciérralas en Control diario.');
+});
+
+test('drawerBreakdown: faltante, cajas abiertas y ventas sin caja también suman lo retirado', () => {
+  const drawer = {
+    collected: 1000, in_open_sessions: 120, outside_sessions: 80, drawer_expenses: 50, extra_income: 0, differences: -15,
+    fund_start: 200, fund_end: 180, fund_change: -20, fund_jumps: 0, withdrawn: 755, unexplained: 0,
+    difference_items: [{ date: '2026-10-05', amount: -15 }],
+  };
+  const { rows, total } = drawerBreakdown(drawer);
+  assert.equal(Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100, total);
+  assert.equal(rows.find((r) => r.key === 'differences').label, 'Faltantes al cerrar caja');
+  assert.equal(rows.find((r) => r.key === 'fund').label, 'Se usó cambio de la gaveta');
+});
+
+test('qrBankNote: solo con cierres que anotaron el QR del banco', () => {
+  assert.equal(qrBankNote({ reported_count: 0, closed_count: 24 }), null);
+  assert.equal(qrBankNote({ reported_count: 2, closed_count: 3, difference: 0, items: [] }), 'QR comparado con la app del banco en 2 de 3 cierres: coincide.');
+  assert.equal(
+    qrBankNote({ reported_count: 1, closed_count: 1, difference: -30, items: [{ date: '2026-10-22', difference: -30 }] }),
+    'QR comparado con la app del banco en 1 de 1 cierre: faltan Bs 30,00 en el banco (22/10 −Bs 30,00).',
+  );
 });

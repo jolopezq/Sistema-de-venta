@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useTurnoStore } from '../stores/turno';
 import { useAuthStore } from '../stores/auth';
 import AdminSaleEditor from '../components/AdminSaleEditor.vue';
@@ -10,11 +10,14 @@ import VoidCashMovementModal from '../components/VoidCashMovementModal.vue';
 import { cashPart, nonCashPart, methodDetail, methodWithAmount } from '../utils/cashMovementMethod';
 import CashCloseWizard from '../components/CashCloseWizard.vue';
 import CashSessionReport from '../components/CashSessionReport.vue';
+import OpeningFundCheck from '../components/cash/OpeningFundCheck.vue';
+import UnclosedSessionsNotice from '../components/cash/UnclosedSessionsNotice.vue';
 import { apiFetch } from '../services/api';
 import { db } from '../db/database';
 import { getSalePaymentBadges } from '../utils/paymentDisplay';
 
 const router = useRouter();
+const route = useRoute();
 const turnoStore = useTurnoStore();
 const authStore = useAuthStore();
 
@@ -108,7 +111,11 @@ function getLocalDateStr(date = new Date()) {
 }
 
 const todayStr = getLocalDateStr();
-const selectedDate = ref(todayStr);
+// Desde Finanzas o la caja se llega con ?fecha=AAAA-MM-DD (p. ej. una caja sin cerrar o una venta sin caja)
+const initialDate = typeof route.query?.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(route.query.fecha) && route.query.fecha <= todayStr
+  ? route.query.fecha
+  : todayStr;
+const selectedDate = ref(initialDate);
 
 // Estado de sesión y datos del día seleccionado
 const currentSession = ref(null);
@@ -146,6 +153,22 @@ async function handleMovementVoided() {
 const openingFund = ref(0);
 const isOpeningSession = ref(false);
 const openError = ref('');
+// Fondo que dejó la caja anterior y cajas de días anteriores sin cerrar (docs/PLAN_CONCILIACION_CAJA.md, D y E)
+const openingInfo = ref(null);
+const openingNote = ref('');
+const fundCheck = ref(null);
+// Venta de un día pasado con una caja abierta a una hora real (no a medianoche): por defecto, la hora en que se abrió
+// esa caja, para que la venta quede dentro de su horario y no con la hora del reloj de hoy (la 171026-0005 quedó
+// a las 02:57 y fuera de la caja del 17/10)
+const saleDefaultTime = computed(() => {
+  if (selectedDate.value === todayStr || !currentSession.value?.opened_at) return '';
+  const opened = new Date(currentSession.value.opened_at);
+  if (Number.isNaN(opened.getTime())) return '';
+  const hhmm = `${String(opened.getHours()).padStart(2, '0')}:${String(opened.getMinutes()).padStart(2, '0')}`;
+  return hhmm === '00:00' ? '' : hhmm;
+});
+const unclosedOthers = computed(() => (openingInfo.value?.unclosed || [])
+  .filter((s) => s.session_id !== currentSession.value?.id));
 
 // Tab inferior: 'sales' | 'expenses'
 const activeTab = ref('sales');
@@ -317,8 +340,12 @@ async function loadDayData(dateStr) {
       closedReport.value = null;
     }
 
-    // Preparar monto de apertura sugerido si no hay sesión
-    openingFund.value = Number(turnoStore.suggestedForNext || 0);
+    // Fondo sugerido: lo que dejó la caja cerrada anterior a ese día; y las cajas de días anteriores sin cerrar
+    openingNote.value = '';
+    openingInfo.value = await turnoStore.fetchOpeningInfo(dateStr === todayStr ? null : dateStr);
+    openingFund.value = openingInfo.value?.suggested_opening != null
+      ? Number(openingInfo.value.suggested_opening)
+      : Number(turnoStore.suggestedForNext || 0);
   } catch (err) {
     console.error('Error al cargar datos del día:', err);
   } finally {
@@ -334,12 +361,16 @@ async function handleOpenSession() {
     openError.value = 'El fondo inicial no puede ser negativo.';
     return;
   }
+  if (fundCheck.value && !fundCheck.value.noteOk) {
+    openError.value = 'Escribe por qué abres con otro monto (al menos 5 caracteres).';
+    return;
+  }
   isOpeningSession.value = true;
   openError.value = '';
   try {
     // Pasar la fecha si no es hoy
     const dateArg = selectedDate.value !== todayStr ? selectedDate.value : null;
-    const data = await turnoStore.openSession(openingFund.value, dateArg, dateArg ? openFor.value : null);
+    const data = await turnoStore.openSession(openingFund.value, dateArg, dateArg ? openFor.value : null, openingNote.value);
     currentSession.value = data.session;
     currentStats.value = data.stats;
     await loadDayData(selectedDate.value);
@@ -511,6 +542,7 @@ watch(selectedDate, (newDate) => {
       <strong>Día histórico:</strong> es anterior al inicio del sistema ({{ formatDayIso(dayInfo.system_start_date) }}).
       Las ventas que cargues no descuentan stock ni suman puntos, y no hace falta abrir caja: quedan sin caja y cuentan en Finanzas por su fecha.
     </div>
+    <UnclosedSessionsNotice :sessions="unclosedOthers" in-place class="cd-unclosed" @select-date="(d) => { selectedDate = d; }" />
     <div v-if="unsyncedForDay > 0" class="cd-day-notice is-warning" role="alert">
       <strong>Este dispositivo tiene {{ unsyncedForDay }} {{ unsyncedForDay === 1 ? 'venta' : 'ventas' }} de este día sin sincronizar.</strong>
       Sincronízalas antes de cargar comandas en papel, para no cargarlas dos veces.
@@ -550,6 +582,7 @@ watch(selectedDate, (newDate) => {
           <span v-else>🟢 Abrir Caja del Día →</span>
         </button>
       </div>
+      <OpeningFundCheck ref="fundCheck" v-model:note="openingNote" :info="openingInfo" :amount="openingFund" id-prefix="cd-open-today" class="cd-fund-check" />
       <p v-if="openError" class="open-error-msg">⚠️ {{ openError }}</p>
     </div>
 
@@ -594,6 +627,7 @@ watch(selectedDate, (newDate) => {
           <span v-else>🟣 Abrir Caja del {{ selectedDate }} →</span>
         </button>
       </div>
+      <OpeningFundCheck ref="fundCheck" v-model:note="openingNote" :info="openingInfo" :amount="openingFund" id-prefix="cd-open-past" class="cd-fund-check" />
       <p v-if="openError" class="open-error-msg">⚠️ {{ openError }}</p>
     </div>
 
@@ -618,6 +652,7 @@ watch(selectedDate, (newDate) => {
             :inline="true"
             :semiLote="true"
             :defaultDate="selectedDate"
+            :defaultTime="saleDefaultTime"
             @saved="handleSavedSale"
             @close="goToTurno"
           />
@@ -1179,6 +1214,9 @@ watch(selectedDate, (newDate) => {
   border-radius: 6px;
   border: 1px solid var(--tw-bg-fecaca);
 }
+
+/* Sobre el degradado del banner: tarjeta propia para que el texto se lea en claro y en oscuro */
+.cd-fund-check { margin-top: 10px; max-width: 640px; padding: 10px 12px; border-radius: 12px; background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
 
 .topbar-desc {
   margin: 0.25rem 0 0 0;

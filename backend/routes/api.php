@@ -111,6 +111,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Sesiones de Caja / Turno y Arqueo: lectura (ver turno activo, reporte, movimientos, historial)
         Route::middleware(['perm:register_self,read'])->group(function () {
             Route::get('/cash-sessions/active', [CashRegisterSessionController::class, 'active']);
+            Route::get('/cash-sessions/opening-info', [CashRegisterSessionController::class, 'openingInfo']);
             Route::get('/cash-sessions/{cashSession}/report', [CashRegisterSessionController::class, 'report']);
             Route::get('/cash-sessions/{cashSession}/movements', [CashRegisterSessionController::class, 'movements']);
             Route::apiResource('cash-sessions', CashRegisterSessionController::class)->only(['index', 'show']);

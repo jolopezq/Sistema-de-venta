@@ -169,11 +169,27 @@ export const useTurnoStore = defineStore('turno', {
     /**
      * Abre un nuevo turno de caja (hoy o fecha específica).
      */
-    async openSession(openingAmount, date = null, cashierId = null) {
+    /**
+     * Antes de abrir una caja: fondo que dejó la caja anterior y cajas de días anteriores sin cerrar
+     * (docs/PLAN_CONCILIACION_CAJA.md, D y E).
+     */
+    async fetchOpeningInfo(date = null) {
+      try {
+        const query = date ? `?date=${encodeURIComponent(date)}` : '';
+        return await apiFetch(`/cash-sessions/opening-info${query}`);
+      } catch (err) {
+        console.warn('No se pudo consultar el fondo sugerido:', err.message);
+        return null;
+      }
+    },
+
+    async openSession(openingAmount, date = null, cashierId = null, openingNote = '') {
       this.loading = true;
       this.error = null;
       try {
         const body = { opening_amount: Number(openingAmount) };
+        // Motivo si el fondo no coincide con lo que dejó la caja anterior
+        if (openingNote && openingNote.trim()) body.opening_note = openingNote.trim();
         if (date) body.date = date;
         // Caja de un día pasado a nombre del cajero que vendió ese día (día sin sistema)
         if (date && cashierId) body.cashier_id = Number(cashierId);

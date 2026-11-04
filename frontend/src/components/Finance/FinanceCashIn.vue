@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { formatBs } from '../../stores/finance';
-import { depositsText, cashInNotes } from '../../utils/financeCollections';
+import { depositsText, cashInNotes, drawerBreakdown, qrBankNote } from '../../utils/financeCollections';
 
 /**
  * Dinero que entró en el mes, por fecha de cobro (no por fecha de venta): lo del local al vender y lo de
@@ -23,7 +23,13 @@ const rows = computed(() => {
   list.push({ key: 'pya', label: 'PedidosYa', detail: depositsText(c.value), amount: c.value.pedidosya_deposited });
   return list;
 });
-const notes = computed(() => (c.value ? cashInNotes(c.value, props.pnl.revenue) : []));
+const notes = computed(() => {
+  if (!c.value) return [];
+  const qr = qrBankNote(c.value.drawer?.qr_bank);
+  return qr ? [qr, ...cashInNotes(c.value, props.pnl.revenue)] : cashInNotes(c.value, props.pnl.revenue);
+});
+// Efectivo que debía llegar a la mano: de lo cobrado a lo retirado de las cajas (plan de conciliación, A)
+const drawer = computed(() => (c.value?.drawer ? drawerBreakdown(c.value.drawer) : null));
 </script>
 
 <template>
@@ -54,6 +60,36 @@ const notes = computed(() => (c.value ? cashInNotes(c.value, props.pnl.revenue) 
       </tfoot>
     </table>
 
+    <details v-if="drawer && (drawer.total || drawer.rows.length > 1)" class="cin-drawer" data-testid="cin-drawer">
+      <summary>
+        <span class="cin-drawer-title">
+          Efectivo que te debía llegar a la mano
+          <span class="cin-sub">lo retirado de las cajas cerradas: compáralo con lo que juntaste</span>
+        </span>
+        <strong class="fin-num">{{ formatBs(drawer.total) }}</strong>
+      </summary>
+      <table class="cin-table cin-drawer-table">
+        <tbody>
+          <tr v-for="row in drawer.rows" :key="row.key" :data-row="row.key">
+            <th scope="row">
+              {{ row.label }}
+              <span v-if="row.detail" class="cin-sub">{{ row.detail }}</span>
+            </th>
+            <td class="fin-num">{{ formatBs(row.amount, { sign: row.key !== 'collected' }) }}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr data-row="withdrawn">
+            <th scope="row">Te debía llegar a la mano</th>
+            <td class="fin-num">{{ formatBs(drawer.total) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <ul v-if="drawer.notes.length" class="cin-notes">
+        <li v-for="note in drawer.notes" :key="note">{{ note }}</li>
+      </ul>
+    </details>
+
     <ul v-if="notes.length" class="cin-notes">
       <li v-for="note in notes" :key="note">{{ note }}</li>
     </ul>
@@ -73,6 +109,16 @@ const notes = computed(() => (c.value ? cashInNotes(c.value, props.pnl.revenue) 
 .cin-table tfoot th, .cin-table tfoot td { border-top: 2px solid var(--border-strong, var(--border)); font-weight: 700; }
 .cin-table tfoot td { font-size: 16px; }
 
+.cin-drawer { border-top: 1px solid var(--border); padding-top: 8px; }
+.cin-drawer summary { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 600; color: var(--ink-900); padding: 4px 0; }
+.cin-drawer summary::-webkit-details-marker { display: none; }
+.cin-drawer summary::before { content: '▸'; color: var(--ink-500); margin-right: 6px; transition: transform .15s; }
+.cin-drawer[open] summary::before { transform: rotate(90deg); }
+.cin-drawer-title { flex: 1; }
+.cin-drawer summary strong { font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cin-drawer summary:focus-visible { outline: 2px solid var(--acai-text, currentColor); outline-offset: 2px; border-radius: 4px; }
+.cin-drawer-table { margin-top: 4px; }
+.cin-drawer .cin-notes { margin-top: 6px; }
 .cin-notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.45; color: var(--ink-700); }
 
 /* Portátil de caja (≤ 1366 px o ≤ 800 px de alto) */

@@ -286,6 +286,26 @@ function formatDate(dateStr) {
       </div>
     </template>
 
+    <!-- QR SEGÚN LA APP DEL BANCO (docs/PLAN_CONCILIACION_CAJA.md, G) -->
+    <template v-if="reportData.qr_bank_reported !== null && reportData.qr_bank_reported !== undefined">
+      <div class="divider">--------------------------------</div>
+      <div class="section-title">QR DEL DÍA</div>
+      <div class="dist-section" data-testid="report-qr-bank">
+        <div class="row">
+          <span>Según el sistema:</span>
+          <span>Bs {{ Number(reportData.summary?.qr_sales || 0).toFixed(2) }}</span>
+        </div>
+        <div class="row">
+          <span>Según la app del banco:</span>
+          <span>Bs {{ Number(reportData.qr_bank_reported).toFixed(2) }}</span>
+        </div>
+        <div class="row">
+          <span>Diferencia:</span>
+          <strong>{{ Number(reportData.qr_bank_difference) === 0 ? 'Coincide' : `${Number(reportData.qr_bank_difference) > 0 ? '+' : '−'}Bs ${Math.abs(Number(reportData.qr_bank_difference)).toFixed(2)}` }}</strong>
+        </div>
+      </div>
+    </template>
+
     <!-- DESGLOSE DE BILLETES SI EXISTE -->
     <template v-if="reportData.bill_breakdown || session.bill_breakdown">
       <div class="divider">--------------------------------</div>

@@ -30,6 +30,12 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  // «HH:mm» por defecto para una venta de un día pasado: dentro del horario de la caja de ese día
+  // (docs/PLAN_CONCILIACION_CAJA.md, C). Vacío = la hora del reloj.
+  defaultTime: {
+    type: String,
+    default: '',
+  },
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -107,6 +113,7 @@ const formData = ref({
 
 function formatForDatetimeLocal(isoStr, customDate = null) {
   if (customDate) {
+    if (/^\d{2}:\d{2}$/.test(props.defaultTime || '')) return `${customDate}T${props.defaultTime}`;
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
@@ -430,7 +437,7 @@ function initForm() {
   }
 }
 
-watch(() => props.defaultDate, (newDate) => {
+watch(() => [props.defaultDate, props.defaultTime], ([newDate]) => {
   if (newDate && !isEditMode.value) {
     formData.value.created_at = formatForDatetimeLocal(null, newDate);
   }

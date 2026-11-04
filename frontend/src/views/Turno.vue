@@ -4,6 +4,8 @@ import { useRouter, useRoute } from 'vue-router';
 import { useTurnoStore, readCashCloseProgress } from '../stores/turno';
 import { useAuthStore } from '../stores/auth';
 import CashCloseWizard from '../components/CashCloseWizard.vue';
+import OpeningFundCheck from '../components/cash/OpeningFundCheck.vue';
+import UnclosedSessionsNotice from '../components/cash/UnclosedSessionsNotice.vue';
 import SaleDetailDrawer from '../components/SaleDetailDrawer.vue';
 import AdminSaleEditor from '../components/AdminSaleEditor.vue';
 import CashExpenseModal from '../components/CashExpenseModal.vue';
@@ -255,15 +257,27 @@ async function handleOpenSession() {
     openingError.value = 'El fondo inicial no puede ser negativo.';
     return;
   }
+  if (fundCheck.value && !fundCheck.value.noteOk) {
+    openingError.value = 'Escribe por qué abres con otro monto (al menos 5 caracteres).';
+    return;
+  }
 
   isOpening.value = true;
   openingError.value = '';
 
   try {
-    await turnoStore.openSession(openingAmountInput.value);
+    await turnoStore.openSession(openingAmountInput.value, null, null, openingNote.value);
     turnoStore.isOpeningModalOpen = false;
     checkReorderNotice();
   } catch (err) {
+    // El servidor compara con lo que dejó la caja anterior aunque la pantalla no lo haya sabido
+    if (err.data?.reason === 'opening_mismatch' && openingInfo.value?.suggested_opening == null) {
+      openingInfo.value = {
+        ...(openingInfo.value || {}),
+        suggested_opening: err.data.expected,
+        previous: { date: err.data.previous_date, left_for_next: err.data.expected },
+      };
+    }
     openingError.value = err.message || 'Error al abrir caja.';
   } finally {
     isOpening.value = false;
@@ -276,13 +290,24 @@ function blockSignsAndExponent(e) {
 }
 
 const openingInput = ref(null);
-function initOpeningModal() {
+// Fondo que dejó la caja anterior y cajas de días anteriores sin cerrar (plan de conciliación, D y E)
+const openingInfo = ref(null);
+const openingNote = ref('');
+const fundCheck = ref(null);
+async function initOpeningModal() {
   openingAmountInput.value = turnoStore.suggestedOpeningAmount > 0
     ? turnoStore.suggestedOpeningAmount
     : 200;
   openingError.value = '';
+  openingNote.value = '';
   turnoStore.isOpeningModalOpen = true;
   nextTick(() => { openingInput.value?.focus(); openingInput.value?.select(); });
+  const info = await turnoStore.fetchOpeningInfo();
+  openingInfo.value = info;
+  if (info?.suggested_opening != null && turnoStore.isOpeningModalOpen) {
+    openingAmountInput.value = info.suggested_opening;
+    nextTick(() => openingInput.value?.select());
+  }
 }
 
 const PERIODS = [
@@ -776,15 +801,17 @@ watch(() => turnoStore.activeSession?.id, (newId) => {
             @click="openingAmountInput = amount"
           >Bs {{ amount }}</button>
         </div>
-        <p v-if="turnoStore.suggestedOpeningAmount > 0" class="fin-hint">
+        <OpeningFundCheck ref="fundCheck" v-model:note="openingNote" :info="openingInfo" :amount="openingAmountInput" id-prefix="tn-open" />
+        <p v-if="!openingInfo?.previous && turnoStore.suggestedOpeningAmount > 0" class="fin-hint">
           En el último cierre se dejaron {{ money(turnoStore.suggestedOpeningAmount) }} para este turno.
         </p>
+        <UnclosedSessionsNotice :sessions="openingInfo?.unclosed || []" />
         <template #footer>
           <button class="fin-btn fin-btn-ghost fin-btn-lg" type="button" :disabled="isOpening" @click="turnoStore.isOpeningModalOpen = false">Cancelar</button>
           <button
             class="fin-btn fin-btn-primary fin-btn-lg"
             type="button"
-            :disabled="!(openingAmountInput >= 0) || openingAmountInput === '' || isOpening"
+            :disabled="!(openingAmountInput >= 0) || openingAmountInput === '' || isOpening || (fundCheck && !fundCheck.noteOk)"
             @click="handleOpenSession"
           >
             {{ isOpening ? 'Abriendo…' : `Abrir caja con ${money(openingAmountInput)}` }}

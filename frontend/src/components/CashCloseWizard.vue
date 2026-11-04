@@ -37,6 +37,18 @@ const isAdmin = computed(() => ['admin', 'super_admin'].includes(authStore.user?
 const isCorrection = computed(() => Boolean(resolvedSession.value?.reopened_at));
 const correctionReason = ref('');
 
+// QR del día que muestra la app del banco (docs/PLAN_CONCILIACION_CAJA.md, G): opcional; la diferencia con el
+// sistema queda en el cierre y en Finanzas. Al corregir un cierre se propone el que se anotó.
+const qrBank = ref(resolvedSession.value?.qr_bank_reported != null ? String(Number(resolvedSession.value.qr_bank_reported)) : '');
+const qrSystem = computed(() => Number(resolvedStats.value?.qr_sales || 0));
+const qrBankValue = computed(() => {
+  const raw = String(qrBank.value ?? '').trim().replace(',', '.');
+  if (raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+});
+const qrDiff = computed(() => (qrBankValue.value === null ? null : Math.round((qrBankValue.value - qrSystem.value) * 100) / 100));
+
 // 0: Revisión previa, 1: Conteo, 2: Resumen/Arqueo, 3: Reporte
 const step = ref(0);
 const isSubmitting = ref(false);
@@ -332,6 +344,7 @@ async function handleConfirmClose() {
       unsynced_sales:     unsynced,
       force_reason:       unsynced > 0 ? forceReason.value.trim() : null,
       correction_reason:  isCorrection.value ? correctionReason.value.trim() : null,
+      qr_bank_reported:   qrBankValue.value,
     };
 
     // Usar el ID de la sesión resuelta (histórica o activa)
@@ -576,6 +589,7 @@ function handleFinish() {
                   <span>{{ resolvedStats?.pedidosya_count || 0 }} pedidos, Bs {{ Number(resolvedStats?.pedidosya_total || 0).toFixed(2) }}</span>
                 </div>
               </details>
+
             </div>
 
             <!-- RESULTADO DEL ARQUEO -->
@@ -657,6 +671,7 @@ function handleFinish() {
                   Escribe al menos 10 caracteres.
                 </small>
               </div>
+
             </div>
 
             <!-- QUÉ SE HACE CON EL EFECTIVO -->
@@ -693,6 +708,32 @@ function handleFinish() {
                 </strong>
               </div>
               <p v-if="distributionError" class="dist-error" role="alert">{{ distributionError }}</p>
+
+              <!-- QR del día según la app del banco: la diferencia se ve el mismo día, no a fin de mes -->
+              <div class="qr-bank-box" data-testid="qr-bank">
+                <div class="qr-bank-text">
+                  <label for="qr-bank-field">QR en la app del banco</label>
+                  <small id="qr-bank-help" class="qr-bank-result" :class="{ ok: qrDiff === 0, warn: qrDiff !== null && qrDiff !== 0 }" role="status">
+                    <template v-if="qrDiff === null">Sistema: Bs {{ qrSystem.toFixed(2) }}</template>
+                    <template v-else-if="qrDiff === 0">Coincide con el sistema</template>
+                    <template v-else-if="qrDiff < 0">Faltan Bs {{ Math.abs(qrDiff).toFixed(2) }} en el banco</template>
+                    <template v-else>Sobran Bs {{ qrDiff.toFixed(2) }} en el banco</template>
+                  </small>
+                </div>
+                <span class="qr-bank-input">
+                  <span aria-hidden="true">Bs</span>
+                  <input
+                    id="qr-bank-field"
+                    v-model="qrBank"
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    placeholder="opcional"
+                    aria-describedby="qr-bank-help"
+                    class="diff-input"
+                  />
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1209,6 +1250,15 @@ function handleFinish() {
   outline: none;
   border-color: var(--passion-500);
 }
+
+.qr-bank-box { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.qr-bank-text { display: flex; flex-direction: column; min-width: 0; }
+.qr-bank-text label { font-size: 12.5px; font-weight: 600; color: var(--ink-900); white-space: nowrap; }
+.qr-bank-input { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--ink-700); flex-shrink: 0; }
+.qr-bank-input .diff-input { width: 92px; padding: 4px 8px; text-align: right; font-variant-numeric: tabular-nums; }
+.qr-bank-result { font-size: 12px; color: var(--ink-500); font-variant-numeric: tabular-nums; }
+.qr-bank-result.ok { color: var(--teal-700, var(--ink-700)); font-weight: 600; }
+.qr-bank-result.warn { color: var(--gold-text); font-weight: 600; }
 
 /* Paso 3 */
 .success-banner {

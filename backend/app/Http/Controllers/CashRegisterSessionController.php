@@ -84,6 +84,8 @@ class CashRegisterSessionController extends Controller
             'date'           => 'nullable|date_format:Y-m-d|before_or_equal:today',
             // Caja de un día pasado a nombre del cajero real (día sin sistema). Solo con fecha.
             'cashier_id'     => 'nullable|integer|exists:users,id',
+            // Motivo si el fondo no coincide con lo que dejó la caja anterior (plan de conciliación, E)
+            'opening_note'   => 'nullable|string|max:255',
         ]);
 
         $userId = $request->user()->id;
@@ -129,17 +131,37 @@ class CashRegisterSessionController extends Controller
             $openedAt = now();
         }
 
-        $session = DB::transaction(function () use ($userId, $validated, $openedAt) {
+        // El fondo tiene que ser lo que dejó la caja cerrada anterior; si no, se pide el motivo (plan de conciliación,
+        // E). Un fondo de 0 con el fondo cargado como «ingreso extra», o 4 de más, descuadraba el mes sin aviso.
+        $previous = $this->previousClosedSession($openedAt);
+        $openingNote = trim((string) ($validated['opening_note'] ?? ''));
+        $mismatch = $previous && abs((float) $validated['opening_amount'] - (float) $previous->cash_left_for_next) > 0.005;
+        if ($mismatch && mb_strlen($openingNote) < 5) {
+            return response()->json([
+                'message'       => sprintf(
+                    'La caja del %s dejó Bs %s para el día siguiente. Si abres con otro monto, escribe el motivo (al menos 5 caracteres).',
+                    $previous->opened_at->format('d/m'),
+                    number_format((float) $previous->cash_left_for_next, 2, ',', '.')
+                ),
+                'reason'        => 'opening_mismatch',
+                'expected'      => (float) $previous->cash_left_for_next,
+                'previous_date' => $previous->opened_at->toDateString(),
+            ], 422);
+        }
+
+        $session = DB::transaction(function () use ($userId, $validated, $openedAt, $mismatch, $openingNote) {
             $session = CashRegisterSession::create([
                 'cashier_id'     => $userId,
                 'opening_amount' => $validated['opening_amount'],
+                'opening_note'   => $mismatch ? $openingNote : null,
                 'status'         => 'open',
                 'opened_at'      => $openedAt,
             ]);
 
-            // Caja abierta con fecha pasada: vincular las ventas de ese día que no tenían sesión
+            // Vincular las ventas de ese día que no tenían caja: las de una caja con fecha pasada y, en la de hoy,
+            // las cobradas antes de abrirla (sin conexión); sin caja no entran a ningún arqueo
             $orphanSales = Sale::whereNull('cash_register_session_id')
-                ->whereBetween('created_at', [$openedAt, $openedAt->copy()->endOfDay()]);
+                ->whereBetween('created_at', [$openedAt->copy()->startOfDay(), $openedAt->copy()->endOfDay()]);
             if (!$session->cashier->isAdmin()) {
                 $orphanSales->where('cashier_id', $userId);
             }
@@ -150,6 +172,24 @@ class CashRegisterSessionController extends Controller
         });
 
         $session->load('cashier');
+
+        if ($mismatch) {
+            AuditLogger::log(
+                'cash_session_opening_mismatch',
+                'Sales',
+                sprintf(
+                    'Caja #%d del %s abierta por %s con Bs %s; la caja del %s dejó Bs %s. Motivo: %s',
+                    $session->id,
+                    $openedAt->format('d/m/Y'),
+                    $request->user()->name,
+                    number_format((float) $session->opening_amount, 2),
+                    $previous->opened_at->format('d/m/Y'),
+                    number_format((float) $previous->cash_left_for_next, 2),
+                    $openingNote
+                ),
+                $request->user()->id
+            );
+        }
 
         // Consultar el último cierre para sugerir el fondo del próximo turno
         $lastClosedSession = CashRegisterSession::where('status', 'closed')
@@ -164,7 +204,69 @@ class CashRegisterSessionController extends Controller
             'session'           => $session,
             'stats'             => $this->calculateSessionStats($session),
             'suggested_for_next' => $suggestedForNext,
+            'unclosed'          => $this->unclosedSessions($request, $session->id),
         ], 201);
+    }
+
+    /**
+     * Antes de abrir una caja (hoy o un día pasado): con qué fondo abrir y qué cajas de días anteriores siguen
+     * abiertas (plan de conciliación, D y E).
+     */
+    public function openingInfo(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['date' => 'nullable|date_format:Y-m-d|before_or_equal:today']);
+        $openedAt = !empty($validated['date']) && $validated['date'] !== now()->toDateString()
+            ? Carbon::parse($validated['date'])->startOfDay()
+            : now();
+        $previous = $this->previousClosedSession($openedAt);
+
+        return response()->json([
+            'date'              => $openedAt->toDateString(),
+            'suggested_opening' => $previous ? (float) $previous->cash_left_for_next : null,
+            'previous'          => $previous ? [
+                'session_id'    => $previous->id,
+                'date'          => $previous->opened_at->toDateString(),
+                'cashier'       => $previous->cashier?->name,
+                'left_for_next' => (float) $previous->cash_left_for_next,
+            ] : null,
+            'unclosed'          => $this->unclosedSessions($request),
+        ]);
+    }
+
+    /** La última caja cerrada que se abrió antes de ese momento, con lo que dejó para el día siguiente. */
+    private function previousClosedSession(Carbon $openedAt): ?CashRegisterSession
+    {
+        return CashRegisterSession::with('cashier:id,name')
+            ->where('status', 'closed')
+            ->whereNotNull('cash_left_for_next')
+            ->where('opened_at', '<', $openedAt)
+            ->orderByDesc('opened_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * Cajas de días anteriores que siguen abiertas: su efectivo no se sabe si se retiró ni con qué fondo siguió el
+     * día siguiente. Quien no ve cajas ajenas solo ve las suyas.
+     *
+     * @return list<array{session_id: int, date: string, cashier: ?string}>
+     */
+    private function unclosedSessions(Request $request, ?int $except = null): array
+    {
+        $query = CashRegisterSession::with('cashier:id,name')
+            ->where('status', 'open')
+            ->where('opened_at', '<', now()->startOfDay())
+            ->when($except, fn ($q) => $q->where('id', '!=', $except))
+            ->orderBy('opened_at');
+        if (!$this->permissionService->can($request->user(), 'register_others', 'read')) {
+            $query->where('cashier_id', $request->user()->id);
+        }
+
+        return $query->get()->map(fn (CashRegisterSession $s) => [
+            'session_id' => $s->id,
+            'date'       => $s->opened_at->toDateString(),
+            'cashier'    => $s->cashier?->name,
+        ])->all();
     }
 
     /**
@@ -222,6 +324,8 @@ class CashRegisterSessionController extends Controller
             'force_reason'       => 'nullable|string|max:500',
             // Caja reabierta para corregir: motivo obligatorio del nuevo cierre
             'correction_reason'  => 'nullable|string|max:500',
+            // Cobros QR del día que muestra la app del banco (plan de conciliación, G). Opcional.
+            'qr_bank_reported'   => 'nullable|numeric|min:0|max:9999999',
         ]);
 
         $isCorrection = $cashSession->reopened_at !== null;
@@ -309,6 +413,10 @@ class CashRegisterSessionController extends Controller
             'cash_left_for_next' => $validated['cash_left_for_next'],
             'bill_breakdown'     => $validated['bill_breakdown'] ?? null,
             'diff_note'          => $diffNote,
+            // Si el cierre no lo trae (p. ej. al corregir sin volver a mirarlo), se conserva el anotado antes
+            'qr_bank_reported'   => array_key_exists('qr_bank_reported', $validated) && $validated['qr_bank_reported'] !== null
+                ? round((float) $validated['qr_bank_reported'], 2)
+                : $cashSession->qr_bank_reported,
             'status'             => 'closed',
             // Al corregir, el cierre conserva la fecha y hora del cierre original
             'closed_at'          => $cashSession->closed_at ?? now(),
@@ -1100,6 +1208,11 @@ class CashRegisterSessionController extends Controller
             'cash_withdrawn'    => (float) ($session->cash_withdrawn ?? 0),
             'cash_left_for_next'=> (float) ($session->cash_left_for_next ?? 0),
             'diff_note'         => $session->diff_note,
+            // QR anotado de la app del banco al cerrar y su diferencia con el sistema (plan de conciliación, G)
+            'qr_bank_reported'  => $session->qr_bank_reported !== null ? (float) $session->qr_bank_reported : null,
+            'qr_bank_difference' => $session->qr_bank_reported !== null
+                ? round((float) $session->qr_bank_reported - (float) $stats['qr_sales'], 2)
+                : null,
             'bill_breakdown'    => $session->bill_breakdown,
             'movements'         => $movements,
             'movement_corrections_count' => collect($movements)->filter(fn ($m) => $m['is_edited'] || $m['is_voided'])->count(),
