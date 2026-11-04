@@ -151,6 +151,10 @@ function shortWarningMessage(w) {
     const n = w.count ?? 1;
     return `${n} ${n === 1 ? 'caja sin cerrar' : 'cajas sin cerrar'}`;
   }
+  if (w.code === 'qr_bank_difference') {
+    const n = w.count ?? 1;
+    return `QR del banco distinto en ${n} ${n === 1 ? 'cierre' : 'cierres'}`;
+  }
   if (w.code === 'missing_salaries') {
     return 'Sin sueldos cargados';
   }

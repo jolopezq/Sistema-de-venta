@@ -161,3 +161,19 @@ export function drawerBreakdown(drawer) {
 
   return { rows, total: num(d.withdrawn), notes };
 }
+
+/**
+ * QR anotado de la app del banco al cerrar caja contra el QR del sistema (plan de conciliación, G).
+ * @param {object} qrBank `pnl.cash_in.drawer.qr_bank`
+ * @returns {string|null}
+ */
+export function qrBankNote(qrBank) {
+  const q = qrBank || {};
+  const reported = num(q.reported_count);
+  if (!reported) return null;
+  const of = `${reported} de ${num(q.closed_count)} ${num(q.closed_count) === 1 ? 'cierre' : 'cierres'}`;
+  const diff = num(q.difference);
+  if (Math.abs(diff) < 0.005) return `QR comparado con la app del banco en ${of}: coincide.`;
+  const days = joinList((q.items || []).map((i) => `${dayMonth(i.date)} ${num(i.difference) > 0 ? '+' : ''}${bs(i.difference)}`));
+  return `QR comparado con la app del banco en ${of}: ${diff < 0 ? `faltan ${bs(-diff)}` : `hay ${bs(diff)} de más`} en el banco (${days}).`;
+}

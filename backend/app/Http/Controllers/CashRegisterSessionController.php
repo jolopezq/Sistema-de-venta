@@ -324,6 +324,8 @@ class CashRegisterSessionController extends Controller
             'force_reason'       => 'nullable|string|max:500',
             // Caja reabierta para corregir: motivo obligatorio del nuevo cierre
             'correction_reason'  => 'nullable|string|max:500',
+            // Cobros QR del día que muestra la app del banco (plan de conciliación, G). Opcional.
+            'qr_bank_reported'   => 'nullable|numeric|min:0|max:9999999',
         ]);
 
         $isCorrection = $cashSession->reopened_at !== null;
@@ -411,6 +413,10 @@ class CashRegisterSessionController extends Controller
             'cash_left_for_next' => $validated['cash_left_for_next'],
             'bill_breakdown'     => $validated['bill_breakdown'] ?? null,
             'diff_note'          => $diffNote,
+            // Si el cierre no lo trae (p. ej. al corregir sin volver a mirarlo), se conserva el anotado antes
+            'qr_bank_reported'   => array_key_exists('qr_bank_reported', $validated) && $validated['qr_bank_reported'] !== null
+                ? round((float) $validated['qr_bank_reported'], 2)
+                : $cashSession->qr_bank_reported,
             'status'             => 'closed',
             // Al corregir, el cierre conserva la fecha y hora del cierre original
             'closed_at'          => $cashSession->closed_at ?? now(),
@@ -1202,6 +1208,11 @@ class CashRegisterSessionController extends Controller
             'cash_withdrawn'    => (float) ($session->cash_withdrawn ?? 0),
             'cash_left_for_next'=> (float) ($session->cash_left_for_next ?? 0),
             'diff_note'         => $session->diff_note,
+            // QR anotado de la app del banco al cerrar y su diferencia con el sistema (plan de conciliación, G)
+            'qr_bank_reported'  => $session->qr_bank_reported !== null ? (float) $session->qr_bank_reported : null,
+            'qr_bank_difference' => $session->qr_bank_reported !== null
+                ? round((float) $session->qr_bank_reported - (float) $stats['qr_sales'], 2)
+                : null,
             'bill_breakdown'    => $session->bill_breakdown,
             'movements'         => $movements,
             'movement_corrections_count' => collect($movements)->filter(fn ($m) => $m['is_edited'] || $m['is_voided'])->count(),

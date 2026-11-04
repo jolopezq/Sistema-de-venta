@@ -130,6 +130,60 @@ class CashReconciliationTest extends TestCase
             ->assertJsonPath('previous.date', '2026-10-02');
     }
 
+    public function test_el_qr_de_la_app_del_banco_se_anota_al_cerrar_y_se_compara_en_finanzas(): void
+    {
+        Carbon::setTestNow($this->at('2026-10-22 22:30'));
+        $caja = $this->caja($this->cashier, '2026-10-22 15:23:00');
+        $caja->update(['opening_amount' => 0]);
+        foreach ([[30, 'qr'], [30, 'qr'], [37, 'cash']] as [$amount, $method]) {
+            $id = (string) Str::uuid();
+            $this->actingAs($this->cashier)->postJson('/api/sales/sync', ['sales' => [[
+                'id' => $id, 'subtotal' => $amount, 'total_amount' => $amount,
+                'created_at' => now()->subHour()->utc()->toIso8601String(),
+                'items' => [['product_id' => $this->product->id, 'quantity' => 1, 'unit_price' => $amount, 'subtotal' => $amount]],
+                'payments' => [['method' => $method, 'amount' => $amount]],
+            ]]])->assertOk();
+        }
+
+        // La app del banco muestra 30: falta un cobro QR de 30
+        $this->actingAs($this->cashier)->postJson("/api/cash-sessions/{$caja->id}/close", [
+            'actual_closing' => 37, 'cash_withdrawn' => 37, 'cash_left_for_next' => 0, 'qr_bank_reported' => 30,
+        ])->assertOk();
+        $this->assertEquals(30, $caja->fresh()->qr_bank_reported);
+
+        $this->actingAs($this->owner)->getJson("/api/cash-sessions/{$caja->id}/report")
+            ->assertOk()
+            ->assertJsonPath('qr_bank_reported', 30)
+            ->assertJsonPath('qr_bank_difference', -30);
+
+        Carbon::setTestNow($this->at('2026-11-04 15:00'));
+        $pnl = $this->actingAs($this->owner)->getJson('/api/finance/pnl?year=2026&month=10')->assertOk()->json();
+        $qr = $pnl['cash_in']['drawer']['qr_bank'];
+        $this->assertSame(1, $qr['reported_count']);
+        $this->assertEquals(60, $qr['system']);
+        $this->assertEquals(30, $qr['bank']);
+        $this->assertEquals(-30, $qr['difference']);
+        $warning = collect($pnl['warnings'])->firstWhere('code', 'qr_bank_difference');
+        $this->assertStringContainsString('22/10 −Bs 30,00', $warning['message']);
+        $this->assertSame('2026-10-22', $warning['date']);
+    }
+
+    public function test_al_corregir_un_cierre_sin_volver_a_anotar_el_qr_se_conserva_el_anterior(): void
+    {
+        $caja = $this->caja($this->owner, '2026-11-04 09:00:00');
+        $caja->update(['opening_amount' => 0]);
+        $this->actingAs($this->owner)->postJson("/api/cash-sessions/{$caja->id}/close", [
+            'actual_closing' => 0, 'cash_withdrawn' => 0, 'cash_left_for_next' => 0, 'qr_bank_reported' => 45,
+        ])->assertOk();
+
+        $this->actingAs($this->owner)->postJson("/api/cash-sessions/{$caja->id}/reopen", ['reason' => 'Faltó un egreso del papel'])->assertOk();
+        $this->actingAs($this->owner)->postJson("/api/cash-sessions/{$caja->id}/close", [
+            'actual_closing' => 0, 'cash_withdrawn' => 0, 'cash_left_for_next' => 0, 'correction_reason' => 'Se corrigió el egreso del papel',
+        ])->assertOk();
+
+        $this->assertEquals(45, $caja->fresh()->qr_bank_reported);
+    }
+
     public function test_avisa_las_cajas_de_dias_anteriores_que_siguen_abiertas(): void
     {
         $this->caja($this->cashier, '2026-10-14 17:21:00');

@@ -634,6 +634,28 @@ class FinanceReportService
             ];
         }
 
+        // QR: lo anotado de la app del banco al cerrar no coincide con el QR del sistema (G)
+        $qr = $drawer['qr_bank'] ?? null;
+        if ($qr && $qr['items']) {
+            $list = collect($qr['items'])->take(4)
+                ->map(fn ($i) => $day($i['date']) . ' ' . ($i['difference'] > 0 ? '+' : '−') . 'Bs ' . $money(abs($i['difference'])))
+                ->implode(', ');
+            $warnings[] = [
+                'code'    => 'qr_bank_difference',
+                'level'   => 'warning',
+                'message' => sprintf(
+                    'El QR que anotaron de la app del banco no coincide con el sistema en %d cierre(s): %s%s. Revisa esas ventas QR en Control diario.',
+                    count($qr['items']),
+                    $list,
+                    count($qr['items']) > 4 ? '…' : ''
+                ),
+                'count'   => count($qr['items']),
+                'amount'  => $qr['difference'],
+                'date'    => $qr['items'][0]['date'],
+                'action'  => 'daily_control',
+            ];
+        }
+
         return $warnings;
     }
 

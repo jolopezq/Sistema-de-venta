@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gapSaleText, gapDetail, localPaymentRows, depositsText, cashInNotes, drawerBreakdown } from './financeCollections.js';
+import { gapSaleText, gapDetail, localPaymentRows, depositsText, cashInNotes, drawerBreakdown, qrBankNote } from './financeCollections.js';
 
 const REVENUE = {
   local_sales: 465, cash_sales: 190, qr_sales: 260, card_sales: 80, other_sales: 0,
@@ -109,4 +109,13 @@ test('drawerBreakdown: faltante, cajas abiertas y ventas sin caja también suman
   assert.equal(Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100, total);
   assert.equal(rows.find((r) => r.key === 'differences').label, 'Faltantes al cerrar caja');
   assert.equal(rows.find((r) => r.key === 'fund').label, 'Se usó cambio de la gaveta');
+});
+
+test('qrBankNote: solo con cierres que anotaron el QR del banco', () => {
+  assert.equal(qrBankNote({ reported_count: 0, closed_count: 24 }), null);
+  assert.equal(qrBankNote({ reported_count: 2, closed_count: 3, difference: 0, items: [] }), 'QR comparado con la app del banco en 2 de 3 cierres: coincide.');
+  assert.equal(
+    qrBankNote({ reported_count: 1, closed_count: 1, difference: -30, items: [{ date: '2026-10-22', difference: -30 }] }),
+    'QR comparado con la app del banco en 1 de 1 cierre: faltan Bs 30,00 en el banco (22/10 −Bs 30,00).',
+  );
 });

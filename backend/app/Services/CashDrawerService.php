@@ -112,6 +112,36 @@ class CashDrawerService
                 'cashier'    => $r['cashier'],
                 'amount'     => $r['difference'],
             ])->values()->all(),
+            'qr_bank'             => $this->qrBank($closed),
+        ];
+    }
+
+    /**
+     * QR anotado de la app del banco en cada cierre contra el QR del sistema en esa caja (plan de conciliación, G).
+     * Solo cuentan las cajas cerradas que lo anotaron.
+     */
+    private function qrBank(Collection $closed): array
+    {
+        $reported = $closed->filter(fn ($r) => $r['qr_bank'] !== null)->values();
+        $system = round((float) $reported->sum('qr_sales'), 2);
+        $bank = round((float) $reported->sum('qr_bank'), 2);
+
+        return [
+            'reported_count' => $reported->count(),
+            'closed_count'   => $closed->count(),
+            'system'         => $system,
+            'bank'           => $bank,
+            'difference'     => round($bank - $system, 2),
+            'items'          => $reported
+                ->filter(fn ($r) => abs($r['qr_bank'] - $r['qr_sales']) > 0.005)
+                ->map(fn ($r) => [
+                    'session_id' => $r['id'],
+                    'date'       => $r['date'],
+                    'cashier'    => $r['cashier'],
+                    'system'     => $r['qr_sales'],
+                    'bank'       => $r['qr_bank'],
+                    'difference' => round($r['qr_bank'] - $r['qr_sales'], 2),
+                ])->values()->all(),
         ];
     }
 
@@ -144,16 +174,18 @@ class CashDrawerService
         }
         $ids = $sessions->pluck('id');
 
-        $sales = SalePayment::query()
+        $byMethod = fn (string $method) => SalePayment::query()
             ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
             ->whereIn('sales.cash_register_session_id', $ids)
             ->where('sales.status', 'completed')
             ->where(fn ($q) => $q->whereNull('sales.source')->orWhere('sales.source', '!=', 'pedidosya'))
-            ->where('sale_payments.method', 'cash')
+            ->where('sale_payments.method', $method)
             ->whereNull('sales.deleted_at')
             ->groupBy('sales.cash_register_session_id')
             ->selectRaw('sales.cash_register_session_id AS session_id, SUM(sale_payments.amount) AS total')
             ->pluck('total', 'session_id');
+        $sales = $byMethod('cash');
+        $qr = $byMethod('qr');
 
         $expenses = CashMovement::whereIn('cash_register_session_id', $ids)
             ->where('type', 'expense')
@@ -168,7 +200,7 @@ class CashDrawerService
             ->selectRaw('cash_register_session_id, SUM(amount) AS total')
             ->pluck('total', 'cash_register_session_id');
 
-        return $sessions->map(function (CashRegisterSession $s) use ($sales, $expenses, $income) {
+        return $sessions->map(function (CashRegisterSession $s) use ($sales, $qr, $expenses, $income) {
             $opening = (float) $s->opening_amount;
             $cashSales = round((float) ($sales[$s->id] ?? 0), 2);
             $cashExpenses = round((float) ($expenses[$s->id] ?? 0), 2);
@@ -189,6 +221,8 @@ class CashDrawerService
                 'difference'    => $closed ? round((float) $s->actual_closing - $expected, 2) : 0.0,
                 'withdrawn'     => $closed ? (float) $s->cash_withdrawn : 0.0,
                 'left'          => $closed ? (float) $s->cash_left_for_next : 0.0,
+                'qr_sales'      => round((float) ($qr[$s->id] ?? 0), 2),
+                'qr_bank'       => $s->qr_bank_reported !== null ? (float) $s->qr_bank_reported : null,
             ];
         })->values();
     }

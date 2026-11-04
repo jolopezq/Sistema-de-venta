@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { formatBs } from '../../stores/finance';
-import { depositsText, cashInNotes, drawerBreakdown } from '../../utils/financeCollections';
+import { depositsText, cashInNotes, drawerBreakdown, qrBankNote } from '../../utils/financeCollections';
 
 /**
  * Dinero que entró en el mes, por fecha de cobro (no por fecha de venta): lo del local al vender y lo de
@@ -23,7 +23,11 @@ const rows = computed(() => {
   list.push({ key: 'pya', label: 'PedidosYa', detail: depositsText(c.value), amount: c.value.pedidosya_deposited });
   return list;
 });
-const notes = computed(() => (c.value ? cashInNotes(c.value, props.pnl.revenue) : []));
+const notes = computed(() => {
+  if (!c.value) return [];
+  const qr = qrBankNote(c.value.drawer?.qr_bank);
+  return qr ? [qr, ...cashInNotes(c.value, props.pnl.revenue)] : cashInNotes(c.value, props.pnl.revenue);
+});
 // Efectivo que debía llegar a la mano: de lo cobrado a lo retirado de las cajas (plan de conciliación, A)
 const drawer = computed(() => (c.value?.drawer ? drawerBreakdown(c.value.drawer) : null));
 </script>

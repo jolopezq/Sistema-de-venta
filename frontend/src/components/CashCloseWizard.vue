@@ -37,6 +37,18 @@ const isAdmin = computed(() => ['admin', 'super_admin'].includes(authStore.user?
 const isCorrection = computed(() => Boolean(resolvedSession.value?.reopened_at));
 const correctionReason = ref('');
 
+// QR del día que muestra la app del banco (docs/PLAN_CONCILIACION_CAJA.md, G): opcional; la diferencia con el
+// sistema queda en el cierre y en Finanzas. Al corregir un cierre se propone el que se anotó.
+const qrBank = ref(resolvedSession.value?.qr_bank_reported != null ? String(Number(resolvedSession.value.qr_bank_reported)) : '');
+const qrSystem = computed(() => Number(resolvedStats.value?.qr_sales || 0));
+const qrBankValue = computed(() => {
+  const raw = String(qrBank.value ?? '').trim().replace(',', '.');
+  if (raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+});
+const qrDiff = computed(() => (qrBankValue.value === null ? null : Math.round((qrBankValue.value - qrSystem.value) * 100) / 100));
+
 // 0: Revisión previa, 1: Conteo, 2: Resumen/Arqueo, 3: Reporte
 const step = ref(0);
 const isSubmitting = ref(false);
@@ -332,6 +344,7 @@ async function handleConfirmClose() {
       unsynced_sales:     unsynced,
       force_reason:       unsynced > 0 ? forceReason.value.trim() : null,
       correction_reason:  isCorrection.value ? correctionReason.value.trim() : null,
+      qr_bank_reported:   qrBankValue.value,
     };
 
     // Usar el ID de la sesión resuelta (histórica o activa)
@@ -656,6 +669,34 @@ function handleFinish() {
                 <small v-if="correctionReason.trim().length < 10" class="text-danger">
                   Escribe al menos 10 caracteres.
                 </small>
+              </div>
+
+              <!-- QR del día según la app del banco: la diferencia se ve el mismo día, no a fin de mes -->
+              <div class="qr-bank-box" data-testid="qr-bank">
+                <label for="qr-bank-field">
+                  QR del día en la app del banco <span class="qr-bank-opt">(opcional)</span>
+                </label>
+                <div class="qr-bank-row">
+                  <span class="qr-bank-system">Sistema: <strong>Bs {{ qrSystem.toFixed(2) }}</strong></span>
+                  <span class="qr-bank-input">
+                    <span aria-hidden="true">Bs</span>
+                    <input
+                      id="qr-bank-field"
+                      v-model="qrBank"
+                      type="text"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      placeholder="0.00"
+                      class="diff-input"
+                    />
+                  </span>
+                </div>
+                <small v-if="qrDiff !== null" class="qr-bank-result" :class="{ ok: qrDiff === 0, warn: qrDiff !== 0 }" role="status">
+                  <template v-if="qrDiff === 0">Coincide con el sistema.</template>
+                  <template v-else-if="qrDiff < 0">En el banco faltan Bs {{ Math.abs(qrDiff).toFixed(2) }}: revisa las ventas QR del día.</template>
+                  <template v-else>En el banco hay Bs {{ qrDiff.toFixed(2) }} más que en el sistema.</template>
+                </small>
+                <small v-else class="qr-bank-help">Sin los depósitos de PedidosYa. Queda en el cierre y en Finanzas.</small>
               </div>
             </div>
 
@@ -1209,6 +1250,19 @@ function handleFinish() {
   outline: none;
   border-color: var(--passion-500);
 }
+
+.qr-bank-box { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 4px; }
+.qr-bank-box label { font-size: 12.5px; font-weight: 600; color: var(--ink-900); }
+.qr-bank-opt { font-weight: 400; color: var(--ink-500); }
+.qr-bank-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.qr-bank-system { font-size: 12.5px; color: var(--ink-700); white-space: nowrap; }
+.qr-bank-system strong { color: var(--ink-900); font-variant-numeric: tabular-nums; }
+.qr-bank-input { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-700); }
+.qr-bank-input .diff-input { width: 110px; padding: 6px 10px; text-align: right; font-variant-numeric: tabular-nums; }
+.qr-bank-result { font-size: 12.5px; font-weight: 600; }
+.qr-bank-result.ok { color: var(--teal-700, var(--ink-700)); }
+.qr-bank-result.warn { color: var(--gold-text); }
+.qr-bank-help { font-size: 12px; color: var(--ink-500); }
 
 /* Paso 3 */
 .success-banner {
