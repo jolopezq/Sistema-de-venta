@@ -13,6 +13,7 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
   - **F3 (rostro):** Human 3.3.6 en `frontend/public/vendor/human/` (13 MB, fuera del precache; caché `ohana-human` al abrir el reloj). Probado en Chromium sin GPU con video simulado: la librería carga en ~10 s, el registro guarda 3 fotos de 1024 valores y al marcar el servidor da 1,00 con la misma persona y 0,43 con otra (umbral 0,55); sin parpadeo la marca queda «Rostro a revisar». **Pendiente en el local:** calibrar el umbral con la cámara y la luz reales de la portátil (`ATTENDANCE_FACE_THRESHOLD`).
   - **F4 (turnos y caja):** aviso «Todavía no marcaste tu entrada» al abrir la caja (bloqueo opcional con el ajuste, también en el servidor), «¿Ya terminaste tu turno?» al cerrar y en Caja, y salidas olvidadas detectadas en «A revisar» sin tarea programada (cambio respecto del plan, D5: el resultado es el mismo y no depende del cron). Probado como cajera contra la copia de la base a 1366 × 611.
   - **F5 (sueldos):** planilla en **Asistencia → Sueldos** y no en Finanzas como mostraba el prediseño: así la ven los administradores con *Asistencia y sueldos* aunque no tengan *Finanzas* (decisión del dueño, D12). Migración aditiva `2026_11_03_000002`. Flujo contra la copia de la base con octubre cargado (Ana, mensual Bs 3.300, con 45 min de atrasos, 1 falta y 4 h extra; Luis, por hora Bs 15, con adelanto de caja de Bs 300): Ana Bs 3.289,69; Luis bruto Bs 2.818,50, neto Bs 2.518,50; con un bono de Bs 50 se aprobó y el gasto de Bs 5.858,19 quedó en «Salarios y personal»; anular y volver a aprobar funciona. **Pendientes del dueño:** confirmar con su contador la regla de atrasos (se cuenta todo el atraso pasada la tolerancia) y los recargos; los feriados van como bono.
+  - **F6 (pruebas y revisión):** `e2e/asistencia.spec.js` 8/8 en la portátil de caja (1366 × 611) y las suites relacionadas (usuarios-permisos, permisos-portátil, corregir-gastos, gasto-dividido) 33/33. PHPUnit 494 (485 en verde y 9 omitidas que necesitan la carpeta real de PedidosYa); `npm run test:unit` 67/67; `vite build` sin errores. Contraste AA en claro y oscuro del reloj (lista, PIN, cámara, listo, «Mis marcas»), Asistencia (Hoy, A revisar, Marcas, Sueldos, Equipos y redes), «Trabajo y asistencia» y los avisos de Caja: 0 bajo AA en lo nuevo; solo aparecen insignias previas de la lista de Usuarios detrás del modal («Cajero» 4,19 y «Cocina» 4,42 en claro, «Activo» 3,32 en oscuro). `checkout-portatil.spec.js` falla a veces con toda la suite en paralelo, igual en la rama base; sola pasa 21/21. **Grafo:** correr `graphify update .` en la Mac (en la nube no está instalado).
 
 - **Rama `fix/importar-carpeta-pedidosya` (publicada en el VPS el 03/11, `c0c58b8`; reúne `feat/remover-canal-pedidosya-pos`, `feat/finanzas-desglose-metodos-pago` y `feat/finanzas-cobros-del-mes`):** corrige la importación por carpeta publicada el 02/11 para que cargue toda la información ([GUIA_IMPORTACION_CARPETAS_PEDIDOSYA.md](GUIA_IMPORTACION_CARPETAS_PEDIDOSYA.md), revisada).
   - **Errores corregidos:** semana borrada que no se podía reimportar (número de liquidación único en una fila borrada); aviso del CSV que se perdía y semana sin ventas que después salía «ya importada»; semana ya importada informada como «Importada correctamente»; semana a mano sin fecha de pago; respaldo que no incluía los documentos; número de liquidación sin validar; Excel con celdas omitidas; aviso falso de factura.
@@ -223,6 +224,12 @@ que el cambio que la motiva. Reglas de trabajo: [AGENTS.md](../AGENTS.md). Histo
 ## Pendientes
 
 ### Decisiones del usuario
+- [ ] **Asistencia y sueldos (`feat/asistencia-sueldos`), antes de usarla en el local:** ejecutar
+      `deploy/vps/09-ips-del-local.sh` en el VPS para ver si la IP del local es fija; con el dueño en la
+      portátil, Asistencia → Equipos y redes → «Autorizar este equipo» y registrar la red; en Usuarios →
+      «Trabajo y asistencia» de cada persona: modo de pago, horario, PIN, consentimiento y rostro; probar unos
+      días y ajustar `ATTENDANCE_FACE_THRESHOLD` con la cámara y la luz reales; pausar los gastos fijos de
+      sueldos que se crucen con la planilla; confirmar atrasos y recargos con el contador.
 - [ ] Fusionar `feat/canal-pedidosya` en `mejoras/analisis-integral` (sale de esa rama).
 - [ ] Confirmar antes de fusionar `feat/precios-pedidosya`: las migraciones
       `2026_10_07_000001_add_available_on_pedidosya_to_products_table` y
@@ -379,6 +386,8 @@ número de orden solo para ventas nuevas.
 
 ## Registro de sesiones
 Formato: fecha — resumen — commits. Lo más reciente arriba.
+
+- **2026-11-03** — Asistencia en el local y sueldos ([PLAN_ASISTENCIA_Y_SUELDOS.md](PLAN_ASISTENCIA_Y_SUELDOS.md), F0–F6): reloj en la portátil de caja con equipo autorizado, red del local, PIN, foto y rostro con parpadeo (Human 3.3.6); marcas sin conexión; bandeja «A revisar» con correcciones auditadas; aviso al abrir y cerrar la caja; planilla en Asistencia → Sueldos con gasto en Finanzas; el trabajador ve solo sus horas de entrada y salida. — `e6372e3`, `e165662`, `01fbcd4`, `d057a83`, `db120a3`, `0f4c1af` y el commit de pruebas E2E.
 
 - **2026-11-02** — Gasto de caja dividido entre efectivo y QR ([PLAN_GASTO_PAGO_DIVIDIDO.md](PLAN_GASTO_PAGO_DIVIDIDO.md)): `payment_method = 'mixed'` con `cash_amount`, arqueo que resta solo la parte en efectivo, corrección y anulación (también en caja cerrada), `utils/cashMovementMethod.js` como único lugar para mostrar el método, y el enlace «Dividir pago (efectivo + QR)» en el modal. — `e98eb25`, `769d06a`, `d9e17ca`, `32b6bfc`, `93a6f9c`.
 
